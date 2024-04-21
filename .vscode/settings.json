@@ -1,0 +1,22 @@
+{
+  "editor.formatOnSave": true,
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "[json]": {
+    "editor.wordWrap": "on"
+  },
+  "[markdown]": {
+    "editor.formatOnSave": false
+  },
+  "[quarto]": {
+    "editor.formatOnSave": false
+  },
+  "search.exclude": {
+    "logs/**": true
+  },
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "quarto.render.renderOnSave": true
+}

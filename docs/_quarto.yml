@@ -1,0 +1,90 @@
+project:
+   type: book
+   pre-render:
+      -  _format/pre-render.sh
+   post-render:
+      -  _format/post-render.py
+  
+book:
+   title: "Inspect"
+   subtitle: "A framework for large language model evaluations"
+   page-navigation: true
+   repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
+   site-url: https://UKGovernmentBEIS.github.io/inspect_ai/
+   repo-actions: [issue]
+   downloads: [pdf, epub, docx]
+   twitter-card:
+      description: "A framework for large language model evaluations"
+   open-graph: 
+      description: "A framework for large language model evaluations"
+   sidebar:
+      header: >
+         [![](images/aisi-logo.png)](https://www.gov.uk/government/organisations/ai-safety-institute)
+
+   page-footer: 
+      left: 
+         - text: UK AI Safety Institute
+           href: https://www.gov.uk/government/organisations/ai-safety-institute
+      center: 
+         - text: Code
+           href: https://github.com/UKGovernmentBEIS/inspect_ai
+         - text: License
+           href: https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE 
+         - text: Issues
+           href: https://github.com/UKGovernmentBEIS/inspect_ai/issues
+
+      right:
+         - icon: twitter
+           href: https://twitter.com/AISafetyInst
+           aria-label: UK AI Safety Institute Twitter
+         - icon: github
+           href: https://github.com/UKGovernmentBEIS/inspect_ai/
+           aria-label: Inspect on GitHub
+      
+   chapters: 
+      - "index.qmd"     
+      - part: "Basics"
+        chapters:
+           - workflow.qmd
+           - examples.qmd
+
+      - part: "Components"
+        chapters: 
+           - solvers.qmd
+           - tools.qmd
+           - scorers.qmd
+           - datasets.qmd
+           - models.qmd
+
+      - part: "Advanced"
+        chapters:
+           - eval-logs.qmd
+           - eval-suites.qmd
+           - eval-tuning.qmd
+
+toc-depth: 2
+number-sections: true
+number-depth: 2
+
+format:
+   html:
+     theme: [cosmo, theme.scss]
+     toc-depth: 3
+     number-sections: false
+     code-annotations: select
+   pdf: 
+      number-depth: 1
+      listings: false
+      author: UK AI Safety Institute
+      date: today
+   docx: 
+      author: UK AI Safety Institute
+      date: today
+   epub: 
+      author: UK AI Safety Institute
+      date: today
+
+execute: 
+  enabled: false
+
+

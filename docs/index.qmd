@@ -1,0 +1,161 @@
+## Welcome
+
+Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Safety Institute](https://www.gov.uk/government/organisations/ai-safety-institute).
+
+Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
+
+We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Workflow](#sec-workflow), [Solvers](#sec-solvers), [Tools](#sec-tools), [Scorers](#sec-scorers), [Datasets](#sec-datasets), and [Models](#sec-models) to learn how to create more advanced evaluations.
+
+## Getting Started
+
+First, install Inspect with:
+
+``` bash
+$ pip install inspect-ai
+```
+
+To develop and run evaluations, you'll also need access to a model, which typically requires installation of a Python package as well as ensuring that the appropriate API key is available in the environment.
+
+Assuming you had written an evaluation in a script named `arc.py`, here's how you would setup and run the eval for a few different model providers:
+
+::: {.panel-tabset .code-tabset}
+#### OpenAI
+
+``` bash
+$ pip install openai
+$ export OPENAI_API_KEY=your-openai-api-key
+$ inspect eval arc.py --model openai/gpt-4
+```
+
+#### Anthropic
+
+``` bash
+$ pip install anthropic
+$ export ANTHROPIC_API_KEY=your-anthropic-api-key
+$ inspect eval arc.py --model anthropic/claude-3-opus-20240229
+```
+
+#### Google
+
+``` bash
+$ pip install google-generativeai
+$ export GOOGLE_API_KEY=your-google-api-key
+$ inspect eval arc.py --model google/gemini-1.0-pro
+```
+
+#### Mistral
+
+``` bash
+$ pip install mistralai
+$ export MISTRAL_API_KEY=your-mistral-api-key
+$ inspect eval arc.py --model mistral/mistral-large-latest
+```
+
+#### HF
+
+``` bash
+$ pip install torch transformers
+$ export HF_TOKEN=your-hf-token
+$ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
+```
+
+#### Together
+
+``` bash
+$ pip install openai
+$ export TOGETHER_API_KEY=your-together-api-key
+$ inspect eval ctf.py --model together/Qwen/Qwen1.5-72B-Chat
+```
+:::
+
+In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, and CloudFlare. See the documentation on [Models](#sec-models) for additional detals.
+
+## Hello, Inspect {#sec-hello-inspect}
+
+Inspect evaluations have three main components:
+
+1.  **Datasets** contain a set of labeled samples. Datasets are typically just a table with `input` and `target` columns, where `input` is a prompt and `target` is either literal value(s) or grading guideance.
+
+2.  **Solvers** are composed together in a *plan* to evaluate the `input` in the dataset. The most elemental solver, `generate()`, just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, etc.
+
+3.  **Scorers** evaluate the final output of solvers. They may use text comparisons, model grading, or other custom schemes
+
+Let's take a look at a simple evaluation that aims to see how models perform on the [Sally-Anne](https://en.wikipedia.org/wiki/Sally%E2%80%93Anne_test) test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:
+
+| input                                                                                                                                                                                                                                   | target  |
+|---------------------------------------------|---------------------------|
+| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?                     | bathtub |
+| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry  |
+
+Here's the code for the evaluation[&nbsp;(click on the numbers at right for further explanation)]{.content-visible when-format="html"}:
+
+``` python
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import (               
+  chain_of_thought, generate, self_critique   
+)                                             
+
+@task
+def theory_of_mind():
+    return Task(  # <1>
+        dataset=example_dataset("theory_of_mind"),
+        plan=[
+          chain_of_thought(), # <2>
+          generate(),         # <2>
+          self_critique()     # <2>
+        ],
+        scorer=model_graded_fact() # <3>
+    )
+```
+
+1.  The `Task` object brings together the dataset, solvers, and scorer, and is then evaluated using a model.
+
+2.  In this example we are chaining together three standard solver components. It's also possible to create a more complex custom solver that manages state and interactions internally.
+
+3.  Since the output is likely to have pretty involved language, we use a model for scoring.
+
+Note that this is a purposely over-simplified example! The templates used for prompting, critique, and grading can all be customised, and in a more rigorous evaluation we'd explore improving them in the context of this specific dataset.
+
+The `@task` decorator applied to the `theory_of_mind()` function is what enables `inspect eval` to find and run the eval in the source file passed to it. For example, here we run the eval against GPT-4:
+
+``` bash
+$ inspect eval theory_of_mind.py --model openai/gpt-4
+```
+
+![](images/running-theory.png)
+
+By default, eval logs are written to the `./logs` sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.
+
+::: {.callout-note appearance="simple"}
+This example demonstrates evals being run from the terminal with the `inspect eval` command. There is also an `eval()` function which can be used for exploratory work---this is covered further in [Workflow](#sec-workflow).
+:::
+
+## Learning More
+
+To get stared with Inspect, we highly recommend you read at least these sections for a high level overview of the system:
+
+-   [Workflow](#sec-workflow) covers the mechanics of running evaluations, including how to create evals in both scripts and notebooks, specifying configuration and options, how to parameterise tasks for different scenarios, and how to work with eval log files.
+
+-   [Examples](#sec-examples) provides several complete examples with commentary on the use of various features (as with the above example, they are fairly simplistic for the purposes of illustration). You can also find implementations of a few popular [LLM benchmarks](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks) in the Inspect repository.
+
+These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.
+
+-   [Solvers](#sec-solvers) are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the `plan` in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.
+
+-   [Tools](#sec-tools) provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools as well as how to run tools within an agent scaffold.
+
+-   [Scorers](#sec-scorers) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
+
+-   [Datasets](#sec-datasets) provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
+
+-   [Models](#sec-models) provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).
+
+These sections discuss more advanced features and workflow. You don't need to review them at the outset, but be sure to revist them as you get more comfortable with the basics.
+
+-   [Eval Logs](#sec-eval-logs) describes how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
+
+-   [Eval Tuning](#sec-eval-tuning) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
+
+-   [Eval Suites](#sec-eval-suites) cover Inspect's features for describing, running, and analysing larger sets of evaluation tasks.

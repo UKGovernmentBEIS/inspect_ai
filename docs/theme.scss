@@ -1,0 +1,36 @@
+/*-- scss:rules --*/
+
+.sidebar>.sidebar-menu-container>.list-unstyled>.sidebar-item {
+    margin-bottom: 1em;
+}
+
+.sidebar-header-item>p {
+    margin-bottom: 0;
+}
+
+.sidebar-tools-main .quarto-navigation-tool[title="Source Code"] {
+    padding-top: 2.5px;
+}
+
+.code-tabset {
+    margin-bottom: 1em;
+}
+
+.code-tabset .tab-content {
+    padding: 0;
+    margin-bottom: 0;
+}
+
+.code-tabset div.sourceCode {
+    border: none;
+    margin: 0;
+}
+
+.code-tabset .nav-tabs .nav-link.active, .nav-tabs .nav-item.show .nav-link {
+    border-bottom-color: $border-color;
+}
+
+.quarto-layout-panel .sourceCode {
+    margin-top: 0;
+    margin-bottom: 0.5em;
+}

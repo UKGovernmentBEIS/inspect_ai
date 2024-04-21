@@ -1,0 +1,38 @@
+# Examples {#sec-examples}
+
+::: {.content-visible when-format="html"}
+These examples illustrate the basic features of Inspect:
+
+| Example                               | Demonstrates                                                  |
+|-----------------------------|:------------------------------------------|
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output.                |
+| [HellaSwag](#sec-hellaswag)           | Read external data formats; Multiple choice.                  |
+| [Theory of Mind](#sec-theory-of-mind) | Chain of thought; Self critique; Model grading of output.     |
+| [MATH](#sec-mathematics)              | Custom scorer that uses a model to judge equivalence.         |
+| [Biology QA](#sec-biology-qa)         | Built-in web search tool; Custom model grading template.      |
+| [ARC](#sec-arc)                       | Defining multiple tasks in a file; Multiple choice.           |
+| [Tool Use](#sec-tool-use)             | Tool usage and creating custom tools; Launching subprocesses. |
+| [GSM8K](#sec-gsm8k)                   | Using fewshot examples; Scoring numeric output.               |
+
+: {tbl-colwidths="\[30,70\]"}
+:::
+
+::: {.content-hidden when-format="html"}
+These examples illustrate the basic features of Inspect:
+
+| Example                               | Demonstrates                                                           |
+|-----------------------------|-------------------------------------------|
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output.                         |
+| [HellaSwag](#sec-hellaswag)           | Mapping external data formats into Inspect; Multiple choice questions. |
+| [Theory of Mind](#sec-theory-of-mind) | Chain of thought prompt; Self critique; Model grading of output.       |
+
+: {tbl-colwidths="\[30,70\]"}
+:::
+
+Many of these examples are simple for the purposes of illustration. However, Inspect is designed for the creation of considerably more complicated evaluations. See [Solvers](#sec-solvers), [Tools](#sec-tools), and [Scorers](#sec-scorers) to learn more.
+
+Several of the examples implement language model benchmarks. The code for these benchmarks and some others can be found in the [benchmarks directory](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks) of the Inspect repository.
+
+::: {.callout-note appearance="simple"}
+Note that in these examples we won't show a `--model` command line argument when we call `inspect eval` (the presumtion being that it has been already established via the `INSPECT_EVAL_MODEL` environment variable).
+:::

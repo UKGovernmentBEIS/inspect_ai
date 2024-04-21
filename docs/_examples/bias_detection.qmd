@@ -1,0 +1,70 @@
+::: {.content-visible when-format="html"}
+
+## Bias Detection {#sec-bias-detection}
+
+The bias detection example evalutes 100 question-answer pairs taken from the bias detection dataset published in the [Open AI Evals](https://github.com/openai/evals) repository. These evals ask a model to classify sentences in news as “fact”, “opinion”, “claim”, “argument”, “data”, “quote”, “narrative”, “sensationalism”, or “speculation”. Here are some samples from the dataset:
+
+| input                                                                                                                                                                                                                                      | target       |
+|-------------------------------------------------------|-----------------|
+| Notably, there are significant liability protections for vaccine manufacturers and, at present, for people and entities involved in making, distributing or administering Covid-19 countermeasures such as vaccines, tests and treatments. | \[argument\] |
+| When we looked on Wednesday afternoon, during a heat wave, the mix included 15.8% solar, 10.2% wind and 6.6% nuclear, while 67.1% was natural gas or coal and lignite.                                                                     | \[claim\]    |
+
+### Setup {.unlisted}
+
+We'll start by importing the functions we need from Inspect and defining a system message that provides the rubric for the model to classify the sentences.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message
+
+SYSTEM_MESSAGE = """
+Classify the following sentence of a news article as either:
+- fact (statment free of rephrasing, interpretation, opinions,
+  and emotions)
+- opinion (expression of a personal view, judgement, appraisal,
+  opinion, or nterpretation)
+- claim (assertion of unverified information, rephrased facts
+  or affirmation of opinions),
+- argument (data, information, reference, opinion, or narrative
+  used to support a claim),
+- data (raw data or statistics, must incluide the source which
+  cant be a person, and must exclude any data interpretation
+- quote (direct quote from a person or a document)
+- narrative (a story, account of events, experiences, or context
+  used to illustrate a claim or argument)
+- sensationalism (when it incluides exaggerations, sarcasm,
+  emotion inducing manipulation, scandal-mongering, or other
+  sensational behavior to induce emotions)
+- speculation (assumption, theory or opinion about a future
+  event or a hypothetical scenario).
+
+Please provide a reasoning for your classification and then
+state your final answer enclosed in square brackets.
+"""
+```
+
+### Eval {.unlisted}
+
+This is about the simplest evaluation you could imagine. The provided `system_message()` describes the task and provides clear instructions to produce the answer as a single word in brackets. The `includes()` scorer checks for the presence of the word in brackets.
+
+```{python}
+@task
+def bias_detection():
+    return Task(
+        dataset=example_dataset("bias_detection"),
+        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        scorer=includes(),
+    )
+```
+
+The `@task` decorator registers the evaluation task with inspect (this allows us to track what parameters were used to create the task and to load the task from the notebook without executing it, both useful for larger evaluation suites).
+
+Now we run the evaluation:
+
+```bash
+inspect eval bias_detection.py
+```
+
+:::

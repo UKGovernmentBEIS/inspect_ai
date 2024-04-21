@@ -1,0 +1,135 @@
+# Eval Logs {#sec-eval-logs}
+
+## Overview
+
+Every time you use `inspect eval` or call the `eval()` function, an evaluation log is written for each task evaluated. By default, logs are written to the `./logs` sub-directory of the current working directory (we'll cover how to change this below). You will find a link to the log at the bottom of the results for each task:
+
+``` bash
+$ inspect eval security_guide.py --model openai/gpt-4
+```
+
+![](images/eval-log.png)
+
+Within VS Code or Jupyter Lab you can click on the log link to view the underlying conversations with the model and how each of them was scored.
+
+## Console Logging
+
+Beyond the standard information included an eval log file, you may want to do additional console logging to assist with developing and debugging. Inspect installs a log handler that displays logging output above eval progress as well as saves it into the evaluation log file. If you use the [recommend practice](https://docs.python.org/3/library/logging.html) of the Python `logging` library for obtaining a logger your logs will interoperate well with Inspect:
+
+``` python
+logger = logging.getLogger(__name__)
+logger.info('Started')
+logger.info('Finished')
+```
+
+Note that inspect sets a default log level of warning. This means that you can include many calls to `logger.info()` or `logger.debug()` in your code and they won't show by default. Use the `log_level` option or `INSPECT_LOG_LEVEL` environment variable to see info or debug messages as desired:
+
+``` bash
+$ inspect eval eval.py --model openai/gpt-4 --log-level info
+```
+
+Or:
+
+``` python
+log = eval(popularity, model="openai/gpt-4", log_level = "info")
+```
+
+## Log Location
+
+By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable
+
+``` bash
+$ inspect eval popularity.py --model openai/gpt-4 --log-dir ./experiment-log
+```
+
+Or:
+
+``` python
+log = eval(popularity, model="openai/gpt-4", log_dir = "./experiment-log")
+```
+
+Note that in addition to logging the `eval()` function also returns an `EvalLog` object for programmatic access to the details of the evaluation. We'll talk more about how to use this object below.
+
+The `INSPECT_LOG_DIR` environment variable can also be specified to override the default `./logs` location. You may find it convenient to define this in a `.env` file from the location where you run your evals:
+
+``` {.ini}
+INSPECT_LOG_DIR=./experiment-log
+INSPECT_LOG_LEVEL=warning
+```
+
+::: {.callout-note appearance="simple"}
+Note that the log directory need not be a local file path, you can also log to an [Amazon S3](#sec-amazon-s3) bucket.
+:::
+
+## EvalLog
+
+The `EvalLog` object returned from `eval()` provides programmatic interface to the contents of log files:
+
+**Class** `inspect_ai.log.EvalLog`
+
+| Field     | Type                   | Description                                                            |
+|-----------|--------------|------------------------|
+| `status`  | `str`                  | Status of evaluation (`"started"`, `"success"`, or `"error"`).         |
+| `eval`    | `EvalSpec`             | Top level eval details including task, model, creation time, etc.      |
+| `plan`    | `EvalPlan`             | List of solvers and model generation config used for the eval.         |
+| `samples` | `list[EvalSample]`     | Each sample evaluated, including its input, output, target, and score. |
+| `results` | `EvalResults`          | Aggregate results computed by scorer metrics.                          |
+| `stats`   | `EvalStats`            | Model usage statistics (input and output tokens)                       |
+| `logging` | `list[LoggingMessage]` | Logging messages (e.g. from `log.info()`, `log.debug()`, etc.          |
+| `error`   | `EvalError`            | Error information (if `status == "error`) including traceback.         |
+
+Before analysing results from a log, you should always check their status to ensure they represent a successful run:
+
+``` python
+log = log = eval(popularity, model="openai/gpt-4")
+if log.status == "success":
+   ...
+```
+
+In the section below we'll talk more about how to deal with logs from failed evaluations (e.g. retrying the eval).
+
+You can enumerate, read, and write `EvalLog` objects using the following helper functions from the `inspect_ai.log` module:
+
+| Function                        | Description                                    |
+|-----------------------|------------------------------|
+| `list_eval_logs()`              | List all of the eval logs at a given location. |
+| `read_eval_log(log_file)`       | Read an `EvalLog` from a log file path.        |
+| `write_eval_log(log, log_file)` | Write an `EvalLog` to a log file path.         |
+
+A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluations, then calling `list_eval_logs()` to analyse the results when all the work is done:
+
+``` python
+# setup log dir context
+os.environ["INSPECT_LOG_DIR"] = "./experiment-logs"
+
+# do a bunch of evals
+eval(popularity, model="openai/gpt-4")
+eval(security_guide, model="openai/gpt-4")
+
+# analyze the reuslts in the logs
+logs = list_eval_logs()
+```
+
+## Errors and Retries
+
+The example above isn't quite complete as it doesn't demonstrate checking the log for success status. This also begs the question of what to do with failed evaluation tasks. In some cases failed tasks need further debugging, but in other cases they may have failed due to connectivity or API rate limiting. For these cases, Inspect includes an `eval_retry()` function that you can pass a log to.
+
+Here's an example of checking for logs with errors and retrying them with a lower number of max connections(the theory in this case being that too many concurrent connections may have caused a rate limit error:
+
+``` python
+logs = list_eval_logs(status = "error")
+eval_retry(logs, max_connections = 3)
+```
+
+## Amazon S3 {#sec-amazon-s3}
+
+Storing evaluation logs on S3 provides a more permanent and secure store than using the local filesystem. While the `inspect eval` command has a `--log-dir` argument which accepts an S3 URL, the most convenient means of directing inspect to an S3 bucket is to add the `INSPECT_LOG_DIR` environment variable to the `.env` file (potentially alongside your S3 credentials). For example:
+
+``` env
+INSPECT_LOG_DIR=s3://my-s3-inspect-log-bucket
+AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AWS_DEFAULT_REGION=eu-west-2
+```
+
+One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.

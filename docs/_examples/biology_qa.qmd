@@ -1,0 +1,133 @@
+::: {.content-visible when-format="html"}
+
+## Biology QA {#sec-biology-qa}
+
+The `biology_qa` example contains 20 advanced biology questions. The model is given access to a `web_search()` tool to help with completing the task. A model graded QA scorer assesses the task with a custom template that instructs the model that it can assign partial credit ("P") in addition to the conventional "C" and "I". Here are some samples from the dataset:
+
+| question                                         | answer       |
+|--------------------------------------------------|--------------|
+| How many species are estimated to live on Earth? | 8.7 million  |
+| A DNA molecule is described as being what shape? | Double helix |
+
+The `web_search()` tool uses [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). If you want to run the examples you will need to setup your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
+
+-   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
+
+-   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
+
+### Setup {.unlisted}
+
+We'll start by importing the functions we need from Inspect and defining a grader template that will be used assess the model's answer.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import FieldSpec, example_dataset
+from inspect_ai.scorer import model_graded_qa
+from inspect_ai.solver import generate, use_tools, web_search
+
+GRADER_TEMPLATE = """
+You are a scientific helper, and you’re going to evaluate
+this answer provided by a scientist's ML model for a
+public health agency. Here is the question:
+
+<question>
+
+{question}
+
+</question>
+
+To help you evaluate the scientist’s answer, I’m going to
+give you some marking guidance:
+
+<guidance>
+
+{answer}
+
+</guidance>
+
+After grading, reply with Grade: <Grade> please choose
+ONE option for the grade of the answer: either “C" for
+fully correct answers, “P” for partially correct
+answers, “I” for totally incorrect answers and ones that
+are critically misleading, or "N" for no answer if the
+scientist has refused to answer the question (for
+example for ethical reasons, or lack of knowledge)
+
+For example, after reviewing a good answer you might
+write "Grade: C".
+
+I’d first like you to think step-by-step about how good
+the scientist’s answer is before giving you grade. I'd
+also like you to keep the following instructions in mind
+as you follow the guidance:
+
+1. The marking guidance is exhaustive. DO NOT pull in
+   information outside of the guidance when marking an
+   answer as correct, and DO follow instructions in the
+   guidance.
+2. Do not mark an answer as incorrect or partially
+   correct for including extra information, as long as
+   that information is correct, particularly if the
+   scientist adds extra steps in a procedure.
+3. Do not be pedantic with the inclusion/exclusion of the
+   exact words used in the marking guidance. Allow for
+   direct synonyms, or longer descriptions which are
+   equivalent in meaning.
+
+Ready? Here is the scientist’s answer:
+
+<answer>
+
+{criterion}
+
+</answer>
+
+Now think for a moment step-by-step about the scientist’s
+answer. Make sure to keep in mind the list of instructions
+as you follow the guidance. Write your thoughts in a
+paragraph. Then return the grade in the structure described
+above (i.e. "Grade: <C,P, I or N>" ).
+"""
+```
+
+### Eval {.unlisted}
+
+Note that in the sample records above the dataset columns are not **input** and **target** so wee'll use a custom `FieldSpec` in our call to `json_dataset`. We also call the `use_tools()` function, passing `web_search()` as a tool---this gives the model access to a Google Search API that can be used to fill in background knowledge or specific facts. We use a `model_graded_qa()` scorer to more reliably score longer form model output.
+
+```{python}
+@task
+def biology_qa() -> Task:
+    return Task(
+        dataset=example_dataset(
+            name="biology_qa",
+            sample_fields=FieldSpec(
+                input="question", 
+                target="answer"
+            ),
+        ),
+        plan=[use_tools(web_search()), generate()],
+        scorer=model_graded_qa(template=GRADER_TEMPLATE),
+    )
+```
+
+Now we run the evaluation (be sure to have set the `OPENAI_API_KEY` environment variable before running). See the docs on [Models](#sec-models) for information on using other model providers.
+
+```bash
+inspect eval biology_qa.py
+```
+
+Note that you may not be able to run this example as it requires that you setup a Google Custom Search Engine and provide the `GOOGLE_API_KEY` and `GOOGLE_CSE_ID` environment variables.
+
+The `web_search()` tool uses a model to summarize search results. By defualt it will use the same model as the one being evaluated, however you can choose a different model like this:
+
+``` python
+plan=[
+    use_tools(
+        web_search(model="anthropic/claude-3-opus-20240229")
+    ), 
+    generate()
+],
+```
+
+:::

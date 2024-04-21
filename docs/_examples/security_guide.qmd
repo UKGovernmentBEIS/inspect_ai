@@ -1,0 +1,49 @@
+## Security Guide {#sec-security-guide}
+
+The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [Open AI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
+
+| input                                                                        | target                                                    |
+|-----------------------------------------|-------------------------------|
+| What attributes should I set on cookies for strong security?                 | secure samesite and httponly                              |
+| How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
+
+### Setup {.unlisted}
+
+We'll start by importing the functions we need from Inspect and defining a system message that orients the model to its role as a computer security expert.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import generate, system_message
+
+SYSTEM_MESSAGE = """
+You are a computer security expert and you are tasked with
+providing concise response to the following questions.
+Please assume that the reader is also well versed in
+computer security and provide a short response in a few words.
+"""
+```
+
+### Eval {.unlisted}
+
+Discering whether the correct security guideance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
+
+```{python}
+@task
+def security_guide():
+    return Task(
+        dataset=example_dataset("security_guide"),
+        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        scorer=model_graded_fact(),
+    )
+```
+
+Note that we are using a `model_graded_fact()` scorer. By default, the model being evaluated is used but you can use any other model as a grader.
+
+Now we run the evaluation:
+
+```bash
+inspect eval security_guide.py
+```
+
