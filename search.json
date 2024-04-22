@@ -1,0 +1,823 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Inspect",
+    "section": "",
+    "text": "Welcome\nWelcome to Inspect, a framework for large language model evaluations created by the UK AI Safety Institute.\nInspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.\nWe’ll walk through a fairly trivial “Hello, Inspect” example below. Read on to learn the basics, then read the documentation on Workflow, Solvers, Tools, Scorers, Datasets, and Models to learn how to create more advanced evaluations.",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Welcome</span>"
+    ]
+  },
+  {
+    "objectID": "index.html#getting-started",
+    "href": "index.html#getting-started",
+    "title": "Inspect",
+    "section": "Getting Started",
+    "text": "Getting Started\nFirst, install Inspect with:\n$ pip install inspect-ai\nTo develop and run evaluations, you’ll also need access to a model, which typically requires installation of a Python package as well as ensuring that the appropriate API key is available in the environment.\nAssuming you had written an evaluation in a script named arc.py, here’s how you would setup and run the eval for a few different model providers:\n\nOpenAIAnthropicGoogleMistralHFTogether\n\n\n$ pip install openai\n$ export OPENAI_API_KEY=your-openai-api-key\n$ inspect eval arc.py --model openai/gpt-4\n\n\n$ pip install anthropic\n$ export ANTHROPIC_API_KEY=your-anthropic-api-key\n$ inspect eval arc.py --model anthropic/claude-3-opus-20240229\n\n\n$ pip install google-generativeai\n$ export GOOGLE_API_KEY=your-google-api-key\n$ inspect eval arc.py --model google/gemini-1.0-pro\n\n\n$ pip install mistralai\n$ export MISTRAL_API_KEY=your-mistral-api-key\n$ inspect eval arc.py --model mistral/mistral-large-latest\n\n\n$ pip install torch transformers\n$ export HF_TOKEN=your-hf-token\n$ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf\n\n\n$ pip install openai\n$ export TOGETHER_API_KEY=your-together-api-key\n$ inspect eval ctf.py --model together/Qwen/Qwen1.5-72B-Chat\n\n\n\nIn addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, and CloudFlare. See the documentation on Models for additional detals.",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Welcome</span>"
+    ]
+  },
+  {
+    "objectID": "index.html#sec-hello-inspect",
+    "href": "index.html#sec-hello-inspect",
+    "title": "Inspect",
+    "section": "Hello, Inspect",
+    "text": "Hello, Inspect\nInspect evaluations have three main components:\n\nDatasets contain a set of labeled samples. Datasets are typically just a table with input and target columns, where input is a prompt and target is either literal value(s) or grading guideance.\nSolvers are composed together in a plan to evaluate the input in the dataset. The most elemental solver, generate(), just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, etc.\nScorers evaluate the final output of solvers. They may use text comparisons, model grading, or other custom schemes\n\nLet’s take a look at a simple evaluation that aims to see how models perform on the Sally-Anne test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:\n\n\n\n\n\n\n\ninput\ntarget\n\n\n\n\nJackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?\nbathtub\n\n\nHannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater?\npantry\n\n\n\nHere’s the code for the evaluation (click on the numbers at right for further explanation):\nfrom inspect_ai import Task, eval, task\nfrom inspect_ai.dataset import example_dataset\nfrom inspect_ai.scorer import model_graded_fact\nfrom inspect_ai.solver import (               \n  chain_of_thought, generate, self_critique   \n)                                             \n\n@task\ndef theory_of_mind():\n1    return Task(\n        dataset=example_dataset(\"theory_of_mind\"),\n        plan=[\n2          chain_of_thought(),\n          generate(),\n          self_critique()\n        ],\n3        scorer=model_graded_fact()\n    )\n\n1\n\nThe Task object brings together the dataset, solvers, and scorer, and is then evaluated using a model.\n\n2\n\nIn this example we are chaining together three standard solver components. It’s also possible to create a more complex custom solver that manages state and interactions internally.\n\n3\n\nSince the output is likely to have pretty involved language, we use a model for scoring.\n\n\nNote that this is a purposely over-simplified example! The templates used for prompting, critique, and grading can all be customised, and in a more rigorous evaluation we’d explore improving them in the context of this specific dataset.\nThe @task decorator applied to the theory_of_mind() function is what enables inspect eval to find and run the eval in the source file passed to it. For example, here we run the eval against GPT-4:\n$ inspect eval theory_of_mind.py --model openai/gpt-4\n\nBy default, eval logs are written to the ./logs sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.\n\n\n\n\n\n\nThis example demonstrates evals being run from the terminal with the inspect eval command. There is also an eval() function which can be used for exploratory work—this is covered further in Workflow.",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Welcome</span>"
+    ]
+  },
+  {
+    "objectID": "index.html#learning-more",
+    "href": "index.html#learning-more",
+    "title": "Inspect",
+    "section": "Learning More",
+    "text": "Learning More\nTo get stared with Inspect, we highly recommend you read at least these sections for a high level overview of the system:\n\nWorkflow covers the mechanics of running evaluations, including how to create evals in both scripts and notebooks, specifying configuration and options, how to parameterise tasks for different scenarios, and how to work with eval log files.\nExamples provides several complete examples with commentary on the use of various features (as with the above example, they are fairly simplistic for the purposes of illustration). You can also find implementations of a few popular LLM benchmarks in the Inspect repository.\n\nThese sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.\n\nSolvers are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the plan in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.\nTools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools as well as how to run tools within an agent scaffold.\nScorers evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.\nDatasets provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.\nModels provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).\n\nThese sections discuss more advanced features and workflow. You don’t need to review them at the outset, but be sure to revist them as you get more comfortable with the basics.\n\nEval Logs describes how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.\nEval Tuning delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture—here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.\nEval Suites cover Inspect’s features for describing, running, and analysing larger sets of evaluation tasks.",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Welcome</span>"
+    ]
+  },
+  {
+    "objectID": "workflow.html",
+    "href": "workflow.html",
+    "title": "Workflow",
+    "section": "",
+    "text": "Eval Basics\nTo create an evaluation, write a function that returns a Task. This task will bring together the dataset, solvers, scorer, and configuration required for the evaluation. Here’s the example used in the introduction:\nWe walked through this code in detail in Hello, Inspect so won’t do so again here (you may want to refer back to that section now if this code isn’t familiar to you).",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Workflow</span>"
+    ]
+  },
+  {
+    "objectID": "workflow.html#eval-basics",
+    "href": "workflow.html#eval-basics",
+    "title": "Workflow",
+    "section": "",
+    "text": "from inspect_ai import Task, task\nfrom inspect_ai.dataset import example_dataset\nfrom inspect_ai.scorer import model_graded_fact\nfrom inspect_ai.solver import (\n  chain_of_thought, generate, self_critique\n)\n\n@task\ndef theory_of_mind():\n    return Task(\n        dataset=example_dataset(\"theory_of_mind\"),\n        plan=[\n          chain_of_thought(), \n          generate(), \n          self_critique()\n        ],\n        scorer=model_graded_fact(),\n    )\n\n\nRunning\nYou can run this evaluation from the shell using the inspect eval command. For example:\n$ inspect eval theory.py --model openai/gpt-4\n\nImmediately after an evaluation completes, a link to the log for the evaluation is written to the terminal (if you are running in VS Code this link will open the log in an editor within the IDE).\n\n\nModels\nRun the evaluation against other models as follows:\n$ inspect eval theory.py --model anthropic/claude-3-opus-20240229\n$ inspect eval theory.py --model mistral/mistral-large-latest\n$ inspect eval theory.py --model hf/meta-llama/Llama-2-7b-chat-hf\nMost often you’ll work with one model at a time. In this case, setting the INSPECT_EVAL_MODEL environment variable might make sense:\n$ export INSPECT_EVAL_MODEL=google/gemini-1.0-pro\n$ inspect eval theory.py\n\n\nOptions\nThere are several other command line options you can pass to eval. Here are some of the more useful ones:\n# limit to 10 samples\n$ inspect eval theory.py --limit 10\n\n# limit tokens\n$ inspect eval theory.py --max-tokens 128\n\n# set temperature and seed\n$ inspect eval theory.py --temperature 0 --seed 42",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Workflow</span>"
+    ]
+  },
+  {
+    "objectID": "workflow.html#configuration",
+    "href": "workflow.html#configuration",
+    "title": "Workflow",
+    "section": "Configuration",
+    "text": "Configuration\nAs you can see, there is often a lot of configuration required for calling inspect eval. While we can include it all on the command line, it’s generally easier to use environment variables. To facilitate this, the inspect CLI will automatically read and process .env files located in both the working directory and the directory where the task source file is located (this is done using the python-dotenv package).\nFor example, here’s a .env file that makes available API keys for several providers and sets a bunch of defaults for a working session:\nOPENAI_API_KEY=your-api-key\nANTHROPIC_API_KEY=your-api-key\nGOOGLE_API_KEY=your-api-key\n\nINSPECT_LOG_DIR=./logs-04-07-2024\nINSPECT_LOG_LEVEL=info\n\nINSPECT_EVAL_MAX_RETRIES=10\nINSPECT_EVAL_MAX_CONNECTIONS=20\nINSPECT_EVAL_MODEL=anthropic/claude-3-opus-20240229\nNote that all command line options can also be set via environment variable by using the INSPECT_EVAL_ prefix. See inspect eval –-help for documentation on all available options.\n\n\n\n\n\n\n.env files should never be checked into version control, as they nearly always contain either secret API keys or machine specific paths. A best practice is often to check in an .env.example file to version control which provides an outline (e.g. keys only not values) of variables that are required by the current project.",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Workflow</span>"
+    ]
+  },
+  {
+    "objectID": "workflow.html#exploratory",
+    "href": "workflow.html#exploratory",
+    "title": "Workflow",
+    "section": "Exploratory",
+    "text": "Exploratory\nEvaluation development is often highly exploratory and requires trying (and measuring) many combinations of components. You’ll often want to start in a notebook or REPL to facilitate this.\nFor exploratory work, you’ll still write a @task function, but you’ll give it parameters that reflect the things you want to try out and vary. You’ll then call Inspect’s eval() function interactively rather than calling inspect eval from the shell.\n\nTask Params\nTo illustrate, we’ll use a very simple example: an evaluation that checks whether a model can provide good computer security advice. The eval uses a model to score the results, and we want to explore how different system prompts, grader instructions, and grader models affect the quality of the eval.\nTo do this, we add some parameters to our @task function. Here’s the basic setup for the evaluation:\nfrom inspect_ai import Task, eval, task\nfrom inspect_ai.dataset import json_dataset\nfrom inspect_ai.scorer import model_graded_fact\nfrom inspect_ai.solver import generate, system_message\n\nfrom itertools import product\n\n@task\ndef security_guide(\n    system=\"devops.txt\", \n    grader=\"expert.txt\",\n    grader_model=\"openai/gpt-4\"\n):\n   return Task(\n      dataset=json_dataset(\"security_guide.jsonl\"),\n      plan=[system_message(system), generate()],\n      scorer=model_graded_fact(\n          template=grader, model=grader_model\n      )\n   )\nThe system and grader parameters point to files we are using as system message and grader model templates. At the outset we might want to explore every possible combination of these parameters. We can use the itertools.product function to do this:\n# 'grid' will be a permutation of all parameters\nparams = {\n    \"system\": [\"devops.txt\", \"researcher.txt\"],\n    \"grader\": [\"hacker.txt\", \"expert.txt\"],\n    \"grader_model\": [\"openai/gpt-4\", \"google/gemini-1.0-pro\"],\n}\ngrid = list(product(*(params[name] for name in params)))\n\n# run the evals and capture the logs\nlogs = eval(\n    [\n        security_guide(system, grader, grader_model)\n        for system, grader, grader_model in grid\n    ],\n    model=\"mistral/mistral-large-latest\",\n)\n\n# analyze the logs...\nplot_results(logs)\nCalling the eval() function interactively yields the same progress treatment and results display that you see when running inspect eval from the terminal. However, as demonstrated above, a list of EvalLog objects is also returned that enables you to compute on the results of the evaluation (do diagnostics, generate plots, etc.).\nNote that if errors occur in one task, it won’t interrupt the entire call to eval(). Rather, an EvalLog with a status of \"error\" will be returned. So a more realistic code snippet for handling the result of eval() might be something like this:\nplot_results([log for log in logs if log.status == \"success\"])\nYou might additionally choose to print error messages for failed tasks, or perhaps even abandon plotting altogether if all of the evals don’t succeed.\nSee Eval Logs for additional details on working with evaluation logs.\n\n\nTransition\nIdeally we could have a nice transition between the parameterized task functions created in exploratory mode and the more static eval definitions used for inspect eval. We can actually do this fairly easily by letting Python know that certain parts of our script (the exploratory code) should not be run when it is read as a module by inspect eval.\nReturning to the example above, let’s say that after experimenting, we were comfortable with our grader, and are now only iterating on the system prompt:\n@task\ndef security_guide(system=\"devops.txt\"):\n   return Task(\n      dataset=json_dataset(\"security_guide.jsonl\"),\n      plan=[system_message(system), generate()],\n      scorer=model_graded_fact(\n          template=\"expert.txt\", model=\"openai/gpt-4\"\n      )\n   )\n\n# vary the system prompt\ntasks = [\n    security_guide(system=prompt)\n    for prompt in [\"devops.txt\", \"researcher.txt\"]\n]\neval(tasks, model = \"openai/gpt-4\")\nIf we enclose the exploratory code at the bottom in a __name__ == \"__main__\" conditional, then it will only be run when interactively executing the script or notebook cell that the code is contained in:\nif __name__ == \"__main__\"\n    # vary the system prompt\n    tasks = [\n        security_guide(system=prompt)\n        for prompt in [\"devops.txt\", \"researcher.txt\"]\n    ]\n    eval(tasks, model = \"openai/gpt-4\")\n\n\n\n\n\n\nIf you aren’t familliar with the __name__ == \"__main__\" idiom, see the docs on __main__ for additional details.\n\n\n\nNow we can take the same script and use it with inspect eval (while leaving our exploratory code intact and protected by the __main__ check):\n$ inspect eval security.py \nWe can even continue to use task parameters with inspect eval as follows:\n$ inspect eval security.py -T system=devops.txt\n\n\nNotebooks\nWe refer to notebooks above but show scripts in all of the examples. Everything demonstrated for scripts will work similarly in notebooks, specifically:\n\nYou can use the __name__ == \"__main__\" check to protect cells that should only be run in exploratory mode.\nYou can pass a notebook to insect eval just the same as a script (including passing task parameters)\n\nFor example, imagine that all of the code shown above for security.py was in security.ipynb. You could run the eval and optionally pass a task parameter as follows:\n$ inspect eval security.ipynb \n$ inspect eval security.ipynb -T system=devops.txt\nOnce you’ve stabilized the definition of an eval, you might also prefer to keep exploratory code and eval task definitions entirely separate. In that case, keep your @task function in security.py and then just import it into one or more noteoboks used to try out variations, analyze logs, etc.",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Workflow</span>"
+    ]
+  },
+  {
+    "objectID": "workflow.html#eval-suites",
+    "href": "workflow.html#eval-suites",
+    "title": "Workflow",
+    "section": "Eval Suites",
+    "text": "Eval Suites\nThe examples above either run a single evaluation task from a script or notebook, or perhaps run a dynamic set of tasks within an interactive session. While this is a good workflow for the development of evaluations, eventually you may want to compose a set of evalutions into a suite that you run repeadedly for different models.\nFor example, the left/right listing below shows a project with multiple Python scripts, some of which include eval tasks. At right, there is a call to inspect list tasks to enumerate all the tasks:\n\n\n\n\n\n\nsecurity/\n  jeopardy/\n    import.py\n    analyze.py\n    task.py\n  attack_defense/\n    import.py\n    analyze.py\n    task.py\n\n\n$ inspect list tasks\njeopardy/task.py@crypto\njeopardy/task.py@decompile\njeopardy/task.py@packet\njeopardy/task.py@heap_trouble\nattack_defense/task.py@saar\nattack_defense/task.py@bank\nattack_defense/task.py@voting\nattack_defense/task.py@dns\n\n\n\nHere are a few ways you could run these evals as a suite:\n$ inspect eval security \n$ inspect eval security/jeopardy \n$ inspect eval security/attack_defense \nInspect has lots of features aimed at running evaluation suites, including filtering tasks based on tags/metadata, recovering from partially completed suites (due to failed evals), and more. See the documentation on Eval Suites to learn more.",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Workflow</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html",
+    "href": "examples.html",
+    "title": "Examples",
+    "section": "",
+    "text": "Security Guide\nThe security guide example contains 16 question-answer pairs taken from the security guide dataset published in the Open AI Evals repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html#sec-security-guide",
+    "href": "examples.html#sec-security-guide",
+    "title": "Examples",
+    "section": "",
+    "text": "input\ntarget\n\n\n\n\nWhat attributes should I set on cookies for strong security?\nsecure samesite and httponly\n\n\nHow should I store passwords securely for an authentication system database?\nstrong hashing algorithms with salt like Argon2 or bcrypt\n\n\n\n\nSetup\nWe’ll start by importing the functions we need from Inspect and defining a system message that orients the model to its role as a computer security expert.\n\nfrom inspect_ai import Task, eval, task\nfrom inspect_ai.dataset import example_dataset\nfrom inspect_ai.scorer import model_graded_fact\nfrom inspect_ai.solver import generate, system_message\n\nSYSTEM_MESSAGE = \"\"\"\nYou are a computer security expert and you are tasked with\nproviding concise response to the following questions.\nPlease assume that the reader is also well versed in\ncomputer security and provide a short response in a few words.\n\"\"\"\n\n\n\nEval\nDiscering whether the correct security guideance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.\n\n@task\ndef security_guide():\n    return Task(\n        dataset=example_dataset(\"security_guide\"),\n        plan=[system_message(SYSTEM_MESSAGE), generate()],\n        scorer=model_graded_fact(),\n    )\n\nNote that we are using a model_graded_fact() scorer. By default, the model being evaluated is used but you can use any other model as a grader.\nNow we run the evaluation:\ninspect eval security_guide.py",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html#sec-hellaswag",
+    "href": "examples.html#sec-hellaswag",
+    "title": "Examples",
+    "section": "HellaSwag",
+    "text": "HellaSwag\nHellaSwag is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challange for some language models.\nFor example, here is one of the questions in the dataset along with its set of possible answer (the correct answer is C):\n\nIn home pet groomers demonstrate how to groom a pet. the person\n\nputs a setting engage on the pets tongue and leash.\nstarts at their butt rise, combing out the hair with a brush from a red.\nis demonstrating how the dog’s hair is trimmed with electric shears at their grooming salon.\ninstalls and interacts with a sleeping pet before moving away.\n\n\n\nSetup\nWe’ll start by importing the functions we need from Inspect, defining a system message, and writing a function to convert dataset records to samples (we need to do this to convert the index-based label in the dataset to a letter).\n\nfrom inspect_ai import Task, eval, task\nfrom inspect_ai.dataset import Sample, hf_dataset\nfrom inspect_ai.scorer import answer\nfrom inspect_ai.solver import multiple_choice, system_message\n\nSYSTEM_MESSAGE = \"\"\"\nChoose the most plausible continuation for the story.\n\"\"\"\n\ndef record_to_sample(record):\n    return Sample(\n        input = record[\"ctx\"],\n        target = chr(ord(\"A\") + int(record[\"label\"])),\n        choices = record[\"endings\"],\n        metadata = dict(\n            source_id = record[\"source_id\"]\n        )\n    )\n\nNote that even though we don’t use it for the evaluation, we save the source_id as metadata as a way to reference samples in the underlying dataset.\n\n\nEval\nWe’ll load the datasat from HuggingFace using the hf_dataset() function. We’ll draw data from the validation split, and use the record_to_sample() function to parse the records (we’ll also pass trust=True to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):\n\n@task\ndef hellaswag():\n   \n    # dataset\n    dataset = hf_dataset(\n        path=\"hellaswag\",\n        split=\"validation\",\n        sample_fields=record_to_sample,\n        trust=True\n    )\n\n    # define task\n    return Task(\n        dataset=dataset,\n        plan=[\n          system_message(SYSTEM_MESSAGE),\n          multiple_choice()\n        ],\n        scorer=answer(\"letter\"),\n    )\n\nWe use the multiple_choice() solver and as you may have noted we don’t call generate() directly here! This is because multiple_choice() calls generate() internally (it does this so that it can randomly shuffle the order of choices and then map the model output back to the underlying dataset index).\nNow we run the evaluation, limiting the samples read to 50 for development purposes:\ninspect eval hellaswag.py --limit 50",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html#sec-theory-of-mind",
+    "href": "examples.html#sec-theory-of-mind",
+    "title": "Examples",
+    "section": "Theory of Mind",
+    "text": "Theory of Mind\nThe theory of mind example contains 100 question-answer pairs taken from the ToMi dataset. These are instances of the Sally-Anne test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:\n\n\n\n\n\n\n\ninput\ntarget\n\n\n\n\nJackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?\nbathtub\n\n\nHannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater?\npantry\n\n\n\n\nEval\nThis example demonstrates adding parameters to a @task function to create dynamic variants of an evaluation. Here we use a critique parameter to deterine whether a self_critique() solver is able to improve on the model’s baseline answer.\n\nfrom inspect_ai import Task, eval, task\nfrom inspect_ai.dataset import example_dataset\nfrom inspect_ai.scorer import model_graded_fact\nfrom inspect_ai.solver import (\n    chain_of_thought, generate, self_critique\n)\n\n@task\ndef theory_of_mind(critique = False):\n    \n    # use self_critique if requested\n    plan = [chain_of_thought(), generate()]\n    if critique:\n        plan.append(self_critique())\n\n    return Task(\n        dataset=example_dataset(\"theory_of_mind\"),\n        plan=plan,\n        scorer=model_graded_fact(),\n    )\n\nNow, let’s run the evaluation and opt-in to self critique using a task arg:\ninspect eval theory_of_mind.py -T critique=true",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html#sec-mathematics",
+    "href": "examples.html#sec-mathematics",
+    "title": "Examples",
+    "section": "MATH",
+    "text": "MATH\nThe MATH dataset includes 12,500 challenging competition mathematics problems. Each problem in MATH has a full step-by-step solution which can be used to teach models to generate answer derivations and explanations. Here are some samples from the dataset:\n\n\n\n\n\n\n\nQuestion\nAnswer\n\n\n\n\nHow many dollars in interest are earned in two years on a deposit of $10,000 invested at 4.5% and compounded annually? Express your answer to the nearest cent.\n920.25\n\n\nLet \\(p(x)\\) be a monic, quartic polynomial, such that \\(p(1) = 3,\\) \\(p(3) = 11,\\) and \\(p(5) = 27.\\) Find \\(p(-2) + 7p(6)\\)\n1112\n\n\n\n\nSetup\nWe’ll start by importing the functions we need from Inspect and defining a prompt that asks the model to reason step by step and respond with its answer on a line at the end. It also nudges the model not to enclose its answer in \\boxed, a LaTeX command for displaying equations that models often use in math output.\n\nimport re\n\nfrom inspect_ai import Task, task\nfrom inspect_ai.dataset import FieldSpec, csv_dataset\nfrom inspect_ai.model import GenerateConfig, get_model\nfrom inspect_ai.scorer import (\n    CORRECT,\n    INCORRECT,\n    AnswerPattern,\n    Score,\n    Target,\n    accuracy,\n    bootstrap_std,\n    scorer,\n)\nfrom inspect_ai.solver import TaskState, generate, prompt_template\n\n# setup for problem + instructions for providing answer\nPROMPT_TEMPLATE = \"\"\"\nSolve the following math problem step by step. The last line\nof your response should be of the form ANSWER: $ANSWER (without\nquotes) where $ANSWER is the answer to the problem.\n\n{prompt}\n\nRemember to put your answer on its own line after \"ANSWER:\",\nand you do not need to use a \\\\boxed command.\n\"\"\".strip()\n\n\n\nEval\nHere is the basic setup for our eval. We shuffle the dataset so that when we use --limit to develop on smaller slices we get some variety of inputs and results:\n\n@task\ndef math(shuffle=True):\n    return Task(\n        dataset=csv_dataset(\n            csv_file=\"datasets/math_test.csv\",\n            sample_fields=FieldSpec(\n                input=\"Question\", \n                target=\"Answer\"\n            ),\n            shuffle=shuffle,\n        ),\n        plan=[\n            prompt_template(PROMPT_TEMPLATE),\n            generate(),\n        ],\n        scorer=expression_equivalance(),\n        config=GenerateConfig(temperature=0.5),\n    )\n\nThe heart of this eval isn’t in the task definition though, rather its in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we’ll use a model to assess whether the output and the target are logically equivalent. the expression_equivalance() custom scorer implements this:\n\n@scorer(metrics=[accuracy(), bootstrap_std()])\ndef expression_equivalance():\n    async def score(state: TaskState, target: Target):\n        # extract answer\n        answer = re.search(\n            AnswerPattern.LINE, state.output.completion\n        )\n        if answer:\n            # ask the model to judge equivalance \n            prompt = EQUIVALANCE_TEMPLATE % (\n                {\"expression1\": target.text, \n                 \"expression2\": answer.group(1)}\n            )\n            result = await get_model().generate(prompt)\n\n            # return the score\n            correct = result.completion.lower() == \"yes\" \n            return Score(\n                value=CORRECT if correct else INCORRECT\n            )\n        else:\n            return Score(\n                value=INCORRECT, \n                explanation=\"Answer not found in model output.\"\n            )\n\n    return score\n\nWe are making a separate call to the model to assess equivalence. We prompt for this using an EQUIVALANCE_TEMPLATE. Here’s a general flavor for how that template looks (there are more examples in the real template):\nEQUIVALANCE_TEMPLATE = r\"\"\"\nLook at the following two expressions (answers to a math problem)\nand judge whether they are equivalent. Only perform trivial \nsimplifications\n\nExamples:\n\n    Expression 1: $2x+3$\n    Expression 2: $3+2x$\n\nYes\n\n    Expression 1: $x^2+2x+1$\n    Expression 2: $y^2+2y+1$\n\nNo\n\n    Expression 1: 72 degrees\n    Expression 2: 72\n\nYes\n(give benefit of the doubt to units)\n---\n\nYOUR TASK\n\nRespond with only \"Yes\" or \"No\" (without quotes). Do not include\na rationale.\n\n    Expression 1: %(expression1)s\n    Expression 2: %(expression2)s\n\"\"\".strip()\nNow we run the evaluation, limiting it to 500 problems (as there are over 12,000 in the dataset):\n$ inspect eval arc.py --limit 500\nThis will draw 500 random samples from the dataset (because we defined shuffle=True in our call to load the dataset). The task lets you override this with a task parameter (e.g. in case you wanted to evaluate a specific sample or range of samples):\n$ inspect eval arc.py --limit 100,200 -T shuffle=false",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html#sec-biology-qa",
+    "href": "examples.html#sec-biology-qa",
+    "title": "Examples",
+    "section": "Biology QA",
+    "text": "Biology QA\nThe biology_qa example contains 20 advanced biology questions. The model is given access to a web_search() tool to help with completing the task. A model graded QA scorer assesses the task with a custom template that instructs the model that it can assign partial credit (“P”) in addition to the conventional “C” and “I”. Here are some samples from the dataset:\n\n\n\nquestion\nanswer\n\n\n\n\nHow many species are estimated to live on Earth?\n8.7 million\n\n\nA DNA molecule is described as being what shape?\nDouble helix\n\n\n\nThe web_search() tool uses Google Programmable Search Engine. If you want to run the examples you will need to setup your own Google Programmable Search Engine and also enable the Programmable Search Element Paid API. Then, ensure that the following environment variables are defined:\n\nGOOGLE_CSE_ID — Google Custom Search Engine ID\nGOOGLE_CSE_API_KEY — Google API key used to enable the Search API\n\n\nSetup\nWe’ll start by importing the functions we need from Inspect and defining a grader template that will be used assess the model’s answer.\n\nfrom inspect_ai import Task, eval, task\nfrom inspect_ai.dataset import FieldSpec, example_dataset\nfrom inspect_ai.scorer import model_graded_qa\nfrom inspect_ai.solver import generate, use_tools, web_search\n\nGRADER_TEMPLATE = \"\"\"\nYou are a scientific helper, and you’re going to evaluate\nthis answer provided by a scientist's ML model for a\npublic health agency. Here is the question:\n\n&lt;question&gt;\n\n{question}\n\n&lt;/question&gt;\n\nTo help you evaluate the scientist’s answer, I’m going to\ngive you some marking guidance:\n\n&lt;guidance&gt;\n\n{answer}\n\n&lt;/guidance&gt;\n\nAfter grading, reply with Grade: &lt;Grade&gt; please choose\nONE option for the grade of the answer: either “C\" for\nfully correct answers, “P” for partially correct\nanswers, “I” for totally incorrect answers and ones that\nare critically misleading, or \"N\" for no answer if the\nscientist has refused to answer the question (for\nexample for ethical reasons, or lack of knowledge)\n\nFor example, after reviewing a good answer you might\nwrite \"Grade: C\".\n\nI’d first like you to think step-by-step about how good\nthe scientist’s answer is before giving you grade. I'd\nalso like you to keep the following instructions in mind\nas you follow the guidance:\n\n1. The marking guidance is exhaustive. DO NOT pull in\n   information outside of the guidance when marking an\n   answer as correct, and DO follow instructions in the\n   guidance.\n2. Do not mark an answer as incorrect or partially\n   correct for including extra information, as long as\n   that information is correct, particularly if the\n   scientist adds extra steps in a procedure.\n3. Do not be pedantic with the inclusion/exclusion of the\n   exact words used in the marking guidance. Allow for\n   direct synonyms, or longer descriptions which are\n   equivalent in meaning.\n\nReady? Here is the scientist’s answer:\n\n&lt;answer&gt;\n\n{criterion}\n\n&lt;/answer&gt;\n\nNow think for a moment step-by-step about the scientist’s\nanswer. Make sure to keep in mind the list of instructions\nas you follow the guidance. Write your thoughts in a\nparagraph. Then return the grade in the structure described\nabove (i.e. \"Grade: &lt;C,P, I or N&gt;\" ).\n\"\"\"\n\n\n\nEval\nNote that in the sample records above the dataset columns are not input and target so wee’ll use a custom FieldSpec in our call to json_dataset. We also call the use_tools() function, passing web_search() as a tool—this gives the model access to a Google Search API that can be used to fill in background knowledge or specific facts. We use a model_graded_qa() scorer to more reliably score longer form model output.\n\n@task\ndef biology_qa() -&gt; Task:\n    return Task(\n        dataset=example_dataset(\n            name=\"biology_qa\",\n            sample_fields=FieldSpec(\n                input=\"question\", \n                target=\"answer\"\n            ),\n        ),\n        plan=[use_tools(web_search()), generate()],\n        scorer=model_graded_qa(template=GRADER_TEMPLATE),\n    )\n\nNow we run the evaluation (be sure to have set the OPENAI_API_KEY environment variable before running). See the docs on Models for information on using other model providers.\ninspect eval biology_qa.py\nNote that you may not be able to run this example as it requires that you setup a Google Custom Search Engine and provide the GOOGLE_API_KEY and GOOGLE_CSE_ID environment variables.\nThe web_search() tool uses a model to summarize search results. By defualt it will use the same model as the one being evaluated, however you can choose a different model like this:\nplan=[\n    use_tools(\n        web_search(model=\"anthropic/claude-3-opus-20240229\")\n    ), \n    generate()\n],",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html#sec-arc",
+    "href": "examples.html#sec-arc",
+    "title": "Examples",
+    "section": "ARC",
+    "text": "ARC\nThe ARC dataset consists of 7,787 science exam questions drawn from a variety of sources, including science questions provided under license by a research partner affiliated with AI2. These are text-only, English language exam questions that span several grade levels as indicated in the files. Each question has a multiple choice structure (typically 4 answer options). The questions are sorted into a Challenge Set of 2,590 “hard” questions (those that both a retrieval and a co-occurrence method fail to answer correctly) and an Easy Set of 5,197 questions. Here are some samples from the dataset:\n\n\n\n\n\n\n\n\nquestion\nchoices\nanswerKey\n\n\n\n\nGeorge wants to warm his hands quickly by rubbing them. Which skin surface will produce the most heat?\n{ “text”: [ “dry palms”, “wet palms”, “palms covered with oil”, “palms covered with lotion” ], “label”: [ “A”, “B”, “C”, “D” ] }\nA\n\n\nA toothpaste commercial states that a brand of toothpaste has a higher concentration of fluoride than any other toothpaste available. The commercial is most likely inferring that the advertised toothpaste\n{ “text”: [ “has a pleasant flavor.”, “is recommended by dentists.”, “promotes good dental hygiene.”, “is the most expensive brand sold.” ], “label”: [ “A”, “B”, “C”, “D” ] }\nC\n\n\n\n\nSetup\nWe’ll start by importing what we need from Inspect and writing a record_to_sample() function to convert raw records to samples (note that the choices and labels are encoded in JSON within the choices field so need some special pre-processing).\n\nfrom inspect_ai import Task, eval, task\nfrom inspect_ai.dataset import Sample, hf_dataset\nfrom inspect_ai.scorer import answer\nfrom inspect_ai.solver import multiple_choice, system_message\n\ndef record_to_sample(record):\n  # read the labels and text\n  choices = record[\"choices\"]\n  choices = dict(zip(choices[\"label\"], choices[\"text\"]))\n\n  # determine the target then normalize to letter\n  answerKey = record[\"answerKey\"]\n  target = list(choices.keys()).index(answerKey)\n  target = chr(ord(\"A\") + int(target))\n\n  # return sample\n  return Sample(\n    input=record[\"question\"],\n    choices=list(choices.values()),\n    target=target\n  )\n\nSince the label and answer could be encoded using either letters or numeric indexes, we lookup\n\n\nEval\nThe ARC dataset has two subsets (ARC-Easy and ARC-Challenge). We’ll create a shared task function that can be used to run either, and then export two @task decorated functions so that they can be run all together or in isolation.\n\ndef arc_task(dataset_name):\n   return Task(\n     dataset=hf_dataset(\n       path=\"allenai/ai2_arc\",\n       name=dataset_name,\n       split=\"test\",\n       sample_fields=record_to_sample\n     ),\n     plan = multiple_choice(),\n     scorer = answer(\"letter\")\n   )\n   \n@task\ndef easy():\n  return arc_task(\"ARC-Easy\")\n\n@task\ndef challenge():\n  return arc_task(\"ARC-Challenge\")\n\nWe use the multiple_choice() solver and as you may have noted we don’t call generate() directly here! This is because multiple_choice() calls generate() internally (it does this so that it can randomly shuffle the order of choices and then map the model output back to the underlying dataset index).\nWe can run either all tasks or individual tasks as follows:\ninspect eval arc.py      \ninspect eval arc.py@easy\ninspect eval arc.py@challenge",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html#sec-tool-use",
+    "href": "examples.html#sec-tool-use",
+    "title": "Examples",
+    "section": "Tool Use",
+    "text": "Tool Use\nThis example illustrates how to define and use tools with model evaluations. Tools are Python functions that you provide for the model to call for assistance with various tasks (e.g. looking up information). Note that tools are actually executed on the client system, not on the system where the model is running.\nNote that tool use is not supported for every model provider. Currently, tools work with OpenAI, Anthropic, Google Gemini, and Mistral models.\nIf you want to use tools in your evals it’s worth taking some time to learn how to provide good tool definitions. Here are some resources you may find helpful:\n\nFunction Calling with LLMs\nBest Practices for Tool Definitions\n\n\nAddition\nWe’ll start with a simple tool that adds two numbers. We use the @tool decorator to register it with the system, and we provide a documentation comment (including argument types) that is used to provide details to the model about the tool:\n\nfrom inspect_ai import Task, eval, task\nfrom inspect_ai.dataset import Sample\nfrom inspect_ai.scorer import includes, match\nfrom inspect_ai.solver import (\n    generate, system_message, tool, use_tools\n)\nfrom inspect_ai.util import subprocess\n\n@tool(prompt=\"\"\"\n    If you are given a math problem of any kind,\n    please use the add tool to compute the result.\n    \"\"\"\n)\ndef add():\n    async def execute(x: int, y: int):\n        \"\"\"\n        Tool for adding two numbers.\n\n        Args:\n            x (int): First number to add.\n            y (int): Second number to add.\n\n        Returns:\n            The sum of the two numbers.\n        \"\"\"\n        return x + y\n\n    return execute\n\nNote the prompt argument passed to the @tool decorator. This prompt is intended to help the model reason about when to use the tool, and is automatically added to the system prompt.\nNow that we’ve defined the tool, we can use it in an evaluation by passing it to the use_tools() function.\n\n@task\ndef addition_problem():\n    return Task(\n        dataset=[Sample(\n            input=\"What is 1 + 1?\",\n            target=[\"2\", \"2.0\"]\n        )],\n        plan=[use_tools(add()), generate()],\n        scorer=match(numeric=True),\n    )\n\nWe run the eval with:\ninspect eval addition_problem.py",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html#file-listing",
+    "href": "examples.html#file-listing",
+    "title": "Examples",
+    "section": "File Listing",
+    "text": "File Listing\nThe next examples demonstrates how to define a tool that calls an external processs.\nWhen working with subprocesses its important to make sure that they don’t block the rest of the work in Inspect (so they should be invoked with async) and that you don’t run too many of them in parallel (which could overwhelm local compute resources).\nTo assist with this, Inspect provides the subprocess() function. This async function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout (or stderr in the case of an error). The subprocess() function also automatically limits concurrent child processes to the number of CPUs on your system (os.cpu_count()).\nHere’s an example of using the subprocess() function to create a list_files() tool (note that we imported the subprocess() function from the inspect_ai.util module above):\n\n@tool(\n    prompt=\"\"\"\n    If you are asked to list the files in a directory you\n    should call the list_files function to list the files.\n    \"\"\"\n)\ndef list_files():\n    async def execute(dir: str):\n        \"\"\"List the files in a directory.\n\n        Args:\n            dir (str): Directory\n\n        Returns:\n            File listing of the directory\n        \"\"\"\n        result = await subprocess([\"ls\", dir])\n        if result.success:\n            return result.stdout\n        else:\n            return f\"Error: {result.stderr}\"\n\n    return execute\n\nHere’s how we might use that tool in an evaluation:\n\nSYSTEM_MESSAGE = \"\"\"\nPlease answer exactly Yes or No with no additional words.\n\"\"\"\n\n@task\ndef bash():\n\n    dataset = [Sample(\n        input=(\n            \"Please list the files in the /usr/bin directory. \"\n            + \"Is there a file named 'python3' in the directory?\"\n        ),\n        target=[\"Yes\"],\n    )]\n\n    return Task(\n        dataset=dataset,\n        plan=[\n            system_message(SYSTEM_MESSAGE),\n            use_tools(list_files()),\n            generate(),\n        ],\n        scorer=includes(),\n    )\n\nNow we run the evaluation:\ninspect eval bash.py",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "examples.html#sec-gsm8k",
+    "href": "examples.html#sec-gsm8k",
+    "title": "Examples",
+    "section": "GSM8K",
+    "text": "GSM8K\nGSM8K (Grade School Math 8K) is a dataset of 8.5K high quality linguistically diverse grade school math word problems. The dataset was created to support the task of question answering on basic mathematical problems that require multi-step reasoning. Here are some samples from the dataset:\n\n\n\n\n\n\n\nquestion\nanswer\n\n\n\n\nJames writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year?\nHe writes each friend 3*2=&lt;&lt;3*2=6&gt;&gt;6 pages a week So he writes 6*2=&lt;&lt;6*2=12&gt;&gt;12 pages every week That means he writes 12*52=&lt;&lt;12*52=624&gt;&gt;624 pages a year #### 624\n\n\nWeng earns $12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn?\nWeng earns 12/60 = $&lt;&lt;12/60=0.2&gt;&gt;0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = $&lt;&lt;0.2*50=10&gt;&gt;10. #### 10\n\n\n\nNote that the final numeric answers are contained at the end of the answer field after the #### delimiter.\n\nSetup\nWe’ll start by importing what we need from Inspect and writing a couple of data handling functions:\n\nrecord_to_sample() to convert raw records to samples. Note that we need a function rather than just mapping field names with a FieldSpec because the answer field in the dataset needs to be divided into reasoning and the actual answer (which appears at the very end after ####).\nsample_to_fewshot() to generate fewshot examples from samples.\n\n\nfrom inspect_ai import Task, eval, task\nfrom inspect_ai.dataset import Sample, hf_dataset\nfrom inspect_ai.scorer import match\nfrom inspect_ai.solver import generate, system_message\n\ndef record_to_sample(record):\n    DELIM = \"####\"\n    input = record[\"question\"]\n    answer = record[\"answer\"].split(DELIM)\n    target = answer.pop().strip()\n    reasoning = DELIM.join(answer)\n    return Sample(\n        input=input, \n        target=target,\n        metadata={\"reasoning\": reasoning.strip()}\n    )\n\ndef sample_to_fewshot(sample):\n    ANSWER_TRIGGER = \"The answer is\"\n    return (\n        f\"Question: {sample.input}\\nAnswer: \"\n        + f\"{sample.metadata['reasoning']} \"\n        + f\"{ANSWER_TRIGGER} {sample.target}\"\n    )                \n\nNote that we save the “reasoning” part of the answer in metadata—we do this so that we can use it to compose the fewshot prompt (as illustrated in sample_to_fewshot()).\n\n\nEval\nWe’ll load the dataset from HuggingFace using the hf_dataset() function. By default we use 10 fewshot examples, but the fewshot task arg can be used to turn this up, down, or off. The fewshot_seed is provided for stability of fewshot examples across runs.\n\n@task\ndef gsm8k(fewshot=10, fewshot_seed=42):\n \n    # build plan dynamically (may or may not be doing fewshot)\n    plan = [generate()]\n    if fewshot:\n        fewshots = hf_dataset(\n            path=\"gsm8k\",\n            data_dir=\"main\",\n            split=\"train\",\n            sample_fields=record_to_sample,\n            shuffle=True,\n            seed=fewshot_seed,\n            limit=fewshot,\n        )\n        plan.insert(0, system_message(\"\\n\\n\".join(\n            [sample_to_fewshot(sample) for sample in fewshots]\n        )))\n\n    # define task\n    return Task(\n        dataset=hf_dataset(\n            path=\"gsm8k\",\n            data_dir=\"main\",\n            split=\"test\",\n            sample_fields=record_to_sample,\n        ), \n        plan=plan, \n        scorer=match(numeric=True)\n    )\n\nWe instruct the match() scorer to look for numeric matches at the end of the output. Passing numeric=True tells match() that it should disregard punctuation used in numbers (e.g. $, ,, or . at the end) when making comparisons.\nNow we run the evaluation, limiting the number of samples to 100 for development purposes:\ninspect eval gsm8k.py --limit 100",
+    "crumbs": [
+      "Basics",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>Examples</span>"
+    ]
+  },
+  {
+    "objectID": "solvers.html",
+    "href": "solvers.html",
+    "title": "Solvers",
+    "section": "",
+    "text": "Overview\nSolvers are the heart of Inspect evaluations and can serve a wide variety of purposes, including:\nHere’s an example task definition that composes a few standard solvers into a plan:\nTypically, a call to generate() is included in the list of solvers (this solver is just a simple call to the model). You can also create a more sophisticated solver that calls generate() internally, perhaps even more than once (this is often required for more complex evaluations). Next, we’ll describe how solvers operate on task states to do their work.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Solvers</span>"
+    ]
+  },
+  {
+    "objectID": "solvers.html#overview",
+    "href": "solvers.html#overview",
+    "title": "Solvers",
+    "section": "",
+    "text": "Providing system prompts\nPrompt engineering (e.g. chain of thought)\nModel generation\nSelf critique\nMulti-turn dialog\nRunning an agent scaffold\n\n\n@task\ndef theory_of_mind():\n    return Task(\n        dataset=json_dataset(\"theory_of_mind.jsonl\"),\n        plan=[\n            system_message(\"system.txt\"),\n            chain_of_thought(),\n            generate(),\n            self_critique()\n        ],\n        scorer=model_graded_fact(),\n    )\n\n\n\n\n\n\n\nThe concept of using solvers and task states for evals was originally introduced in Open AI Evals. Inspect solvers are an evolution of this core design.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Solvers</span>"
+    ]
+  },
+  {
+    "objectID": "solvers.html#task-states",
+    "href": "solvers.html#task-states",
+    "title": "Solvers",
+    "section": "Task States",
+    "text": "Task States\nBefore we get into the specifics of how solvers work, we should describe TaskState, which is the fundamental data structure they act upon. A TaskState consists principally of chat history (derived from input and then extended by model interactions) and model output:\nclass TaskState:\n    messages: list[ChatMessage],\n    output: ModelOutput\n\n\n\n\n\n\nNote that the above is a bit of simplification, there are other fields in a TaskState but we’re excluding them here for clarity.\n\n\n\nA prompt engineering solver will modify the content of messages. A model generation solver will call the model, append an assistant message, and set the output (a multi-turn dialog solver might do this in a loop).",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Solvers</span>"
+    ]
+  },
+  {
+    "objectID": "solvers.html#solver-function",
+    "href": "solvers.html#solver-function",
+    "title": "Solvers",
+    "section": "Solver Function",
+    "text": "Solver Function\nWe’ve covered the role of solvers in the system, but what exactly are solvers technically? A solver is a Python function that tasks a TaskState and generate function, and then transforms and returns the TaskState (the generate function may or may not be called depending on the solver).\nasync def solve(state: TaskState, generate: Generate):\n    # do something useful with state (possibly \n    # calling generate for more advanced solvers)\n    # then return the state\n    return state\nThe generate function passed to solvers is a convenience function that takes a TaskState, calls the model with it, appends the assistant message, and sets the model output. This is never used by prompt engineering solvers and nearly always used by more complex solvers that want to have multiple model interactions.\nHere are what some of the built-in solvers do with the TaskState:\n\nThe system_message() solver inserts a system message into the chat history.\nThe chain_of_thought() solver takes the original user prompt and re-writes it to ask the model to use chain of thought reasoning to come up with its answer.\nThe generate() solver just calls the generate function on the state. In fact, this is the full source code for the generate() solver:\nasync def solve(state: TaskState, generate: Generate):\n    return await generate(state)\nThe self_critique() solver takes the ModelOutput and then sends it to another model for critique. It then replays this critique back within the messages stream and re-calls generate to get a refined answer.\n\nYou can also imagine solvers that call other models to help come up with a better prompt, or solvers the implement a multi-turn dialog. Anything you can imagine is possible.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Solvers</span>"
+    ]
+  },
+  {
+    "objectID": "solvers.html#built-in-solvers",
+    "href": "solvers.html#built-in-solvers",
+    "title": "Solvers",
+    "section": "Built-In Solvers",
+    "text": "Built-In Solvers\nInspect has a number of built-in solvers, each of which can be customised in some fashion. Built in solvers can be imported from the inspect_ai.solver module. Below is a summary of these solvers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the Go to Definition command in your source editor.\n\nsystem_message()\nPrepend role=“system” message to the list of messages (will follow any other system messages it finds in the message stream).\nprompt_template()\nModify the user prompt by substituting the current prompt into the {prompt} placeholder within the specified template, as well as any other custom named placeholder passed in params.\nchain_of_thought()\nStandard chain of thought template with {prompt} substitution variable. Asks the model to provide the final answer on a line by itself at the end for easier scoring.\ngenerate()\nAs illustrated above, just a simple call to generate(state). This is the default solver if no plan is specified.\nmultiple_choice()\nA solver which presents A,B,C,D style choices from input samples (in a random order), calls generate() to yield model output, then maps the answer back to the correct index for scoring. Note that you don’t need to call generate() separately when using this solver.\nself_critique()\nPrompts the model to critique the results of a previous call to generate() (note that this need not be the same model as they one you are evaluating—use the model parameter to choose another model). Makes use of {question} and {completion} template variables.\n\n\nMultiple Choice\nHere is the declaration for the multiple_choice() solver:\ndef multiple_choice(\n    cot: bool = False,\n    instructions: str | None = None,\n    template: str | None = None,\n    max_tokens: int | None = None,\n    shuffle: bool | Random = False,\n    answer_pattern: str | None = None,\n) -&gt; Solver:\nThe multiple choice solver has two built in approaches and can customised to create additional ones. The cot (chain of thought) parameter determines which approach is used:\n\n\n\n\n\n\n\n\ncot\ninstructions\nmax_tokens\n\n\n\n\nFalse\n(none)\n32\n\n\nTrue\nThink step by step before answering.\n512\n\n\n\nInstructions refers to additional instructions over and above the standard multiple choice instructions. Using chain of thought may or may not improve results (it depends on the nature of the questions and the model being evaluated).\nYou can customise the extra instructions given and/or provide your own template entirely. Note that when you do this you will likely also need to change max_tokens.\nIf you specify shuffle=True, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).\nGenerally when using the multiple_choice() solver you should pair it with the answer(\"letter\") scorer.\n\n\nSelf Critique\nHere is the declaration for the self_critique() solver:\ndef self_critique(\n    critique_template: str | None = None,\n    completion_template: str | None = None,\n    model: str | Model | None = None,\n) -&gt; Solver:\nThere are two templates which correspond to the one used to solicit critique and the one used to play that critique back for a refined answer (default templates are provided for both).\nYou will likely want to experiment with using a distinct model for generating critiques (by default the model being evaluated is used).",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Solvers</span>"
+    ]
+  },
+  {
+    "objectID": "solvers.html#custom-solvers",
+    "href": "solvers.html#custom-solvers",
+    "title": "Solvers",
+    "section": "Custom Solvers",
+    "text": "Custom Solvers\nLet’s take a look at the source code for a couple of the built in solvers as a jumping off point for implementing your own solvers. A solver is an implementation of the Solver protocol (a function that transforms a TaskState):\nasync def solve(state: TaskState, generate: Generate) -&gt; TaskState:\n    # do something useful with state, possibly calling generate()\n    # for more advanced solvers\n    return state\nTypically solvers can be customised with parameters (e.g. template for prompt engineering solvers). This means that a Solver is actually a function which returns the solve() function referenced above (this will become more clear in the examples below).\n\n\n\n\n\n\nWhen creating custom solvers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your solver is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review Eval Tuning before proceeding.\n\n\n\n\nExample: Prompt Template\nHere’s the code for the prompt_template() solver:\n@solver\ndef prompt_template(template: str, **params: dict[str, Any]):\n\n    # determine the prompt template\n    prompt_template = resource(template)\n\n    async def solve(state: TaskState, generate: Generate) -&gt; TaskState:\n        # its possible the messages payload has no user prompt\n        # so only modify the prompt if there is one\n        if state.user_prompt:\n            state.user_prompt.text = prompt_template.format(\n                prompt=state.user_prompt.text, **params\n            )\n        return state\n\n    return solve\nA few things to note about this implementation:\n\nThe function applies the @solver decorator—this registers the Solver with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g. a YAML specification of an eval).\nThe solve() function is declared as async. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this solver doesn’t call generate() but others will).\nThe resource() function is used to read the specified template. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.\nWe make use of the user_prompt property on the TaskState. This is a convenience property for locating the first role=\"user\" message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the state.user_prompt.text property (so we are dealing with prompt as a string, recall that it can also be a list of messages).\n\n\n\nExample: Self Critique\nHere’s the code for the self_critique() solver:\nDEFAULT_CRITIQUE_TEMPLATE = r\"\"\"\nGiven the following question and answer, please critique the answer.\nA good answer comprehensively answers the question and NEVER refuses\nto answer. If the answer is already correct do not provide critique\n- simply respond 'The original answer is fully correct'.\n\n[BEGIN DATA]\n***\n[Question]: {question}\n***\n[Answer]: {completion}\n***\n[END DATA]\n\nCritique: \"\"\"\n\nDEFAULT_CRITIQUE_COMPLETION_TEMPLATE = r\"\"\"\nGiven the following question, initial answer and critique please\ngenerate an improved answer to the question:\n\n[BEGIN DATA]\n***\n[Question]: {question}\n***\n[Answer]: {completion}\n***\n[Critique]: {critique}\n***\n[END DATA]\n\nIf the original answer is already correct, just repeat the \noriginal answer exactly. You should just provide your answer to \nthe question in exactly this format:\n\nAnswer: &lt;your answer&gt; \"\"\"\n\n@solver\ndef self_critique(\n    critique_template: str | None = None,\n    completion_template: str | None = None,\n    model: str | Model | None = None,\n) -&gt; Solver:\n    # resolve templates\n    critique_template = resource(\n        critique_template or DEFAULT_CRITIQUE_TEMPLATE\n    )\n    completion_template = resource(\n        completion_template or DEFAULT_CRITIQUE_COMPLETION_TEMPLATE\n    )\n\n    # resolve critique model\n    model = get_model(model)\n\n    async def solve(state: TaskState, generate: Generate) -&gt; TaskState:\n        # run critique\n        critique = await model.generate(\n            critique_template.format(\n                question=state.input_text,\n                completion=state.output.completion,\n            )\n        )\n\n        # add the critique as a user message\n        state.messages.append(\n            ChatMessageUser(\n                content=completion_template.format(\n                    question=state.input_text,\n                    completion=state.output.completion,\n                    critique=critique.completion,\n                ),\n            )\n        )\n\n        # regenerate\n        return await generate(state)\n\n    return solve\nNote that calls to generate() (for both the critique model and the model being evaluated) are called with await—this is critical to ensure that the solver participates correctly in the scheduling of generation work.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Solvers</span>"
+    ]
+  },
+  {
+    "objectID": "solvers.html#early-termination",
+    "href": "solvers.html#early-termination",
+    "title": "Solvers",
+    "section": "Early Termination",
+    "text": "Early Termination\nIn some cases a solver has the context available to request an early termination of the plan (i.e. don’t call the rest of the solvers). In this case, setting the TaskState.completed field will result in forgoing remaining solvers in the plan. For example, here’s a simple solver that terminates the plan early:\n@solver\ndef complete_task():\n    async def solve(state: TaskState, generate: Generate):\n        state.completed = True\n        return state\n\n    return solve\nEarly termination might also occur if you specify the max_messages option and the conversation exceeds that limit:\n# could terminate early\neval(my_task, max_messages = 10)\nIn cases of early termination, you might have one final Solver that you want to make sure to always run (e.g. to synthesize an output for an early termination or to cleanup resources allocated for an evaluation). In this case, use a Plan object with a finish Solver:\nTask(\n    dataset=json_dataset(\"data.json\"),\n    plan = Plan(\n        steps = [...], \n        finish = finish_up()\n    ),\n    scorer = model_graded_fact()\n)\nIn this example the finish_up() solver will always be called even if the plan doesn’t run all of its steps.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>Solvers</span>"
+    ]
+  },
+  {
+    "objectID": "tools.html",
+    "href": "tools.html",
+    "title": "Tools",
+    "section": "",
+    "text": "Overview\nMany models now have the ability to interact with client-side Python functions in order to expand their capabilities. This enables you to equip models with your own set of custom tools so they can perform a wider variety of tasks.\nInspect natively supports registering Python functions as tools and providing these tools to models that support them (currently OpenAI, Claude 3, Google Gemini, and Mistral). Inspect also includes one built-in tool (web search).",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Tools</span>"
+    ]
+  },
+  {
+    "objectID": "tools.html#overview",
+    "href": "tools.html#overview",
+    "title": "Tools",
+    "section": "",
+    "text": "Tools and Agents\n\n\n\nOne application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. We’ll cover how to use agent scaffolds in Agent Solvers below.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Tools</span>"
+    ]
+  },
+  {
+    "objectID": "tools.html#tool-basics",
+    "href": "tools.html#tool-basics",
+    "title": "Tools",
+    "section": "Tool Basics",
+    "text": "Tool Basics\nTo demonstrate the use of tools, we’ll define a simple tool that adds two numbers. We use the @tool decorator to register it with the system, and we provide a documentation comment (including argument types) that is used to provide details to the model about the tool:\n@tool(prompt=\"\"\"\n    If you are given a math problem of any kind,\n    please use the add tool to compute the result.\"\"\"\n)\ndef add():\n    async def execute(x: int, y: int):\n        \"\"\"\n        Tool for adding two numbers.\n\n        Args:\n            x (int): First number to add.\n            y (int): Second number to add.\n\n        Returns:\n            The sum of the two numbers.\n        \"\"\"\n        return x + y\n\n    return execute\nWe can use this tool in an evaluation by passing it to the use_tools() Solver:\n@task\ndef addition_problem():\n    return Task(\n        dataset=[Sample(input=\"What is 1 + 1?\", target=[\"2\"])],\n        plan=[use_tools(add()), generate()],\n        scorer=match(numeric=True),\n    )\nNote that this tool doesn’t make network requests or do heavy computation, so is fine to run as inline Python code. If your tool does do more elaborate things, you’ll want to make sure it plays well with Inspect’s concurrency scheme. For network requests, this amounts to using async HTTP calls with httpx. For heavier computation, tools should use subprocesses as described in the next section.\n\n\n\n\n\n\nNote that when using tools with models, the models do not call the Python function directly. Rather, the model generates a structured request which includes function parameters, and then Inspect calls the function and returns the result to the model.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Tools</span>"
+    ]
+  },
+  {
+    "objectID": "tools.html#subprocesses",
+    "href": "tools.html#subprocesses",
+    "title": "Tools",
+    "section": "Subprocesses",
+    "text": "Subprocesses\nIt’s possible that your tool will need to launch a subprocess to do its work. When working with subprocesses its important to make sure that they don’t block the rest of the work in the system (so they should be invoked with async) and that you don’t run too many of them in parallel (which could overwhelm local compute resources).\nTo assist with this, Inspect provides the subprocess() function. This async function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout (or stderr in the case of an error). The subprocess() function also automatically limits concurrent child processes to the number of CPUs on your system (os.cpu_count()). Here’s an example of using the subprocess() function to create a list_files() tool:\nfrom inspect_ai.model import tool\nfrom inspect_ai.util import subprocess\n\n# define tool\n@tool(prompt=(\n    \"If you are asked to list the files in a directory you should \"\n    + \"call the list_files function to access the listing.\"\n))\ndef list_files():\n    async def execute(dir: str):\n        \"\"\"List the files in a directory.\n\n        Args:\n            dir (str): Directory\n\n        Returns:\n            File listing of the directory\n        \"\"\"\n        result = await subprocess([\"ls\", dir])\n        if result.success:\n            return result.stdout\n        else:\n            return f\"Error: {result.stderr}\"\n\n    return execute\nHere’s how we might use this tool in an evaluation:\nfrom inspect_ai import Task, task\nfrom inspect_ai.dataset import Sample\nfrom inspect_ai.scorer import includes\nfrom inspect_ai.solver import generate, system_message, use_tools\n\ndataset = [\n  Sample(\n    input=(\n      \"Please list the files in the /usr/local/bin directory. \"\n      + \"Is there a file named 'python3' in the directory?\"\n    ),\n    target=[\"Yes\"],\n  )\n]\n\n@task\ndef bash():\n    return Task(\n        dataset=dataset,\n        plan=[\n            use_tools(list_files()),\n            generate(),\n        ],\n        scorer=includes(),\n    )",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Tools</span>"
+    ]
+  },
+  {
+    "objectID": "tools.html#tool-choice",
+    "href": "tools.html#tool-choice",
+    "title": "Tools",
+    "section": "Tool Choice",
+    "text": "Tool Choice\nBy default models will use a tool if they think it’s appropriate for the given task. You can override this behavior using the tool_choice parmaeter of the use_tools() Solver. For example:\n# let the model decide whether to use the tool\nuse_tools(addition(), tool_choice=\"auto\")\n\n# force the use of a tool\nuse_tools(addition(), tool_choice=ToolFunction(name=\"addition\"))\n\n# prevent use of tools\nuse_tools(addition(), tool_choice=\"none\")\nThe last form (tool_choice=\"none\") would typically be used to turn off tool usage after an initial generation where the tool used. For example:\nplan = [\n  use_tools(addition(), tool_choice=ToolFunction(name=\"addition\")),\n  generate(),\n  follow_up_prompt(),\n  use_tools(tool_choice=\"none\"),\n  generate()\n]",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Tools</span>"
+    ]
+  },
+  {
+    "objectID": "tools.html#web-search",
+    "href": "tools.html#web-search",
+    "title": "Tools",
+    "section": "Web Search",
+    "text": "Web Search\nInspect has a built in web_search() tool that provides models with the ability to enhance their context window by performing a search. By default web searches retreives 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the web_search() function:\ndef web_search(\n    provider: Literal[\"google\"] = \"google\",\n    num_results: int = 3,\n    max_provider_calls: int = 3,\n    max_connections: int = 10,\n    model: str | Model | None = None,\n) -&gt; Tool:\n    ...\nYou can use the web_search() tool in a plan like this:\nplan=[\n    use_tools(web_search()), \n    generate()\n],\nWeb search options include:\n\nprovider—Web search provider (currently only Google is supported, see below for instructions on setup and configuration for Google).\nnum_results—How many search results to return to the main model (defaults to 5).\nmax_provider_calls—Number of times to retrieve more links from the search provider incase previous ones were irrelevant (defaults to 3)\nmax_connections—Maximum number of concurrent connections to the search API provider (defaults to 10).\nmodel—Model to use to determine if search results are relevant (defaults to the model currently being evaluated).\n\n\nGoogle Provider\nThe web_search() tool uses Google Programmable Search Engine. To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the Programmable Search Element Paid API. Then, ensure that the following environment variables are defined:\n\nGOOGLE_CSE_ID — Google Custom Search Engine ID\nGOOGLE_CSE_API_KEY — Google API key used to enable the Search API",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Tools</span>"
+    ]
+  },
+  {
+    "objectID": "tools.html#agent-solvers",
+    "href": "tools.html#agent-solvers",
+    "title": "Tools",
+    "section": "Agent Solvers",
+    "text": "Agent Solvers\nAgent solvers typically have multiple interactions with a model, generating completions, orchestrating the use of tools, and using the model to plan their next action. Agents are an area of active research, and many schemes for implementing them have been developed, including AutoGPT, ReAct, and Reflexion. There are also Python libraries such LangChain and Langroid which facilitate using these techniques with various LLMs.\nInspect supports a wide variety of approaches to agents and agent libraries. Agent libraries generally take chat history as an input and produce a completion string as output—this interface can be easily adapted to solvers, with chat history coming from TaskState and completions being set as ModelOutput.\nThere are several approaches to creating an Inspect solver that uses an agent scaffold:\n\nImplement your own scaffolding (potentially implementing the ReAct algorithm or a derivative). This will involve repeated calls to generate() with various tools being made available in the TaskState for each call. It will also involve using the model to help determine what actions to take next.\nAdapt another scaffolding scheme provided by a research paper or open source library.\nIntegrate a 3rd party agent library like LangChain and Langroid.\n\nIf you are adapting research code or using a 3rd party library, it’s important that the agent scaffolding use Inspect’s model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). We’ll describe how to do that for LangChain in the example below.\n\nExample: Wikipedia Search\nIn this example we’ll demonstrate how to integrate a LangChain OpenAI tools agent with Inspect. This agent will use Wikipedia via the Tavili Search API to perform question answering tasks. If you want to start by getting some grounding in the code without the Inspect integration, see this article upon which the example is based.\nThe main thing that an integration with an agent framework needs to account for is:\n\nBridging Inspect’s model API into the API of the agent framework. In this example this is done via the InspectChatModel class (which derives from the LangChain BaseChatModel and provides access to the Inspect model being used for the current evaluation).\nBridging from the Inspect solver interface to the standard input and output types of the agent library. In this example this is provided by the langchain_solver() function, which takes a LangChain agent function and converts it to an Inspect solver.\n\nHere’s the implementation of langchain_solver() (imports excluded for brevity):\n# Interface for LangChain agent function\nclass LangChainAgent(Protocol):\n    async def __call__(self, llm: BaseChatModel, input: dict[str, Any]): ...\n\n# Convert a LangChain agent function into a Solver\ndef langchain_solver(agent: LangChainAgent) -&gt; Solver:\n\n    async def solve(state: TaskState, generate: Generate) -&gt; TaskState:\n\n        # create the inspect model api bridge\n        llm = InspectChatModel()\n\n        # call the agent\n        await agent(\n            llm = llm,\n            input = dict(\n                input=state.user_prompt.text,\n                chat_history=as_langchain_chat_history(\n                    state.messages[1:]\n                ),\n            )\n        )\n\n        # collect output from llm interface\n        state.messages = llm.messages\n        state.output = llm.output\n        state.output.completion = output\n        \n        # return state\n        return state\n\n    return solve\n\n# LangChain BaseChatModel for Inspect Model API\nclass InspectChatModel(BaseChatModel):\n     async def _agenerate(\n        self,\n        messages: list[BaseMessage],\n        stop: list[str] | None = None,\n        run_manager: AsyncCallbackManagerForLLMRun | None = None,\n        **kwargs: dict[str, Any],\n    ) -&gt; ChatResult:\n        ...\n\n\n\n\n\n\nNote that the the inspect_langchain module imported here is not a built in feature of Inspect. Rather, you can find its source code as part of the example. You can use this to create your own LangChain agents or as the basis for creating similar integrations with other agent frameworks.\n\n\n\nNow here’s the wikipedia_search() solver (imports again excluded for brevity):\n@solver\ndef wikipedia_search(\n    max_iterations: int | None = 15,\n    max_execution_time: float | None = None\n) -&gt; Solver:\n    # standard prompt for tools agent\n    prompt = hub.pull(\"hwchase17/openai-tools-agent\")\n\n1    # tavily and wikipedia tools\n    tavily_api = TavilySearchAPIWrapper()  # type: ignore\n    tools = (\n        [TavilySearchResults(api_wrapper=tavily_api)] + \n        load_tools([\"wikipedia\"])\n    )\n\n2    # agent function\n    async def agent(\n        llm: BaseChatModel, \n        input: dict[str, Any]\n    ) -&gt; str | list[str | dict[str,Any]]:  \n        # create agent\n        tools_agent = create_openai_tools_agent(\n          llm, tools, prompt\n        )\n        executor = AgentExecutor.from_agent_and_tools(\n            agent=cast(BaseMultiActionAgent, tools_agent),\n            tools=tools,\n            name=\"wikipedia_search\",\n            max_iterations=max_iterations,  \n            max_execution_time=max_execution_time\n        )\n\n3        # execute the agent and return output\n        result = await executor.ainvoke(input)  \n        return result[\"output\"]\n\n4    # return agent function as inspect solver\n    return langchain_solver(agent)\n\n1\n\nNote that we register native LangChain tools. These will be converted to the standard Inspect ToolDef when generate is called.\n\n2\n\nThis is the standard interface to LangChain agents. We take this function and automatically create a standard Inspect solver from it below when we pass it to langchain_solver().\n\n3\n\nInvoke the agent using the chat history passed in input. We call the async executor API to play well with Inspect’s concurrency.\n\n4\n\nThe langchain_solver() function maps the simpler agent function semantics into the standard Inspect solver API.\n\n\nIf you reviewed the original article that this example was based on, you’ll see that most of the code is unchanged (save for the fact that we have switched from a function agent to a tools agent). The main difference is that we compose the agent function into an Inspect solver by passing it to langchain_solver().\nFinally, here’s a task that uses the wikipedia_search() solver:\n@task\ndef wikipedia() -&gt; Task:\n    return Task(\n        dataset=json_dataset(\"wikipedia.jsonl\"),\n        plan=wikipedia_search(),\n        scorer=model_graded_fact(),\n    )\nSee the working version of this example if you want to run and experiment with it.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Tools</span>"
+    ]
+  },
+  {
+    "objectID": "tools.html#task-params",
+    "href": "tools.html#task-params",
+    "title": "Tools",
+    "section": "Task Params",
+    "text": "Task Params\nIn some cases you may want to forward information from task metadata to a tool. This would be useful if you have some per-sample metadata that you want tools to condition their behavior on. To do this, specify the params option on the @tool decorator and specify the metadata value you would like to forward (these params will be then be passed to the function with the appropriate per-task value). For example:\n@tool(\n   prompt = \"Use the run_command function to run commands.\",\n   params = dict(container_name=\"metadata.container_name\")\n)\ndef run_command():\n    \"\"\"Run a command in a container.\n\n   Args:\n       container_name (str): Name of container to run within.\n       command (str): Command to run.\n\n   Returns:\n       Result of executing the command.\n   \"\"\"\n   async def execute(container_name: str, command: str):\n       ...\n\n   return execute",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>Tools</span>"
+    ]
+  },
+  {
+    "objectID": "scorers.html",
+    "href": "scorers.html",
+    "title": "Scorers",
+    "section": "",
+    "text": "Overview\nScorers evaluate whether solvers were successful in finding the right output for the target defined in the dataset, and in what measure. Scorers generally take one of the following forms:\nScorers also define one or more metrics which are used to aggregate scores (e.g. accuracy() which computes what percentage of scores are correct, or mean() which provides an average for scores that exist on a continuum).",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Scorers</span>"
+    ]
+  },
+  {
+    "objectID": "scorers.html#overview",
+    "href": "scorers.html#overview",
+    "title": "Scorers",
+    "section": "",
+    "text": "Extracting a specific answer out of a model’s completion output using a variety of heuristics.\nApplying a text similarity algorithm to see if the model’s completion is close to what is set out in the target.\nUsing another model to assess whether the model’s completion satisfies a description of the ideal answer in target.\nUsing another rubric entirely (e.g. did the model produce a valid version of a file format, etc.)",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Scorers</span>"
+    ]
+  },
+  {
+    "objectID": "scorers.html#built-in-scorers",
+    "href": "scorers.html#built-in-scorers",
+    "title": "Scorers",
+    "section": "Built-In Scorers",
+    "text": "Built-In Scorers\nInspect includes some simple text matching scorers as well as a couple of model graded scorers. Built in scorers can be imported from the inspect_ai.scorer module. Below is a summary of these scorers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the Go to Definition command in your source editor.\n\nincludes()\nDetermine whether the target from the Sample appears anywhere inside the model output. Can be case sensitive or insensitive (defaults to the latter).\nmatch()\nDetermine whether the target from the Sample appears at the beginning or end of model output (defaults to looking at the end). Has options for ignoring case, white-space, and punctuation (all are ignored by default).\npattern()\nExtract the answer from model output using a regular expression.\nanswer()\nScorer for model output that preceded answers with “ANSWER:”. Can extract letters, words, or the remainder of the line.\nmodel_graded_qa()\nHave another model assess whether the model output is a correct answer based on the grading guidance contained in target. Has a built-in template that can be customized.\nmodel_graded_fact()\nHave another model assess whether the model output contains a fact that is set out in target. This is a more narrow assessment than model_graded_qa(), and is used when model output is too complex to be assessed using a simple match() or pattern() scorer.\n\nScorers provide one or more built-in metrics (each of the scorers above provides accuracy as a metric). You can also provide your own custom metrics in Task definitions. For example:\nTask(\n    dataset=dataset,\n    plan=[\n        system_message(SYSTEM_MESSAGE),\n        multiple_choice()\n    ],\n    scorer=match(),\n    metrics=[custom_metric()]\n)",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Scorers</span>"
+    ]
+  },
+  {
+    "objectID": "scorers.html#custom-scorers",
+    "href": "scorers.html#custom-scorers",
+    "title": "Scorers",
+    "section": "Custom Scorers",
+    "text": "Custom Scorers\nLet’s take a look at the source code for a couple of the built in scorers as a jumping off point for implementing your own scorers. If you are working on custom scorers, you should also review the Scorer Workflow section below for tips on optimising your development process.\n\n\n\n\n\n\nWhen creating custom scorers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review Eval Tuning before proceeding.\n\n\n\n\nExample: Includes\n@scorer(metrics=[accuracy()])\ndef includes(ignore_case: bool = True):\n\n    async def score(state: TaskState, target: Target):\n\n        # check for correct\n        value = state.output.completion\n        answer = target.text\n        if ignore_case:\n            correct = value.lower().rfind(answer.lower()) != -1\n        else:\n            correct = value.rfind(answer) != -1\n\n        # return score\n        return Score(\n            value = \"C\" if correct else \"I\",\n            explanation=state.output.completion\n        )\n\n    return score\nA few things to note about this implementation:\n\nThe function applies the @scorer decorator—this registers the Scorer with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g. a YAML specification of an eval).\nThe score() function is declared as async. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this scorer doesn’t call a model but others will).\nWe make use of the text property on the Target. This is a convenience property to get a simple text value out of the Target (as targets can technically be a list of strings).\nWe provide the full model completion as the explanation for the score (explanation is optional, but often useful to refer to during evaluation development).\n\n\n\nExample: Model Graded QA\nHere’s the code for the model_graded_qa() scorer:\nMODEL_GRADED_QA_TEMPLATE = f\"\"\"\nYou are assessing a submitted answer on a given task based on a\ncriterion. Here is the data:\n\n[BEGIN DATA]\n***\n[Task]: {{question}}\n***\n[Submission]: {{answer}}\n***\n[Criterion]: {{criterion}}\n***\n[END DATA]\n\nDoes the submission meet the criterion?\n\nReasoning:\n\"\"\"\n\n@scorer(metrics=[accuracy()])\ndef model_graded_qa(\n    template: str = MODEL_GRADED_QA_TEMPLATE,\n    extractor: Callable[[ModelOutput], str] | None = None,\n    model: str | Model | None = None,\n) -&gt; Scorer:\n    # resolve model\n    grader_model = get_model(model)\n\n    # resolve grading template\n    template = resource(template)\n\n    # provide default scoring function if required\n    extractor = extractor if extractor else extract_grade\n\n    async def score(state: TaskState, target: Target) -&gt; Score:\n        # format the scoring template\n        score_prompt = template.format(\n            question=state.input_text,\n            answer=state.output.completion,\n            criterion=target.text,\n        )\n\n        # query the model for the score\n        score = await grader_model.generate(score_prompt)\n\n        # return score (reduced by extractor) with explanation\n        return Score(\n            value=extractor(score),\n            explanation=score.completion,\n        )\n\n    return score\n\ndef extract_grade(output: ModelOutput) -&gt; str:\n    text: str = output.completion\n    match = re.search(\"Grade: .\", text)\n    if match is None:\n        raise ValueError(\"No grade found in model output.\")\n    return text[match.end() - 1]\nNote that the call to model_grader.generate() is done with await—this is critical to ensure that the scorer participates correctly in the scheduling of generation work.\nThere is one other thing to note: we use the input_text property of the TaskState to access a string version of the original user input to substitute it into the grading template. Using the input_text has two benefits: (1) It is guaranteed to cover the original input from the dataset (rather than a transformed prompt in messages); and (2) It normalises the input to a string (as it could have been a message list).",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Scorers</span>"
+    ]
+  },
+  {
+    "objectID": "scorers.html#metrics",
+    "href": "scorers.html#metrics",
+    "title": "Scorers",
+    "section": "Metrics",
+    "text": "Metrics\nEach scorer provides one or more built-in metrics (typically accuracy and bootstrap_std). In addition, you can specify other metrics (either built-in or custom) to compute when defining a Task:\nTask(\n    dataset=dataset,\n    plan=[\n        system_message(SYSTEM_MESSAGE),\n        multiple_choice()\n    ],\n    scorer=match(),\n    metrics=[custom_metric()]\n)\n\nBuilt-In Metrics\nInspect includes some simple built in metrics for calculating accuracy, mean, etc. Built in metrics can be imported from the inspect_ai.scorer module. Below is a summary of these metrics. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the Go to Definition command in your source editor.\n\naccuracy()\nCompute proportion of total answers which are correct. For correct/incorrect scores assigned 1 or 0, can optionally assign 0.5 for partially correct answers.\nmean()\nMean of all scores.\nvar()\nVariance over all scores.\nbootstrap_std()\nStandard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the num_samples option).\n\n\n\nCustom Metrics\nYou can also add your own metrics with @metric decorated functions. For example, here is the implementation of the variance metric:\nimport numpy as np\n\nfrom inspect_ai.scorer import Metric, Score, metric\n\ndef var() -&gt; Metric:\n    \"\"\"Compute variance over all scores.\"\"\"\n\n    def metric(scores: list[Score]) -&gt; float:\n        return np.var([score.as_float() for score in scores]).item()\n\n    return metric",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Scorers</span>"
+    ]
+  },
+  {
+    "objectID": "scorers.html#sec-scorer-workflow",
+    "href": "scorers.html#sec-scorer-workflow",
+    "title": "Scorers",
+    "section": "Workflow",
+    "text": "Workflow\n\nScore Command\nBy default, model output in evaluations is automatically scored. However, you can separate generation and scoring by using the --no-score option. For example:\ninspect eval popularity.py --model openai/gpt-4 --no-score\nYou can score an evaluation previously run this way using the inspect score command:\n# score last eval\ninspect score popularity.py\n\n# score specific log file\ninspect score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json\n\n\n\n\n\n\nTip\n\n\n\nUsing a distinct scoring step is particularly useful during scorer development, as it bypasses the entire generation phase, saving lots of time and inference costs.\n\n\n\n\nLog Overwriting\nBy default, inspect score overwrites the file it scores. If don’t want to overwrite target files, pass the --no-overwrite flag:\ninspect score popularity.py --no-overwrite\nWhen specifying --no-overwrite, a -scored suffix will be added to the original log file name:\n./logs/2024-02-23_task_gpt-4_TUhnCn473c6-scored.json\nNote that the --no-overwrite flag does not apply to log files that already have the -scored suffix—those files are always overwritten by inspect score. If you plan on scoring multiple times and you want to save each scoring output, you will want to copy the log to another location before re-scoring.\n\n\nPython API\nIf you are exploring the performance of different scorers, you might find it more useful to call the score() function using varying scorers or scorer options. For example:\nlog = eval(popularity, model=\"openai/gpt-4\")[0]\n\ngrader_models = [\n    \"openai/gpt-4\",\n    \"anthropic/claude-3-opus-20240229\",\n    \"google/gemini-1.0-pro\",\n    \"mistral/mistral-large-latest\"\n]\n\nscoring_logs = [score(log, model_graded_qa(model=model)) \n                for model in grader_models]\n\nplot_results(scoring_logs)",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>Scorers</span>"
+    ]
+  },
+  {
+    "objectID": "datasets.html",
+    "href": "datasets.html",
+    "title": "Datasets",
+    "section": "",
+    "text": "Overview\nInspect has native support for reading datasets in the CSV, JSON, and JSON Lines formats, as well as from Hugging Face. In addition, the core dataset interface for the evaluation pipeline is flexible enough to accept data read from just about any source.\nIf your data is already in a format amenable for direct reading as an Inspect Sample, reading a dataset is as simple as this:\nOf course, many real-world datasets won’t be so trivial to read. Below we’ll discuss the various ways you can adapt your datasets for use with Inspect.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Datasets</span>"
+    ]
+  },
+  {
+    "objectID": "datasets.html#overview",
+    "href": "datasets.html#overview",
+    "title": "Datasets",
+    "section": "",
+    "text": "from inspect_ai.dataset import csv_dataset, json_dataset\ndataset1 = csv_dataset(\"dataset1.csv\")\ndataset2 = json_dataset(\"dataset2.json\")",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Datasets</span>"
+    ]
+  },
+  {
+    "objectID": "datasets.html#dataset-samples",
+    "href": "datasets.html#dataset-samples",
+    "title": "Datasets",
+    "section": "Dataset Samples",
+    "text": "Dataset Samples\nThe core data type underlying the use of datasets with Inspect is the Sample. A sample has an input, a target, an optional id, and an optional collection of metadata.\nClass inspect_ai.dataset.Sample\n\n\n\n\n\n\n\n\nField\nType\nDescription\n\n\n\n\ninput\nstr | list[ChatMessage]\nThe input to be submitted to the model.\n\n\nchoices\nlist[str] | None\nOptional. Multiple choice answer list.\n\n\ntarget\nstr | list[str] | None\nOptional. Ideal target output. May be a literal value or narrative text to be used by a model grader.\n\n\nid\nstr | None\nOptional. Unique identifier for sample.\n\n\nmetadata\ndict[str | Any] | None\nOptional. Arbitrary metadata associated with the sample.\n\n\n\nSo a CSV dataset with the following structure:\n\n\n\n\n\n\n\ninput\ntarget\n\n\n\n\nWhat cookie attributes should I use for strong security?\nsecure samesite and httponly\n\n\nHow should I store passwords securely for an authentication system database?\nstrong hashing algorithms with salt like Argon2 or bcrypt\n\n\n\nCan be read directly with:\ndataset = csv_dataset(\"security_guide.csv\")\nNote that samples from datasets without and id field will automatically be assigned ids based on an auto-incrementing integer starting with 1.\nIf your samples include choices, then the label should be a numeric index into the available choices rather a letter (this is an implicit assumption of the multiple_choice() solver).",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Datasets</span>"
+    ]
+  },
+  {
+    "objectID": "datasets.html#field-mapping",
+    "href": "datasets.html#field-mapping",
+    "title": "Datasets",
+    "section": "Field Mapping",
+    "text": "Field Mapping\nIf your dataset contains inputs and targets that don’t use input and target as field names, you can map them into a Dataset using a FieldSpec. This same mechanism also enables you to collect arbitrary additional fields into the Sample metadata bucket. For example:\nfrom inspect_ai.dataset import FieldSpec, json_dataset\n\ndataset = json_dataset(\n    \"popularity.jsonl\",\n    FieldSpec(\n        input=\"question\",\n        target=\"answer_matching_behavior\",\n        id=\"question_id\",\n        metadata=[\"label_confidence\"],\n    ),\n)\nIf you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes an index and record (represented as a dict) from the underlying file and returns a Sample. For example:\nfrom inspect_ai.dataset import Sample, json_dataset\n\ndef record_to_sample(record):\n    return Sample(\n        input=record[\"question\"],\n        target=record[\"answer_matching_behavior\"].strip(),\n        id=record[\"question_id\"],\n        metadata={\n            \"label_confidence\": record[\"label_confidence\"]\n        }\n    )\n\ndataset = json_dataset(\"popularity.jsonl\", record_to_sample)",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Datasets</span>"
+    ]
+  },
+  {
+    "objectID": "datasets.html#sec-hugging-face-datasets",
+    "href": "datasets.html#sec-hugging-face-datasets",
+    "title": "Datasets",
+    "section": "Hugging Face",
+    "text": "Hugging Face\nHugging Face Datasets is a library for easily accessing and sharing datasets for machine learning, and features integration with Hugging Face Hub, a repository with a broad selection of publicly shared datasets. Typically datasets on Hugging Face will require specification of which split within the dataset to use (e.g. train, test, or validation) as well as some field mapping. Use the hf_dataset() function to read a dataset and specify the requisite split and field names:\nfrom inspect_ai.dataset import FieldSpec, hf_dataset\n\ndataset=hf_dataset(\"openai_humaneval\", \n  split=\"test\", \n  sample_fields=FieldSpec(\n    id=\"task_id\",\n    input=\"prompt\",\n    target=\"canonical_solution\",\n    metadata=[\"test\", \"entry_point\"]\n  )\n)\nNote that some HuggingFace datasets execute Python code in order to resolve the underlying dataset files. Since this code is run on your local machine, you need to specify trust = True in order to perform the download. This option should only be set to True for repositories you trust and in which you have read the code. Here’s an example of using the trust option (note that it defaults to False if not specified):\ndataset=hf_dataset(\"openai_humaneval\", \n  split=\"test\", \n  trust=True,\n  ...\n)\nUnder the hood, the hf_dataset() function is calling the load_dataset() function in the Hugging Face datasets package. You can additionally pass arbitrary parameters on to load_dataset() by including them in the call to hf_dataset(). For example hf_dataset(..., cache_dir=\"~/my-cache-dir\").",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Datasets</span>"
+    ]
+  },
+  {
+    "objectID": "datasets.html#amazon-s3",
+    "href": "datasets.html#amazon-s3",
+    "title": "Datasets",
+    "section": "Amazon S3",
+    "text": "Amazon S3\nInspect has integrated support for storing datasets on Amazon S3. Compared to storing data on the local file-system, using S3 can provide more flexible sharing and access control, and a more reliable long term store than local files.\nUsing S3 is mostly a matter of substituting S3 URLs (e.g. s3://my-bucket-name) for local file-system paths. For example, here is how you load a dataset from S3:\njson_dataset(\"s3://my-bucket/dataset.jsonl\")\nS3 buckets are normally access controlled so require authentication to read from. There are a wide variety of ways to configure your client for AWS authentication, all of which work with Inspect. See the article on Configuring the AWS CLI for additional details",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Datasets</span>"
+    ]
+  },
+  {
+    "objectID": "datasets.html#chat-messages",
+    "href": "datasets.html#chat-messages",
+    "title": "Datasets",
+    "section": "Chat Messages",
+    "text": "Chat Messages\nThe most important data structure within Sample is the ChatMessage. Note that often datasets will contain a simple string as their input (which is then internally converted to a ChatMessageUser). However, it is possible to include a full message history as the input via ChatMessage. Another useful application of ChatMessage is providing multi-modal input (e.g. images).\nClass inspect_ai.model.ChatMessage\n\n\n\n\n\n\n\n\nField\nType\nDescription\n\n\n\n\nrole\n\"system\" | \"user\" | \"assistant\" | \"tool\"\nRole of this chat message.\n\n\ncontent\nstr | list[ChatContent]\nThe content of the message. Can be a simple string or a list of content parts intermixing text and images.\n\n\n\nAn input with chat messages in your dataset might will look something like this:\n\"input\": [\n  {\n    \"role\": \"user\",\n    \"content\": \"What cookie attributes should I use for strong security?\"\n  }\n]\nNote that for this example we wouldn’t normally use a full chat message object (rather we’d just provide a simple string). Chat message objects are more useful when you want to include a system prompt or prime the conversation with “assistant” responses.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Datasets</span>"
+    ]
+  },
+  {
+    "objectID": "datasets.html#image-input",
+    "href": "datasets.html#image-input",
+    "title": "Datasets",
+    "section": "Image Input",
+    "text": "Image Input\nTo include an image, your dataset input would look like this:\n\"input\": [\n  {\n    \"role\": \"user\",\n    \"content\": [\n        { \"type\": \"text\", \"text\": \"What is this a picture of?\"},\n        { \"type\": \"image\", \"image\": \"picture.png\"}\n    ]\n  }\n]\nWhere \"picture.png\" is located in the directory where your task runs. The image can be specified either as a URL (accessible to the model), a local file path, or a base64 encoded Data URL.\nIf you are constructing chat messages programmatically, then the equivalent to the above would be:\nChatMessageUser(content = [\n    ContentText(text=\"What is this a picture of?\"),\n    ContentImage(image=\"picture.png\")\n])\n\n\n\n\n\n\nNote that image input is currently only supported for Open AI vision models (e.g. gpt-4-vision-preview), Google Gemini vision models (e.g. gemini-pro-vision), and Anthropic Claude 3 models.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Datasets</span>"
+    ]
+  },
+  {
+    "objectID": "datasets.html#custom-reader",
+    "href": "datasets.html#custom-reader",
+    "title": "Datasets",
+    "section": "Custom Reader",
+    "text": "Custom Reader\nYou are not restricted to the built in dataset functions for reading samples. Since the dataset field of the Task class takes either a Dataset or a sequences ofSample, the following is also valid:\nfrom inspect_ai import Task, task\nfrom inspect_ai.dataset import Sample\nfrom inspect_ai.scorer import model_graded_fact\nfrom inspect_ai.solver import generate, system_message\n\ndataset=[\n    Sample(\n        input=\"What cookie attributes should I use for strong security?\",\n        target=\"secure samesite and httponly\",\n    )\n]\n\n@task\ndef security_guide():\n    return Task(\n        dataset=dataset,\n        plan=[system_message(SYSTEM_MESSAGE), generate()],\n        scorer=model_graded_fact(),\n    )\nSo if the built in dataset functions don’t meet your needs, you can create a custom function that yields a list of Sample instances and pass those directly to your Task.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>Datasets</span>"
+    ]
+  },
+  {
+    "objectID": "models.html",
+    "href": "models.html",
+    "title": "Models",
+    "section": "",
+    "text": "Overview\nInspect has built in support for a variety of language model API providers and can be extended to support arbitrary additions ones. Built-in model API providers, their dependencies, and environment variables required to use them are as follows:",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Models</span>"
+    ]
+  },
+  {
+    "objectID": "models.html#overview",
+    "href": "models.html#overview",
+    "title": "Models",
+    "section": "",
+    "text": "Model API\nDependencies\nEnvironment Variables\n\n\n\n\nOpenAI\npip install openai\nOPENAI_API_KEY\n\n\nAnthropic\npip install anthropic\nANTHROPIC_API_KEY\n\n\nGoogle\npip install google-generativeai\nGOOGLE_API_KEY\n\n\nMistral\npip install mistralai\nMISTRAL_API_KEY\n\n\nHugging Face\npip install transformers\nHF_TOKEN\n\n\nTogetherAI\npip install openai\nTOGETHER_API_KEY\n\n\nAWS Bedrock\npip install boto3\nAWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_DEFAULT_REGION\n\n\nAzure AI\nNone required\nAZURE_API_KEY and INSPECT_EVAL_MODEL_BASE_URL\n\n\nCloudFlare\nNone required\nCLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Models</span>"
+    ]
+  },
+  {
+    "objectID": "models.html#using-models",
+    "href": "models.html#using-models",
+    "title": "Models",
+    "section": "Using Models",
+    "text": "Using Models\nTo select a model for use in an evaluation task you specify it using a model name. Model names include their API provider and the specific model to use (e.g. openai/gpt-4) Here are the supported providers along with example model names and links to documentation on all available models:\n\n\n\n\n\n\n\n\nProvider\nModel Name\nDocs\n\n\n\n\nOpenAI\nopenai/gpt-3.5-turbo\nOpenAI Models\n\n\nAnthropic\nanthropic/claude-2.1\nAnthropic Models\n\n\nGoogle\ngoogle/gemini-1.0-pro\nGoogle Models\n\n\nMistral\nmistral/mistral-large-latest\nMistral Models\n\n\nHugging Face\nhf/openai-community/gpt2\nHugging Face Models\n\n\nTogetherAI\ntogether/lmsys/vicuna-13b-v1.5\nTogetherAI Models\n\n\nAWS Bedrock\nbedrock/meta.llama2-70b-chat-v1\nAWS Bedrock Models\n\n\nAzure AI\nazureai/azure-deployment-name\nAzure AI Models\n\n\nCloudFlare\ncf/meta/llama-2-7b-chat-fp16\nCloudFlare Models\n\n\n\nTo select a model for an evaluation, pass it’s name on the command line or use the model argument of the eval() function:\n$ inspect eval security_guide --model openai/gpt-3.5-turbo\n$ inspect eval security_guide --model anthropic/claude-instant-1.2\nOr:\neval(security_guide, model=\"openai/opeangpt-3.5-turbo\")\neval(security_guide, model=\"anthropic/claude-instant-1.2\")\nAlternatively, you can set the INSPECT_EVAL_MODEL environment variable (either in the shell or a .env file) to select a model externally:\nINSPECT_EVAL_MODEL=google/gemini-1.0-pro\n\n\n\n\n\n\nIf are using Azure AI, AWS Bedrock, or Hugging Face, you should additionally consult the sections below on using the Azure AI, AWS Bedrock, and Hugging Face providers to learn more about available models and their usage and authentication requirements.\n\n\n\n\nModel Base URL\nEach model also can use a different base URL than the default (e.g. if running through a proxy server). The base URL can be specified with the same prefix as the API_KEY, for example, the following are all valid base URLs:\n\n\n\n\n\n\n\nProvider\nEnvironment Variable\n\n\n\n\nOpenAI\nOPENAI_BASE_URL\n\n\nAnthropic\nANTHROPIC_BASE_URL\n\n\nGoogle\nGOOGLE_BASE_URL\n\n\nMistral\nMISTRAL_BASE_URL\n\n\nTogetherAI\nTOGETHER_BASE_URL\n\n\nAWS Bedrock\nBEDROCK_BASE_URL\n\n\nAzure AI\nAZUREAI_BASE_URL\n\n\nCloudFlare\nCLOUDFLARE_BASE_URL\n\n\n\nIn addition, there are separate base URL variables for running various frontier models on Azure and Bedrock:\n\n\n\n\n\n\n\nProvider (Model)\nEnvironment Variable\n\n\n\n\nAzureAI (OpenAI)\nAZUREAI_OPENAI_BASE_URL\n\n\nAzureAI (Mistral)\nAZUREAI_MISTRAL_BASE_URL\n\n\nBedrock (Anthropic)\nBEDROCK_ANTHROPIC_BASE_URL",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Models</span>"
+    ]
+  },
+  {
+    "objectID": "models.html#generation-config",
+    "href": "models.html#generation-config",
+    "title": "Models",
+    "section": "Generation Config",
+    "text": "Generation Config\nThere are a variety of configuration options that affect the behaviour of model generation. There are options which affect the generated tokens (temperature, top_p, etc.) as well as the connection to model providers (timeout, max_retries, etc.)\nYou can specify generation options either on the command line or in direct calls to eval(). For example:\n$ inspect eval --model openai/gpt-4 --temperature 0.9\n$ inspect eval --model google/gemini-1.0-pro --max-connections 20\nOr:\neval(security_guide, model=\"openai/gpt-4\", temperature=0.9)\neval(security_guide, model=\"google/gemini-1.0-pro\", max_connections=20)\nUse inspect eval --help to learn about all of the available generation config options. |\n\nConnections and Rate Limits\nInspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.\nIf you are experiencing rate-limit errors you will need to experiment with the max_connections option to find the optimal value that keeps you under the rate limit (the section on Eval Tuning includes additional documentation on how to do this). Note that the next section describes how you can set a model-provider specific value for max_connections as well as other generation options.\n\n\nModel Specific Configuration\nIn some cases you’ll want to vary generation configuration options by model provider. You can do this by adding a model argument to your task function. You can use the model in a pattern matching statement to condition on different models. For example:\n@task\ndef popularity(model):\n    # condition temperature on model\n    config = GenerateConfig()\n    match model:\n        case \"gpt\" | \"gemini\":\n            config.temperature = 0.9\n        case \"claude\":\n            config.temperature = 0.8\n\n    return Task(\n        dataset=json_dataset(\"popularity.jsonl\"),\n        plan=[system_message(SYSTEM_MESSAGE), generate()],\n        scorer=match(),\n        config=config,\n    )",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Models</span>"
+    ]
+  },
+  {
+    "objectID": "models.html#provider-notes",
+    "href": "models.html#provider-notes",
+    "title": "Models",
+    "section": "Provider Notes",
+    "text": "Provider Notes\nThis section provides additional documentation on using the Azure AI, AWS Bedrock, and Hugging Face providers.\n\nAzure AI\nAzure AI provides hosting of models from OpenAI and Mistral as well as a wide variety of other open models. One special requirement for models hosted on Azure is that you need to specify a model base URL. You can do this using the AZUREAI_OPENAI_BASE_URL and AZUREAI_MISTRAL_BASE_URL environment variables or the --model-base-url command line parameter. You can find the model base URL for your specific deployment in the Azure model admin interface.\n\nOpenAI\nTo use OpenAI models on Azure AI, specify an AZUREAI_OPENAI_API_KEY along with an AZUREAI_OPENAI_BASE_URL. You can then use the normal openai provider, but you’ll need to specify a model name that corresponds to the Azure Deployment Name of your model. For example, if your deployed model name was gpt4-1106-preview-ythre:\n$ export AZUREAI_OPENAI_API_KEY=key\n$ export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com\n$ inspect eval --model openai/gpt4-1106-preview-ythre\nThe complete list of environment variables (and how they map to the parameters of the AzureOpenAI client) is as follows:\n\napi_key from AZUREAI_OPENAI_API_KEY\nazure_endpoint from AZUREAI_OPENAI_BASE_URL\norganization from OPENAI_ORG_ID\napi_version from OPENAI_API_VERSION\n\n\n\nMistral\nTo use Mistral models on Azure AI, specify an AZURE_MISTRAL_API_KEY along with an INSPECT_EVAL_MODEL_BASE_URL. You can then use the normal mistral provider, but you’ll need to specify a model name that corresponds to the Azure Deployment Name of your model. For example, if your deployment model name was mistral-large-ctwi:\n$ export AZUREAI_MISTRAL_API_KEY=key\n$ export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com\n$ inspect eval --model mistral/mistral-large-ctwi\n\n\nOther Models\nAzure AI supports many other model types, you can access these using the azureai model provider. As with OpenAI and Mistral, you’ll need to specify an AZUREAI_API_KEY along with an AZUREAI_BASE_URL, as well as use the the Azure Deployment Name of your model as the model name. For example:\n$ export AZUREAI_API_KEY=key\n$ export AZUREAI_BASE_URL=https://your-url-at.azure.com\n$ inspect eval --model azureai/llama-2-70b-chat-wnsnw\n\n\n\nAWS Bedrock\nAWS Bedrock provides hosting of models from Anthropic as well as a wide variety of other open models. Note that all models on AWS Bedrock require that you request model access before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).\nYou should be sure that you have the appropriate AWS credentials before accessing models on Bedrock. Once credentials are configured, use the bedrock provider along with the requisite Bedrock model name. For example, here’s how you would access models from a variety of providers:\n$ export AWS_ACCESS_KEY_ID=ACCESSKEY\n$ export AWS_SECRET_ACCESS_KEY=SECRETACCESSKEY\n$ export AWS_DEFAULT_REGION=us-east-1\n\n$ insepct eval bedrock/anthropic.claude-3-haiku-20240307-v1:0\n$ inspect eval bedrock/mistral.mistral-7b-instruct-v0:2\n$ inspect eval bedrock/meta.llama2-70b-chat-v1\nYou aren’t likely to need to, but you can also specify a custom base URL for AWS Bedrock using the BEDROCK_BASE_URL environment variable.\n\n\nHugging Face\nThe Hugging Face provider implements support for local models using the transformers package. You can use any Hugging Face model by specifying it with the hf/ prefix. For example:\n$ inspect eval popularity --model hf/openai-community/gpt2\n\nBatching\nConcurrency for REST API based models is managed using the max_connections option. The same option is used for transformers inference—up to max_connections calls to generate() will be batched together (note that batches will proceed at a smaller size if no new calls to generate() have occurred in the last 2 seconds).\nThe default batch size for Hugging Face is 32, but you should tune your max_connections to maximise performance and ensure that batches don’t exceed available GPU memory. The Pipeline Batching section of the transformers documentation is a helpful guide to the ways batch size and performance interact.\n\n\nDevice\nThe PyTorch cuda device will be used automatically if CUDA is available (as will the Mac OS mps device). If you want to override the device used, use the device model argument. For example:\n$ inspect eval popularity --model hf/openai-community/gpt2 -M device=cuda:0\nThis also works in calls to eval():\neval(popularity, model=\"hf/openai-community/gpt2\", model_args=dict(device=\"cuda:0\"))\nOr in a call to get_model()\nmodel = get_model(\"hf/openai-community/gpt2\", device=\"cuda:0\")\n\n\nLocal Models\nIn addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use hf/local along with the model_path, and (optionally) tokenizer_path arguments to select a local model. For example, from the command line, use the -M flag to pass the model arguments:\n$ inspect eval popularity --model hf/local -M model_path=./my-model\nOr using the eval() function:\neval(popularity, model=\"hf/local\", model_args=dict( model_path=\"./my-model\"))\nOr in a call to get_model()\nmodel = get_model(\"hf/local\", model_path=\"./my-model\")",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Models</span>"
+    ]
+  },
+  {
+    "objectID": "models.html#helper-models",
+    "href": "models.html#helper-models",
+    "title": "Models",
+    "section": "Helper Models",
+    "text": "Helper Models\nOften you’ll want to use language models in the implementation of Solvers and Scorers. Inspect includes some critique solvers and model graded scorers that do this, and you’ll often want to do the same in your own.\nHelper models will by default use the same model instance and configuration as the model being evaluated, however this can be overridden using the model argument.\nself_critique(model = \"google/gemini-1.0-pro\")\nYou can also pass a fully instantiated Model object (for example, if you wanted to override its default configuration) by using the get_model() function. For example, here we’ll provide custom models for both critique and scoring:\nfrom inspect_ai import Task, task\nfrom inspect_ai.dataset import json_dataset\nfrom inspect_ai.model import GenerationConfig, get_model\nfrom inspect_ai.scorer import model_graded_fact\nfrom inspect_ai.solver import chain_of_thought, generate, self_critique\n\n@task\ndef theory_of_mind():\n\n  critique_model = get_model(\"google/gemini-1.0-pro\")\n\n  grader_model = get_model(\"anthropic/claude-2.1\", config = GenerationConfig(\n    temperature = 0.9,\n    max_connections = 10\n  ))\n\n  return Task(\n     dataset=json_dataset(\"theory_of_mind.jsonl\"),\n     plan=[\n         chain_of_thought(),\n         generate(),\n         self_critique(model = critique_model)\n     ],\n     scorer=model_graded_fact(model = grader_model),\n  )",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Models</span>"
+    ]
+  },
+  {
+    "objectID": "models.html#model-args",
+    "href": "models.html#model-args",
+    "title": "Models",
+    "section": "Model Args",
+    "text": "Model Args\nThe section above illustrates passing model specific arguments to local models on the command line, in eval(), and in get_model(). This actually works for all model types, so if there is an additional aspect of a modal you want to tweak that isn’t covered by the GenerationConfig, you can use this method to do it. For example, here we specify the transport option for a Google Gemini model:\ninspect eval popularity --model google/gemini-1.0-pro -M transport:grpc\nThe additional model_args are forwarded as follows for the various providers:\n\n\n\n\n\n\n\nProvider\nForwarded to\n\n\n\n\nOpenAI\nAsyncOpenAI\n\n\nAnthropic\nAsyncAnthropic\n\n\nGoogle\ngenai.configure\n\n\nMistral\nMistralAsyncClient\n\n\nHugging Face\nAutoModelForCausalLM.from_pretrained\n\n\nTogetherAI\nAsyncOpenAI\n\n\nAzureAI\nChat HTTP Post Body\n\n\nCloudFlare\nChat HTTP Post Body\n\n\n\nSee the OpenAI, Anthropic, Google, Mistral, Hugging Face, TogetherAI, Azure AI, and CloudFlare provider documentation for more information on the additional options available.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Models</span>"
+    ]
+  },
+  {
+    "objectID": "models.html#custom-models",
+    "href": "models.html#custom-models",
+    "title": "Models",
+    "section": "Custom Models",
+    "text": "Custom Models\nYou can add a model provider by deriving a new class from ModelAPI and adding the @modelapi decorator to it. For example:\n@modelapi(name=\"custom\")\nclass CustomModelAPI(ModelAPI):\n    def __init__(\n        self, \n        model_name: str,\n        base_url: str | None = None,\n        config: GenerateConfig = GenerateConfig(),\n        **model_args: dict[str,Any]\n    ) -&gt; None:\n        super().__init__(model_name, base_url, config)\n  \n    async def generate(\n        self,\n        input: list[ChatMessage],\n        tools: list[ToolDef],\n        tool_choice: ToolChoice,\n        config: GenerateConfig,\n    ) -&gt; ModelOutput:\n        ...\nThe __init__() method must call the super().__init__() method, and typically instantiates the model client library.\nThe generate() method handles interacting with the model. In addition, there are some optional methods you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, etc.)\nOnce you’ve created the class and decorated it with @modelapi as shown above, you can reference it as follows:\n# get a model instance\nmodel = get_model(\"custom/name-of-model\")\n\n# run an eval with the model\neval(math, model = \"custom/name-of-model\")\nIn this example, the model_name argument passed to __init__() will be “name-of-model”.",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Models</span>"
+    ]
+  },
+  {
+    "objectID": "eval-logs.html",
+    "href": "eval-logs.html",
+    "title": "Eval Logs",
+    "section": "",
+    "text": "Overview\nEvery time you use inspect eval or call the eval() function, an evaluation log is written for each task evaluated. By default, logs are written to the ./logs sub-directory of the current working directory (we’ll cover how to change this below). You will find a link to the log at the bottom of the results for each task:\nWithin VS Code or Jupyter Lab you can click on the log link to view the underlying conversations with the model and how each of them was scored.",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Eval Logs</span>"
+    ]
+  },
+  {
+    "objectID": "eval-logs.html#overview",
+    "href": "eval-logs.html#overview",
+    "title": "Eval Logs",
+    "section": "",
+    "text": "$ inspect eval security_guide.py --model openai/gpt-4",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Eval Logs</span>"
+    ]
+  },
+  {
+    "objectID": "eval-logs.html#console-logging",
+    "href": "eval-logs.html#console-logging",
+    "title": "Eval Logs",
+    "section": "Console Logging",
+    "text": "Console Logging\nBeyond the standard information included an eval log file, you may want to do additional console logging to assist with developing and debugging. Inspect installs a log handler that displays logging output above eval progress as well as saves it into the evaluation log file. If you use the recommend practice of the Python logging library for obtaining a logger your logs will interoperate well with Inspect:\nlogger = logging.getLogger(__name__)\nlogger.info('Started')\nlogger.info('Finished')\nNote that inspect sets a default log level of warning. This means that you can include many calls to logger.info() or logger.debug() in your code and they won’t show by default. Use the log_level option or INSPECT_LOG_LEVEL environment variable to see info or debug messages as desired:\n$ inspect eval eval.py --model openai/gpt-4 --log-level info\nOr:\nlog = eval(popularity, model=\"openai/gpt-4\", log_level = \"info\")",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Eval Logs</span>"
+    ]
+  },
+  {
+    "objectID": "eval-logs.html#log-location",
+    "href": "eval-logs.html#log-location",
+    "title": "Eval Logs",
+    "section": "Log Location",
+    "text": "Log Location\nBy default, logs are written to the ./logs sub-directory of the current working directory You can change where logs are written using eval options or an environment variable\n$ inspect eval popularity.py --model openai/gpt-4 --log-dir ./experiment-log\nOr:\nlog = eval(popularity, model=\"openai/gpt-4\", log_dir = \"./experiment-log\")\nNote that in addition to logging the eval() function also returns an EvalLog object for programmatic access to the details of the evaluation. We’ll talk more about how to use this object below.\nThe INSPECT_LOG_DIR environment variable can also be specified to override the default ./logs location. You may find it convenient to define this in a .env file from the location where you run your evals:\nINSPECT_LOG_DIR=./experiment-log\nINSPECT_LOG_LEVEL=warning\n\n\n\n\n\n\nNote that the log directory need not be a local file path, you can also log to an Amazon S3 bucket.",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Eval Logs</span>"
+    ]
+  },
+  {
+    "objectID": "eval-logs.html#evallog",
+    "href": "eval-logs.html#evallog",
+    "title": "Eval Logs",
+    "section": "EvalLog",
+    "text": "EvalLog\nThe EvalLog object returned from eval() provides programmatic interface to the contents of log files:\nClass inspect_ai.log.EvalLog\n\n\n\n\n\n\n\n\nField\nType\nDescription\n\n\n\n\nstatus\nstr\nStatus of evaluation (\"started\", \"success\", or \"error\").\n\n\neval\nEvalSpec\nTop level eval details including task, model, creation time, etc.\n\n\nplan\nEvalPlan\nList of solvers and model generation config used for the eval.\n\n\nsamples\nlist[EvalSample]\nEach sample evaluated, including its input, output, target, and score.\n\n\nresults\nEvalResults\nAggregate results computed by scorer metrics.\n\n\nstats\nEvalStats\nModel usage statistics (input and output tokens)\n\n\nlogging\nlist[LoggingMessage]\nLogging messages (e.g. from log.info(), log.debug(), etc.\n\n\nerror\nEvalError\nError information (if status == \"error) including traceback.\n\n\n\nBefore analysing results from a log, you should always check their status to ensure they represent a successful run:\nlog = log = eval(popularity, model=\"openai/gpt-4\")\nif log.status == \"success\":\n   ...\nIn the section below we’ll talk more about how to deal with logs from failed evaluations (e.g. retrying the eval).\nYou can enumerate, read, and write EvalLog objects using the following helper functions from the inspect_ai.log module:\n\n\n\n\n\n\n\nFunction\nDescription\n\n\n\n\nlist_eval_logs()\nList all of the eval logs at a given location.\n\n\nread_eval_log(log_file)\nRead an EvalLog from a log file path.\n\n\nwrite_eval_log(log, log_file)\nWrite an EvalLog to a log file path.\n\n\n\nA common workflow is to define an INSPECT_LOG_DIR for running a set of evaluations, then calling list_eval_logs() to analyse the results when all the work is done:\n# setup log dir context\nos.environ[\"INSPECT_LOG_DIR\"] = \"./experiment-logs\"\n\n# do a bunch of evals\neval(popularity, model=\"openai/gpt-4\")\neval(security_guide, model=\"openai/gpt-4\")\n\n# analyze the reuslts in the logs\nlogs = list_eval_logs()",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Eval Logs</span>"
+    ]
+  },
+  {
+    "objectID": "eval-logs.html#errors-and-retries",
+    "href": "eval-logs.html#errors-and-retries",
+    "title": "Eval Logs",
+    "section": "Errors and Retries",
+    "text": "Errors and Retries\nThe example above isn’t quite complete as it doesn’t demonstrate checking the log for success status. This also begs the question of what to do with failed evaluation tasks. In some cases failed tasks need further debugging, but in other cases they may have failed due to connectivity or API rate limiting. For these cases, Inspect includes an eval_retry() function that you can pass a log to.\nHere’s an example of checking for logs with errors and retrying them with a lower number of max connections(the theory in this case being that too many concurrent connections may have caused a rate limit error:\nlogs = list_eval_logs(status = \"error\")\neval_retry(logs, max_connections = 3)",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Eval Logs</span>"
+    ]
+  },
+  {
+    "objectID": "eval-logs.html#sec-amazon-s3",
+    "href": "eval-logs.html#sec-amazon-s3",
+    "title": "Eval Logs",
+    "section": "Amazon S3",
+    "text": "Amazon S3\nStoring evaluation logs on S3 provides a more permanent and secure store than using the local filesystem. While the inspect eval command has a --log-dir argument which accepts an S3 URL, the most convenient means of directing inspect to an S3 bucket is to add the INSPECT_LOG_DIR environment variable to the .env file (potentially alongside your S3 credentials). For example:\nINSPECT_LOG_DIR=s3://my-s3-inspect-log-bucket\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\nAWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\nAWS_DEFAULT_REGION=eu-west-2\nOne thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a FUSE filesystem so you can easily browse the S3 logs locally.",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>Eval Logs</span>"
+    ]
+  },
+  {
+    "objectID": "eval-suites.html",
+    "href": "eval-suites.html",
+    "title": "Eval Suites",
+    "section": "",
+    "text": "Overview\nMost of the examples in the documentation run a single evaluation task by either passing a script name to inspect eval or by calling the eval() function directly. While this is a good workflow for developing evaluations, once you’ve settled on a group of evaluations you want to run frequently, you’ll typically want to run them all together as an evaluation suite. Below we’ll cover the various tools and techniques available to create eval suites.",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>Eval Suites</span>"
+    ]
+  },
+  {
+    "objectID": "eval-suites.html#prerequisites",
+    "href": "eval-suites.html#prerequisites",
+    "title": "Eval Suites",
+    "section": "Prerequisites",
+    "text": "Prerequisites\nBefore describing the various ways you can define and run eval suites, we’ll cover some universal prerequisites related to logging and task definitions.\n\nLogging Context\nA precursor to running any evaluation suite is to establish an isolated logging context for it. This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs). Generally, you’ll do this by setting the INSPECT_LOG_DIR prior to running the suite. For example:\nexport INSPECT_LOG_DIR = ./security-mistral_04-07-2024\nexport INSPECT_EVAL_MODEL = mistral/mistral-large-latest\ninspect eval security\nThis will group all of the log files for the suite, enabling you to call list_eval_logs() to collect and analyse all of the tasks.\n\n\nTask Definitions\nWhether you are working on evaluations in Python scripts or Jupyter Notebooks, you likely have a lot of code that looks roughly like this:\n@task\ndef security_guide():\n    return Task(\n        dataset=example_dataset(\"security_guide\"),\n        plan=[\n          system_message(SYSTEM_MESSAGE),\n          generate()\n        ],\n        scorer=model_graded_fact(),\n    )\n\neval(security_guide, model=\"google/gemini-1.0-pro\")\nThis is a natural and convenient way to run evals during development, but in a task suite you’ll want inspect eval to do the execution rather than direct calls to eval() (as this allows for varying the model, generation config, and task parameters dynamically). You can keep your existing code more or less as-is, but you’ll just want to add one line above eval():\nif __name__ == \"__main__\":\n    eval(security_guide, model=\"google/gemini-1.0-pro\")\nDoing this allows your source file to be both a Python script that is convenient to run during development as well as be a Python module that tasks can be read from without executing the eval. There is no real downside to this, and it’s a good way in general to write all of your eval scripts and notebooks (see the docs on __main__ for additional details).",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>Eval Suites</span>"
+    ]
+  },
+  {
+    "objectID": "eval-suites.html#use-cases",
+    "href": "eval-suites.html#use-cases",
+    "title": "Eval Suites",
+    "section": "Use Cases",
+    "text": "Use Cases\n\nMultiple Tasks in a File\nThe simplest possible eval suite would be multiple tasks defined in a single source file. Consider this source file (ctf.py) with two tasks in it:\n@task\ndef jeopardy():\n  return Task(\n    ...\n  )\n\n@task\ndef attack_defense():\n  return Task(\n    ...\n  )\nWe can run both of these tasks with the following command (note for this and the remainder of examples we’ll assume that you have let an INSPECT_EVAL_MODEL environment variable so you don’t need to pass the --model argument explicitly).\n$ inspect eval ctf.py \nNote we could also run the tasks individually as follows (e.g. for development and debugging):\n$ inspect eval ctf.py@jeopardy\n$ inspect eval ctf.py@attack_defense\n\n\nMultiple Tasks in a Directory\nNext, let’s consider a multiple tasks in a directory. Imagine you have the following directory structure, where jeopardy.py and attack_defense.py each have one or more @task functions defined:\nsecurity/\n  import.py\n  analyze.py\n  jeopardy.py\n  attack_defense.py\nHere is the listing of all the tasks in the suite:\n$ inspect list tasks security\njeopardy.py@crypto\njeopardy.py@decompile\njeopardy.py@packet\njeopardy.py@heap_trouble\nattack_defense.py@saar\nattack_defense.py@bank\nattack_defense.py@voting\nattack_defense.py@dns\nYou can run this eval suite as follows:\n$ inspect eval security\nNote that some of the files in this directory don’t contain evals (e.g. import.py and analyze.py). These files are not read or executed by inspect eval (which only executes files that contain @task definitions).\nIf we wanted to run more than one directory we could do so by just passing multiple directory names. For example:\n$ inspect eval security pursuasion\n\n\nEval Function\nNote that all of the above example uses of inspect eval apply equally to the eval() function. in the context of the above, all of these statements would work as expected:\neval(\"ctf.py\")\neval(\"ctf.py@jeopardy\")\neval(\"ctf.py@attack_defense\")\n\neval(\"security\")\neval([\"security\", \"pursuasion\"])",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>Eval Suites</span>"
+    ]
+  },
+  {
+    "objectID": "eval-suites.html#listing-and-filtering",
+    "href": "eval-suites.html#listing-and-filtering",
+    "title": "Eval Suites",
+    "section": "Listing and Filtering",
+    "text": "Listing and Filtering\n\nRecursive Listings\nNote that directories or expanded globs of directory names passed to eval are recursively scanned for tasks. So you could have a very deep hierarchy of directories, with a mix of task and non task scripts, and the eval command or function will discover all of the tasks automatically.\nThere are some rules for how recursive directory scanning works that you should keep in mind:\n\nSources files and directories that start with . or _ are not scanned for tasks.\nDirectories named env, venv, and tests are not scanned for tasks.\n\n\n\nAttributes and Filters\nEval suites will sometimes be defined purely by directory structure, but there will be cross-cutting concerns that are also used to filter what is run. For example, you might want to define some tasks as part of a “light” suite that is less expensive and time consuming to run. This is supported by adding attributes to task decorators. For example:\n@task(light=True)\ndef jeopardy():\n  return Task(\n    ...\n  )\nGiven this, you could list all of the light tasks in security and pass them to eval() as follows:\nlight_suite = list_tasks(\n  \"security\", \n  filter = lambda task: task.attribs.get(\"light\") is True\n)\nlogs = eval(light_suite)\nNote that the inspect list tasks command can also be used to enumerate tasks in plain text or JSON (use one or more -F options if you want to filter tasks):\n$ inspect list tasks security\n$ inspect list tasks security --json\n$ inspect list tasks security --json -F light=true",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>Eval Suites</span>"
+    ]
+  },
+  {
+    "objectID": "eval-suites.html#errors-and-retries",
+    "href": "eval-suites.html#errors-and-retries",
+    "title": "Eval Suites",
+    "section": "Errors and Retries",
+    "text": "Errors and Retries\nIf a runtime error occurs during an evaluation, it is caught, logged, and reported, and then the eval() function returns as normal. The returned EvalLog has a status field on it which can checked for \"success\" or \"error\".\nThis status can be used to see which tasks need to be retried, and the failed log file can be passed directly to eval(), for example:\n# list the security suite and run it\ntask_suite = list_tasks(\"security\")\neval_logs = eval(task_suite)\n\n# check for failed evals and retry (likely 'later')\nerror_logs = log in eval_logs if log.status == \"error\"]\neval_retry(error_logs)\nNote that the code which checks for errors will often not be in the same script as that which kicks off the evals. You can handle this by using the log directory as the reference point rather than the logs returned from eval(). Returning to the example from the beginning of this article, we might do something like this:\n# setup log context\nos.environ[\"INSPECT_LOG_DIR\"] = \"./security-mistral_04-07-2024\"\n\n# run the eval suite\neval(\"security\", model=\"mistral/mistral-large-latest\")\n\n# ...later, in another process that also has access to INSPECT_LOG_DIR\nerror_logs = list_eval_logs(status == \"error\")\neval_retry(error_logs)",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>Eval Suites</span>"
+    ]
+  },
+  {
+    "objectID": "eval-suites.html#log-cli-commands",
+    "href": "eval-suites.html#log-cli-commands",
+    "title": "Eval Suites",
+    "section": "Log CLI Commands",
+    "text": "Log CLI Commands\nWe’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. Typescript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.\n\nListing Logs\nYou can use the inspect list logs command to enumerate all of the logs for a given log directory. This command will utilise the INSPECT_LOG_DIR if it is set (alternatively you can specify a --log-dir directly). You’ll likely also want to use the --json flag to get more granular and structured information on the log files. For example:\n$ inspect list logs --json           # uses INSPECT_LOG_DIR\n$ inspect list logs --json --log-dir ./security_04-07-2024\nYou can also use the --status option to list only logs with a success or error status:\n$ inspect list logs --json --status success\n$ inspect list logs --json --status error\n\n\nReading Logs\nThe inspect list logs command will return set of URIs to log files which will use a variety of protocols (e.g. file://, s3://, gcs://, etc.). You might be tempted to try to read these URIs directly, however you should always do so using the inspect info log-file command. This is because log files can be located on remote storage systems (e.g. Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.\nFor example, here we read a local log file and a log file on Amazon S3:\n$ inspect info log-file file:///home/user/log/logfile.json\n$ inspect info log-file s3://my-evals-bucket/logfile.json\nLog files are stored in JSON. You can get the JSON schema and Typescript type definitions for the log file format with the following calls to inspect info:\n$ inspect info log-schema\n$ inspect info log-types",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>Eval Suites</span>"
+    ]
+  },
+  {
+    "objectID": "eval-tuning.html",
+    "href": "eval-tuning.html",
+    "title": "Eval Tuning",
+    "section": "",
+    "text": "Overview\nInspect runs evaluations using a highly parallel async architecture. Rather than processing a batch at a time, all samples are processed concurrently. This is possible because evaluations generally use relatively little local compute, but rather spend most of their time waiting for model API calls and web requests to complete. Consequently, Inspect eagerly executes as much local computation as it can and at the same time ensures that model APIs are not over-saturated by enforcing a maximum number of concurrent connections.\nThis section describes how to tune Inspect’s concurrency, as well as how to handle situations where more local compute is required.",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>Eval Tuning</span>"
+    ]
+  },
+  {
+    "objectID": "eval-tuning.html#model-apis",
+    "href": "eval-tuning.html#model-apis",
+    "title": "Eval Tuning",
+    "section": "Model APIs",
+    "text": "Model APIs\n\nMax Connections\nConnections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather rate limits imposed by model API providers. Here we run an evaluation and set the maximum connections to 20:\n$ inspect eval --model openai/gpt-4 --max-connections 20\nThe default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get worse performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The “correct” max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.\n\n\nRate Limits\nWhen you run an eval you’ll see information reported on the current active connection usage as well as the number of HTTP rate limit errors that have been encountered (note that Inspect will automatically retry on rate limits and other errors likely to be transient):\n\nHere we’ve set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using exponential backoff, and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.\nYou should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.\n\n\nLimiting Retries\nBy default, inspect will continue to retry model API calls (with exponential backoff) indefinitely when a rate limit error (HTTP status 429) is returned . You can limit these retries by using the max_retries and timeout eval options. For example:\n$ inspect eval --model openai/gpt-4 --max-retries 10 --timeout 600\nIf you want more insight into Model API connections and retries, specify log_level=http. For example:\n$ inspect eval --model openai/gpt-4 --log-level=http\n\n\n\n\n\n\nNote that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>Eval Tuning</span>"
+    ]
+  },
+  {
+    "objectID": "eval-tuning.html#other-apis",
+    "href": "eval-tuning.html#other-apis",
+    "title": "Eval Tuning",
+    "section": "Other APIs",
+    "text": "Other APIs\nIt’s possible that your custom solvers, tools, or scorers will call other REST APIs. Two things to keep in mind when doing this are:\n\nIt’s critical that connections to other APIs use async HTTP APIs (i.e. the httpx model rather than the requests module). This is because Inspect’s parallelism relies on everything being async, so if you make a blocking HTTP call with requests it will actually hold up all of the rest of the work in system!\nAs with model APIs, rate limits may be in play, so it’s important not to over-saturate these connections. Recall that Inspect runs all samples in parallel so if you have 500 samples and don’t do anything to limit concurrency, you will likely end up making hundreds of calls at a time to the API.\n\nHere’s some (oversimplified) example code that illustrates how to call a REST API within an Inspect component. We use the async interface of the httpx module, and we use Inspect’s concurrency() function to limit simultaneous connections to 10:\nimport httpx\nfrom inspect_ai.util import concurrency\nfrom inspect_ai.solver import Generate, TaskState\n\nclient = httpx.AsyncClient()\n\nasync def solve(state: TaskState, generate: Generate):\n  ...\n  # wrap the call to client.get() in an async concurrency \n  # block to limit simulaneous connections to 10\n  async with concurrency(\"my-rest-api\", 10):\n    response = await client.get(\"https://example.com/api\")\nNote that we pass a name (“my-rest-api”) to the concurrency() function. This provides a named scope for managing concurrency for calls to that specific API/service.",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>Eval Tuning</span>"
+    ]
+  },
+  {
+    "objectID": "eval-tuning.html#subprocesses",
+    "href": "eval-tuning.html#subprocesses",
+    "title": "Eval Tuning",
+    "section": "Subprocesses",
+    "text": "Subprocesses\nIt’s possible that your custom solvers, tools, or scorers will need to launch child processes to perform various tasks. Subprocesses have similar considerations as calling APIs: you want to make sure that they don’t block the rest of the work in Inspect (so they should be invoked with async) and you also want to make sure they don’t provide too much concurrency (i.e. you wouldn’t want to launch 200 processes at once on a 4 core machine!).\nTo assist with this, Inspect provides the subprocess() function. This async function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout and stderr. The subprocess() function also automatically limits concurrent child processes to the number of CPUs on your system (os.cpu_count()). Here’s an example from the implementation of a list_files() tool:\n@tool(prompt=(\n   \"If you are asked to list the files in a directory you \"\n   + \"should call the list_files function to access the listing.\"\n))\ndef list_files():\n    async def execute(dir: str):\n        \"\"\"List the files in a directory.\n\n        Args:\n            dir (str): Directory\n\n        Returns:\n            File listing of the directory\n        \"\"\"\n        result = await subprocess([\"ls\", dir])\n        if result.success:\n            return result.stdout\n        else:\n            return f\"Error: {result.stderr}\"\n\n    return execute\nThe maximum number of concurrent subprocesses can be modified using the --max-subprocesses option. For example:\n$ inspect eval --model openai/gpt-4 --max-subprocesses 4\nNote that if you need to execute computationally expensive code in an eval, you should always factor it into a call to subprocess() so that you get optimal concurrency and performance.\n\nTimeouts\nIf you need to ensure that your subprocess runs for no longer than a specified interval, you can use the timeout option. For example:\nresult = await subprocess([\"ls\", dir], timeout = 30)\nIf a timeout occurs, then the result.status will be False and a timeout error message will be included in result.stderr.",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>Eval Tuning</span>"
+    ]
+  },
+  {
+    "objectID": "eval-tuning.html#parallel-code",
+    "href": "eval-tuning.html#parallel-code",
+    "title": "Eval Tuning",
+    "section": "Parallel Code",
+    "text": "Parallel Code\nGenerally speaking, you should try to make all of the code you write within Inspect solvers, tools, and scorers as parallel as possible. The main idea is to eagerly post as much work as you can, and then allow the various concurrency gates described above to take care of not overloading remote APIs or local resources. There are two keys to writing parallel code:\n\nUse async for all potentially expensive operations. If you are calling a remote API, use the httpx.AsyncClient. If you are running local code, use the subprocess() function described above.\nIf your async work can be parallelised, do it using asyncio.gather(). For example, if you are calling three different model APIs to score a task, you can call them all in parallel. Or if you need to retrieve 10 web pages you don’t need to do it in a loop—rather, you can fetch them all at once.\n\n\nModel Requests\nLet’s say you have a scorer that uses three different models to score based on majority vote. You could make all of the model API calls in parallel as follows:\nfrom inspect_ai.model import get_model\n\nmodels = [\n  get_model(\"openai/gpt-4\"),\n  get_model(\"anthropic/claude-3-sonnet-20240229\"),\n  get_model(\"mistral/mistral-large-latest\")\n]\n\noutput = \"Output to be scored\"\nprompt = f\"Could you please score the following output?\\n\\n{output}\"\n\ngraders = [model.generate(prompt) for model in models]\n\ngrader_outputs = await asyncio.gather(*graders)\nNote that we don’t await the call to model.generate() when building our list of graders. Rather the call to asyncio.gather() will await each of these requests and return when they have all completed. Inspect’s internal handling of max_connections for model APIs will apply to these requests, so you need now worry about how many you put in flight, they will be throttled as appropriate.\n\n\nWeb Requests\nHere’s an examples of using asyncio.gather() to parallelise web requests:\nimport asyncio\nimport httpx\nclient = httpx.AsyncClient()\n\npages = [\n  \"https://www.openai.com\",\n  \"https://www.anthropic.com\",\n  \"https://www.google.com\",\n  \"https://mistral.ai/\"\n]\n\ndownloads = [client.get(page) for page in pages]\n\nresults = await asyncio.gather(*downloads)\nNote that we don’t await the client requests when building up our list of downloads. Rather, we let asyncio.gather() await all of them, returning only when all of the results are available. Compared to looping over each page download this will execute much, much quicker. Note that if you are sending requests to a REST API that might have rate limits, you should consider wrapping your HTTP requests in a concurrency() block. For example:\nfrom inspect_ai.util import concurrency\n\nasync def download(page):\n  async with concurrency(\"my-web-api\", 2):\n    return await client.get(page)\n  \ndownloads = [download(page) for page in pages]\n\nresults = await asyncio.gather(*downloads)",
+    "crumbs": [
+      "Advanced",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>Eval Tuning</span>"
+    ]
+  }
+]
