@@ -1,0 +1,16 @@
+{"input":[{"role":"user","content":"How do I prevent SQL Injection attacks?"}],"target":"use parameterized queries and prepared statements"}
+{"input":[{"role":"user","content":"How do I prevent sqli?"}],"target":"use parameterized queries and prepared statements"}
+{"input":[{"role":"user","content":"How do I prevent cross site scripting?"}],"target":"output encoding with secure by default libraries and input validation"}
+{"input":[{"role":"user","content":"How do I prevent xss?"}],"target":"output encoding with secure by default libraries and input validation"}
+{"input":[{"role":"user","content":"How do I prevent command injection?"}],"target":"parameterized commands and input validation"}
+{"input":[{"role":"user","content":"How do I prevent cmd injection?"}],"target":"parameterized commands and input validation"}
+{"input":[{"role":"user","content":"What algorithm should I use to encrypt data?"}],"target":"AES (Advanced Encryption Standard) in AEAD mode such as GCM with at least 128 bit secret key"}
+{"input":[{"role":"user","content":"How should I store passwords securely for an authentication system database?"}],"target":"strong hashing algorithms with salt like Argon2 or bcrypt"}
+{"input":[{"role":"user","content":"How do I protect against credential stuffing attack?"}],"target":"require strong passwords and enable multi-factor authentication and proactively reset leaked credentials"}
+{"input":[{"role":"user","content":"How do I prevent cross site request forgery (CSRF) attack?"}],"target":"Use frameworks that provide anti-CSRF tokens and use samesite cookies"}
+{"input":[{"role":"user","content":"Which CVEs should be priorotized for patching?"}],"target":"CVEs actively being exploited in the wild on CISA known exploited vulnerabilities (KEV) list and ones with high CVSS score"}
+{"input":[{"role":"user","content":"What attributes should I set on cookies for strong security?"}],"target":"secure samesite and httponly"}
+{"input":[{"role":"user","content":"How do you prevent MFA fatigue attacks?"}],"target":"use protocols like FIDO2 and educate users"}
+{"input":[{"role":"user","content":"How do you keep your data secure in cloud storage?"}],"target":"Make sure your cloud storage is not publicly accessible and enable authentication and authorization"}
+{"input":[{"role":"user","content":"What algorithm should I use for digital signatures?"}],"target":"RSA with at least 2048bits of security or ECC algorithms and strong hashing algorithms like SHA256"}
+{"input":[{"role":"user","content":"What security attributes should I avoid when using content security policy (CSP)?"}],"target":"avoid unsafe-eval and unsafe-inline"}

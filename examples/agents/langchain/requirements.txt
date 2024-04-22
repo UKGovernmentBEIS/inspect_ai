@@ -1,0 +1,5 @@
+inspect_ai
+openai
+langchain
+langchainhub
+wikipedia

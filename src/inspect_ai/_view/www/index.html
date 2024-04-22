@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inspect View</title>
+  <link rel="icon" href="./favicon.svg">
+  <link href="./bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="./bootstrap/css/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="./prism/prism.min.css" rel="stylesheet" />
+  <link href="./App.css" rel="stylesheet">
+  <script type="importmap">
+    {
+      "imports": {
+        "api": "./api.mjs",
+        "preact": "./preact/preact.mjs",
+        "preact/hooks": "./preact/preact-hooks.mjs",
+        "htm/preact": "./preact/htm/preact.mjs?external=preact"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div id="app"></div>
+  <script type="module">
+    import { render } from 'preact';
+    import { html } from 'htm/preact';
+    import { App } from './App.mjs'
+    render(html`<${App} />`, document.getElementById("app"));
+  </script>
+  <script src="./bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="./prism/prism.min.js"></script>
+</body>
+
+</html>
