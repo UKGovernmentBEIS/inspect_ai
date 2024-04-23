@@ -13,6 +13,7 @@ jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
+    environment: pypi
     strategy:
       fail-fast: false
     permissions:
