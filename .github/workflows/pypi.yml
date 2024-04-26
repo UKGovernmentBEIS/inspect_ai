@@ -35,8 +35,6 @@ jobs:
           --user
       - name: Build
         run: python -m build
-      - name: Clean Wheel
-        run: rm -rf dist/inspect*.whl
       - name: Publish package distributions to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         if: ${{ ! inputs.publish-release }}
