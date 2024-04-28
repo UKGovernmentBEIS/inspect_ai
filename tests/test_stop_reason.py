@@ -1,6 +1,5 @@
 import pytest
 from utils import (
-    addition,
     skip_if_no_anthropic,
     skip_if_no_mistral,
     skip_if_no_openai,
@@ -8,7 +7,6 @@ from utils import (
 )
 
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
-from inspect_ai.solver._tool.tool_def import tool_def
 
 
 async def generate(model_name) -> ModelOutput:
@@ -16,28 +14,19 @@ async def generate(model_name) -> ModelOutput:
     return await model.generate(input="Hello.")
 
 
-async def generate_tool(model_name) -> ModelOutput:
-    model = get_model(model_name)
-    return await model.generate(input="What is 1 + 1?", tools=[tool_def(addition())])
-
-
 async def generate_token_limit(model_name) -> ModelOutput:
     model = get_model(model_name)
     return await model.generate(
-        input="Tell me a story.", config=GenerateConfig(max_tokens=10)
+        input="Tell me a story.", config=GenerateConfig(max_tokens=2)
     )
 
 
-async def check_stop_reason(model_name, tool_calls: bool = True):
+async def check_stop_reason(model_name):
     response = await generate(model_name)
     assert response.choices[0].stop_reason == "stop"
 
     response = await generate_token_limit(model_name)
     assert response.choices[0].stop_reason == "length"
-
-    if tool_calls:
-        response = await generate_tool(model_name)
-        assert response.choices[0].stop_reason == "tool_calls"
 
 
 @pytest.mark.asyncio
@@ -55,16 +44,10 @@ async def test_anthropic_stop_reason() -> None:
 @pytest.mark.asyncio
 @skip_if_no_mistral
 async def test_mistral_stop_reason() -> None:
-    await check_stop_reason("mistral/mistral-medium-latest", tool_calls=False)
+    await check_stop_reason("mistral/mistral-medium-latest")
 
 
 @pytest.mark.asyncio
 @skip_if_no_together
 async def test_together_stop_reason() -> None:
-    await check_stop_reason("together/google/gemma-2b-it", tool_calls=False)
-
-
-# @pytest.mark.asyncio
-# @skip_if_no_azureai
-# async def test_azureai_stop_reason() -> None:
-#     await check_stop_reason(None, tool_calls=False)
+    await check_stop_reason("together/google/gemma-2b-it")

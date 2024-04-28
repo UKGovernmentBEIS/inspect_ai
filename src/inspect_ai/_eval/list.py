@@ -4,18 +4,22 @@ import os
 import re
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
+from logging import getLogger
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable
 
 from inspect_ai._util.dotenv import dotenv_environ
-from inspect_ai._util.error import pip_dependency_error
+from inspect_ai._util.error import exception_message, pip_dependency_error
+from inspect_ai._util.file import file
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import RegistryInfo, is_registry_object, registry_info
 from inspect_ai.model import ModelName
 
 from .registry import task_create
 from .task import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR, Task, TaskInfo
+
+logger = getLogger(__name__)
 
 
 def list_tasks(
@@ -42,28 +46,11 @@ def list_tasks(
     # resovle globs
     globs = globs if isinstance(globs, list) else [globs]
 
-    # manage relative vs. absolute paths
-    def task_path(path: Path) -> str:
-        if absolute:
-            return path.resolve().as_posix()
-        else:
-            return path.relative_to(root_dir.resolve()).as_posix()
-
     # build list of tasks to return
     tasks: list[TaskInfo] = []
     files = task_files(globs, root_dir)
-    for file in files:
-        tasks_in_file = list_file_tasks(file)
-        tasks.extend(
-            [
-                TaskInfo(
-                    file=task_path(file),
-                    name=info.name,
-                    attribs=info.metadata.get("attribs", {}),
-                )
-                for info in tasks_in_file
-            ]
-        )
+    for task_file in files:
+        tasks.extend(parse_tasks(task_file, root_dir, absolute))
 
     # filter if necessary
     tasks = [task for task in tasks if filter is None or filter(task)]
@@ -90,7 +77,7 @@ def create_tasks(
         spec_split = split_task_spec(glob)
         if len(spec_split[1]) > 0:
             task_path = Path(spec_split[0])
-            list_file_tasks(task_path.absolute())
+            load_file_tasks(task_path.absolute())
             tasks.extend(
                 create_file_tasks(task_path, model, [spec_split[1]], task_args)
             )
@@ -142,17 +129,17 @@ def tasks_in_dir(path: Path) -> list[Path]:
         ]
 
         # select files w/ the right extension
-        for file in filenames:
-            file_path = dir_path / file
+        for filename in filenames:
+            file_path = dir_path / filename
             if is_task_path(file_path):
                 paths.append(file_path)
 
     return paths
 
 
-def list_file_tasks(file: Path) -> list[RegistryInfo]:
+def load_file_tasks(file: Path) -> list[RegistryInfo]:
     with chdir_python(file.parent.as_posix()), dotenv_environ():
-        return _task_specs(file)
+        return _load_task_specs(file)
 
 
 def create_file_tasks(
@@ -165,7 +152,7 @@ def create_file_tasks(
         # if we don't have task specs then go get them (also,
         # turn them into plain names)
         if task_specs is None:
-            task_specs = _task_specs(file)
+            task_specs = _load_task_specs(file)
         # convert to plain names
         task_specs = [
             spec if isinstance(spec, str) else spec.name for spec in task_specs
@@ -184,10 +171,10 @@ def create_file_tasks(
 
 
 # don't call this function directly, rather, call one of the
-# higher level listing or loading functions above (those functions
+# higher level loading functions above (those functions
 # change the working directory, this one does not b/c it is
 # intended as a helper funciton)
-def _task_specs(task_path: Path) -> list[RegistryInfo]:
+def _load_task_specs(task_path: Path) -> list[RegistryInfo]:
     # load the module
     module = load_task_module(task_path)
     if module:
@@ -275,3 +262,85 @@ def code_has_task(code: str) -> bool:
                         if str(decorator.func.id) == "task":
                             return True
     return False
+
+
+def parse_tasks(path: Path, root_dir: Path, absolute: bool) -> list[TaskInfo]:
+    # read code from python source file
+    if path.suffix.lower() == ".py":
+        with file(path.as_posix(), "r", encoding="utf-8") as f:
+            code = f.read()
+
+    # read code from notebook
+    elif path.suffix.lower() == ".ipynb":
+        try:
+            from inspect_ai._util.notebook import read_notebook_code
+        except ImportError:
+            raise pip_dependency_error(
+                "Parsing tasks from notebooks", ["ipython", "nbformat"]
+            )
+        code = read_notebook_code(path)
+
+    # unsupported file type
+    else:
+        raise ModuleNotFoundError(f"Invalid extension for task file: {path.suffix}")
+
+    # parse the top level tasks out of the code
+    tasks: list[TaskInfo] = []
+    tree = ast.parse(code)
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.FunctionDef):
+            for decorator in node.decorator_list:
+                result = parse_decorator(node, decorator)
+                if result:
+                    name, attribs = result
+                    tasks.append(
+                        TaskInfo(
+                            file=task_path(path, root_dir, absolute),
+                            name=name,
+                            attribs=attribs,
+                        )
+                    )
+    return tasks
+
+
+def parse_decorator(
+    node: ast.FunctionDef, decorator: ast.expr
+) -> tuple[str, dict[str, Any]] | None:
+    if isinstance(decorator, ast.Name):
+        if str(decorator.id) == "task":
+            return node.name, {}
+    elif isinstance(decorator, ast.Call):
+        if isinstance(decorator.func, ast.Name):
+            if str(decorator.func.id) == "task":
+                return parse_task_decorator(node, decorator)
+    return None
+
+
+def parse_task_decorator(
+    node: ast.FunctionDef, decorator: ast.Call
+) -> tuple[str, dict[str, Any]]:
+    name = node.name
+    attribs: dict[str, Any] = {}
+    for arg in decorator.keywords:
+        if arg.arg is not None:
+            try:
+                value = ast.literal_eval(arg.value)
+                if arg.arg == "name":
+                    name = value
+                else:
+                    attribs[arg.arg] = value
+            except ValueError as ex:
+                # when parsing tasks, we can't provide the values of expressions that execute code
+                logger.debug(
+                    f"Error parsing attribute {arg.arg} of task {node.name}: {exception_message(ex)}"
+                )
+                pass
+    return name, attribs
+
+
+# manage relative vs. absolute paths
+def task_path(path: Path, root_dir: Path, absolute: bool) -> str:
+    if absolute:
+        return path.resolve().as_posix()
+    else:
+        return path.relative_to(root_dir.resolve()).as_posix()

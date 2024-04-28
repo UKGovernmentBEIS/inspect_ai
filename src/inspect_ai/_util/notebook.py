@@ -1,6 +1,7 @@
 import io
 import sys
 import types
+from pathlib import Path
 from typing import Callable
 
 from IPython import get_ipython  # type: ignore
@@ -20,7 +21,7 @@ class NotebookLoader(object):
     def load_module(self, fullname: str) -> types.ModuleType:
         # load the notebook object
         with io.open(fullname, "r", encoding="utf-8") as f:
-            nb = read(f, 4)
+            nb = read(f, 4)  # type: ignore
 
         # create the module and add it to sys.modules
         # if name in sys.modules:
@@ -60,3 +61,21 @@ class NotebookLoader(object):
             return mod
         finally:
             self.shell.user_ns = save_user_ns
+
+
+def read_notebook_code(path: Path) -> str:
+    # load the notebook object
+    with io.open(path, "r", encoding="utf-8") as f:
+        nb = read(f, 4)  # type: ignore
+
+    # for dealing w/ magics
+    shell = InteractiveShell.instance()
+
+    # get the code
+    lines: list[str] = []
+    for cell in nb.cells:
+        # transform the input to executable Python for each cell
+        if cell.cell_type == "code":
+            code = shell.input_transformer_manager.transform_cell(cell.source)
+            lines.append(code)
+    return "\n".join(lines)

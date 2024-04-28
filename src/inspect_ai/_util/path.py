@@ -3,7 +3,7 @@ import sys
 from contextlib import AbstractContextManager, contextmanager
 from copy import deepcopy
 from pathlib import PurePath
-from typing import Any, Iterator
+from typing import Any, Iterator, overload
 
 
 @contextmanager
@@ -58,6 +58,14 @@ class chdir_python(AbstractContextManager[None]):
     def __exit__(self, *excinfo: Any) -> None:
         os.chdir(self._old_cwd.pop())
         sys.path = self._old_sys_path.pop()
+
+
+@overload
+def cwd_relative_path(file: str) -> str: ...
+
+
+@overload
+def cwd_relative_path(file: None) -> None: ...
 
 
 def cwd_relative_path(file: str | None) -> str | None:

@@ -36,7 +36,7 @@ from inspect_ai.model import (
     ModelOutput,
     ToolCall,
     ToolChoice,
-    ToolDef,
+    ToolInfo,
     ToolParam,
     get_model,
 )
@@ -111,17 +111,15 @@ class InspectChatModel(BaseChatModel):
         **kwargs: dict[str, Any],
     ) -> ChatResult:
         # extract tools from kwargs
-        tools: list[ToolDef] = []
+        tools: list[ToolInfo] = []
         tool_choice: ToolChoice | None = None
         lc_tools = cast(list[dict[str, Any]] | None, kwargs.get("tools", None))
         if lc_tools:
             tools = [
-                ToolDef(
+                ToolInfo(
                     name=tool["function"]["name"],
                     description=tool["function"]["description"],
-                    prompt=None,
                     params=as_inspect_tool_params(tool["function"]["parameters"]),
-                    tool=lambda: "",
                 )
                 for tool in lc_tools
             ]

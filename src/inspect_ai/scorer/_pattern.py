@@ -31,9 +31,9 @@ def pattern(pattern: str, ignore_case: bool = True) -> Scorer:
 
         # got a match
         if match:
-            # handle case insentive
-            match.groups
-            input = match.group(1) if len(match.groups()) == 1 else match.group(2)
+            # handle case insentitive
+            answer = match.group(1) if len(match.groups()) == 1 else match.group(2)
+            input = answer
             if ignore_case:
                 input = input.lower()
                 target = Target([t.lower() for t in target])
@@ -41,13 +41,15 @@ def pattern(pattern: str, ignore_case: bool = True) -> Scorer:
             # return score
             return Score(
                 value=CORRECT if input in target else INCORRECT,
+                answer=answer,
                 explanation=state.output.completion,
             )
         # didn't find the scoring pattern
         else:
             return Score(
                 value=INCORRECT,
-                explanation=f"Scoring pattern not matched in output: {state.output.completion}",
+                explanation="Scoring pattern not matched in output: "
+                + f"{state.output.completion}",
             )
 
     return score

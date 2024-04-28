@@ -45,7 +45,7 @@ def record_to_sample(record):
 
 
 @task
-def gpqa(cot=True):
+def gpqa_diamond(cot=True):
     return Task(
         dataset=csv_dataset(
             csv_file="https://openaipublic.blob.core.windows.net/simple-evals/gpqa_diamond.csv",

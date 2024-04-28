@@ -12,11 +12,16 @@ def info_command() -> None:
 
 @info_command.command("log-file")
 @click.argument("path")
-def log(
-    path: str,
-) -> None:
+@click.option(
+    "--header-only",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Read and print only the header of the log file (i.e. no samples).",
+)
+def log(path: str, header_only: bool) -> None:
     """Print log file contents."""
-    log = read_eval_log(path)
+    log = read_eval_log(path, header_only=header_only)
     print(log.model_dump_json(indent=2))
 
 

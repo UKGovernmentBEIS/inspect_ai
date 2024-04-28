@@ -36,12 +36,19 @@ warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
 warn_redundant_casts = true
+warn_unused_configs = true
 
 [[tool.mypy.overrides]]
 module="inspect_ai.*"
 warn_return_any = true
 disallow_untyped_defs = true 
 disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+extra_checks = true
 
 [[tool.mypy.overrides]]
 module = "pandas-stubs.*"
@@ -50,8 +57,9 @@ ignore_errors = true
 
 [project]
 name = "inspect_ai"
-description = "Language model evaluations"
-readme = "DESCRIPTION.md"
+description = "Framework for large language model evaluations"
+authors = [{name = "UK AI Safety Institute"}]
+readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT License"}
 dynamic = ["version", "dependencies"]
@@ -67,6 +75,11 @@ classifiers=[
     "Typing :: Typed",
     "Operating System :: OS Independent",
 ]
+
+[project.urls]
+Documentation = "https://UKGovernmentBEIS.github.io/inspect_ai/"
+"Source Code" = "https://github.com/UKGovernmentBEIS/inspect_ai"
+"Issue Tracker" = "https://github.com/UKGovernmentBEIS/inspect_ai/issues"
 
 [project.scripts]
 inspect = "inspect_ai._cli.main:main"
@@ -86,6 +99,7 @@ dev = [
     "types-boto3",
     "types-beautifulsoup4",
     "types-protobuf",
+    "types-psutil",
     "types-PyYAML",
     "openai",
     "anthropic",
@@ -95,8 +109,10 @@ dev = [
     "boto3",
     "transformers",
     "torch",
+    "datasets",
     "langchain",
     "langchainhub",
+    "wikipedia",
     "ipywidgets",
     "ipython",
     "nbformat"

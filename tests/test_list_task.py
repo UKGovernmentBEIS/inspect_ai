@@ -27,7 +27,7 @@ def test_task_list_multiple_dir():
 
 
 def test_task_list_attribs():
-    tasks = list_test_tasks_dir(["attribs.py"])
+    tasks = list_test_tasks_dir(["attribs.ipynb"])
     assert tasks[0].attribs.get("light") is True
     assert tasks[0].attribs.get("type") == "bio"
 

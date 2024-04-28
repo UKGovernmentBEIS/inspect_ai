@@ -163,6 +163,10 @@ cython_debug/
 data/datasets/*/hidden
 logs/
 
+# thumbnails
+.DS_Store
+thumbs.db
+
 # JS
 node_modules/
 

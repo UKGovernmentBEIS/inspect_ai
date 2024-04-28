@@ -14,34 +14,30 @@ SYSTEM_MESSAGE = """
 Choose the most plausible continuation for the story.
 """
 
+
 def record_to_sample(record):
     return Sample(
-        input = record["ctx"],
-        target = chr(ord("A") + int(record["label"])),
-        choices = record["endings"],
-        metadata = dict(
-            source_id = record["source_id"]
-        )
+        input=record["ctx"],
+        target=chr(ord("A") + int(record["label"])),
+        choices=record["endings"],
+        metadata=dict(source_id=record["source_id"]),
     )
+
 
 @task
 def hellaswag():
-
     # dataset
     dataset = hf_dataset(
         path="hellaswag",
         split="validation",
         sample_fields=record_to_sample,
-        trust=True
+        trust=True,
+        shuffle=True,
     )
 
     # define task
     return Task(
         dataset=dataset,
-        plan=[
-          system_message(SYSTEM_MESSAGE),
-          multiple_choice()
-        ],
+        plan=[system_message(SYSTEM_MESSAGE), multiple_choice()],
         scorer=answer("letter"),
     )
-

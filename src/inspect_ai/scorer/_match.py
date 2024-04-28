@@ -25,7 +25,7 @@ def match(
           used and numbers are normalized before comparisoin).
     """
 
-    def check(value: str, target: str) -> bool:
+    def check(value: str, target: str) -> tuple[str, bool]:
         return match_str(
             value=value,
             target=target,
@@ -46,11 +46,11 @@ def includes(ignore_case: bool = True) -> Scorer:
 
     """
 
-    def check(value: str, target: str) -> bool:
+    def check(value: str, target: str) -> tuple[str, bool]:
         if ignore_case:
             idx = value.lower().rfind(target.lower())
         else:
             idx = value.rfind(target)
-        return idx != -1
+        return value, idx != -1
 
     return str_match_scorer(check)

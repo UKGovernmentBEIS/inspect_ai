@@ -26,7 +26,7 @@ from .._model import (
     ModelUsage,
     simple_input_messages,
 )
-from .._tool import ToolChoice, ToolDef
+from .._tool import ToolChoice, ToolInfo
 from .util import as_stop_reason, model_base_url
 
 
@@ -68,7 +68,7 @@ class BedrockAPI(ModelAPI):
     async def generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
@@ -188,10 +188,12 @@ class BedrockChatHandler(abc.ABC):
         self,
         input: list[ChatMessage],
         config: GenerateConfig,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        ...
 
     @abc.abstractmethod
-    def completion_choice(self, response: dict[str, Any]) -> ChatCompletionChoice: ...
+    def completion_choice(self, response: dict[str, Any]) -> ChatCompletionChoice:
+        ...
 
     # optional hook to provide a system message folding template
     def fold_system_message(self, user: str, system: str) -> str:

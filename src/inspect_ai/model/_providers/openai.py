@@ -37,7 +37,7 @@ from .._model import (
     ModelOutput,
     ModelUsage,
 )
-from .._tool import ToolCall, ToolChoice, ToolDef, ToolFunction
+from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
 from .util import as_stop_reason, model_base_url
 
@@ -115,7 +115,7 @@ class OpenAIAPI(ModelAPI):
     async def generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
@@ -274,7 +274,7 @@ def chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
     )
 
 
-def chat_tools(tools: list[ToolDef]) -> list[ChatCompletionToolParam]:
+def chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
     chat_tools = [chat_api_tool(tool) for tool in tools]
     return [
         ChatCompletionToolParam(

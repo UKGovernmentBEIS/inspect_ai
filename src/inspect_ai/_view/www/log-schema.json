@@ -1450,6 +1450,18 @@
           ],
           "title": "Value"
         },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer"
+        },
         "explanation": {
           "anyOf": [
             {
@@ -1477,6 +1489,7 @@
       },
       "required": [
         "value",
+        "answer",
         "explanation",
         "metadata"
       ],
@@ -1515,6 +1528,11 @@
     }
   },
   "properties": {
+    "version": {
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
     "status": {
       "default": "started",
       "enum": [
@@ -1560,21 +1578,6 @@
         }
       }
     },
-    "samples": {
-      "anyOf": [
-        {
-          "items": {
-            "$ref": "#/$defs/EvalSample"
-          },
-          "type": "array"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Samples"
-    },
     "results": {
       "anyOf": [
         {
@@ -1598,14 +1601,6 @@
         "model_usage": {}
       }
     },
-    "logging": {
-      "default": [],
-      "items": {
-        "$ref": "#/$defs/LoggingMessage"
-      },
-      "title": "Logging",
-      "type": "array"
-    },
     "error": {
       "anyOf": [
         {
@@ -1617,14 +1612,32 @@
       ],
       "default": null
     },
-    "version": {
-      "title": "Version",
-      "type": "integer"
+    "samples": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/EvalSample"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Samples"
+    },
+    "logging": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LoggingMessage"
+      },
+      "title": "Logging",
+      "type": "array"
     }
   },
   "required": [
-    "eval",
-    "version"
+    "eval"
   ],
   "title": "EvalLog",
   "type": "object"

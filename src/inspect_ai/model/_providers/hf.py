@@ -24,7 +24,7 @@ from .._model import (
     ModelUsage,
     simple_input_messages,
 )
-from .._tool import ToolChoice, ToolDef
+from .._tool import ToolChoice, ToolInfo
 from .._util import chat_api_input
 
 
@@ -92,7 +92,7 @@ class HuggingFaceAPI(ModelAPI):
     async def generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:

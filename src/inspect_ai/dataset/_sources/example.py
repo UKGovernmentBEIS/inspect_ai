@@ -17,8 +17,8 @@ def example_dataset(
     snippets that don't need to read an external dataset.
 
     Args:
-      name (str): Example dataset name. One of 'bias_detection',
-        'security_guide', 'theory_of_mind', 'popularity', or 'biology_qa'
+      name (str): Example dataset name. One of 'security_guide', 'theory_of_mind',
+        'popularity', or 'biology_qa'
       sample_fields (SampleFieldSpec | RecordToSample): Method of mapping underlying
         fields in the data source to `Sample` objects. Pass `None` if the data is already
         stored in `Sample` form (i.e. object with "input" and "target" fields); Pass a

@@ -35,11 +35,11 @@ jobs:
           --user
       - name: Build
         run: python -m build
-      - name: Publish package distributions to TestPyPI
+      - name: Publish package to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         if: ${{ ! inputs.publish-release }}
         with:
           repository-url: https://test.pypi.org/legacy/
-      - name: Publish package distributions to PyPI
+      - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         if: ${{ inputs.publish-release }}

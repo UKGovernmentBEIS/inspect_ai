@@ -299,6 +299,9 @@ class LoggingMessage(BaseModel):
 
 
 class EvalLog(BaseModel):
+    version: int = Field(default=1)
+    """Eval log file format version."""
+
     status: Literal["started", "success", "error"] = Field(default="started")
     """Status of evaluation (did it succeed or fail)."""
 
@@ -308,23 +311,20 @@ class EvalLog(BaseModel):
     plan: EvalPlan = Field(default=EvalPlan())
     """Eval plan (sovers and config)"""
 
-    samples: list[EvalSample] | None = Field(default=None)
-    """Samples processed by eval."""
-
     results: EvalResults | None = None
     """Eval results (scores and metrics)."""
 
     stats: EvalStats = Field(default=EvalStats())
     """Eval stats (runtime, model usage)"""
 
-    logging: list[LoggingMessage] = Field(default=[])
-    """Logging message captured during eval."""
-
     error: EvalError | None = Field(default=None)
     """Error that halted eval (if status=="error")"""
 
-    version: int
-    """Eval log file format version."""
+    samples: list[EvalSample] | None = Field(default=None)
+    """Samples processed by eval."""
+
+    logging: list[LoggingMessage] = Field(default=[])
+    """Logging message captured during eval."""
 
 
 LogEvent = Literal["plan", "sample", "score", "results", "scorer", "logging"]

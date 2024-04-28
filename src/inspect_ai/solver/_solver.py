@@ -24,8 +24,9 @@ from inspect_ai.model import (
     ModelName,
     ModelOutput,
     ToolChoice,
-    ToolDef,
 )
+
+from ._tool.tool import Tool
 
 
 class TaskState:
@@ -37,7 +38,7 @@ class TaskState:
         input: str | list[ChatMessage],
         choices: list[str] | None,
         messages: list[ChatMessage],
-        tools: list[ToolDef] = [],
+        tools: list[Tool] = [],
         tool_choice: ToolChoice | None = None,
         output: ModelOutput | None = None,
         completed: bool = False,
@@ -259,6 +260,7 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
 
         def solver_wrapper(*args: Any, **kwargs: dict[str, Any]) -> Solver:
             solver = solver_type(*args, **kwargs)
+
             registry_tag(
                 solver_type,
                 solver,

@@ -1,5 +1,5 @@
+import os
 from json import dumps
-from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -92,7 +92,14 @@ def tasks(
     type=bool,
     is_flag=True,
     default=False,
-    help="List absolute paths to task scripts (defaults to relative to the cwd).",
+    help="List absolute paths to log files (defaults to relative to the cwd).",
+)
+@click.option(
+    "--recursive",
+    type=bool,
+    is_flag=True,
+    default=True,
+    help="List log files recursively (defaults to True).",
 )
 @click.option(
     "--json",
@@ -105,6 +112,7 @@ def tasks(
 def logs(
     status: Literal["started", "success", "error"] | None,
     absolute: bool,
+    recursive: bool,
     json: bool,
     **kwargs: Unpack[CommonOptions],
 ) -> None:
@@ -112,8 +120,10 @@ def logs(
     (log_dir, log_level) = resolve_common_options(kwargs)
 
     # list the logs
-    logs = (
-        list_eval_logs(log_dir=log_dir, status=status) if Path(log_dir).exists() else []
+    logs = list_eval_logs(
+        log_dir=log_dir,
+        filter=(lambda log: log.status == status) if status else None,
+        recursive=recursive,
     )
 
     # convert file names
@@ -122,7 +132,7 @@ def logs(
             _, path = split_protocol(log.name)
             log.name = path
             if not absolute:
-                log.name = Path(log.name).relative_to(Path.cwd()).as_posix()
+                log.name = os.path.relpath(log.name, os.path.curdir)
 
     if json:
         logs_dicts = [log.model_dump() for log in logs]

@@ -1,3 +1,4 @@
+import re
 from typing import (
     Any,
     Callable,
@@ -14,7 +15,6 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-from inspect_ai.model._tool import TOOL_PARAMS, TOOL_PROMPT
 
 ToolResult = str | int | float | bool | Tuple[str | int | float | bool, dict[str, Any]]
 
@@ -102,6 +102,10 @@ def tool(
     Returns:
         Tool with registry attributes.
     """
+    # remove spurous spacing from prompt (can occur if a multline string
+    # is used to specify the prompt)
+    if prompt:
+        prompt = re.sub(r"\s+", " ", prompt)
 
     def wrapper(tool_type: ToolType) -> ToolType:
         # determine the name (explicit or implicit from object)
@@ -129,3 +133,7 @@ def tool(
         return tool_register(cast(ToolType, tool_wrapper), tool_name)
 
     return wrapper
+
+
+TOOL_PROMPT = "prompt"
+TOOL_PARAMS = "params"

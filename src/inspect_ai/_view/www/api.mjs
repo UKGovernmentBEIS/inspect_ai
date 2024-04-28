@@ -16,13 +16,12 @@ export async function eval_logs() {
   return logs
 }
 
-export async function eval_log(file) {
-  // the file may have the full uri, strip it down to just the log file
-  const url = new URL(file)
-  file = url.pathname.split("/").pop()
-
-  // get the file
-  return api("GET", `/api/logs/${file}`)
+export async function eval_log(file, headerOnly) {
+  if (headerOnly) {
+    return api("GET", `/api/logs/${file}?header-only=true`)
+  } else {
+    return api("GET", `/api/logs/${file}`)
+  }
 }
 
 export async function api(method, path, body) {
@@ -40,7 +39,8 @@ export async function api(method, path, body) {
   // make request
   const response = await fetch(`${path}`, { method, headers, body });
   if (response.ok) {
-    return response.json()
+    const text = await response.text();
+    return JSON5.parse(text);
   } else if (response.status !== 200) {
     const message = await response.text() || response.statusText;
     const error = new Error(`Error: ${response.status}: ${message})`)

@@ -6,7 +6,7 @@ There are a variety of ways to run evaluations that range from interactive work 
 
 To create an evaluation, write a function that returns a `Task`. This task will bring together the dataset, solvers, scorer, and configuration required for the evaluation. Here's the example used in the introduction:
 
-``` {.python}
+``` python
 from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
@@ -58,6 +58,24 @@ $ export INSPECT_EVAL_MODEL=google/gemini-1.0-pro
 $ inspect eval theory.py
 ```
 
+
+### Visualising
+
+As you iterate on an evaluation, you'll typically want to dig further into message histories, scoring decisions, and other diagnostics. Typically at the outset of working session you'll run `inspect view` to open the Inspect [Log Viewer](#sec-log-viewer):
+
+``` bash
+$ inspect view
+```
+
+![](images/inspect-view-main.png){.border .lightbox}
+
+
+The log viewer will update automatically whenever a new evaluation is completed (you can also navigate back to previous evaluations). The log viewer summarises aggregate data and also provides a detailed view into each sample. For example, here we zoom in on the model's scoring explanation for a specific sample:
+
+![](images/inspect-view-scoring.png){.border .lightbox}
+
+See the [Log Viewer](#sec-log-viewer) section for additional details on using Inspect View.
+
 ### Options
 
 There are several other command line options you can pass to eval. Here are some of the more useful ones:
@@ -73,13 +91,13 @@ $ inspect eval theory.py --max-tokens 128
 $ inspect eval theory.py --temperature 0 --seed 42
 ```
 
-## Configuration
+## Configuration {#sec-workflow-configuration}
 
 As you can see, there is often a lot of configuration required for calling `inspect eval`. While we can include it all on the command line, it's generally easier to use environment variables. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in both the working directory and the directory where the task source file is located (this is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package).
 
 For example, here's a `.env` file that makes available API keys for several providers and sets a bunch of defaults for a working session:
 
-``` {.makefile}
+``` makefile
 OPENAI_API_KEY=your-api-key
 ANTHROPIC_API_KEY=your-api-key
 GOOGLE_API_KEY=your-api-key
@@ -92,7 +110,10 @@ INSPECT_EVAL_MAX_CONNECTIONS=20
 INSPECT_EVAL_MODEL=anthropic/claude-3-opus-20240229
 ```
 
-Note that all command line options can also be set via environment variable by using the `INSPECT_EVAL_` prefix. See `inspect eval –-help` for documentation on all available options.
+All command line options can also be set via environment variable by using the `INSPECT_EVAL_` prefix. See `inspect eval –-help` for documentation on all available options.
+
+Note that `.env` files are searched for in parent directories, so if you run an Inspect command from a subdirectory of a parent that has an `.env` file, it will still be read and resolved.
+
 
 ::: {.callout-important appearance="simple"}
 `.env` files should *never* be checked into version control, as they nearly always contain either secret API keys or machine specific paths. A best practice is often to check in an `.env.example` file to version control which provides an outline (e.g. keys only not values) of variables that are required by the current project.
@@ -102,15 +123,15 @@ Note that all command line options can also be set via environment variable by u
 
 Evaluation development is often highly exploratory and requires trying (and measuring) many combinations of components. You'll often want to start in a notebook or REPL to facilitate this.
 
-For exploratory work, you'll still write a `@task` function, but you'll give it parameters that reflect the things you want to try out and vary. You'll then call Inspect's `eval()` function interactively rather than calling `inspect eval` from the shell.
+For exploratory work, you'll still write a `@task` function, but you'll give it arguments that reflect the things you want to try out and vary. You'll then call Inspect's `eval()` function interactively rather than calling `inspect eval` from the shell.
 
-### Task Params
+### Task Args
 
 To illustrate, we'll use a very simple example: an evaluation that checks whether a model can provide good computer security advice. The eval uses a model to score the results, and we want to explore how different system prompts, grader instructions, and grader models affect the quality of the eval.
 
-To do this, we add some parameters to our `@task` function. Here's the basic setup for the evaluation:
+To do this, we add some arguments to our `@task` function. Here's the basic setup for the evaluation:
 
-``` {.python}
+``` python
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import json_dataset
 from inspect_ai.scorer import model_graded_fact
@@ -133,7 +154,7 @@ def security_guide(
    )
 ```
 
-The `system` and `grader` parameters point to files we are using as system message and grader model templates. At the outset we might want to explore every possible combination of these parameters. We can use the `itertools.product` function to do this:
+The `system` and `grader` arguments point to files we are using as system message and grader model templates. At the outset we might want to explore every possible combination of these parameters. We can use the `itertools.product` function to do this:
 
 ``` python
 # 'grid' will be a permutation of all parameters

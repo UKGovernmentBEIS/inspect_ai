@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, TypeVar, cast
+from typing import Any, Awaitable, Callable, TypeVar, cast
 
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -11,21 +11,24 @@ from inspect_ai._util.registry import (
     registry_tag,
 )
 
-from ._solver import Solver
+from ._solver import Solver, TaskState
 
 
 class Plan:
     """Task plan: List of solvers with an optional finishing solver.
 
-    The finishing solver is called after executing the steps
-    (including in the case where the steps were exited early
-    due to `TaskState.completed = True` or `max_messages`)
+    The optional `finish` solver is called after executing the steps (including in the case
+    where the steps were exited early due to `TaskState.completed = True` or `max_messages`).
+
+    The optional `cleanup` function is called when the plan is complete (even if the plan
+    is terminated due to an exception).
     """
 
     def __init__(
         self,
         steps: Solver | list[Solver],
         finish: Solver | None = None,
+        cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         name: str | None = None,
     ) -> None:
         """Create a task plan.
@@ -33,6 +36,11 @@ class Plan:
         Args:
           steps (list[Solver]): Solvers to run for this plan.
           finish (Solver | None): Finishing solver that is always run even for early exit.
+            Note that this solver is NOT run when exception are thrown (use `cleanup` for this)
+          cleanup (Callable[[TaskState], Awaitable[None]] | None): Optional cleanup handler that
+            is called at the end (even if an exception occurs). Note that this function takes
+            a `TaskState` but does not return one (it is only for cleanup not for transforming
+            the state).
           name (str | None): Optional name for plan (for log files).
         """
         if isinstance(steps, Solver):
@@ -41,6 +49,7 @@ class Plan:
             self.steps = steps
 
         self.finish = finish
+        self.cleanup = cleanup
         self._name = name
 
     @property
@@ -57,6 +66,14 @@ class Plan:
 
     finish: Solver | None = None
     """Finishing sover that is always run even for early exit."""
+
+    cleanup: Callable[[TaskState], Awaitable[None]] | None = None
+    """Function  called at the end of the plan (even if an exception occurs).
+
+    Note that this function takes a `TaskState` but does not return one
+    (it is only for cleanup not for transforming the state). Note also that
+    this function should be declared `async`.
+    """
 
 
 PlanType = TypeVar("PlanType", bound=Callable[..., Plan])

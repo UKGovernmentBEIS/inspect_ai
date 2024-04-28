@@ -116,7 +116,6 @@ Here is the declaration for the `multiple_choice()` solver:
 ``` python
 def multiple_choice(
     cot: bool = False,
-    instructions: str | None = None,
     template: str | None = None,
     max_tokens: int | None = None,
     shuffle: bool | Random = False,
@@ -124,18 +123,7 @@ def multiple_choice(
 ) -> Solver:
 ```
 
-The multiple choice solver has two built in approaches and can customised to create additional ones. The `cot` (chain of thought) parameter determines which approach is used:
-
-| cot     | instructions                         | max_tokens |
-|---------|--------------------------------------|------------|
-| `False` | (none)                               | 32         |
-| `True`  | Think step by step before answering. | 512        |
-
-: {tbl-colwidths=\[25,45,30\]}
-
-Instructions refers to *additional* instructions over and above the standard multiple choice instructions. Using chain of thought may or may not improve results (it depends on the nature of the questions and the model being evaluated).
-
-You can customise the extra `instructions` given and/or provide your own template entirely. Note that when you do this you will likely also need to change `max_tokens`.
+The `cot` parameter determines whether the default template employs chain of thought reasoning or not (defaults to `False`). Note that using chain of thought will be slower and use more tokens, so you should assess carefully whether your eval benefits from it or not. When `cot` is `False`, `max_tokens` defaults to 32; when `True`, it defaults to 1024.
 
 If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).
 
@@ -325,3 +313,25 @@ Task(
 ```
 
 In this example the `finish_up()` solver will always be called even if the plan doesn't run all of its steps.
+
+## Plan Cleanup
+
+If your solvers allocate resources (for example, run a Docker container or mount a drive), you will want to make sure that these resources are cleaned up even in the case of an error occurring during the evaluaton. To arrange for this, use a `Plan` object with a `cleanup` function:
+
+```python
+
+async def cleanup(state):
+    # cleanup resources
+    ...
+
+Task(
+    dataset=json_dataset("data.json"),
+    plan = Plan(
+        steps = [...], 
+        cleanup = cleanup
+    ),
+    scorer = model_graded_fact()
+)
+```
+
+In this example the `cleanup()` function will always be called even if an error occurs during evaluation. Note that the cleanup handler must be declared as an `async` function.

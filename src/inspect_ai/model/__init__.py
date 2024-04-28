@@ -22,7 +22,7 @@ from ._model import (
 )
 from ._providers.providers import *
 from ._registry import modelapi
-from ._tool import ToolCall, ToolChoice, ToolDef, ToolFunction, ToolParam
+from ._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo, ToolParam
 
 __all__ = [
     "GenerateConfig",
@@ -45,7 +45,7 @@ __all__ = [
     "ToolCall",
     "ToolChoice",
     "ToolFunction",
-    "ToolDef",
+    "ToolInfo",
     "ToolParam",
     "ToolType",
     "get_model",

@@ -1,9 +1,11 @@
 import json
 import os
+import re
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Callable, cast
 from urllib.parse import urlparse
 
+import json_stream  # type: ignore
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.file import FileInfo, file, filesystem
@@ -35,7 +37,8 @@ class EvalLogInfo(FileInfo):
 
 def list_eval_logs(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
-    status: Literal["started", "success", "error"] | None = None,
+    filter: Callable[[EvalLog], bool] | None = None,
+    recursive: bool = True,
     extensions: list[str] = [".json", ".jsonl"],
     descending: bool = True,
     fs_options: dict[str, Any] = {},
@@ -44,8 +47,11 @@ def list_eval_logs(
 
     Args:
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
-      status (Literal["success", "error"] | None): List only
-         log files with the specified status.
+      filter (Callable[[EvalLog], bool]): Filter to limit logs returned.
+         Note that the EvalLog instance passed to the filter has only
+         the EvalLog header (i.e. does not have the samples or logging output).
+      recursive (bool): List log files recursively (defaults to True).
+
       extensions (list[str]): File extension to scan for logs
       descending (bool): List in descening order.
       fs_options (dict[str, Any]): Optional. Addional arguments to pass through
@@ -57,11 +63,20 @@ def list_eval_logs(
     """
     # get the eval logs
     fs = filesystem(log_dir, fs_options)
-    eval_logs = log_files_from_ls(fs.ls(log_dir), extensions, descending)
+    if fs.exists(log_dir):
+        eval_logs = log_files_from_ls(
+            fs.ls(log_dir, recursive=recursive), extensions, descending
+        )
+    else:
+        return []
 
-    # apply status filter if requested
-    if status:
-        return [log for log in eval_logs if read_eval_log(log.name).status == status]
+    # apply filter if requested
+    if filter:
+        return [
+            log
+            for log in eval_logs
+            if filter(read_eval_log(log.name, header_only=True))
+        ]
     else:
         return eval_logs
 
@@ -75,26 +90,55 @@ def write_eval_log(log: EvalLog, log_file: str) -> None:
 
     """
     with file(log_file, "w") as f:
-        f.write(
-            log.model_dump_json(exclude_none=True, exclude_defaults=False, indent=2)
-        )
+        f.write(eval_log_json(log))
 
 
-def read_eval_log(log_file: str) -> "EvalLog":
+def eval_log_json(log: EvalLog) -> str:
+    return log.model_dump_json(exclude_none=True, exclude_defaults=False, indent=2)
+
+
+def read_eval_log(log_file: str, header_only: bool = False) -> EvalLog:
     """Read an evaluation log.
 
     Args:
        log_file (str): Log file to read.
+       header_only (bool): Read only the header (i.e. exclude
+         the "samples" and "logging" fields). Defaults to False.
 
     Returns:
        EvalLog object read from file.
     """
     with file(log_file, "r") as f:
-        raw_data = json.load(f)
-        log = EvalLog(**raw_data)
-        if log.version > 1:
-            raise ValueError(f"Unable to read version {log.version} of log format.")
-        return log
+        # header-only uses json-stream
+        if header_only:
+            data = json_stream.load(f, persistent=True)
+
+            def read_field(field: str) -> Any:
+                if field in data.keys():
+                    return json_stream.to_standard_types(data[field])
+                else:
+                    return None
+
+            results = read_field("results")
+            error = read_field("error")
+
+            return EvalLog(
+                version=read_field("version"),
+                status=read_field("status"),
+                eval=EvalSpec(**read_field("eval")),
+                plan=EvalPlan(**read_field("plan")),
+                results=EvalResults(**results) if results else None,
+                stats=EvalStats(**read_field("stats")),
+                error=EvalError(**error) if error else None,
+            )
+
+        # otherwise normal json parse
+        else:
+            raw_data = json.load(f)
+            log = EvalLog(**raw_data)
+            if log.version > 1:
+                raise ValueError(f"Unable to read version {log.version} of log format.")
+            return log
 
 
 class FileRecorder(Recorder):
@@ -141,9 +185,19 @@ def log_files_from_ls(
     return [
         log_file_info(file)
         for file in sorted(ls, key=lambda file: file.mtime, reverse=descending)
-        if file.type == "file"
-        and any([file.name.endswith(suffix) for suffix in extensions])
+        if file.type == "file" and is_log_file(file.name, extensions)
     ]
+
+
+log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
+
+
+def is_log_file(file: str, extensions: list[str]) -> bool:
+    parts = file.replace("\\", "/").split("/")
+    name = parts[-1]
+    return re.match(log_file_pattern, name) is not None and any(
+        [name.endswith(suffix) for suffix in extensions]
+    )
 
 
 def log_file_info(info: FileInfo) -> "EvalLogInfo":
@@ -189,7 +243,7 @@ class JSONRecorder(FileRecorder):
         file = self._log_file_path(eval)
         self.data[self._log_file_key(eval)] = JSONRecorder.JSONLogFile(
             file=file,
-            data=EvalLog(eval=eval, version=1),
+            data=EvalLog(eval=eval),
             events=0,
         )
         return file

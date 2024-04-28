@@ -18,7 +18,7 @@ from .._model import (
     ModelUsage,
     StopReason,
 )
-from .._tool import ToolChoice, ToolDef
+from .._tool import ToolChoice, ToolInfo
 from .._util import (
     chat_api_input,
     chat_api_request,
@@ -80,7 +80,7 @@ class AzureAIAPI(ModelAPI):
     async def generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:

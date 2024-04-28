@@ -17,7 +17,7 @@ from ._model import (
     ChatMessage,
     GenerateConfig,
 )
-from ._tool import ToolDef
+from ._tool import ToolInfo
 
 
 async def chat_api_request(
@@ -105,14 +105,14 @@ class ChatApiTool(TypedDict, total=False):
     """Type information for function to be called"""
 
 
-def chat_api_tool(tool: ToolDef) -> ChatApiTool:
+def chat_api_tool(tool: ToolInfo) -> ChatApiTool:
     """JSON schema definition for a tool to be called by the model.
 
     Both OpenAI and Mistral use JSON schema for their tool definition
     (others will likely follow suit).
 
     Args:
-       tool (ToolDef): Tool definition
+       tool (ToolInfo): Tool definition
 
     Returns:
        Name and JSON schema for tool parameters and return value.

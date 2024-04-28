@@ -60,19 +60,13 @@ def system_message(message: str) -> Solver:
 DEFAULT_COT_TEMPLATE = r"""
 {prompt}
 
-Before answering, reason in a step-by-step manner as to get the right answer.
-Then print only the text corresponding to the correct answer (without quotes
-or punctuation) on its own line. At the end, repeat just the value of the
-answer again by itself on a new line.
+Before answering, reason in a step-by-step manner as to get the right answer. Provide your answer at the end on its own line in the form "ANSWER: $ANSWER" (without quotes) where $ANSWER is the answer to the question.
 """
 
 
 @solver
 def chain_of_thought(template: str = DEFAULT_COT_TEMPLATE) -> Solver:
     """Solver which modifies the user prompt to encourage chain of thought.
-
-    Modification is doing using a template. Pass the `template` argument
-    to provide your own template.
 
     Args:
        template (str): String or path to file containing CoT template.

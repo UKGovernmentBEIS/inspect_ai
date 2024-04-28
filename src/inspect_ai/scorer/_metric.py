@@ -1,3 +1,4 @@
+from logging import getLogger
 from typing import (
     Any,
     Callable,
@@ -19,6 +20,8 @@ from inspect_ai._util.registry import (
     registry_tag,
 )
 
+logger = getLogger(__name__)
+
 CORRECT = "C"
 """Value to assign for correct answers."""
 
@@ -27,6 +30,9 @@ INCORRECT = "I"
 
 PARTIAL = "P"
 """Value to assign for partial credit."""
+
+NOANSWER = "N"
+"""Value to assign for no answer or refusal to answer."""
 
 
 Value = Union[
@@ -46,15 +52,19 @@ class Score(BaseModel):
 
     Args:
        value (Value): Score value.
-       explanation (str | None): Optional explanation of score.
-       metadata (dict[str,Any]): Additional metadata related to the score
+       answer (str | None): Answer extracted from model output (optional).
+       explanation (str | None): Explanation of score (optional).
+       metadata (dict[str,Any]): Additional metadata related to the score.
     """
 
     value: Value
     """Score value."""
 
-    explanation: str | None = None
-    """Optional explanation of score."""
+    answer: str | None = Field(default=None)
+    """Answer extracted from model output (optional)"""
+
+    explanation: str | None = Field(default=None)
+    """Explanation of score (optional)."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional metadata related to the score"""
@@ -90,6 +100,51 @@ class Score(BaseModel):
             return self.value
         else:
             raise ValueError("This score is not a scalar")
+
+
+ValueToFloat = Callable[[Value], float]
+"""Function used by metrics to translate from a Score value to a float value."""
+
+
+def value_to_float(
+    correct: Value = CORRECT,
+    incorrect: Value = INCORRECT,
+    partial: Value = PARTIAL,
+    noanswer: Value = NOANSWER,
+) -> ValueToFloat:
+    """Create a ValueToFloat function.
+
+    Create a ValueToFloat function that maps string values of
+    the form "C", "I", "P", and "N" to 1, 0, 0.5, and 0
+    (respectively). Note that those are the default literal
+    values, but they can be customized. Numeric values are
+    cast to float. Arrays and dictionaries give a warning
+    and return 0.
+
+    Args:
+       correct (Value): Value that represents a correct answer (1)
+       incorrect (Value): Value that represents an incorrect answer (0)
+       partial (Value): Value to assign partial credit for (0.5)
+       noanswer (Value): Value for refusals to answer (0)
+
+    Returns:
+        ValueToFloat function.
+    """
+
+    def to_float(value: Value) -> float:
+        if isinstance(value, (int, float, bool)):
+            return float(value)
+        elif value == correct:
+            return 1.0
+        elif value == partial:
+            return 0.5
+        elif value == incorrect or value == noanswer:
+            return 0
+        else:
+            logger.warning(f"Unable to convert value to float: {value}")
+            return 0
+
+    return to_float
 
 
 @runtime_checkable
@@ -172,25 +227,6 @@ def metric(name: str | MetricType) -> Callable[..., MetricType] | MetricType:
             Optional name for metric. If the decorator has no name
             argument then the name of the underlying MetricType
             will be used to automatically assign a name.
-
-    Returns:
-        Metric with registry attributes.
-
-    Exmaples:
-
-        @metric
-        def accuracy(correct: str = "C") -> Metric:
-            def metric(scores: list[dict]) -> int | float:
-                ...
-            return metric
-
-        @metric
-        class Accuracy(Metric):
-            def __init__(self, correct: str = "C") -> None:
-                self.correct = correct
-
-            def __call__(self, scores: list[dict]) -> int | float:
-                ...
     """
 
     # create_metric_wrapper:

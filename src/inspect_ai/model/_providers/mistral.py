@@ -39,7 +39,7 @@ from .._model import (
     ModelUsage,
     StopReason,
 )
-from .._tool import ToolCall, ToolChoice, ToolDef, ToolFunction
+from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
@@ -95,7 +95,7 @@ class MistralAPI(ModelAPI):
     async def generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
@@ -144,7 +144,7 @@ class MistralAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
 
-def mistral_chat_tools(tools: list[ToolDef]) -> list[dict[str, Any]]:
+def mistral_chat_tools(tools: list[ToolInfo]) -> list[dict[str, Any]]:
     chat_tools = [chat_api_tool(tool) for tool in tools]
     return [dict(type=tool["type"], function=tool["function"]) for tool in chat_tools]
 

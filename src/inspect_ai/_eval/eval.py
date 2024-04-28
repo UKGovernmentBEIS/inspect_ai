@@ -9,6 +9,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._display.logger import init_logger
 from inspect_ai._util.dotenv import init_dotenv
+from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai._view.view import view_notify_eval
@@ -195,6 +196,7 @@ async def eval_async(
 
     # resolve recorder
     log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
+    log_dir = cwd_relative_path(log_dir)
     recorder = JSONRecorder(log_dir)
 
     # build task names and versions (include version if > 0)

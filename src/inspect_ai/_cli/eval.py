@@ -36,7 +36,7 @@ from .util import parse_cli_args
     multiple=True,
     type=str,
     envvar="INSPECT_EVAL_TASK_ARGS",
-    help="One or more task arguments (e.g. -T param=value)",
+    help="One or more task arguments (e.g. -T arg=value)",
 )
 @click.option(
     "--limit",

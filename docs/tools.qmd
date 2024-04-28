@@ -312,7 +312,7 @@ def wikipedia_search(
     return langchain_solver(agent)
 ```
 
-1.  Note that we register native LangChain tools. These will be converted to the standard Inspect `ToolDef` when generate is called.
+1.  Note that we register native LangChain tools. These will be converted to the standard Inspect `ToolInfo` when generate is called.
 2.  This is the standard interface to LangChain agents. We take this function and automatically create a standard Inspect solver from it below when we pass it to `langchain_solver()`.
 3.  Invoke the agent using the chat history passed in `input`. We call the async executor API to play well with Inspect's concurrency.
 4.  The `langchain_solver()` function maps the simpler agent function semantics into the standard Inspect solver API.
@@ -334,7 +334,7 @@ def wikipedia() -> Task:
 See the [working version](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain) of this example if you want to run and experiment with it.
 
 
-## Task Params
+## Tool Params
 
 In some cases you may want to forward information from task metadata to a tool. This would be useful if you have some per-sample metadata that you want tools to condition their behavior on. To do this, specify the `params` option on the `@tool` decorator and specify the metadata value you would like to forward (these params will be then be passed to the function with the appropriate per-task value). For example:
 

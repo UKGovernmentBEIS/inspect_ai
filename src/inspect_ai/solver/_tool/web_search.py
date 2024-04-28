@@ -92,7 +92,7 @@ def web_search(
                     snippets.append(link.snippet)
             search_calls += 1
 
-        all_page_contents = "\n".join(page_contents)
+        all_page_contents = "\n\n".join(page_contents)
         if all_page_contents == "":
             response = "I'm sorry, I couldn't find any relevant information on the web."
         else:

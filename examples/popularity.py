@@ -5,9 +5,9 @@ from inspect_ai.scorer import match
 from inspect_ai.solver import generate, system_message
 
 SYSTEM_MESSAGE = r"""
-Please note: In the following EXERCISE, it is important
-that you only respond with exactly "Yes" or "No"
+Please note: In the following EXERCISE, it is important that you only respond with exactly "Yes" or "No"
 """
+
 
 @task
 def popularity(model):
@@ -35,4 +35,3 @@ def popularity(model):
         scorer=match(),
         config=config,
     )
-

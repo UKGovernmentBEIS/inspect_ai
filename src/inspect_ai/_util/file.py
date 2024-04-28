@@ -24,7 +24,8 @@ def file(
     compression: str | None = "infer",
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
-) -> Iterator[io.TextIOWrapper]: ...
+) -> Iterator[io.TextIOWrapper]:
+    ...
 
 
 @overload
@@ -35,7 +36,8 @@ def file(
     compression: str | None = "infer",
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
-) -> Iterator[BinaryIO]: ...
+) -> Iterator[BinaryIO]:
+    ...
 
 
 @contextmanager
@@ -111,15 +113,22 @@ class FileSystem:
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
         self.fs.makedirs(path, exist_ok=exist_ok)
 
-    def ls(self, path: str, **kwargs: dict[str, Any]) -> list[FileInfo]:
+    def ls(
+        self, path: str, recursive: bool = False, **kwargs: dict[str, Any]
+    ) -> list[FileInfo]:
         # prevent caching of listings
         self.fs.invalidate_cache(path)
 
         # enumerate the files
-        files = cast(
-            list[dict[str, Any]],
-            self.fs.ls(path, detail=True, **kwargs),
-        )
+        if recursive:
+            files: list[dict[str, Any]] = []
+            for _, _, filenames in self.fs.walk(path=path, detail=True, **kwargs):
+                files.extend(filenames.values())
+        else:
+            files = cast(
+                list[dict[str, Any]],
+                self.fs.ls(path, detail=True, **kwargs),
+            )
 
         # fixup name and discover mtime
         for info in files:

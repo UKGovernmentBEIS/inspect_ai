@@ -2,8 +2,6 @@ project:
    type: book
    pre-render:
       -  _format/pre-render.sh
-   post-render:
-      -  _format/post-render.py
   
 book:
    title: "Inspect"
@@ -28,11 +26,13 @@ book:
       center: 
          - text: Code
            href: https://github.com/UKGovernmentBEIS/inspect_ai
+         - text: Changelog
+           href: https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md
          - text: License
            href: https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE 
          - text: Issues
            href: https://github.com/UKGovernmentBEIS/inspect_ai/issues
-
+       
       right:
          - icon: twitter
            href: https://twitter.com/AISafetyInst
@@ -46,6 +46,7 @@ book:
       - part: "Basics"
         chapters:
            - workflow.qmd
+           - log-viewer.qmd
            - examples.qmd
 
       - part: "Components"

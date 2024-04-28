@@ -136,6 +136,7 @@ def scorer(
         # wrap instatiations of scorer so they carry registry info and metrics
         def scorer_wrapper(*args: Any, **kwargs: Any) -> Scorer:
             scorer = scorer_type(*args, **kwargs)
+
             registry_tag(
                 scorer_type,
                 scorer,

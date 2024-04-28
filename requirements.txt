@@ -6,6 +6,7 @@ numpy
 platformdirs
 python-dotenv
 jsonlines
+json-stream
 nest_asyncio
 pydantic>=2
 s3fs>=2023
@@ -17,6 +18,8 @@ docstring-parser
 typing_extensions
 pyyaml
 rich
+psutil
+
 
 
 

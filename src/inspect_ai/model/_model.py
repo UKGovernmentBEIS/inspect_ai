@@ -27,7 +27,7 @@ from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai.util import concurrency
 from inspect_ai.util._context.concurrency import using_concurrency
 
-from ._tool import ToolCall, ToolChoice, ToolDef, ToolFunction
+from ._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 
 class GenerateConfigArgs(TypedDict, total=False):
@@ -330,7 +330,10 @@ class ModelOutput(BaseModel):
     @property
     def completion(self) -> str:
         """Text of first message choice text."""
-        return self.choices[0].message.text
+        if len(self.choices) > 0:
+            return self.choices[0].message.text
+        else:
+            return ""
 
     @completion.setter
     def completion(self, completion: str) -> None:
@@ -339,7 +342,13 @@ class ModelOutput(BaseModel):
         Args:
           completion (str): Text for first message.
         """
-        self.choices[0].message.text = completion
+        if len(self.choices) > 0:
+            self.choices[0].message.text = completion
+        else:
+            self.choices.append(ChatCompletionChoice(
+                message = ChatMessageAssistant(content = completion),
+                stop_reason="stop"
+            ))
 
     @staticmethod
     def from_content(
@@ -382,7 +391,7 @@ class ModelAPI(abc.ABC):
     async def generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
@@ -392,7 +401,7 @@ class ModelAPI(abc.ABC):
           input (str | list[ChatMessage]): Chat message
             input (if a `str` is passed it is convereted
             to a `ChatUserMessage`).
-          tools (list[ToolDef]): Tools available for the
+          tools (list[ToolInfo]): Tools available for the
             model to call.
           tool_choice (ToolChoice): Directives to the model
             as to which tools to prefer.
@@ -452,7 +461,7 @@ class Model:
     async def generate(
         self,
         input: str | list[ChatMessage],
-        tools: list[ToolDef] = [],
+        tools: list[ToolInfo] = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
     ) -> ModelOutput:
@@ -462,7 +471,7 @@ class Model:
           input (str | list[ChatMessage]): Chat message
             input (if a `str` is passed it is convereted
             to a `ChatUserMessage`).
-          tools (list[ToolDef]): Tools available for the
+          tools (list[ToolInfo]): Tools available for the
             model to call.
           tool_choice (ToolChoice): Directives to the model
             as to which tools to prefer.
@@ -501,7 +510,7 @@ class Model:
     async def _generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
     ) -> ModelOutput:

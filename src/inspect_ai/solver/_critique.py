@@ -69,10 +69,7 @@ def self_critique(
 
 
 DEFAULT_CRITIQUE_TEMPLATE = r"""
-Given the following question and answer, please critique the answer. A good answer
-comprehensively answers the question and NEVER refuses to answer. If the answer
-is already correct do not provide critique - simply respond 'The original answer
-is fully correct'.
+Given the following question and answer, please critique the answer. A good answer comprehensively answers the question and NEVER refuses to answer. If the answer is already correct do not provide critique - simply respond 'The original answer is fully correct'.
 
 [BEGIN DATA]
 ***
@@ -86,8 +83,7 @@ Critique: """
 
 
 DEFAULT_CRITIQUE_COMPLETION_TEMPLATE = r"""
-Given the following question, initial answer and critique please generate
-an improved answer to the question:
+Given the following question, initial answer and critique please generate an improved answer to the question:
 
 [BEGIN DATA]
 ***
@@ -99,7 +95,5 @@ an improved answer to the question:
 ***
 [END DATA]
 
-If the original answer is already correct, just repeat the original answer exactly.
-You should just provide your answer to the question in exactly this format:
-
-Answer: <your answer> """
+If the original answer is already correct, just repeat the original answer exactly. Provide your answer at the end on its own line in the form "ANSWER: $ANSWER" (without quotes) where $ANSWER is the answer to the question.
+"""

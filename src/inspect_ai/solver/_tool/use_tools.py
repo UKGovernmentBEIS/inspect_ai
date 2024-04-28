@@ -6,7 +6,7 @@ from inspect_ai.model import (
 from .._solver import Generate, Solver, TaskState, solver
 from .._util import append_system_message
 from .tool import Tool
-from .tool_def import tool_def
+from .tool_def import tool_defs
 
 
 @solver
@@ -26,16 +26,16 @@ def use_tools(
     """
     # create tool defs
     tools = tools if isinstance(tools, list) else [tools] if tools else None
-    tool_defs = [tool_def(tool) for tool in tools] if tools else None
+    tdefs = tool_defs(tools) if tools else None
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # register the tools
-        if tool_defs:
-            state.tools.extend(tool_defs)
+        if tools and tdefs:
+            state.tools.extend(tools)
 
             # append the tools system prompts. mark the 'source' of messages
             # as tool so they can be removed if tool_choice == "none"
-            for tool in tool_defs:
+            for tool in tdefs:
                 if tool.prompt:
                     append_system_message(
                         state.messages,

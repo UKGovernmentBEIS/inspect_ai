@@ -3,6 +3,7 @@ import os
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
+from logging import getLogger
 from typing import Any, Callable, Sequence, cast
 
 from pydantic import BaseModel
@@ -40,12 +41,15 @@ from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
     ModelName,
+    ToolCall,
     ToolFunction,
+    ToolInfo,
 )
 from inspect_ai.model._model import collect_model_usage
-from inspect_ai.model._tool import call_tool
 from inspect_ai.scorer import Metric, Score, Scorer, Target
-from inspect_ai.solver import Generate, Plan, Solver, TaskState, generate
+from inspect_ai.solver import Generate, Plan, Solver, TaskState, Tool, generate
+from inspect_ai.solver._tool.tool import TOOL_PARAMS
+from inspect_ai.solver._tool.tool_def import ToolDef, tool_defs
 from inspect_ai.util._context.logger import collect_logger_records
 
 from .images import (
@@ -54,6 +58,8 @@ from .images import (
 )
 from .log import EvalLogger
 from .score import eval_results, score_async
+
+logger = getLogger(__name__)
 
 TASK_FILE_ATTR = "__task_file__"
 TASK_RUN_DIR_ATTR = "__task_run_dir__"
@@ -387,22 +393,36 @@ class Task:
         progress: Callable[..., None],
     ) -> Score | None:
         # solver loop
-        for index, solver in enumerate(plan.steps):
-            # run the solver
-            state = await solver(state, generate)
-            progress()
+        try:
+            # run plan steps (checking for early termination)
+            for index, solver in enumerate(plan.steps):
+                # run the solver
+                state = await solver(state, generate)
+                progress()
 
-            # check for early termination (tick remaining progress)
-            if state.completed or has_max_messages(state, max_messages):
-                for _ in range(index + 1, len(plan.steps)):
-                    progress()
-                break
+                # check for early termination (tick remaining progress)
+                if state.completed or has_max_messages(state, max_messages):
+                    for _ in range(index + 1, len(plan.steps)):
+                        progress()
+                    break
 
-        # run finishing step them mark completed
-        if plan.finish:
-            state = await plan.finish(state, generate)
-            progress()
-        state.completed = True
+            # run finishing step them mark completed
+            if plan.finish:
+                state = await plan.finish(state, generate)
+                progress()
+            state.completed = True
+
+        finally:
+            # safely run cleanup function if there is one
+            if plan.cleanup:
+                try:
+                    await plan.cleanup(state)
+                except Exception as ex:
+                    logger.warning(
+                        f"Exception occurred during plan cleanup for task {self.name}: "
+                        + f"{exception_message(ex)}"
+                    )
+                    pass
 
         # score it
         result = await scorer(state, Target(sample.target)) if scorer else None
@@ -424,7 +444,10 @@ class Task:
         while True:
             # call the model
             output = await model.generate(
-                state.messages, state.tools, tool_choice, config
+                state.messages,
+                tools_info(state.tools),
+                tool_choice,
+                config,
             )
 
             # append the assistant message
@@ -437,11 +460,12 @@ class Task:
                 return state
 
             # resolve tool calls if necessary
+            tdefs = tool_defs(state.tools)
             if message.tool_calls and len(message.tool_calls) > 0:
                 for tool_call in message.tool_calls:
                     tool_error: str | None = None
                     try:
-                        result = await call_tool(state.tools, tool_call, state.metadata)
+                        result = await call_tool(tdefs, tool_call, state.metadata)
                     except Exception as ex:
                         result = ""
                         tool_error = exception_message(ex)
@@ -606,3 +630,39 @@ def collect_eval_data(stats: EvalStats, logger: EvalLogger) -> None:
     # collect log output
     for record in collect_logger_records():
         logger.log_event("logging", LoggingMessage.from_log_record(record))
+
+
+def tools_info(tools: list[Tool]) -> list[ToolInfo]:
+    tdefs = tool_defs(tools)
+    return [
+        ToolInfo(name=tool.name, description=tool.description, params=tool.params)
+        for tool in tdefs
+    ]
+
+
+async def call_tool(
+    tools: list[ToolDef], call: ToolCall, metadata: dict[str, Any]
+) -> Any:
+    # find the tool
+    tool_def = next((tool for tool in tools if tool.name == call.function), None)
+    if tool_def is None:
+        return f"Tool {call.function} not found"
+
+    # resolve metadata params and prepend to arguments
+    tool_params: dict[str, str] = registry_info(tool_def.tool).metadata.get(
+        TOOL_PARAMS, {}
+    )
+    resolved_params: dict[str, Any] = {}
+    for name, value in tool_params.items():
+        key = value.removeprefix("metadata.")
+        resolved = metadata.get(key, None)
+        if resolved is None:
+            raise ValueError(f"Metadata value '{key}' not found for tool parameter")
+        resolved_params[name] = resolved
+    arguments = resolved_params | call.arguments
+
+    # call the tool
+    try:
+        return await tool_def.tool(**arguments)
+    except Exception as e:
+        return f"Error: {exception_message(e)}"

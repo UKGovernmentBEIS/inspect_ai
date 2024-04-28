@@ -13,7 +13,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._providers.util import model_base_url
 
-from .._tool import ToolChoice, ToolDef
+from .._tool import ToolChoice, ToolInfo
 from .._util import (
     chat_api_input,
     chat_api_request,
@@ -49,7 +49,7 @@ class CloudFlareAPI(ModelAPI):
     async def generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:

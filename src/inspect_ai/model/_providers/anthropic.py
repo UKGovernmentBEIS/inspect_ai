@@ -57,7 +57,7 @@ from .._model import (
     ModelUsage,
     StopReason,
 )
-from .._tool import ToolCall, ToolChoice, ToolDef, ToolFunction, ToolParam
+from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo, ToolParam
 from .._util import chat_api_tool
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
@@ -109,7 +109,7 @@ class AnthropicAPI(ModelAPI):
     async def generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
@@ -217,7 +217,7 @@ class AnthropicAPI(ModelAPI):
 
 async def resolve_tools_beta_chat_input(
     input: list[ChatMessage],
-    tools: list[ToolDef],
+    tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
 ) -> Tuple[str | None, list[BetaToolParam], list[ToolsBetaMessageParam]]:
@@ -272,7 +272,6 @@ async def tools_beta_message_param(message: ChatMessage) -> ToolsBetaMessagePara
 
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
-
         if message.tool_error is not None:
             content: str | list[TextBlockParam] = message.tool_error
         if isinstance(message.content, str):
@@ -298,7 +297,6 @@ async def tools_beta_message_param(message: ChatMessage) -> ToolsBetaMessagePara
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant" and message.tool_calls:
-
         # first include content (claude <thinking>)
         tools_content: list[TextBlockParam | ImageBlockParam | ToolUseBlockParam] = (
             [TextBlockParam(type="text", text=message.content)]
@@ -339,7 +337,7 @@ async def tools_beta_message_param(message: ChatMessage) -> ToolsBetaMessagePara
 
 
 def tools_beta_model_output_from_message(
-    message: ToolsBetaMessage, tools: list[ToolDef]
+    message: ToolsBetaMessage, tools: list[ToolInfo]
 ) -> ModelOutput:
     # extract content and tool calls
     content: list[Content] = []
@@ -435,7 +433,7 @@ FUNCTIONS_STOP_SEQ = "</function_calls>"
 
 
 async def resolve_chat_input(
-    input: list[ChatMessage], tools: list[ToolDef], config: GenerateConfig
+    input: list[ChatMessage], tools: list[ToolInfo], config: GenerateConfig
 ) -> Tuple[str | None, list[str] | None, list[MessageParam]]:
     # extract system message
     system_message, messages = split_system_message(input, config)
@@ -456,7 +454,7 @@ async def resolve_chat_input(
     return system_message, stop_seqs, message_params
 
 
-def tools_system_message(tools: list[ToolDef]) -> str:
+def tools_system_message(tools: list[ToolInfo]) -> str:
     tool_sep = "\n\n"
     return f"""
 In this environment you have access to a set of tools you can use to answer the user's question.
@@ -479,7 +477,7 @@ Here are the tools available:
 """
 
 
-def tool_description(tool: ToolDef) -> str:
+def tool_description(tool: ToolInfo) -> str:
     newline = "\n"
     return f"""
 <tool_description>
@@ -618,7 +616,7 @@ def function_result(message: ChatMessageTool) -> str:
 #######################################################################################
 
 
-def model_output_from_message(message: Message, tools: list[ToolDef]) -> ModelOutput:
+def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelOutput:
     # extract function calls (if any); throws ValueError if xml is invalid
     try:
         content_with_functions = extract_function_calls(message)
@@ -810,7 +808,7 @@ def extract_function_calls(message: Message) -> ContentWithFunctionCalls | None:
 #######################################################################################
 
 
-def tool_call(invoke: FunctionCall, tools: list[ToolDef]) -> ToolCall:
+def tool_call(invoke: FunctionCall, tools: list[ToolInfo]) -> ToolCall:
     tool_def = next((tool for tool in tools if invoke.function == tool.name), None)
     return ToolCall(
         id=invoke.function,
@@ -821,7 +819,7 @@ def tool_call(invoke: FunctionCall, tools: list[ToolDef]) -> ToolCall:
 
 
 def tool_arguments(
-    params: list[tuple[str, str]], tool_def: ToolDef | None
+    params: list[tuple[str, str]], tool_info: ToolInfo | None
 ) -> dict[str, Any]:
     arguments: dict[str, Any] = dict()
     for param in params:
@@ -829,9 +827,9 @@ def tool_arguments(
         name, value = param
 
         # coerce type if we have a tool_def
-        if tool_def:
+        if tool_info:
             type_str = next(
-                (param.type for param in tool_def.params if param.name == name), None
+                (param.type for param in tool_info.params if param.name == name), None
             )
             if type_str:
                 value = tool_argument_value(value, type_str)

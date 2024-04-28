@@ -1,17 +1,37 @@
 import inspect
+from dataclasses import dataclass
+from typing import Any, Callable
 
 from docstring_parser import Docstring, DocstringParam
 
 from inspect_ai._util.docstring import parse_docstring
 from inspect_ai._util.json import python_type_to_json_type
 from inspect_ai._util.registry import registry_info
-from inspect_ai.model import (
-    ToolDef,
-    ToolParam,
-)
-from inspect_ai.model._tool import TOOL_PARAMS, TOOL_PROMPT
+from inspect_ai.model import ToolParam
 
-from .tool import Tool
+from .tool import TOOL_PARAMS, TOOL_PROMPT, Tool
+
+
+@dataclass
+class ToolDef:
+    name: str
+    """Tool name."""
+
+    description: str
+    """Tool description."""
+
+    params: list[ToolParam]
+    """Tool parameters"""
+
+    prompt: str | None
+    """System prompt text to guide model usage of tool."""
+
+    tool: Callable[..., Any]
+    """Callable to execute tool."""
+
+
+def tool_defs(tools: list[Tool]) -> list[ToolDef]:
+    return [tool_def(tool) for tool in tools]
 
 
 def tool_def(tool: Tool) -> ToolDef:

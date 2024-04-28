@@ -1,6 +1,17 @@
 from ._answer import AnswerPattern, answer
 from ._match import includes, match
-from ._metric import CORRECT, INCORRECT, PARTIAL, Metric, Score, Value, metric
+from ._metric import (
+    CORRECT,
+    INCORRECT,
+    NOANSWER,
+    PARTIAL,
+    Metric,
+    Score,
+    Value,
+    ValueToFloat,
+    metric,
+    value_to_float,
+)
 from ._metrics.accuracy import accuracy
 from ._metrics.mean import mean
 from ._metrics.std import bootstrap_std
@@ -30,7 +41,10 @@ __all__ = [
     "metric",
     "Score",
     "Value",
+    "ValueToFloat",
+    "value_to_float",
     "CORRECT",
     "INCORRECT",
     "PARTIAL",
+    "NOANSWER",
 ]

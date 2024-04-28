@@ -62,11 +62,11 @@ class Dataset(Sequence[Sample], abc.ABC):
         ...
 
     @overload
-    def __getitem__(self, index: slice) -> Sequence[Sample]:
+    def __getitem__(self, index: slice) -> "Dataset":
         ...
 
     @abc.abstractmethod
-    def __getitem__(self, index: Union[int, slice]) -> Union[Sample, Sequence[Sample]]:
+    def __getitem__(self, index: Union[int, slice]) -> Union[Sample, "Dataset"]:
         ...
 
     @abc.abstractmethod
@@ -75,7 +75,29 @@ class Dataset(Sequence[Sample], abc.ABC):
 
     @abc.abstractmethod
     def shuffle(self, seed: int | None = None) -> None:
-        ...
+        """Shuffle the order of the dataset (in place).
+
+        Args:
+           seed: (int | None): Random seed for shuffling (optional).
+        """
+
+    def filter(
+        self, predicate: Callable[[Sample], bool], name: str | None = None
+    ) -> "Dataset":
+        """Filter the dataset using a predicate.
+
+        Args:
+          predicate (Callable[[Sample], bool]): Filtering function.
+          name (str | None): Name for filtered dataset (optional).
+
+        Returns:
+          Filtered dataset.
+        """
+        return MemoryDataset(
+            name=name or self.name,
+            location=self.location,
+            samples=[sample for sample in self if predicate(sample)],
+        )
 
 
 class FieldSpec(BaseModel):
@@ -150,12 +172,17 @@ class MemoryDataset(Dataset):
         ...
 
     @overload
-    def __getitem__(self, index: slice) -> Sequence[Sample]:
+    def __getitem__(self, index: slice) -> Dataset:
         ...
 
     @override
-    def __getitem__(self, index: Union[int, slice]) -> Union[Sample, Sequence[Sample]]:
-        return self.samples[index]
+    def __getitem__(self, index: Union[int, slice]) -> Union[Sample, Dataset]:
+        if isinstance(index, int):
+            return self.samples[index]
+        else:
+            return MemoryDataset(
+                samples=self.samples[index], name=self.name, location=self.location
+            )
 
     @override
     def __len__(self) -> int:

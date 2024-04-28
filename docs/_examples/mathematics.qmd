@@ -92,26 +92,27 @@ The heart of this eval isn't in the task definition though, rather its in how we
 def expression_equivalance():
     async def score(state: TaskState, target: Target):
         # extract answer
-        answer = re.search(
-            AnswerPattern.LINE, state.output.completion
-        )
-        if answer:
-            # ask the model to judge equivalance 
+        match = re.search(AnswerPattern.LINE, state.output.completion)
+        if match:
+            # ask the model to judge equivalance
+            answer = match.group(1)
             prompt = EQUIVALANCE_TEMPLATE % (
-                {"expression1": target.text, 
-                 "expression2": answer.group(1)}
+                {"expression1": target.text, "expression2": answer}
             )
             result = await get_model().generate(prompt)
 
             # return the score
-            correct = result.completion.lower() == "yes" 
+            correct = result.completion.lower() == "yes"
             return Score(
-                value=CORRECT if correct else INCORRECT
+                value=CORRECT if correct else INCORRECT,
+                answer=answer,
+                explanation=state.output.completion,
             )
         else:
             return Score(
-                value=INCORRECT, 
-                explanation="Answer not found in model output."
+                value=INCORRECT,
+                explanation="Answer not found in model output: "
+                + f"{state.output.completion}",
             )
 
     return score

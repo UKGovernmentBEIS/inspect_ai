@@ -14,29 +14,34 @@ logger = logging.getLogger(__name__)
 # this template is based on the multiple choice template in openai simple evals:
 # https://github.com/openai/simple-evals/blob/main/mmlu_eval.py
 
+
 MULTIPLE_CHOICE_TEMPLATE = r"""
-Answer the following multiple choice question. The entire content of your
-response should be of the following format: 'ANSWER: $LETTER' (without quotes)
-where LETTER is one of {letters}. {instructions}
+Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
 
 {question}
 
 {choices}
 """.strip()
 
-# default cot instructions
-COT_INSTRUCTIONS = "Think step by step before answering."
+
+MULTIPLE_CHOICE_TEMPLATE_COT = r"""
+Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}. Think step by step before answering.
+
+{question}
+
+{choices}
+"""
+
 
 # max tokens for differnet variations
 MULTIPLE_CHOICE_MAX_TOKENS = 32
-MULTIPLE_CHOICE_MAX_TOKENS_COT = 512
+MULTIPLE_CHOICE_MAX_TOKENS_COT = 1024
 
 
 @solver
 def multiple_choice(
     *,
     cot: bool = False,
-    instructions: str | None = None,
     template: str | None = None,
     max_tokens: int | None = None,
     shuffle: bool | Random = False,
@@ -48,8 +53,8 @@ def multiple_choice(
     (so you don't need to call `generate()` separately after this solver runs).
 
     The `template` and `max_tokens` parameters have defaults that vary based
-    tbased on whether `cot` is `True`. When NOT using chain of thought,
-    `max_tokens` is set to 32 (otherwise it is set to 512). If you provide your
+    on whether `cot` is `True`. When NOT using chain of thought,
+    `max_tokens` is set to 32 (otherwise it is set to 1024). If you provide your
     own template, you will also need to determine an appropriate value for
     `max_tokens` (as well as `answer_pattern` if `shuffle` is `True`).
 
@@ -60,14 +65,11 @@ def multiple_choice(
 
     Args:
         cot (bool): `True` to use chain of thought prompting (defaults to `False`).
-          Note that using chain of thought will be slower and use many more tokens,
+          Note that using chain of thought will be slower and use more tokens,
           so you should assess carefully whether your eval benefits from it or not.
-        instructions (str | None): Instructions to append to the first part
-          of the mutliple choice prompt (note when `cot=True` this defaults to
-          "Think step by step before answering.")
-        template (str | None): Alternate prompt template for uestions/answers.
-          Templates have 4 variables: `letters`, `instructions`, `question`,
-          and `choices (where letters is e.g. 'ABCD').
+        template (str | None): Alternate prompt template for questions/answers.
+          Templates have 3 variables: `letters`, `question`, and `choices
+          (where letters is e.g. 'ABCD').
         max_tokens (int | None): Maximum number of tokens to output.
         shuffle (Random | None): Present answers in a shuffled order (defaults to
           `False`, pass `True` or an instance of `Random` to shuffle)
@@ -78,14 +80,15 @@ def multiple_choice(
          for beginning or end of string, for example (^.*) or (.*$).
     """
     # resolve parameters
-    instructions = instructions if instructions else COT_INSTRUCTIONS if cot else ""
-    template = template if template else MULTIPLE_CHOICE_TEMPLATE
+    template = (
+        template
+        if template
+        else MULTIPLE_CHOICE_TEMPLATE_COT if cot else MULTIPLE_CHOICE_TEMPLATE
+    )
     max_tokens = (
         max_tokens
         if max_tokens
-        else MULTIPLE_CHOICE_MAX_TOKENS_COT
-        if cot
-        else MULTIPLE_CHOICE_MAX_TOKENS
+        else MULTIPLE_CHOICE_MAX_TOKENS_COT if cot else MULTIPLE_CHOICE_MAX_TOKENS
     )
     answer_pattern = answer_pattern if answer_pattern else ANSWER_PATTERN_LETTER
 
@@ -110,7 +113,6 @@ def multiple_choice(
         choices_str, _ = make_choices(choices=state.choices)
         user_prompt_text = template.format(
             letters=letters,
-            instructions=instructions,
             question=state.user_prompt.text,
             choices=choices_str,
         )
@@ -121,7 +123,6 @@ def multiple_choice(
         )
         state.user_prompt.text = template.format(
             letters=letters,
-            instructions=instructions,
             question=state.user_prompt.text,
             choices=choices_str_shuffled,
         )

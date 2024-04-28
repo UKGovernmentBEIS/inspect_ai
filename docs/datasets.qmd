@@ -83,6 +83,37 @@ def record_to_sample(record):
 dataset = json_dataset("popularity.jsonl", record_to_sample)
 ```
 
+## Filter and Shuffle
+
+The `Dataset` class includes `filter()` and `shuffle()` methods, as well as support for the slice operator.
+
+To select a subset of the dataset, use `filter()`:
+
+``` python
+dataset = json_dataset("popularity.jsonl", record_to_sample)
+dataset = dataset.filter(
+    lambda sample : sample.metadata["category"] == "advanced"
+)
+```
+
+To select a subset of records, use standard Python slicing:
+
+``` python
+dataset = dataset[0:100]
+```
+
+Shuffling is often helpful when you want to vary the samples used during evaluation development. To do this, either use the `shuffle()` method or the `shuffle` parameter of the dataset loading functions:
+
+``` python
+# shuffle method
+dataset = dataset.shuffle()
+
+# shuffle on load
+dataset = json_dataset("data.jsonl", shuffle=True)
+```
+
+Note that both of these methods optionally support specifying a random seed for shuffling.
+
 ## Hugging Face {#sec-hugging-face-datasets}
 
 [Hugging Face Datasets](https://huggingface.co/docs/datasets/en/index) is a library for easily accessing and sharing datasets for machine learning, and features integration with [Hugging Face Hub](https://huggingface.co/datasets), a repository with a broad selection of publicly shared datasets. Typically datasets on Hugging Face will require specification of which split within the dataset to use (e.g. train, test, or validation) as well as some field mapping. Use the `hf_dataset()` function to read a dataset and specify the requisite split and field names:

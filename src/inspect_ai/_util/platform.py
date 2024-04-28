@@ -6,7 +6,7 @@ def running_in_notebook() -> bool:
     try:
         from IPython import get_ipython  # type: ignore
 
-        if "IPKernelApp" not in get_ipython().config:  # pragma: no cover
+        if "IPKernelApp" not in get_ipython().config:  # type: ignore
             return False
     except ImportError:
         return False
@@ -55,3 +55,7 @@ def is_running_in_vscode() -> bool:
 
     # If none of the conditions are met, we assume it's not running in VS Code
     return False
+
+
+def is_windows() -> bool:
+    return os.name == "nt"

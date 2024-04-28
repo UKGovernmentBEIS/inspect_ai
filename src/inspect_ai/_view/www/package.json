@@ -1,14 +1,11 @@
 {
-  "name": "inspect-view",
+  "name": "logview",
   "version": "1.0.0",
-  "description": "inspect view",
-  "author": "UK AI Safety Institute",
+  "description": "logview",
+  "author": "",
   "license": "ISC",
   "dependencies": {
     "htm": "^3.1.1",
-    "preact": "^10.20.1"
-  },
-  "devDependencies": {
-    "json-schema-to-typescript": "^13.1.2"
+    "preact": "^10.19.6"
   }
 }

@@ -48,7 +48,7 @@ from .._model import (
     ModelOutput,
     StopReason,
 )
-from .._tool import ToolCall, ToolChoice, ToolDef
+from .._tool import ToolCall, ToolChoice, ToolInfo
 from .._util import chat_api_tool
 
 VERTEX_SAFETY_SETTINGS = {
@@ -82,7 +82,7 @@ class GoogleAPI(ModelAPI):
     async def generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolDef],
+        tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
@@ -222,7 +222,7 @@ def prepend_system_messages(
         messages.insert(0, ContentDict(role="user", parts=system_parts))
 
 
-def chat_tools(tools: list[ToolDef]) -> list[Tool]:
+def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
     chat_tools = [chat_api_tool(tool) for tool in tools]
     declarations = [
         FunctionDeclaration(

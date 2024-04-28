@@ -128,6 +128,16 @@ $ inspect eval theory_of_mind.py --model openai/gpt-4
 
 By default, eval logs are written to the `./logs` sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.
 
+You can also explore eval results using the Inspect log viewer. Run `inspect view` to open the viewer (you only need to do this once as the viewer will automatically updated when new evals are run):
+
+```bash
+$ inspect view
+```
+
+![](images/inspect-view-home.png){.border .lightbox}
+
+See the [Log Viewer](#sec-log-viewer) section for additional details on using Inspect View.
+
 ::: {.callout-note appearance="simple"}
 This example demonstrates evals being run from the terminal with the `inspect eval` command. There is also an `eval()` function which can be used for exploratory work---this is covered further in [Workflow](#sec-workflow).
 :::
@@ -137,6 +147,8 @@ This example demonstrates evals being run from the terminal with the `inspect ev
 To get stared with Inspect, we highly recommend you read at least these sections for a high level overview of the system:
 
 -   [Workflow](#sec-workflow) covers the mechanics of running evaluations, including how to create evals in both scripts and notebooks, specifying configuration and options, how to parameterise tasks for different scenarios, and how to work with eval log files.
+
+-   [Log Viewer](#sec-log-viewer) goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python's standard logging module.
 
 -   [Examples](#sec-examples) provides several complete examples with commentary on the use of various features (as with the above example, they are fairly simplistic for the purposes of illustration). You can also find implementations of a few popular [LLM benchmarks](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks) in the Inspect repository.
 
