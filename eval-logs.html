@@ -75,6 +75,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -195,6 +198,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./examples.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Examples</span></a>
   </div>
 </li>
@@ -273,11 +281,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#console-logging" id="toc-console-logging" class="nav-link" data-scroll-target="#console-logging">Console Logging</a></li>
   <li><a href="#log-location" id="toc-log-location" class="nav-link" data-scroll-target="#log-location">Log Location</a></li>
   <li><a href="#evallog" id="toc-evallog" class="nav-link" data-scroll-target="#evallog">EvalLog</a></li>
   <li><a href="#errors-and-retries" id="toc-errors-and-retries" class="nav-link" data-scroll-target="#errors-and-retries">Errors and Retries</a></li>
   <li><a href="#sec-amazon-s3" id="toc-sec-amazon-s3" class="nav-link" data-scroll-target="#sec-amazon-s3">Amazon S3</a></li>
+  <li><a href="#log-cli-commands" id="toc-log-cli-commands" class="nav-link" data-scroll-target="#log-cli-commands">Log CLI Commands</a>
+  <ul class="collapse">
+  <li><a href="#listing-logs" id="toc-listing-logs" class="nav-link" data-scroll-target="#listing-logs">Listing Logs</a></li>
+  <li><a href="#reading-logs" id="toc-reading-logs" class="nav-link" data-scroll-target="#reading-logs">Reading Logs</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -308,39 +320,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Every time you use <code>inspect eval</code> or call the <code>eval()</code> function, an evaluation log is written for each task evaluated. By default, logs are written to the <code>./logs</code> sub-directory of the current working directory (we’ll cover how to change this below). You will find a link to the log at the bottom of the results for each task:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval security_guide.py <span class="at">--model</span> openai/gpt-4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><img src="images/eval-log.png" class="img-fluid"></p>
-<p>Within VS Code or Jupyter Lab you can click on the log link to view the underlying conversations with the model and how each of them was scored.</p>
-</section>
-<section id="console-logging" class="level2">
-<h2 class="anchored" data-anchor-id="console-logging">Console Logging</h2>
-<p>Beyond the standard information included an eval log file, you may want to do additional console logging to assist with developing and debugging. Inspect installs a log handler that displays logging output above eval progress as well as saves it into the evaluation log file. If you use the <a href="https://docs.python.org/3/library/logging.html">recommend practice</a> of the Python <code>logging</code> library for obtaining a logger your logs will interoperate well with Inspect:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>logger <span class="op">=</span> logging.getLogger(<span class="va">__name__</span>)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>logger.info(<span class="st">'Started'</span>)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>logger.info(<span class="st">'Finished'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that inspect sets a default log level of warning. This means that you can include many calls to <code>logger.info()</code> or <code>logger.debug()</code> in your code and they won’t show by default. Use the <code>log_level</code> option or <code>INSPECT_LOG_LEVEL</code> environment variable to see info or debug messages as desired:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval eval.py <span class="at">--model</span> openai/gpt-4 <span class="at">--log-level</span> info</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>, log_level <span class="op">=</span> <span class="st">"info"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also use the Inspect log viewer for interactive exploration of logs. Run this command once at the beginning of a working session (the view will update automatically when new evaluations are run):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><a href="images/inspect-view-main.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-main.png" class="border img-fluid"></a></p>
+<p>This section won’t cover using <code>inspect view</code> though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the <a href="log-viewer.html">Log Viewer</a> section for details on interactively exploring logs.</p>
 </section>
 <section id="log-location" class="level2">
 <h2 class="anchored" data-anchor-id="log-location">Log Location</h2>
 <p>By default, logs are written to the <code>./logs</code> sub-directory of the current working directory You can change where logs are written using eval options or an environment variable</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity.py <span class="at">--model</span> openai/gpt-4 <span class="at">--log-dir</span> ./experiment-log</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity.py <span class="at">--model</span> openai/gpt-4 <span class="at">--log-dir</span> ./experiment-log</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>, log_dir <span class="op">=</span> <span class="st">"./experiment-log"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>, log_dir <span class="op">=</span> <span class="st">"./experiment-log"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that in addition to logging the <code>eval()</code> function also returns an <code>EvalLog</code> object for programmatic access to the details of the evaluation. We’ll talk more about how to use this object below.</p>
 <p>The <code>INSPECT_LOG_DIR</code> environment variable can also be specified to override the default <code>./logs</code> location. You may find it convenient to define this in a <code>.env</code> file from the location where you run your evals:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode ini code-with-copy"><code class="sourceCode ini"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_DIR</span><span class="ot">=</span><span class="st">./experiment-log</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_LEVEL</span><span class="ot">=</span><span class="st">warning</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode ini code-with-copy"><code class="sourceCode ini"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_DIR</span><span class="ot">=</span><span class="st">./experiment-log</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_LEVEL</span><span class="ot">=</span><span class="st">warning</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If you define a relative path to <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file, then its location will always be resolved as <em>relative to</em> that <code>.env</code> file (rather than relative to whatever your current working directory is when you run <code>inspect eval</code>).</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>Note that the log directory need not be a local file path, you can also log to an <a href="#sec-amazon-s3">Amazon S3</a> bucket.</p>
+<p>If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file. This is because the VS Code Python extension also <a href="https://code.visualstudio.com/docs/python/environments#_environment-variables">reads variables</a> from <code>.env</code> files, and your updated <code>INSPECT_LOG_DIR</code> won’t be re-read by VS Code until after a restart.</p>
 </div>
 </div>
 </div>
+<p>See the <a href="datasets.html#amazon-s3">Amazon S3</a> section below for details on logging evaluations to Amazon S3 buckets.</p>
 </section>
 <section id="evallog" class="level2">
 <h2 class="anchored" data-anchor-id="evallog">EvalLog</h2>
@@ -403,9 +409,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>Before analysing results from a log, you should always check their status to ensure they represent a successful run:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">==</span> <span class="st">"success"</span>:</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>   ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">==</span> <span class="st">"success"</span>:</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>   ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>In the section below we’ll talk more about how to deal with logs from failed evaluations (e.g.&nbsp;retrying the eval).</p>
 <p>You can enumerate, read, and write <code>EvalLog</code> objects using the following helper functions from the <code>inspect_ai.log</code> module:</p>
 <table class="table">
@@ -435,22 +441,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>A common workflow is to define an <code>INSPECT_LOG_DIR</code> for running a set of evaluations, then calling <code>list_eval_logs()</code> to analyse the results when all the work is done:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># setup log dir context</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>os.environ[<span class="st">"INSPECT_LOG_DIR"</span>] <span class="op">=</span> <span class="st">"./experiment-logs"</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># do a bunch of evals</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(security_guide, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the reuslts in the logs</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> list_eval_logs()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># setup log dir context</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>os.environ[<span class="st">"INSPECT_LOG_DIR"</span>] <span class="op">=</span> <span class="st">"./experiment-logs"</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># do a bunch of evals</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(security_guide, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the reuslts in the logs</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> list_eval_logs()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that <code>list_eval_logs()</code> lists log files recursively. Pass <code>recursive=False</code> to list only the log files at the root level.</p>
 </section>
 <section id="errors-and-retries" class="level2">
 <h2 class="anchored" data-anchor-id="errors-and-retries">Errors and Retries</h2>
 <p>The example above isn’t quite complete as it doesn’t demonstrate checking the log for success status. This also begs the question of what to do with failed evaluation tasks. In some cases failed tasks need further debugging, but in other cases they may have failed due to connectivity or API rate limiting. For these cases, Inspect includes an <code>eval_retry()</code> function that you can pass a log to.</p>
 <p>Here’s an example of checking for logs with errors and retrying them with a lower number of max connections(the theory in this case being that too many concurrent connections may have caused a rate limit error:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> list_eval_logs(status <span class="op">=</span> <span class="st">"error"</span>)</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>eval_retry(logs, max_connections <span class="op">=</span> <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> list_eval_logs(<span class="bu">filter</span> <span class="op">=</span> <span class="kw">lambda</span> log: log.status <span class="op">==</span> <span class="st">"error"</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>eval_retry(logs, max_connections <span class="op">=</span> <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="sec-amazon-s3" class="level2">
 <h2 class="anchored" data-anchor-id="sec-amazon-s3">Amazon S3</h2>
@@ -460,8 +467,45 @@ AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <p>One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a <a href="https://github.com/s3fs-fuse/s3fs-fuse">FUSE filesystem</a> so you can easily browse the S3 logs locally.</p>
+</section>
+<section id="log-cli-commands" class="level2">
+<h2 class="anchored" data-anchor-id="log-cli-commands">Log CLI Commands</h2>
+<p>We’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g.&nbsp;Typescript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.</p>
+<section id="listing-logs" class="level3">
+<h3 class="anchored" data-anchor-id="listing-logs">Listing Logs</h3>
+<p>You can use the <code>inspect list logs</code> command to enumerate all of the logs for a given log directory. This command will utilise the <code>INSPECT_LOG_DIR</code> if it is set (alternatively you can specify a <code>--log-dir</code> directly). You’ll likely also want to use the <code>--json</code> flag to get more granular and structured information on the log files. For example:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--status</span> success</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--status</span> error</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="reading-logs" class="level3">
+<h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>
+<p>The <code>inspect list logs</code> command will return set of URIs to log files which will use a variety of protocols (e.g.&nbsp;<code>file://</code>, <code>s3://</code>, <code>gcs://</code>, etc.). You might be tempted to try to read these URIs directly, however you should always do so using the <code>inspect info log-file</code> command. This is because log files can be located on remote storage systems (e.g.&nbsp;Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.</p>
+<p>For example, here we read a local log file and a log file on Amazon S3:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-file file:///home/user/log/logfile.json</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-file s3://my-evals-bucket/logfile.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Log files are stored in JSON. You can get the JSON schema and Typescript type definitions for the log file format with the following calls to <code>inspect info</code>:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-schema</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-types</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout callout-style-simple callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+NaN and Inf
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Because evaluation logs contain lots of numerical data and calculations, it is possible that some <code>number</code> values will be <code>NaN</code> or <code>Inf</code>. These numeric values are supported natively by Python’s JSON parser, however are not supported by the JSON parsers built in to browsers and Node JS.</p>
+<p>To correctly read <code>Nan</code> and <code>Inf</code> values from eval logs in JavaScript, we recommend that you use the <a href="https://github.com/json5/json5">JSON5 Parser</a>. For other languages, <code>Nan</code> and <code>Inf</code> may be natively supported (if not, see these JSON 5 implementations for <a href="https://github.com/json5/json5/wiki/In-the-Wild">other languages</a>).</p>
+</div>
+</div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
@@ -900,7 +944,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./eval-suites.html" class="pagination-link" aria-label="<span class='chapter-number'>10</span>&nbsp; <span class='chapter-title'>Eval Suites</span>">
+      <a href="./eval-suites.html" class="pagination-link" aria-label="<span class='chapter-number'>11</span>&nbsp; <span class='chapter-title'>Eval Suites</span>">
         <span class="nav-page-text"><span class="chapter-title">Eval Suites</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
@@ -922,6 +966,11 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     <li class="nav-item">
     <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
 <p>Code</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md">
+<p>Changelog</p>
 </a>
   </li>  
     <li class="nav-item">
@@ -954,6 +1003,31 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","openEffect":"zoom","closeEffect":"zoom","loop":false,"descPosition":"bottom"});
+window.onload = () => {
+  lightboxQuarto.on('slide_before_load', (data) => {
+    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+    const href = trigger.getAttribute('href');
+    if (href !== null) {
+      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+      if (imgEl !== null) {
+        const srcAttr = imgEl.getAttribute("src");
+        if (srcAttr && srcAttr.startsWith("data:")) {
+          slideConfig.href = srcAttr;
+        }
+      }
+    } 
+  });
+
+  lightboxQuarto.on('slide_after_load', (data) => {
+    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+    if (window.Quarto?.typesetMath) {
+      window.Quarto.typesetMath(slideNode);
+    }
+  });
+
+};
+          </script>
 
 
 

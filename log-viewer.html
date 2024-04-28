@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect - Datasets</title>
+<title>Inspect - Log Viewer</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./models.html" rel="next">
-<link href="./scorers.html" rel="prev">
+<link href="./examples.html" rel="next">
+<link href="./workflow.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -75,6 +75,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -104,10 +107,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 }</script>
 
 
-<meta property="og:title" content="Inspect - Datasets">
+<meta property="og:title" content="Inspect - Log Viewer">
 <meta property="og:description" content="A framework for large language model evaluations">
 <meta property="og:site_name" content="Inspect">
-<meta name="twitter:title" content="Inspect - Datasets">
+<meta name="twitter:title" content="Inspect - Log Viewer">
 <meta name="twitter:description" content="A framework for large language model evaluations">
 <meta name="twitter:card" content="summary">
 </head>
@@ -121,7 +124,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./solvers.html">Components</a></li><li class="breadcrumb-item"><a href="./datasets.html"><span class="chapter-title">Datasets</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./workflow.html">Basics</a></li><li class="breadcrumb-item"><a href="./log-viewer.html"><span class="chapter-title">Log Viewer</span></a></li></ol></nav>
         <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="" onclick="window.quartoOpenSearch();">
@@ -195,7 +198,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Log Viewer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -231,7 +234,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./datasets.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Datasets</span></a>
+  <a href="./datasets.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Datasets</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -278,23 +281,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#dataset-samples" id="toc-dataset-samples" class="nav-link" data-scroll-target="#dataset-samples">Dataset Samples</a></li>
-  <li><a href="#field-mapping" id="toc-field-mapping" class="nav-link" data-scroll-target="#field-mapping">Field Mapping</a></li>
-  <li><a href="#filter-and-shuffle" id="toc-filter-and-shuffle" class="nav-link" data-scroll-target="#filter-and-shuffle">Filter and Shuffle</a></li>
-  <li><a href="#sec-hugging-face-datasets" id="toc-sec-hugging-face-datasets" class="nav-link" data-scroll-target="#sec-hugging-face-datasets">Hugging Face</a></li>
-  <li><a href="#amazon-s3" id="toc-amazon-s3" class="nav-link" data-scroll-target="#amazon-s3">Amazon S3</a></li>
-  <li><a href="#chat-messages" id="toc-chat-messages" class="nav-link" data-scroll-target="#chat-messages">Chat Messages</a></li>
-  <li><a href="#image-input" id="toc-image-input" class="nav-link" data-scroll-target="#image-input">Image Input</a></li>
-  <li><a href="#custom-reader" id="toc-custom-reader" class="nav-link" data-scroll-target="#custom-reader">Custom Reader</a></li>
+  <li><a href="#view-basics" id="toc-view-basics" class="nav-link" data-scroll-target="#view-basics">View Basics</a>
+  <ul class="collapse">
+  <li><a href="#log-history" id="toc-log-history" class="nav-link" data-scroll-target="#log-history">Log History</a></li>
+  </ul></li>
+  <li><a href="#sample-details" id="toc-sample-details" class="nav-link" data-scroll-target="#sample-details">Sample Details</a>
+  <ul class="collapse">
+  <li><a href="#messages" id="toc-messages" class="nav-link" data-scroll-target="#messages">Messages</a></li>
+  <li><a href="#scoring" id="toc-scoring" class="nav-link" data-scroll-target="#scoring">Scoring</a></li>
+  <li><a href="#metadata" id="toc-metadata" class="nav-link" data-scroll-target="#metadata">Metadata</a></li>
+  </ul></li>
+  <li><a href="#scores-and-answers" id="toc-scores-and-answers" class="nav-link" data-scroll-target="#scores-and-answers">Scores and Answers</a></li>
+  <li><a href="#filtering-and-sorting" id="toc-filtering-and-sorting" class="nav-link" data-scroll-target="#filtering-and-sorting">Filtering and Sorting</a></li>
+  <li><a href="#python-logging" id="toc-python-logging" class="nav-link" data-scroll-target="#python-logging">Python Logging</a></li>
+  <li><a href="#task-information" id="toc-task-information" class="nav-link" data-scroll-target="#task-information">Task Information</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./solvers.html">Components</a></li><li class="breadcrumb-item"><a href="./datasets.html"><span class="chapter-title">Datasets</span></a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./workflow.html">Basics</a></li><li class="breadcrumb-item"><a href="./log-viewer.html"><span class="chapter-title">Log Viewer</span></a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title"><span id="sec-datasets" class="quarto-section-identifier"><span class="chapter-title">Datasets</span></span></h1>
+<h1 class="title"><span id="sec-log-viewer" class="quarto-section-identifier"><span class="chapter-title">Log Viewer</span></span></h1>
 </div>
 
 
@@ -313,253 +322,96 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Inspect has native support for reading datasets in the CSV, JSON, and JSON Lines formats, as well as from <a href="#sec-hugging-face-datasets">Hugging Face</a>. In addition, the core dataset interface for the evaluation pipeline is flexible enough to accept data read from just about any source.</p>
-<p>If your data is already in a format amenable for direct reading as an Inspect <code>Sample</code>, reading a dataset is as simple as this:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> csv_dataset, json_dataset</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>dataset1 <span class="op">=</span> csv_dataset(<span class="st">"dataset1.csv"</span>)</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>dataset2 <span class="op">=</span> json_dataset(<span class="st">"dataset2.json"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Of course, many real-world datasets won’t be so trivial to read. Below we’ll discuss the various ways you can adapt your datasets for use with Inspect.</p>
+<p>Inspect View provides a convenient way to visualise evaluation logs, including drilling into message histories, scoring decisions, and additional metadata written to the log. Here’s what the main view of an evaluation log looks like:</p>
+<p><a href="images/inspect-view-main.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-main.png" class="border img-fluid"></a></p>
+<p>Below we’ll describe how to get the most out of using Inspect View.</p>
+<p>Note that this section covers <em>interactively</em> exploring log files. You can also use the <code>EvalLog</code> API to compute on log files (e.g.&nbsp;to compare across runs or to more systematically traverse results). See the section on <a href="eval-logs.html">Eval Logs</a> to learn more about how to process log files with code.</p>
 </section>
-<section id="dataset-samples" class="level2">
-<h2 class="anchored" data-anchor-id="dataset-samples">Dataset Samples</h2>
-<p>The core data type underlying the use of datasets with Inspect is the <code>Sample</code>. A sample has an <code>input</code>, a <code>target</code>, an optional <code>id</code>, and an optional collection of <code>metadata</code>.</p>
-<p><strong>Class</strong> <code>inspect_ai.dataset.Sample</code></p>
-<table class="table">
-<colgroup>
-<col style="width: 20%">
-<col style="width: 40%">
-<col style="width: 40%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>input</code></td>
-<td><code>str | list[ChatMessage]</code></td>
-<td>The input to be submitted to the model.</td>
-</tr>
-<tr class="even">
-<td><code>choices</code></td>
-<td><code>list[str] | None</code></td>
-<td>Optional. Multiple choice answer list.</td>
-</tr>
-<tr class="odd">
-<td><code>target</code></td>
-<td><code>str | list[str] | None</code></td>
-<td>Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader.</td>
-</tr>
-<tr class="even">
-<td><code>id</code></td>
-<td><code>str | None</code></td>
-<td>Optional. Unique identifier for sample.</td>
-</tr>
-<tr class="odd">
-<td><code>metadata</code></td>
-<td><code>dict[str | Any] | None</code></td>
-<td>Optional. Arbitrary metadata associated with the sample.</td>
-</tr>
-</tbody>
-</table>
-<p>So a CSV dataset with the following structure:</p>
-<table class="table">
-<colgroup>
-<col style="width: 56%">
-<col style="width: 43%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>input</th>
-<th>target</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>What cookie attributes should I use for strong security?</td>
-<td>secure samesite and httponly</td>
-</tr>
-<tr class="even">
-<td>How should I store passwords securely for an authentication system database?</td>
-<td>strong hashing algorithms with salt like Argon2 or bcrypt</td>
-</tr>
-</tbody>
-</table>
-<p>Can be read directly with:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> csv_dataset(<span class="st">"security_guide.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that samples from datasets without and <code>id</code> field will automatically be assigned ids based on an auto-incrementing integer starting with 1.</p>
-<p>If your samples include <code>choices</code>, then the label should be a numeric index into the available <code>choices</code> rather a letter (this is an implicit assumption of the <code>multiple_choice()</code> solver).</p>
+<section id="view-basics" class="level2">
+<h2 class="anchored" data-anchor-id="view-basics">View Basics</h2>
+<p>To run Inspect View, use the <code>inspect view</code> command:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>By default, <code>inspect view</code> will use the configured log directory of the environment it is run from (e.g.&nbsp;<code>./logs</code>). You can specify an alternate log directory using <code>--log-dir</code> ,for example:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view <span class="at">--log-dir</span> ./experiment-logs</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>By default it will run on port 7575 (and kill any existing <code>inspect view</code> using that port). If you want to run two instances of <code>inspect view</code> you can specify an alternate port:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view <span class="at">--log-dir</span> ./experiment-logs <span class="at">--port</span> 6565</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You only need to run <code>inspect view</code> once at the beginning of a session (as it will automatically update to show new evaluations when they are run).</p>
+<section id="log-history" class="level3">
+<h3 class="anchored" data-anchor-id="log-history">Log History</h3>
+<p>You can view and navigate between a history of all evals in the log directory using the menu at the top right:</p>
+<p><a href="images/inspect-view-history.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-history.png" class="border img-fluid"></a></p>
 </section>
-<section id="field-mapping" class="level2">
-<h2 class="anchored" data-anchor-id="field-mapping">Field Mapping</h2>
-<p>If your dataset contains inputs and targets that don’t use <code>input</code> and <code>target</code> as field names, you can map them into a <code>Dataset</code> using a <code>FieldSpec</code>. This same mechanism also enables you to collect arbitrary additional fields into the <code>Sample</code> <code>metadata</code> bucket. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> FieldSpec, json_dataset</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> json_dataset(</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"popularity.jsonl"</span>,</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    FieldSpec(</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"question"</span>,</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"answer_matching_behavior"</span>,</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">id</span><span class="op">=</span><span class="st">"question_id"</span>,</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        metadata<span class="op">=</span>[<span class="st">"label_confidence"</span>],</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes an <code>index</code> and <code>record</code> (represented as a <code>dict</code>) from the underlying file and returns a <code>Sample</code>. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample, json_dataset</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> record_to_sample(record):</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Sample(</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span>record[<span class="st">"question"</span>],</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span>record[<span class="st">"answer_matching_behavior"</span>].strip(),</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        <span class="bu">id</span><span class="op">=</span>record[<span class="st">"question_id"</span>],</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        metadata<span class="op">=</span>{</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>            <span class="st">"label_confidence"</span>: record[<span class="st">"label_confidence"</span>]</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        }</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> json_dataset(<span class="st">"popularity.jsonl"</span>, record_to_sample)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="filter-and-shuffle" class="level2">
-<h2 class="anchored" data-anchor-id="filter-and-shuffle">Filter and Shuffle</h2>
-<p>The <code>Dataset</code> class includes <code>filter()</code> and <code>shuffle()</code> methods, as well as support for the slice operator.</p>
-<p>To select a subset of the dataset, use <code>filter()</code>:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> json_dataset(<span class="st">"popularity.jsonl"</span>, record_to_sample)</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> dataset.<span class="bu">filter</span>(</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">lambda</span> sample : sample.metadata[<span class="st">"category"</span>] <span class="op">==</span> <span class="st">"advanced"</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>To select a subset of records, use standard Python slicing:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> dataset[<span class="dv">0</span>:<span class="dv">100</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Shuffling is often helpful when you want to vary the samples used during evaluation development. To do this, either use the <code>shuffle()</code> method or the <code>shuffle</code> parameter of the dataset loading functions:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># shuffle method</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> dataset.shuffle()</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># shuffle on load</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> json_dataset(<span class="st">"data.jsonl"</span>, shuffle<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that both of these methods optionally support specifying a random seed for shuffling.</p>
+<section id="sample-details" class="level2">
+<h2 class="anchored" data-anchor-id="sample-details">Sample Details</h2>
+<p>Click a sample to drill into its messages, scoring, and metadata.</p>
+<section id="messages" class="level3">
+<h3 class="anchored" data-anchor-id="messages">Messages</h3>
+<p>The messages tab displays the message history. In this example we see that the model make two tool calls before answering (the final assistant message is not fully displayed for brevity):</p>
+<p><a href="images/inspect-view-messages.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/inspect-view-messages.png" class="border img-fluid"></a></p>
+<p>Looking carefully at the message history (especially for agents or multi-turn solvers) is critically important for understanding how well your evaluation is constructed.</p>
 </section>
-<section id="sec-hugging-face-datasets" class="level2">
-<h2 class="anchored" data-anchor-id="sec-hugging-face-datasets">Hugging Face</h2>
-<p><a href="https://huggingface.co/docs/datasets/en/index">Hugging Face Datasets</a> is a library for easily accessing and sharing datasets for machine learning, and features integration with <a href="https://huggingface.co/datasets">Hugging Face Hub</a>, a repository with a broad selection of publicly shared datasets. Typically datasets on Hugging Face will require specification of which split within the dataset to use (e.g.&nbsp;train, test, or validation) as well as some field mapping. Use the <code>hf_dataset()</code> function to read a dataset and specify the requisite split and field names:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> FieldSpec, hf_dataset</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>dataset<span class="op">=</span>hf_dataset(<span class="st">"openai_humaneval"</span>, </span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  split<span class="op">=</span><span class="st">"test"</span>, </span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  sample_fields<span class="op">=</span>FieldSpec(</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">id</span><span class="op">=</span><span class="st">"task_id"</span>,</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span><span class="op">=</span><span class="st">"prompt"</span>,</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    target<span class="op">=</span><span class="st">"canonical_solution"</span>,</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    metadata<span class="op">=</span>[<span class="st">"test"</span>, <span class="st">"entry_point"</span>]</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that some HuggingFace datasets execute Python code in order to resolve the underlying dataset files. Since this code is run on your local machine, you need to specify <code>trust = True</code> in order to perform the download. This option should only be set to <code>True</code> for repositories you trust and in which you have read the code. Here’s an example of using the <code>trust</code> option (note that it defaults to <code>False</code> if not specified):</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>dataset<span class="op">=</span>hf_dataset(<span class="st">"openai_humaneval"</span>, </span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  split<span class="op">=</span><span class="st">"test"</span>, </span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  trust<span class="op">=</span><span class="va">True</span>,</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  ...</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Under the hood, the <code>hf_dataset()</code> function is calling the <a href="https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset">load_dataset()</a> function in the Hugging Face datasets package. You can additionally pass arbitrary parameters on to <code>load_dataset()</code> by including them in the call to <code>hf_dataset()</code>. For example <code>hf_dataset(..., cache_dir="~/my-cache-dir")</code>.</p>
+<section id="scoring" class="level3">
+<h3 class="anchored" data-anchor-id="scoring">Scoring</h3>
+<p>The scoring tab shows additional details including the full input and full model explanation for answers:</p>
+<p><a href="images/inspect-view-scoring.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/inspect-view-scoring.png" class="border img-fluid"></a></p>
 </section>
-<section id="amazon-s3" class="level2">
-<h2 class="anchored" data-anchor-id="amazon-s3">Amazon S3</h2>
-<p>Inspect has integrated support for storing datasets on <a href="https://aws.amazon.com/pm/serv-s3/">Amazon S3</a>. Compared to storing data on the local file-system, using S3 can provide more flexible sharing and access control, and a more reliable long term store than local files.</p>
-<p>Using S3 is mostly a matter of substituting S3 URLs (e.g.&nbsp;<code>s3://my-bucket-name</code>) for local file-system paths. For example, here is how you load a dataset from S3:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>json_dataset(<span class="st">"s3://my-bucket/dataset.jsonl"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>S3 buckets are normally access controlled so require authentication to read from. There are a wide variety of ways to configure your client for AWS authentication, all of which work with Inspect. See the article on <a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html">Configuring the AWS CLI</a> for additional details</p>
+<section id="metadata" class="level3">
+<h3 class="anchored" data-anchor-id="metadata">Metadata</h3>
+<p>The metadata tab shows additional data made available by solvers, tools, an scorers (in this case the <code>web_search()</code> tool records which URLs it visited to retreive additional context):</p>
+<p><a href="images/inspect-view-metadata.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-view-metadata.png" class="border img-fluid"></a></p>
 </section>
-<section id="chat-messages" class="level2">
-<h2 class="anchored" data-anchor-id="chat-messages">Chat Messages</h2>
-<p>The most important data structure within <code>Sample</code> is the <code>ChatMessage</code>. Note that often datasets will contain a simple string as their input (which is then internally converted to a <code>ChatMessageUser</code>). However, it is possible to include a full message history as the input via <code>ChatMessage</code>. Another useful application of <code>ChatMessage</code> is providing multi-modal input (e.g.&nbsp;images).</p>
-<p><strong>Class</strong> <code>inspect_ai.model.ChatMessage</code></p>
-<table class="table">
-<colgroup>
-<col style="width: 10%">
-<col style="width: 35%">
-<col style="width: 55%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>role</code></td>
-<td><code>"system" | "user" | "assistant" | "tool"</code></td>
-<td>Role of this chat message.</td>
-</tr>
-<tr class="even">
-<td><code>content</code></td>
-<td><code>str | list[ChatContent]</code></td>
-<td>The content of the message. Can be a simple string or a list of content parts intermixing text and images.</td>
-</tr>
-</tbody>
-</table>
-<p>An input with chat messages in your dataset might will look something like this:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode javascript code-with-copy"><code class="sourceCode javascript"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="st">"input"</span><span class="op">:</span> [</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  {</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"role"</span><span class="op">:</span> <span class="st">"user"</span><span class="op">,</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"content"</span><span class="op">:</span> <span class="st">"What cookie attributes should I use for strong security?"</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that for this example we wouldn’t normally use a full chat message object (rather we’d just provide a simple string). Chat message objects are more useful when you want to include a system prompt or prime the conversation with “assistant” responses.</p>
 </section>
-<section id="image-input" class="level2">
-<h2 class="anchored" data-anchor-id="image-input">Image Input</h2>
-<p>To include an image, your dataset input would look like this:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode javascript code-with-copy"><code class="sourceCode javascript"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="st">"input"</span><span class="op">:</span> [</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  {</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"role"</span><span class="op">:</span> <span class="st">"user"</span><span class="op">,</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"content"</span><span class="op">:</span> [</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"text"</span><span class="op">,</span> <span class="st">"text"</span><span class="op">:</span> <span class="st">"What is this a picture of?"</span>}<span class="op">,</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"image"</span><span class="op">,</span> <span class="st">"image"</span><span class="op">:</span> <span class="st">"picture.png"</span>}</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Where <code>"picture.png"</code> is located in the directory where your task runs. The image can be specified either as a URL (accessible to the model), a local file path, or a base64 encoded <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs">Data URL</a>.</p>
-<p>If you are constructing chat messages programmatically, then the equivalent to the above would be:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>ChatMessageUser(content <span class="op">=</span> [</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    ContentText(text<span class="op">=</span><span class="st">"What is this a picture of?"</span>),</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    ContentImage(image<span class="op">=</span><span class="st">"picture.png"</span>)</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>Note that image input is currently only supported for Open AI vision models (e.g.&nbsp;<a href="https://platform.openai.com/docs/guides/vision">gpt-4-vision-preview</a>), Google Gemini vision models (e.g.&nbsp;<a href="https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/gemini-pro-vision">gemini-pro-vision</a>), and Anthropic Claude 3 models.</p>
-</div>
-</div>
-</div>
+<section id="scores-and-answers" class="level2">
+<h2 class="anchored" data-anchor-id="scores-and-answers">Scores and Answers</h2>
+<p>Reliable, high quality scoring is a critical component of every evaluation, and developing custom scorers that deliver this can be challenging. One major difficulty lies in the free form text nature of model output: we have a very specific target we are comparing against and we sometimes need to pick the answer out of a sea of text. Model graded output introduces another set of challenges entirely.</p>
+<p>For comparison based scoring, scorers typically perform two core tasks:</p>
+<ol type="1">
+<li>Extract the answer from the model’s output; and</li>
+<li>Compare the extracted answer to the target.</li>
+</ol>
+<p>A scorer can fail to correctly score output at either of these steps. Failing to extract an answer entirely can occur (e.g.&nbsp;due to a regex that’s not quite flexible enough) and as can failing to correctly identify equivalent answers (e.g.&nbsp;thinking that “1,242” is different from “1242.00” or that “Yes.” is different than “yes”).</p>
+<p>You can use the log viewer to catch and evaluate these sorts of issues. For example, here we can see that we were unable to extract answers for a couple of questions that were scored incorrect:</p>
+<p><a href="images/inspect-view-answers.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6"><img src="images/inspect-view-answers.png" class="border img-fluid"></a></p>
+<p>It’s possible that these answers are legitimately incorrect. However it’s also possible that the correct answer is in the model’s output but just in a format we didn’t quite expect. In each case you’ll need to drill into the sample to investigate.</p>
+<p>Answers don’t just appear magically, scorers need to produce them during scoring. The scorers built in to Inspect all do this, but when you create a custom scorer, you should be sure to always include an <code>answer</code> in the <code>Score</code> objects you return if you can. For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> Score(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    value<span class="op">=</span><span class="st">"C"</span> <span class="cf">if</span> extracted <span class="op">==</span> target.text <span class="cf">else</span> <span class="st">"I"</span>, </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    answer<span class="op">=</span>extracted, </span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    explanation<span class="op">=</span>state.output.completion</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If we only return the <code>value</code> of “C” or “I” we’d lose the context of exactly what was being compared when the score was assigned.</p>
+<p>Note there is also an <code>explanation</code> field: this is also important, as it allows you to view the entire context from which the answer was extracted from.</p>
 </section>
-<section id="custom-reader" class="level2">
-<h2 class="anchored" data-anchor-id="custom-reader">Custom Reader</h2>
-<p>You are not restricted to the built in dataset functions for reading samples. Since the <code>dataset</code> field of the <code>Task</code> class takes either a <code>Dataset</code> or a sequences of<code>Sample</code>, the following is also valid:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> generate, system_message</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>dataset<span class="op">=</span>[</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    Sample(</span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"What cookie attributes should I use for strong security?"</span>,</span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"secure samesite and httponly"</span>,</span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> security_guide():</span>
-<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>dataset,</span>
-<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>        plan<span class="op">=</span>[system_message(SYSTEM_MESSAGE), generate()],</span>
-<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
-<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>So if the built in dataset functions don’t meet your needs, you can create a custom function that yields a list of <code>Sample</code> instances and pass those directly to your <code>Task</code>.</p>
+<section id="filtering-and-sorting" class="level2">
+<h2 class="anchored" data-anchor-id="filtering-and-sorting">Filtering and Sorting</h2>
+<p>It’s often useful to filter log entries by score (for example, to investigate whether incorrect answers are due to scorer issues or are true negatives). Use the <strong>Scores</strong> picker to filter by specific scores:</p>
+<p><a href="images/inspect-view-filter.png" class="lightbox" data-gallery="quarto-lightbox-gallery-7"><img src="images/inspect-view-filter.png" class="border img-fluid"></a></p>
+<p>By default, samples are ordered (with all samples for an epoch presented in sequence). However you can also order by score, or order by samples (so you see all of the results for a given sample across all epochs presented together). Use the <strong>Sort</strong> picker to control this:</p>
+<p><a href="images/inspect-view-sort.png" class="lightbox" data-gallery="quarto-lightbox-gallery-8"><img src="images/inspect-view-sort.png" class="border img-fluid"></a></p>
+<p>Viewing by sample can be especially valuable for diagnosing the sources of inconsistency (and determining whether they are inherent or an artifact of the evaluation methodology). Above we can see that sample 1 is incorrect in epoch 1 because of issue the model had with forming a correct function call.</p>
+</section>
+<section id="python-logging" class="level2">
+<h2 class="anchored" data-anchor-id="python-logging">Python Logging</h2>
+<p>Beyond the standard information included an eval log file, you may want to do additional console logging to assist with developing and debugging. Inspect installs a log handler that displays logging output above eval progress as well as saves it into the evaluation log file.</p>
+<p>If you use the <a href="https://docs.python.org/3/library/logging.html">recommend practice</a> of the Python <code>logging</code> library for obtaining a logger your logs will interoperate well with Inspect. For example, here we developing a web search tool and want to log each time a query occurs:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># setup logger for this source file</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>logger <span class="op">=</span> logging.getLogger(<span class="va">__name__</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># log each time we see a web query</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>logger.info(<span class="ss">f"web query: </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can see all of these log entries in the <strong>Logging</strong> tab:</p>
+<p><a href="images/inspect-view-logging.png" class="lightbox" data-gallery="quarto-lightbox-gallery-9"><img src="images/inspect-view-logging.png" class="border img-fluid"></a></p>
+<p>It is important to note that the Inspect View will show all log entries level <code>info</code> or higher. However, printing every <code>info</code> message to the console during an eval might be too distracting, so the default log level for printing is <code>warning</code>. If you change it to <code>info</code> then you’ll also see these log messages in the console:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval biology_qa.py <span class="at">--log-level</span> info</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><a href="images/inspect-view-logging-console.png" class="lightbox" data-gallery="quarto-lightbox-gallery-10"><img src="images/inspect-view-logging-console.png" class="img-fluid"></a></p>
+<p>A default log level of <code>warning</code> enables you to include many calls to <code>logger.info()</code> in your code without having them show by default, while also making them available in the log viewer should you need them.</p>
+<p>Note that you can also set the log level using the <code>INSPECT_LOG_LEVEL</code> environment variable (which is often included in a <a href="workflow.html#sec-workflow-configuration">.env configuration file</a>).</p>
+</section>
+<section id="task-information" class="level2">
+<h2 class="anchored" data-anchor-id="task-information">Task Information</h2>
+<p>The <strong>Info</strong> panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, plan, and scorer details, git revision, and model token usage:</p>
+<p><img src="images/inspect-view-info.png" class="img-fluid" style=".border .lightbox"></p>
 
 
 </section>
@@ -995,13 +847,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./scorers.html" class="pagination-link  aria-label=" &lt;span="">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Scorers</span></span>
+      <a href="./workflow.html" class="pagination-link  aria-label=" &lt;span="">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Workflow</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./models.html" class="pagination-link" aria-label="<span class='chapter-number'>9</span>&nbsp; <span class='chapter-title'>Models</span>">
-        <span class="nav-page-text"><span class="chapter-title">Models</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./examples.html" class="pagination-link" aria-label="<span class='chapter-number'>4</span>&nbsp; <span class='chapter-title'>Examples</span>">
+        <span class="nav-page-text"><span class="chapter-title">Examples</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1059,6 +911,31 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","closeEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom"});
+window.onload = () => {
+  lightboxQuarto.on('slide_before_load', (data) => {
+    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+    const href = trigger.getAttribute('href');
+    if (href !== null) {
+      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+      if (imgEl !== null) {
+        const srcAttr = imgEl.getAttribute("src");
+        if (srcAttr && srcAttr.startsWith("data:")) {
+          slideConfig.href = srcAttr;
+        }
+      }
+    } 
+  });
+
+  lightboxQuarto.on('slide_after_load', (data) => {
+    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+    if (window.Quarto?.typesetMath) {
+      window.Quarto.typesetMath(slideNode);
+    }
+  });
+
+};
+          </script>
 
 
 

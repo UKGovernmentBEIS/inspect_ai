@@ -195,6 +195,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./examples.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Examples</span></a>
   </div>
 </li>
@@ -281,7 +286,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#example-wikipedia-search" id="toc-example-wikipedia-search" class="nav-link" data-scroll-target="#example-wikipedia-search">Example: Wikipedia Search</a></li>
   </ul></li>
-  <li><a href="#task-params" id="toc-task-params" class="nav-link" data-scroll-target="#task-params">Task Params</a></li>
+  <li><a href="#tool-params" id="toc-tool-params" class="nav-link" data-scroll-target="#tool-params">Tool Params</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -591,7 +596,7 @@ Tools and Agents
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
 <dt data-target-cell="annotated-cell-10" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-10" data-code-lines="9" data-code-annotation="1">Note that we register native LangChain tools. These will be converted to the standard Inspect <code>ToolDef</code> when generate is called.</span>
+<span data-code-cell="annotated-cell-10" data-code-lines="9" data-code-annotation="1">Note that we register native LangChain tools. These will be converted to the standard Inspect <code>ToolInfo</code> when generate is called.</span>
 </dd>
 <dt data-target-cell="annotated-cell-10" data-target-annotation="2">2</dt>
 <dd>
@@ -618,8 +623,8 @@ Tools and Agents
 <p>See the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain">working version</a> of this example if you want to run and experiment with it.</p>
 </section>
 </section>
-<section id="task-params" class="level2">
-<h2 class="anchored" data-anchor-id="task-params">Task Params</h2>
+<section id="tool-params" class="level2">
+<h2 class="anchored" data-anchor-id="tool-params">Tool Params</h2>
 <p>In some cases you may want to forward information from task metadata to a tool. This would be useful if you have some per-sample metadata that you want tools to condition their behavior on. To do this, specify the <code>params</code> option on the <code>@tool</code> decorator and specify the metadata value you would like to forward (these params will be then be passed to the function with the appropriate per-task value). For example:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>   prompt <span class="op">=</span> <span class="st">"Use the run_command function to run commands."</span>,</span>
@@ -1079,7 +1084,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./scorers.html" class="pagination-link" aria-label="<span class='chapter-number'>6</span>&nbsp; <span class='chapter-title'>Scorers</span>">
+      <a href="./scorers.html" class="pagination-link" aria-label="<span class='chapter-number'>7</span>&nbsp; <span class='chapter-title'>Scorers</span>">
         <span class="nav-page-text"><span class="chapter-title">Scorers</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
@@ -1101,6 +1106,11 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     <li class="nav-item">
     <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
 <p>Code</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md">
+<p>Changelog</p>
 </a>
   </li>  
     <li class="nav-item">

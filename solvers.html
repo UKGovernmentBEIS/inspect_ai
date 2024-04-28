@@ -195,6 +195,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./examples.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Examples</span></a>
   </div>
 </li>
@@ -286,6 +291,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#example-self-critique" id="toc-example-self-critique" class="nav-link" data-scroll-target="#example-self-critique">Example: Self Critique</a></li>
   </ul></li>
   <li><a href="#early-termination" id="toc-early-termination" class="nav-link" data-scroll-target="#early-termination">Early Termination</a></li>
+  <li><a href="#plan-cleanup" id="toc-plan-cleanup" class="nav-link" data-scroll-target="#plan-cleanup">Plan Cleanup</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -407,41 +413,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Here is the declaration for the <code>multiple_choice()</code> solver:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multiple_choice(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    cot: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    instructions: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    max_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    shuffle: <span class="bu">bool</span> <span class="op">|</span> Random <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    answer_pattern: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver:</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The multiple choice solver has two built in approaches and can customised to create additional ones. The <code>cot</code> (chain of thought) parameter determines which approach is used:</p>
-<table class="table">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 45%">
-<col style="width: 30%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>cot</th>
-<th>instructions</th>
-<th>max_tokens</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>False</code></td>
-<td>(none)</td>
-<td>32</td>
-</tr>
-<tr class="even">
-<td><code>True</code></td>
-<td>Think step by step before answering.</td>
-<td>512</td>
-</tr>
-</tbody>
-</table>
-<p>Instructions refers to <em>additional</em> instructions over and above the standard multiple choice instructions. Using chain of thought may or may not improve results (it depends on the nature of the questions and the model being evaluated).</p>
-<p>You can customise the extra <code>instructions</code> given and/or provide your own template entirely. Note that when you do this you will likely also need to change <code>max_tokens</code>.</p>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    max_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    shuffle: <span class="bu">bool</span> <span class="op">|</span> Random <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    answer_pattern: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver:</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>cot</code> parameter determines whether the default template employs chain of thought reasoning or not (defaults to <code>False</code>). Note that using chain of thought will be slower and use more tokens, so you should assess carefully whether your eval benefits from it or not. When <code>cot</code> is <code>False</code>, <code>max_tokens</code> defaults to 32; when <code>True</code>, it defaults to 1024.</p>
 <p>If you specify <code>shuffle=True</code>, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).</p>
 <p>Generally when using the <code>multiple_choice()</code> solver you should pair it with the <code>answer("letter")</code> scorer.</p>
 </section>
@@ -608,6 +585,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    scorer <span class="op">=</span> model_graded_fact()</span>
 <span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>In this example the <code>finish_up()</code> solver will always be called even if the plan doesn’t run all of its steps.</p>
+</section>
+<section id="plan-cleanup" class="level2">
+<h2 class="anchored" data-anchor-id="plan-cleanup">Plan Cleanup</h2>
+<p>If your solvers allocate resources (for example, run a Docker container or mount a drive), you will want to make sure that these resources are cleaned up even in the case of an error occurring during the evaluaton. To arrange for this, use a <code>Plan</code> object with a <code>cleanup</code> function:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> cleanup(state):</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># cleanup resources</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>Task(</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>json_dataset(<span class="st">"data.json"</span>),</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    plan <span class="op">=</span> Plan(</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        steps <span class="op">=</span> [...], </span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>        cleanup <span class="op">=</span> cleanup</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    scorer <span class="op">=</span> model_graded_fact()</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>In this example the <code>cleanup()</code> function will always be called even if an error occurs during evaluation. Note that the cleanup handler must be declared as an <code>async</code> function.</p>
 
 
 </section>
@@ -1048,7 +1043,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./tools.html" class="pagination-link" aria-label="<span class='chapter-number'>5</span>&nbsp; <span class='chapter-title'>Tools</span>">
+      <a href="./tools.html" class="pagination-link" aria-label="<span class='chapter-number'>6</span>&nbsp; <span class='chapter-title'>Tools</span>">
         <span class="nav-page-text"><span class="chapter-title">Tools</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
@@ -1070,6 +1065,11 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     <li class="nav-item">
     <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
 <p>Code</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md">
+<p>Changelog</p>
 </a>
   </li>  
     <li class="nav-item">
