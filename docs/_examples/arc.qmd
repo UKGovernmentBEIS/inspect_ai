@@ -1,0 +1,98 @@
+::: {.content-visible when-format="html"}
+
+## ARC {#sec-arc}
+
+The [ARC dataset](https://allenai.org/data/arc) consists of 7,787 science exam questions drawn from a variety of sources, including science questions provided under license by a research partner affiliated with [AI2](https://allenai.org). These are text-only, English language exam questions that span several grade levels as indicated in the files. Each question has a multiple choice structure (typically 4 answer options). The questions are sorted into a Challenge Set of 2,590 “hard” questions (those that both a retrieval and a co-occurrence method fail to answer correctly) and an Easy Set of 5,197 questions. Here are some samples from the dataset:
+
+| question                                                                                                                                                                                                     | choices                                                                                                                                                                            | answerKey |
+|-----------------------------|-------------------------|-------------------|
+| George wants to warm his hands quickly by rubbing them. Which skin surface will produce the most heat?                                                                                                       | { "text": \[ "dry palms", "wet palms", "palms covered with oil", "palms covered with lotion" \], "label": \[ "A", "B", "C", "D" \] }                                               | A         |
+| A toothpaste commercial states that a brand of toothpaste has a higher concentration of fluoride than any other toothpaste available. The commercial is most likely inferring that the advertised toothpaste | { "text": \[ "has a pleasant flavor.", "is recommended by dentists.", "promotes good dental hygiene.", "is the most expensive brand sold." \], "label": \[ "A", "B", "C", "D" \] } | C         |
+
+: {tbl-colwidths=\[40,40,20\]}
+
+### Setup {.unlisted}
+
+We'll start by importing what we need from Inspect and writing a `record_to_sample()` function to convert raw records to samples (note that the choices and labels are encoded in JSON within the **choices** field so need some special pre-processing).
+
+::: {.content-hidden}
+```{python}
+"""
+Think you have Solved Question Answering? Try ARC, the AI2 Reasoning Challenge
+
+Peter Clark, Isaac Cowhey, Oren Etzioni, Tushar Khot, Ashish Sabharwal, Carissa Schoenick, Oyvind Tafjord
+https://arxiv.org/abs/1803.05457
+
+# run all subsets
+inspect eval arc.py
+
+# run specific subsets
+inspect eval arc.py@easy
+inspect eval arc.py@challenge
+"""
+```
+:::
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.scorer import answer
+from inspect_ai.solver import multiple_choice, system_message
+
+def record_to_sample(record):
+  # read the labels and text
+  choices = record["choices"]
+  choices = dict(zip(choices["label"], choices["text"]))
+
+  # determine the target then normalize to letter
+  answerKey = record["answerKey"]
+  target = list(choices.keys()).index(answerKey)
+  target = chr(ord("A") + int(target))
+
+  # return sample
+  return Sample(
+    input=record["question"],
+    choices=list(choices.values()),
+    target=target
+  )
+```
+
+Since the label and answer could be encoded using either letters or numeric indexes, we lookup 
+
+### Eval {.unlisted}
+
+The ARC dataset has two subsets (ARC-Easy and ARC-Challenge). We'll create a shared task function that can be used to run either, and then export two `@task` decorated functions so that they can be run all together or in isolation.
+
+```{python}
+def arc_task(dataset_name):
+   return Task(
+     dataset=hf_dataset(
+       path="allenai/ai2_arc",
+       name=dataset_name,
+       split="test",
+       sample_fields=record_to_sample
+     ),
+     plan = multiple_choice(),
+     scorer = answer("letter")
+   )
+   
+@task
+def easy():
+  return arc_task("ARC-Easy")
+
+@task
+def challenge():
+  return arc_task("ARC-Challenge")
+```
+
+We use the `multiple_choice()` solver and as you may have noted we don't call `generate()` directly here! This is because `multiple_choice()` calls `generate()` internally (it does this so that it can randomly shuffle the order of choices and then map the model output back to the underlying dataset index).
+
+We can run either all tasks or individual tasks as follows:
+
+``` bash
+inspect eval arc.py      
+inspect eval arc.py@easy
+inspect eval arc.py@challenge
+```
+
+:::

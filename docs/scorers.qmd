@@ -1,0 +1,356 @@
+---
+code-annotations: below
+---
+
+# Scorers {#sec-scorers}
+
+## Overview
+
+Scorers evaluate whether solvers were successful in finding the right `output` for the `target` defined in the dataset, and in what measure. Scorers generally take one of the following forms:
+
+1.  Extracting a specific answer out of a model's completion output using a variety of heuristics.
+
+2.  Applying a text similarity algorithm to see if the model's completion is close to what is set out in the `target`.
+
+3.  Using another model to assess whether the model's completion satisfies a description of the ideal answer in `target`.
+
+4.  Using another rubric entirely (e.g. did the model produce a valid version of a file format, etc.)
+
+Scorers also define one or more metrics which are used to aggregate scores (e.g. `accuracy()` which computes what percentage of scores are correct, or `mean()` which provides an average for scores that exist on a continuum).
+
+## Built-In Scorers
+
+Inspect includes some simple text matching scorers as well as a couple of model graded scorers. Built in scorers can be imported from the `inspect_ai.scorer` module. Below is a summary of these scorers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the **Go to Definition** command in your source editor.
+
+-   `includes()`
+
+    Determine whether the `target` from the `Sample` appears anywhere inside the model output. Can be case sensitive or insensitive (defaults to the latter).
+
+-   `match()`
+
+    Determine whether the `target` from the `Sample` appears at the beginning or end of model output (defaults to looking at the end). Has options for ignoring case, white-space, and punctuation (all are ignored by default).
+
+-   `pattern()`
+
+    Extract the answer from model output using a regular expression.
+
+-   `answer()`
+
+    Scorer for model output that preceded answers with "ANSWER: ". Can extract letters, words, or the remainder of the line.
+
+-   `model_graded_qa()`
+
+    Have another model assess whether the model output is a correct answer based on the grading guidance contained in `target`. Has a built-in template that can be customised.
+
+-   `model_graded_fact()`
+
+    Have another model assess whether the model output contains a fact that is set out in `target`. This is a more narrow assessment than `model_graded_qa()`, and is used when model output is too complex to be assessed using a simple `match()` or `pattern()` scorer.
+
+Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` as a metric). You can also provide your own custom metrics in `Task` definitions. For example:
+
+``` python
+Task(
+    dataset=dataset,
+    plan=[
+        system_message(SYSTEM_MESSAGE),
+        multiple_choice()
+    ],
+    scorer=match(),
+    metrics=[custom_metric()]
+)
+```
+
+### Model Graded
+
+Model graded scorers are well suited to assessing open ended answers as well as factual answers that are embedded in a longer narrative. The built-in model graded scorers can be customised in several ways—you can also create entirely new model scorers (see the model graded example below for a starting point).
+
+Here is the declaration for the `model_graded_qa()` function:
+
+``` python
+@scorer(metrics=[accuracy(), bootstrap_std()])
+def model_graded_qa(
+    template: str | None = None,
+    instructions: str | None = None,
+    grade_pattern: str | None = None,
+    partial_credit: bool = False,
+    model: str | Model | None = None,
+) -> Scorer:
+    ...
+```
+
+The default model graded QA scorer is tuned to grade answers to open ended questions. The default `template` and `instructions` ask the model to produce a grade in the format `GRADE: C` or `GRADE: I`, and this grade is extracted using the default `grade_pattern` regular expression. The grading is by default done with the model currently being evaluated. There are a few ways you can customise the default behaviour:
+
+1.  Provide alternate `instructions`—the default instructions ass the model to use chain of thought reasoning and provide grades in the format `GRADE: C` or `GRADE: I`. Note that if you provide instructions that ask the model to format grades in a different way, you will also want to customise the `grade_pattern`.
+2.  Specify `partial_credit = True` to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default `instructions`.
+3.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading).
+4.  Specify a different `template`—note that templates are passed these variables: `question`, `criterion`, `answer`, and `instructions.`
+
+The `model_graded_fact()` scorer works identically to `model_graded_qa()`, and simply provides an alternate `template` oriented around judging whether a fact is included in the model output.
+
+If you want to understand how the default templates for `model_graded_qa()` and `model_graded_fact()` work, see their [source code](https://github.com/AI-Safety-Institute/inspect_ai/blob/main/src/inspect_ai/scorer/_model.py).
+
+## Custom Scorers
+
+Custom scorers are functions that take a `TaskState` and `Target`, and yield a `Score`.
+
+``` python
+async def score(state: TaskState, target: Target):
+     # Compare state / model output with target
+     # to yield a score
+     return Score(value=...)
+```
+
+First we'll talk about the core `Score` and `Value` objects, then provide some examples of custom scorers to make things more concrete.
+
+::: {.callout-note appearance="simple"}
+Note that `score()` above is declared as an `async` function. When creating custom scorers, it's critical that you understand Inspect's concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Eval Tuning](#sec-eval-tuning) before proceeding.
+:::
+
+### Score
+
+The components of `Score` include:
+
+| Field         | Type            | Description                                                                     |
+|-----------------|-----------------|--------------------------------------|
+| `value`       | `Value`         | Value assigned to the sample (e.g. "C" or "I", or a raw numeric value).         |
+| `answer`      | `str`           | Text extracted from model output for comparison (optional).                     |
+| `explanation` | `str`           | Explanation of score, e.g. full model output or grader model output (optional). |
+| `metadata`    | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional).       |
+
+: {tbl-colwidths=\[20,20,60\]}
+
+For example, the following are all valid `Score` objects:
+
+``` python
+Score(value="C")
+Score(value="I")
+Score(value=0.6)
+Score(
+    value="C" if extracted == target.text else "I", 
+    answer=extracted, 
+    explanation=state.output.completion
+)
+```
+
+If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your `Score`, as this makes it much easier to understand the details of scoring when viewing the eval log file.
+
+### Value
+
+`Value` is union over the main scalar types as well as a `list` or `dict` of the same types:
+
+``` python
+Value = Union[
+    str | int | float | bool,
+    list[str | int | float | bool],
+    dict[str, str | int | float | bool],
+]
+```
+
+The vast majority of scorers will use `str` (e.g. for correct/incorrect via "C" and "I") or `float` (the other types are there to meet more complex scenarios). One thing to keep in mind is that whatever `Value` type you use in a scorer must be supported by the metrics declared for the scorer (more on this below).
+
+Next, we'll take a look at the source code for a couple of the built in scorers as a jumping off point for implementing your own scorers. If you are working on custom scorers, you should also review the [Scorer Workflow](#sec-scorer-workflow) section below for tips on optimising your development process.
+
+### Example: Includes
+
+Here is the source code for the built-in `includes()` scorer:
+
+``` python
+@scorer(metrics=[accuracy(), bootstrap_str()])   # <1>
+def includes(ignore_case: bool = True):
+
+    async def score(state: TaskState, target: Target):   # <2>
+
+        # check for correct
+        answer = state.output.completion
+        target = target.text   # <3>
+        if ignore_case:
+            correct = answer.lower().rfind(target.lower()) != -1
+        else:
+            correct = answer.rfind(target) != -1
+
+        # return score
+        return Score(
+            value = CORRECT if correct else INCORRECT,    # <4>
+            answer=answer  # <5>
+        )
+
+    return score
+```
+
+1.  The function applies the `@scorer` decorator and registers two metrics for use with the scorer.
+2.  The `score()` function is declared as `async`. This is so that it can participate in Inspect's optimised scheduling for expensive model generation calls (this scorer doesn't call a model but others will).
+3.  We make use of the `text` property on the `Target`. This is a convenience property to get a simple text value out of the `Target` (as targets can technically be a list of strings).
+4.  We use the special constants `CORRECT` and `INCORRECT` for the score value (as the `accuracy()` and `bootstrap_std()` metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).
+5.  We provide the full model completion as the answer for the score (`answer` is optional, but highly recommended as it is often useful to refer to during evaluation development).
+
+### Example: Model Grading
+
+Here's a somewhat simplified version of the code for the `model_graded_qa()` scorer:
+
+``` python
+
+@scorer(metrics=[accuracy(), bootstrap_std()])
+def model_graded_qa(
+    template: str = DEFAULT_MODEL_GRADED_QA_TEMPLATE,
+    instructions: str = DEFAULT_MODEL_GRADED_QA_INSTRUCTIONS,
+    grade_pattern: str = DEFAULT_GRADE_PATTERN,
+    model: str | Model | None = None,
+) -> Scorer:
+   
+    # resolve grading template and instructions, 
+    # (as they could be file paths or URLs)
+    template = resource(template)
+    instructions = resource(instructions)
+
+    # resolve model
+    grader_model = get_model(model)
+
+    async def score(state: TaskState, target: Target) -> Score:
+        # format the model grading template
+        score_prompt = template.format(
+            question=state.input_text,
+            answer=state.output.completion,
+            criterion=target.text,
+            instructions=instructions,
+        )
+
+        # query the model for the score
+        result = await grader_model.generate(score_prompt)
+
+        # extract the grade
+        match = re.search(grade_pattern, result.completion)
+        if match:
+            return Score(
+                value=match.group(1),
+                answer=match.group(0),
+                explanation=result.completion,
+            )
+        else:
+            return Score(
+                value=INCORRECT,
+                explanation="Grade not found in model output: "
+                + f"{result.completion}",
+            )
+
+    return score
+```
+
+Note that the call to `model_grader.generate()` is done with `await`—this is critical to ensure that the scorer participates correctly in the scheduling of generation work.
+
+Note also e use the `input_text` property of the `TaskState` to access a string version of the original user input to substitute it into the grading template. Using the `input_text` has two benefits: (1) It is guaranteed to cover the original input from the dataset (rather than a transformed prompt in `messages`); and (2) It normalises the input to a string (as it could have been a message list).
+
+## Metrics
+
+Each scorer provides one or more built-in metrics (typically `accuracy` and `bootstrap_std`). In addition, you can specify other metrics (either built-in or custom) to compute when defining a `Task`:
+
+``` python
+Task(
+    dataset=dataset,
+    plan=[
+        system_message(SYSTEM_MESSAGE),
+        multiple_choice()
+    ],
+    scorer=match(),
+    metrics=[custom_metric()]
+)
+```
+
+### Built-In Metrics
+
+Inspect includes some simple built in metrics for calculating accuracy, mean, etc. Built in metrics can be imported from the `inspect_ai.scorer` module. Below is a summary of these metrics. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the **Go to Definition** command in your source editor.
+
+-   `accuracy()`
+
+    Compute proportion of total answers which are correct. For correct/incorrect scores assigned 1 or 0, can optionally assign 0.5 for partially correct answers.
+
+-   `mean()`
+
+    Mean of all scores.
+
+-   `var()`
+
+    Variance over all scores.
+
+-   `bootstrap_std()`
+
+    Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the `num_samples` option).
+
+### Custom Metrics
+
+You can also add your own metrics with `@metric` decorated functions. For example, here is the implementation of the variance metric:
+
+``` python
+import numpy as np
+
+from inspect_ai.scorer import Metric, Score, metric
+
+def var() -> Metric:
+    """Compute variance over all scores."""
+
+    def metric(scores: list[Score]) -> float:
+        return np.var([score.as_float() for score in scores]).item()
+
+    return metric
+```
+
+Note that the `Score` class contains a `Value` that is a union over several scalar and collection types. As a convenience, `Score` includes a set of accessor methods to treat the value as a simpler form (e.g. above we use the `score.as_float()` accessor).
+
+## Workflow {#sec-scorer-workflow}
+
+### Score Command
+
+By default, model output in evaluations is automatically scored. However, you can separate generation and scoring by using the `--no-score` option. For example:
+
+``` bash
+inspect eval popularity.py --model openai/gpt-4 --no-score
+```
+
+You can score an evaluation previously run this way using the `inspect score` command:
+
+``` bash
+# score last eval
+inspect score popularity.py
+
+# score specific log file
+inspect score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json
+```
+
+::: callout-tip
+Using a distinct scoring step is particularly useful during scorer development, as it bypasses the entire generation phase, saving lots of time and inference costs.
+:::
+
+### Log Overwriting
+
+By default, `inspect score` overwrites the file it scores. If don't want to overwrite target files, pass the `--no-overwrite` flag:
+
+``` bash
+inspect score popularity.py --no-overwrite
+```
+
+When specifying `--no-overwrite`, a `-scored` suffix will be added to the original log file name:
+
+``` bash
+./logs/2024-02-23_task_gpt-4_TUhnCn473c6-scored.json
+```
+
+Note that the `--no-overwrite` flag does not apply to log files that already have the `-scored` suffix—those files are always overwritten by `inspect score`. If you plan on scoring multiple times and you want to save each scoring output, you will want to copy the log to another location before re-scoring.
+
+### Python API
+
+If you are exploring the performance of different scorers, you might find it more useful to call the `score()` function using varying scorers or scorer options. For example:
+
+``` python
+log = eval(popularity, model="openai/gpt-4")[0]
+
+grader_models = [
+    "openai/gpt-4",
+    "anthropic/claude-3-opus-20240229",
+    "google/gemini-1.0-pro",
+    "mistral/mistral-large-latest"
+]
+
+scoring_logs = [score(log, model_graded_qa(model=model)) 
+                for model in grader_models]
+
+plot_results(scoring_logs)
+```

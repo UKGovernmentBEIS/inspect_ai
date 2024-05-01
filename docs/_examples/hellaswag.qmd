@@ -1,0 +1,86 @@
+## HellaSwag {#sec-hellaswag}
+
+[HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challange for some language models.
+
+For example, here is one of the questions in the dataset along with its set of possible answer (the correct answer is C):
+
+> In home pet groomers demonstrate how to groom a pet. the person
+>
+> A) puts a setting engage on the pets tongue and leash.
+> B) starts at their butt rise, combing out the hair with a brush from a red.
+> C) is demonstrating how the dog's hair is trimmed with electric shears at their grooming salon. 
+> D) installs and interacts with a sleeping pet before moving away.
+
+### Setup {.unlisted}
+
+We'll start by importing the functions we need from Inspect, defining a  system message, and writing a function to convert dataset records to samples (we need to do this to convert the index-based label in the dataset to a letter).
+
+::: {.content-hidden}
+```{python}
+"""
+HellaSwag: Can a Machine Really Finish Your Sentence?
+
+Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali Farhadi, Yejin Choi
+https://arxiv.org/abs/1905.07830
+"""
+```
+:::
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.scorer import answer
+from inspect_ai.solver import multiple_choice, system_message
+
+SYSTEM_MESSAGE = """
+Choose the most plausible continuation for the story.
+"""
+
+def record_to_sample(record):
+    return Sample(
+        input=record["ctx"],
+        target=chr(ord("A") + int(record["label"])),
+        choices=record["endings"],
+        metadata=dict(
+            source_id=record["source_id"]
+        )
+    )
+```
+
+Note that even though we don't use it for the evaluation, we save the `source_id` as metadata as a way to reference samples in the underlying dataset.
+
+### Eval {.unlisted}
+
+We'll load the datasat from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the `hf_dataset()` function. We'll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we'll also pass `trust=True` to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):
+
+```{python}
+@task
+def hellaswag():
+   
+    # dataset
+    dataset = hf_dataset(
+        path="hellaswag",
+        split="validation",
+        sample_fields=record_to_sample,
+        trust=True,
+        shuffle=True
+    )
+
+    # define task
+    return Task(
+        dataset=dataset,
+        plan=[
+          system_message(SYSTEM_MESSAGE),
+          multiple_choice()
+        ],
+        scorer=answer("letter"),
+    )
+```
+
+We use the `multiple_choice()` solver and as you may have noted we don't call `generate()` directly here! This is because `multiple_choice()` calls `generate()` internally (it does this so that it can randomly shuffle the order of choices and then map the model output back to the underlying dataset index).
+
+Now we run the evaluation, limiting the samples read to 50 for development purposes:
+
+```bash
+inspect eval hellaswag.py --limit 50
+```

@@ -1,0 +1,222 @@
+# Eval Suites {#sec-eval-suites}
+
+## Overview
+
+Most of the examples in the documentation run a single evaluation task by either passing a script name to `inspect eval` or by calling the `eval()` function directly. While this is a good workflow for developing evaluations, once you've settled on a group of evaluations you want to run frequently, you'll typically want to run them all together as an evaluation suite. Below we'll cover the various tools and techniques available to create eval suites.
+
+## Prerequisites
+
+Before describing the various ways you can define and run eval suites, we'll cover some universal prerequisites related to logging and task definitions.
+
+### Logging Context
+
+A precursor to running any evaluation suite is to establish an isolated logging context for it. This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs). Generally, you'll do this by setting the `INSPECT_LOG_DIR` prior to running the suite. For example:
+
+``` bash
+export INSPECT_LOG_DIR = ./security-mistral_04-07-2024
+export INSPECT_EVAL_MODEL = mistral/mistral-large-latest
+inspect eval security
+```
+
+This will group all of the log files for the suite, enabling you to call `list_eval_logs()` to collect and analyse all of the tasks.
+
+### Task Definitions
+
+Whether you are working on evaluations in Python scripts or Jupyter Notebooks, you likely have a lot of code that looks roughly like this:
+
+``` python
+@task
+def security_guide():
+    return Task(
+        dataset=example_dataset("security_guide"),
+        plan=[
+          system_message(SYSTEM_MESSAGE),
+          generate()
+        ],
+        scorer=model_graded_fact(),
+    )
+
+eval(security_guide, model="google/gemini-1.0-pro")
+```
+
+This is a natural and convenient way to run evals during development, but in a task suite you'll want `inspect eval` to do the execution rather than direct calls to `eval()` (as this allows for varying the model, generation config, and task parameters dynamically). You can keep your existing code more or less as-is, but you'll just want to add one line above `eval()`:
+
+``` python
+if __name__ == "__main__":
+    eval(security_guide, model="google/gemini-1.0-pro")
+```
+
+Doing this allows your source file to be both a Python script that is convenient to run during development as well as be a Python module that tasks can be read from without executing the eval. There is no real downside to this, and it's a good way in general to write all of your eval scripts and notebooks (see the docs on [\_\_main\_\_](https://docs.python.org/3/library/main.html) for additional details).
+
+## Use Cases
+
+### Multiple Tasks in a File
+
+The simplest possible eval suite would be multiple tasks defined in a single source file. Consider this source file (`ctf.py`) with two tasks in it:
+
+``` python
+@task
+def jeopardy():
+  return Task(
+    ...
+  )
+
+@task
+def attack_defense():
+  return Task(
+    ...
+  )
+```
+
+We can run both of these tasks with the following command (note for this and the remainder of examples we'll assume that you have let an `INSPECT_EVAL_MODEL` environment variable so you don't need to pass the `--model` argument explicitly).
+
+``` bash
+$ inspect eval ctf.py 
+```
+
+Note we could also run the tasks individually as follows (e.g. for development and debugging):
+
+``` bash
+$ inspect eval ctf.py@jeopardy
+$ inspect eval ctf.py@attack_defense
+```
+
+### Multiple Tasks in a Directory
+
+Next, let's consider a multiple tasks in a directory. Imagine you have the following directory structure, where `jeopardy.py` and `attack_defense.py` each have one or more `@task` functions defined:
+
+``` bash
+security/
+  import.py
+  analyze.py
+  jeopardy.py
+  attack_defense.py
+```
+
+Here is the listing of all the tasks in the suite:
+
+``` python
+$ inspect list tasks security
+jeopardy.py@crypto
+jeopardy.py@decompile
+jeopardy.py@packet
+jeopardy.py@heap_trouble
+attack_defense.py@saar
+attack_defense.py@bank
+attack_defense.py@voting
+attack_defense.py@dns
+```
+
+You can run this eval suite as follows:
+
+``` bash
+$ inspect eval security
+```
+
+Note that some of the files in this directory don't contain evals (e.g. `import.py` and `analyze.py`). These files are not read or executed by `inspect eval` (which only executes files that contain `@task` definitions).
+
+If we wanted to run more than one directory we could do so by just passing multiple directory names. For example:
+
+``` bash
+$ inspect eval security pursuasion
+```
+
+### Eval Function
+
+Note that all of the above example uses of `inspect eval` apply equally to the `eval()` function. in the context of the above, all of these statements would work as expected:
+
+``` python
+eval("ctf.py")
+eval("ctf.py@jeopardy")
+eval("ctf.py@attack_defense")
+
+eval("security")
+eval(["security", "pursuasion"])
+```
+
+## Listing and Filtering
+
+### Recursive Listings
+
+Note that directories or expanded globs of directory names passed to `eval` are recursively scanned for tasks. So you could have a very deep hierarchy of directories, with a mix of task and non task scripts, and the `eval` command or function will discover all of the tasks automatically.
+
+There are some rules for how recursive directory scanning works that you should keep in mind:
+
+1.  Sources files and directories that start with `.` or `_` are not scanned for tasks.
+2.  Directories named `env`, `venv`, and `tests` are not scanned for tasks.
+
+### Attributes and Filters
+
+Eval suites will sometimes be defined purely by directory structure, but there will be cross-cutting concerns that are also used to filter what is run. For example, you might want to define some tasks as part of a "light" suite that is less expensive and time consuming to run. This is supported by adding attributes to task decorators. For example:
+
+``` python
+@task(light=True)
+def jeopardy():
+  return Task(
+    ...
+  )
+```
+
+Given this, you could list all of the light tasks in `security` and pass them to `eval()` as follows:
+
+``` python
+light_suite = list_tasks(
+  "security", 
+  filter = lambda task: task.attribs.get("light") is True
+)
+logs = eval(light_suite)
+```
+
+Note that the `inspect list tasks` command can also be used to enumerate tasks in plain text or JSON (use one or more `-F` options if you want to filter tasks):
+
+``` bash
+$ inspect list tasks security
+$ inspect list tasks security --json
+$ inspect list tasks security --json -F light=true
+```
+
+::: {.callout-important appearance="simple"}
+One important thing to keep in mind when using attributes to filter tasks is that both `inspect list tasks` (and the underlying `list_tasks()` function) do not execute code when scanning for tasks (rather they parse it). This means that if you want to use a task attribute in a filtering expression it needs to be a constant (rather than the result of function call). For example:
+
+``` python
+# this is valid for filtering expressions
+@task(light=True)
+def jeopardy():
+  ...
+
+# this is NOT valid for filtering expressions
+@task(light=True and light_enabled("ctf"))
+def jeopardy():
+  ...
+```
+:::
+
+## Errors and Retries
+
+If a runtime error occurs during an evaluation, it is caught, logged, and reported, and then the `eval()` function returns as normal. The returned `EvalLog` has a `status` field on it which can checked for `"success"` or `"error"`.
+
+This status can be used to see which tasks need to be retried, and the failed log file can be passed directly to `eval()`, for example:
+
+``` python
+# list the security suite and run it
+task_suite = list_tasks("security")
+eval_logs = eval(task_suite)
+
+# check for failed evals and retry (likely 'later')
+error_logs = log in eval_logs if log.status == "error"]
+eval_retry(error_logs)
+```
+
+Note that the code which checks for errors will often not be in the same script as that which kicks off the evals. You can handle this by using the log directory as the reference point rather than the logs returned from `eval()`. Returning to the example from the beginning of this article, we might do something like this:
+
+``` python
+# setup log context
+os.environ["INSPECT_LOG_DIR"] = "./security-mistral_04-07-2024"
+
+# run the eval suite
+eval("security", model="mistral/mistral-large-latest")
+
+# ...later, in another process that also has access to INSPECT_LOG_DIR
+error_logs = list_eval_logs(filter = lambda log: log.status == "error")
+eval_retry(error_logs)
+```

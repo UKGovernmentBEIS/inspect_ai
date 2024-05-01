@@ -1,0 +1,337 @@
+# Solvers {#sec-solvers}
+
+## Overview
+
+Solvers are the heart of Inspect evaluations and can serve a wide variety of purposes, including:
+
+1.  Providing system prompts
+2.  Prompt engineering (e.g. chain of thought)
+3.  Model generation
+4.  Self critique
+5.  Multi-turn dialog
+6.  Running an agent scaffold
+
+Here's an example task definition that composes a few standard solvers into a plan:
+
+``` python
+@task
+def theory_of_mind():
+    return Task(
+        dataset=json_dataset("theory_of_mind.jsonl"),
+        plan=[
+            system_message("system.txt"),
+            chain_of_thought(),
+            generate(),
+            self_critique()
+        ],
+        scorer=model_graded_fact(),
+    )
+```
+
+Typically, a call to `generate()` is included in the list of solvers (this solver is just a simple call to the model). You can also create a more sophisticated solver that calls `generate()` internally, perhaps even more than once (this is often required for more complex evaluations). Next, we'll describe how solvers operate on *task states* to do their work.
+
+::: {.callout-note appearance="simple"}
+The concept of using solvers and task states for evals was originally introduced in [Open AI Evals](https://github.com/openai/evals/blob/main/evals/solvers/README.md). Inspect solvers are an evolution of this core design.
+:::
+
+## Task States
+
+Before we get into the specifics of how solvers work, we should describe `TaskState`, which is the fundamental data structure they act upon. A `TaskState` consists principally of chat history (derived from `input` and then extended by model interactions) and model output:
+
+``` python
+class TaskState:
+    messages: list[ChatMessage],
+    output: ModelOutput
+```
+
+::: {.callout-note appearance="simple"}
+Note that the above is a bit of simplification, there are other fields in a `TaskState` but we're excluding them here for clarity.
+:::
+
+A prompt engineering solver will modify the content of `messages`. A model generation solver will call the model, append an assistant `message`, and set the `output` (a multi-turn dialog solver might do this in a loop).
+
+## Solver Function
+
+We've covered the role of solvers in the system, but what exactly are solvers technically? A solver is a Python function that tasks a `TaskState` and `generate` function, and then transforms and returns the `TaskState` (the `generate` function may or may not be called depending on the solver).
+
+``` python
+async def solve(state: TaskState, generate: Generate):
+    # do something useful with state (possibly 
+    # calling generate for more advanced solvers)
+    # then return the state
+    return state
+```
+
+The `generate` function passed to solvers is a convenience function that takes a `TaskState`, calls the model with it, appends the assistant message, and sets the model output. This is never used by prompt engineering solvers and nearly always used by more complex solvers that want to have multiple model interactions.
+
+Here are what some of the built-in solvers do with the `TaskState`:
+
+1.  The `system_message()` solver inserts a system message into the chat history.
+
+2.  The `chain_of_thought()` solver takes the original user prompt and re-writes it to ask the model to use chain of thought reasoning to come up with its answer.
+
+3.  The `generate()` solver just calls the `generate` function on the `state`. In fact, this is the full source code for the `generate()` solver:
+
+    ``` python
+    async def solve(state: TaskState, generate: Generate):
+        return await generate(state)
+    ```
+
+4.  The `self_critique()` solver takes the `ModelOutput` and then sends it to another model for critique. It then replays this critique back within the `messages` stream and re-calls `generate` to get a refined answer.
+
+You can also imagine solvers that call other models to help come up with a better prompt, or solvers the implement a multi-turn dialog. Anything you can imagine is possible.
+
+## Built-In Solvers
+
+Inspect has a number of built-in solvers, each of which can be customised in some fashion. Built in solvers can be imported from the `inspect_ai.solver` module. Below is a summary of these solvers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the **Go to Definition** command in your source editor.
+
+-   `system_message()`
+
+    Prepend role="system" `message` to the list of messages (will follow any other system messages it finds in the message stream).
+
+-   `prompt_template()`
+
+    Modify the user prompt by substituting the current prompt into the `{prompt}` placeholder within the specified template, as well as any other custom named placeholder passed in `params`.
+
+-   `chain_of_thought()`
+
+    Standard chain of thought template with `{prompt}` substitution variable. Asks the model to provide the final answer on a line by itself at the end for easier scoring.
+
+-   `generate()`
+
+    As illustrated above, just a simple call to `generate(state)`. This is the default solver if no `plan` is specified.
+
+-   `multiple_choice()`
+
+    A solver which presents A,B,C,D style `choices` from input samples (in a random order), calls `generate()` to yield model output, then maps the answer back to the correct index for scoring. Note that you don't need to call `generate()` separately when using this solver.
+
+-   `self_critique()`
+
+    Prompts the model to critique the results of a previous call to `generate()` (note that this need not be the same model as they one you are evaluating—use the `model` parameter to choose another model). Makes use of `{question}` and `{completion}` template variables.
+
+### Multiple Choice
+
+Here is the declaration for the `multiple_choice()` solver:
+
+``` python
+def multiple_choice(
+    cot: bool = False,
+    template: str | None = None,
+    max_tokens: int | None = None,
+    shuffle: bool | Random = False,
+    answer_pattern: str | None = None,
+) -> Solver:
+```
+
+The `cot` parameter determines whether the default template employs chain of thought reasoning or not (defaults to `False`). Note that using chain of thought will be slower and use more tokens, so you should assess carefully whether your eval benefits from it or not. When `cot` is `False`, `max_tokens` defaults to 32; when `True`, it defaults to 1024.
+
+If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).
+
+Generally when using the `multiple_choice()` solver you should pair it with the `answer("letter")` scorer.
+
+### Self Critique
+
+Here is the declaration for the `self_critique()` solver:
+
+``` python
+def self_critique(
+    critique_template: str | None = None,
+    completion_template: str | None = None,
+    model: str | Model | None = None,
+) -> Solver:
+```
+
+There are two templates which correspond to the one used to solicit critique and the one used to play that critique back for a refined answer (default templates are provided for both).
+
+You will likely want to experiment with using a distinct `model` for generating critiques (by default the model being evaluated is used).
+
+## Custom Solvers
+
+Let's take a look at the source code for a couple of the built in solvers as a jumping off point for implementing your own solvers. A solver is an implementation of the `Solver` protocol (a function that transforms a `TaskState`):
+
+``` python
+async def solve(state: TaskState, generate: Generate) -> TaskState:
+    # do something useful with state, possibly calling generate()
+    # for more advanced solvers
+    return state
+```
+
+Typically solvers can be customised with parameters (e.g. `template` for prompt engineering solvers). This means that a `Solver` is actually a function which returns the `solve()` function referenced above (this will become more clear in the examples below).
+
+::: {.callout-note appearance="simple"}
+When creating custom solvers, it's critical that you understand Inspect's concurrency model. More specifically, if your solver is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Eval Tuning](#sec-eval-tuning) before proceeding.
+:::
+
+### Example: Prompt Template
+
+Here's the code for the `prompt_template()` solver:
+
+``` python
+@solver
+def prompt_template(template: str, **params: dict[str, Any]):
+
+    # determine the prompt template
+    prompt_template = resource(template)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # its possible the messages payload has no user prompt
+        # so only modify the prompt if there is one
+        if state.user_prompt:
+            state.user_prompt.text = prompt_template.format(
+                prompt=state.user_prompt.text, **params
+            )
+        return state
+
+    return solve
+```
+
+A few things to note about this implementation:
+
+1.  The function applies the `@solver` decorator—this registers the `Solver` with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g. a YAML specification of an eval).
+2.  The `solve()` function is declared as `async`. This is so that it can participate in Inspect's optimised scheduling for expensive model generation calls (this solver doesn't call `generate()` but others will).
+3.  The `resource()` function is used to read the specified `template`. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.
+4.  We make use of the `user_prompt` property on the `TaskState`. This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property (so we are dealing with prompt as a string, recall that it can also be a list of messages).
+
+### Example: Self Critique
+
+Here's the code for the `self_critique()` solver:
+
+``` python
+DEFAULT_CRITIQUE_TEMPLATE = r"""
+Given the following question and answer, please critique the answer.
+A good answer comprehensively answers the question and NEVER refuses
+to answer. If the answer is already correct do not provide critique
+- simply respond 'The original answer is fully correct'.
+
+[BEGIN DATA]
+***
+[Question]: {question}
+***
+[Answer]: {completion}
+***
+[END DATA]
+
+Critique: """
+
+DEFAULT_CRITIQUE_COMPLETION_TEMPLATE = r"""
+Given the following question, initial answer and critique please
+generate an improved answer to the question:
+
+[BEGIN DATA]
+***
+[Question]: {question}
+***
+[Answer]: {completion}
+***
+[Critique]: {critique}
+***
+[END DATA]
+
+If the original answer is already correct, just repeat the 
+original answer exactly. You should just provide your answer to 
+the question in exactly this format:
+
+Answer: <your answer> """
+
+@solver
+def self_critique(
+    critique_template: str | None = None,
+    completion_template: str | None = None,
+    model: str | Model | None = None,
+) -> Solver:
+    # resolve templates
+    critique_template = resource(
+        critique_template or DEFAULT_CRITIQUE_TEMPLATE
+    )
+    completion_template = resource(
+        completion_template or DEFAULT_CRITIQUE_COMPLETION_TEMPLATE
+    )
+
+    # resolve critique model
+    model = get_model(model)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # run critique
+        critique = await model.generate(
+            critique_template.format(
+                question=state.input_text,
+                completion=state.output.completion,
+            )
+        )
+
+        # add the critique as a user message
+        state.messages.append(
+            ChatMessageUser(
+                content=completion_template.format(
+                    question=state.input_text,
+                    completion=state.output.completion,
+                    critique=critique.completion,
+                ),
+            )
+        )
+
+        # regenerate
+        return await generate(state)
+
+    return solve
+```
+
+Note that calls to `generate()` (for both the critique model and the model being evaluated) are called with `await`—this is critical to ensure that the solver participates correctly in the scheduling of generation work.
+
+## Early Termination
+
+In some cases a solver has the context available to request an early termination of the plan (i.e. don't call the rest of the solvers). In this case, setting the `TaskState.completed` field will result in forgoing remaining solvers in the plan. For example, here's a simple solver that terminates the plan early:
+
+``` python
+@solver
+def complete_task():
+    async def solve(state: TaskState, generate: Generate):
+        state.completed = True
+        return state
+
+    return solve
+```
+
+Early termination might also occur if you specify the `max_messages` option and the conversation exceeds that limit:
+
+``` python
+# could terminate early
+eval(my_task, max_messages = 10)
+```
+
+In cases of early termination, you might have one final Solver that you want to make sure to always run (e.g. to synthesize an output for an early termination or to cleanup resources allocated for an evaluation). In this case, use a `Plan` object with a `finish` Solver:
+
+``` python
+Task(
+    dataset=json_dataset("data.json"),
+    plan = Plan(
+        steps = [...], 
+        finish = finish_up()
+    ),
+    scorer = model_graded_fact()
+)
+```
+
+In this example the `finish_up()` solver will always be called even if the plan doesn't run all of its steps.
+
+## Plan Cleanup
+
+If your solvers allocate resources (for example, run a Docker container or mount a drive), you will want to make sure that these resources are cleaned up even in the case of an error occurring during the evaluaton. To arrange for this, use a `Plan` object with a `cleanup` function:
+
+```python
+
+async def cleanup(state):
+    # cleanup resources
+    ...
+
+Task(
+    dataset=json_dataset("data.json"),
+    plan = Plan(
+        steps = [...], 
+        cleanup = cleanup
+    ),
+    scorer = model_graded_fact()
+)
+```
+
+In this example the `cleanup()` function will always be called even if an error occurs during evaluation. Note that the cleanup handler must be declared as an `async` function.

@@ -1,0 +1,1644 @@
+{
+  "$defs": {
+    "ChatCompletionChoice": {
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/ChatMessageAssistant"
+        },
+        "stop_reason": {
+          "default": "unknown",
+          "enum": [
+            "stop",
+            "length",
+            "tool_calls",
+            "content_filter",
+            "unknown"
+          ],
+          "title": "Stop Reason",
+          "type": "string"
+        },
+        "logprobs": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Logprobs"
+        }
+      },
+      "required": [
+        "message",
+        "stop_reason",
+        "logprobs"
+      ],
+      "title": "ChatCompletionChoice",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ChatMessageAssistant": {
+      "properties": {
+        "content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContentText"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentImage"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Content"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "input",
+                "generate"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "role": {
+          "const": "assistant",
+          "default": "assistant",
+          "title": "Role"
+        },
+        "tool_calls": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ToolCall"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Calls"
+        }
+      },
+      "required": [
+        "content",
+        "source",
+        "role",
+        "tool_calls"
+      ],
+      "title": "ChatMessageAssistant",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ChatMessageSystem": {
+      "properties": {
+        "content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContentText"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentImage"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Content"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "input",
+                "generate"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "role": {
+          "const": "system",
+          "default": "system",
+          "title": "Role"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool"
+        }
+      },
+      "required": [
+        "content",
+        "source",
+        "role",
+        "tool"
+      ],
+      "title": "ChatMessageSystem",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ChatMessageTool": {
+      "properties": {
+        "content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContentText"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentImage"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Content"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "input",
+                "generate"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "role": {
+          "const": "tool",
+          "default": "tool",
+          "title": "Role"
+        },
+        "tool_call_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Call Id"
+        },
+        "tool_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Error"
+        }
+      },
+      "required": [
+        "content",
+        "source",
+        "role",
+        "tool_call_id",
+        "tool_error"
+      ],
+      "title": "ChatMessageTool",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ChatMessageUser": {
+      "properties": {
+        "content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContentText"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentImage"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Content"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "input",
+                "generate"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "role": {
+          "const": "user",
+          "default": "user",
+          "title": "Role"
+        }
+      },
+      "required": [
+        "content",
+        "source",
+        "role"
+      ],
+      "title": "ChatMessageUser",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentImage": {
+      "properties": {
+        "type": {
+          "const": "image",
+          "default": "image",
+          "title": "Type"
+        },
+        "image": {
+          "title": "Image",
+          "type": "string"
+        },
+        "detail": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "low",
+            "high"
+          ],
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "image",
+        "detail"
+      ],
+      "title": "ContentImage",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentText": {
+      "properties": {
+        "type": {
+          "const": "text",
+          "default": "text",
+          "title": "Type"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "ContentText",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalConfig": {
+      "properties": {
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "epochs": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epochs"
+        },
+        "max_messages": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Messages"
+        },
+        "max_subprocesses": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Subprocesses"
+        },
+        "log_samples": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log Samples"
+        },
+        "log_images": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log Images"
+        }
+      },
+      "title": "EvalConfig",
+      "type": "object",
+      "required": [
+        "limit",
+        "epochs",
+        "max_messages",
+        "max_subprocesses",
+        "log_samples",
+        "log_images"
+      ],
+      "additionalProperties": false
+    },
+    "EvalDataset": {
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        }
+      },
+      "title": "EvalDataset",
+      "type": "object",
+      "required": [
+        "name",
+        "location"
+      ],
+      "additionalProperties": false
+    },
+    "EvalError": {
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "traceback": {
+          "title": "Traceback",
+          "type": "string"
+        },
+        "traceback_ansi": {
+          "title": "Traceback Ansi",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message",
+        "traceback",
+        "traceback_ansi"
+      ],
+      "title": "EvalError",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalMetric": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Value"
+        },
+        "options": {
+          "default": {},
+          "title": "Options",
+          "type": "object"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "options",
+        "metadata"
+      ],
+      "title": "EvalMetric",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalPlan": {
+      "properties": {
+        "name": {
+          "default": "plan",
+          "title": "Name",
+          "type": "string"
+        },
+        "steps": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EvalPlanStep"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "finish": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvalPlanStep"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "config": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/GenerateConfig"
+            }
+          ],
+          "default": {
+            "max_retries": null,
+            "timeout": null,
+            "max_connections": null,
+            "system_message": null,
+            "max_tokens": null,
+            "top_p": null,
+            "temperature": null,
+            "stop_seqs": null,
+            "best_of": null,
+            "frequency_penalty": null,
+            "presence_penalty": null,
+            "logit_bias": null,
+            "seed": null,
+            "suffix": null,
+            "top_k": null,
+            "num_choices": null,
+            "logprobs": null,
+            "top_logprobs": null
+          }
+        }
+      },
+      "title": "EvalPlan",
+      "type": "object",
+      "required": [
+        "name",
+        "steps",
+        "finish",
+        "config"
+      ],
+      "additionalProperties": false
+    },
+    "EvalPlanStep": {
+      "properties": {
+        "solver": {
+          "title": "Solver",
+          "type": "string"
+        },
+        "params": {
+          "default": {},
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "solver",
+        "params"
+      ],
+      "title": "EvalPlanStep",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalResults": {
+      "properties": {
+        "scorer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvalScorer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "metrics": {
+          "additionalProperties": {
+            "$ref": "#/$defs/EvalMetric"
+          },
+          "default": {},
+          "title": "Metrics",
+          "type": "object"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        }
+      },
+      "title": "EvalResults",
+      "type": "object",
+      "required": [
+        "scorer",
+        "metrics",
+        "metadata"
+      ],
+      "additionalProperties": false
+    },
+    "EvalRevision": {
+      "properties": {
+        "type": {
+          "const": "git",
+          "title": "Type"
+        },
+        "origin": {
+          "title": "Origin",
+          "type": "string"
+        },
+        "commit": {
+          "title": "Commit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "origin",
+        "commit"
+      ],
+      "title": "EvalRevision",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalSample": {
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Id"
+        },
+        "epoch": {
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "input": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ChatMessageSystem"
+                  },
+                  {
+                    "$ref": "#/$defs/ChatMessageUser"
+                  },
+                  {
+                    "$ref": "#/$defs/ChatMessageAssistant"
+                  },
+                  {
+                    "$ref": "#/$defs/ChatMessageTool"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Input"
+        },
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Choices"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Target"
+        },
+        "messages": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ChatMessageSystem"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageUser"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageAssistant"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageTool"
+              }
+            ]
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "output": {
+          "$ref": "#/$defs/ModelOutput"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Score"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "metadata": {
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "epoch",
+        "input",
+        "choices",
+        "target",
+        "messages",
+        "output",
+        "score",
+        "metadata"
+      ],
+      "title": "EvalSample",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalScorer": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "params": {
+          "default": {},
+          "title": "Params",
+          "type": "object"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        }
+      },
+      "required": [
+        "name",
+        "params",
+        "metadata"
+      ],
+      "title": "EvalScorer",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalSpec": {
+      "properties": {
+        "task": {
+          "title": "Task",
+          "type": "string"
+        },
+        "task_version": {
+          "default": 0,
+          "title": "Task Version",
+          "type": "integer"
+        },
+        "task_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task File"
+        },
+        "task_id": {
+          "default": "",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "run_id": {
+          "default": "",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "created": {
+          "title": "Created",
+          "type": "string"
+        },
+        "dataset": {
+          "$ref": "#/$defs/EvalDataset"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "model_base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Base Url"
+        },
+        "task_attribs": {
+          "default": {},
+          "title": "Task Attribs",
+          "type": "object"
+        },
+        "task_args": {
+          "default": {},
+          "title": "Task Args",
+          "type": "object"
+        },
+        "model_args": {
+          "default": {},
+          "title": "Model Args",
+          "type": "object"
+        },
+        "config": {
+          "$ref": "#/$defs/EvalConfig"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvalRevision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "packages": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "title": "Packages",
+          "type": "object"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        }
+      },
+      "required": [
+        "task",
+        "task_version",
+        "task_file",
+        "task_id",
+        "run_id",
+        "created",
+        "dataset",
+        "model",
+        "model_base_url",
+        "task_attribs",
+        "task_args",
+        "model_args",
+        "config",
+        "revision",
+        "packages",
+        "metadata"
+      ],
+      "title": "EvalSpec",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalStats": {
+      "properties": {
+        "started_at": {
+          "default": "",
+          "title": "Started At",
+          "type": "string"
+        },
+        "completed_at": {
+          "default": "",
+          "title": "Completed At",
+          "type": "string"
+        },
+        "model_usage": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelUsage"
+          },
+          "default": {},
+          "title": "Model Usage",
+          "type": "object"
+        }
+      },
+      "title": "EvalStats",
+      "type": "object",
+      "required": [
+        "started_at",
+        "completed_at",
+        "model_usage"
+      ],
+      "additionalProperties": false
+    },
+    "GenerateConfig": {
+      "description": "Base class for model generation configs.",
+      "properties": {
+        "max_retries": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Retries"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "max_connections": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Connections"
+        },
+        "system_message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "System Message"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tokens"
+        },
+        "top_p": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Top P"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Temperature"
+        },
+        "stop_seqs": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Seqs"
+        },
+        "best_of": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Of"
+        },
+        "frequency_penalty": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frequency Penalty"
+        },
+        "presence_penalty": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Presence Penalty"
+        },
+        "logit_bias": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Logit Bias"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "suffix": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suffix"
+        },
+        "top_k": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Top K"
+        },
+        "num_choices": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Num Choices"
+        },
+        "logprobs": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Logprobs"
+        },
+        "top_logprobs": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Top Logprobs"
+        }
+      },
+      "title": "GenerateConfig",
+      "type": "object",
+      "required": [
+        "max_retries",
+        "timeout",
+        "max_connections",
+        "system_message",
+        "max_tokens",
+        "top_p",
+        "temperature",
+        "stop_seqs",
+        "best_of",
+        "frequency_penalty",
+        "presence_penalty",
+        "logit_bias",
+        "seed",
+        "suffix",
+        "top_k",
+        "num_choices",
+        "logprobs",
+        "top_logprobs"
+      ],
+      "additionalProperties": false
+    },
+    "LoggingMessage": {
+      "properties": {
+        "level": {
+          "enum": [
+            "debug",
+            "http",
+            "info",
+            "warning",
+            "error",
+            "critical"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "created": {
+          "title": "Created",
+          "type": "number"
+        }
+      },
+      "required": [
+        "level",
+        "message",
+        "created"
+      ],
+      "title": "LoggingMessage",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ModelOutput": {
+      "properties": {
+        "model": {
+          "default": "",
+          "title": "Model",
+          "type": "string"
+        },
+        "choices": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChatCompletionChoice"
+          },
+          "title": "Choices",
+          "type": "array"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "title": "ModelOutput",
+      "type": "object",
+      "required": [
+        "model",
+        "choices",
+        "usage",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "ModelUsage": {
+      "properties": {
+        "input_tokens": {
+          "default": 0,
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "default": 0,
+          "title": "Output Tokens",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "default": 0,
+          "title": "Total Tokens",
+          "type": "integer"
+        }
+      },
+      "title": "ModelUsage",
+      "type": "object",
+      "required": [
+        "input_tokens",
+        "output_tokens",
+        "total_tokens"
+      ],
+      "additionalProperties": false
+    },
+    "Score": {
+      "description": "Score generated by a scorer.\n\nArgs:\n   value (Value): Score value.\n   explanation (str | None): Optional explanation of score.\n   metadata (dict[str,Any]): Additional metadata related to the score",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "object"
+            }
+          ],
+          "title": "Value"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        }
+      },
+      "required": [
+        "value",
+        "answer",
+        "explanation",
+        "metadata"
+      ],
+      "title": "Score",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolCall": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "function": {
+          "title": "Function",
+          "type": "string"
+        },
+        "arguments": {
+          "title": "Arguments",
+          "type": "object"
+        },
+        "type": {
+          "const": "function",
+          "title": "Type"
+        }
+      },
+      "required": [
+        "id",
+        "function",
+        "arguments",
+        "type"
+      ],
+      "title": "ToolCall",
+      "type": "object",
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "version": {
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "status": {
+      "default": "started",
+      "enum": [
+        "started",
+        "success",
+        "error"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "eval": {
+      "$ref": "#/$defs/EvalSpec"
+    },
+    "plan": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/EvalPlan"
+        }
+      ],
+      "default": {
+        "name": "plan",
+        "steps": [],
+        "finish": null,
+        "config": {
+          "best_of": null,
+          "frequency_penalty": null,
+          "logit_bias": null,
+          "logprobs": null,
+          "max_connections": null,
+          "max_retries": null,
+          "max_tokens": null,
+          "num_choices": null,
+          "presence_penalty": null,
+          "seed": null,
+          "stop_seqs": null,
+          "suffix": null,
+          "system_message": null,
+          "temperature": null,
+          "timeout": null,
+          "top_k": null,
+          "top_logprobs": null,
+          "top_p": null
+        }
+      }
+    },
+    "results": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EvalResults"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "stats": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/EvalStats"
+        }
+      ],
+      "default": {
+        "started_at": "",
+        "completed_at": "",
+        "model_usage": {}
+      }
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EvalError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "samples": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/EvalSample"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Samples"
+    },
+    "logging": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LoggingMessage"
+      },
+      "title": "Logging",
+      "type": "array"
+    }
+  },
+  "required": [
+    "eval"
+  ],
+  "title": "EvalLog",
+  "type": "object"
+}

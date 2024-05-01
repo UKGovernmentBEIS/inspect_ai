@@ -1,0 +1,17 @@
+from pathlib import Path
+
+PKG_AUTHOR = "UK AI Safety Institute"
+PKG_AUTHOR_DIR = "UK-AISI"
+PKG_NAME = Path(__file__).parent.parent.stem
+PKG_PATH = Path(__file__).parent.parent.parent.parent
+DEFAULT_EPOCHS = 1
+DEFAULT_MAX_RETRIES = 5
+DEFAULT_TIMEOUT = 120
+DEFAULT_MAX_CONNECTIONS = 10
+DEFAULT_MAX_TOKENS = 1024
+DEFAULT_VIEW_PORT = 7575
+DEFAULT_SERVER_HOST = "127.0.0.1"
+HTTP = 15
+HTTP_LOG_LEVEL = "HTTP"
+DEFAULT_LOG_LEVEL = "warning"
+SCORED_SUFFIX = "-scored"

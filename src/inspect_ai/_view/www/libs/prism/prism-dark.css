@@ -1,0 +1,130 @@
+/**
+ * prism.js Dark theme for JavaScript, CSS and HTML
+ * Based on the slides of the talk “/Reg(exp){2}lained/”
+ * @author Lea Verou
+ */
+
+[data-text-highlight="dark"] code[class*="language-"],
+[data-text-highlight="dark"] pre[class*="language-"] {
+   color: white;
+   background: none;
+   text-shadow: 0 -.1em .2em black;
+   font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+   font-size: 1em;
+   text-align: left;
+   white-space: pre;
+   word-spacing: normal;
+   word-break: normal;
+   word-wrap: normal;
+   line-height: 1.5;
+ 
+   -moz-tab-size: 4;
+   -o-tab-size: 4;
+   tab-size: 4;
+ 
+   -webkit-hyphens: none;
+   -moz-hyphens: none;
+   -ms-hyphens: none;
+   hyphens: none;
+ }
+ 
+ @media print {
+  [data-text-highlight="dark"] code[class*="language-"],
+  [data-text-highlight="dark"] pre[class*="language-"] {
+     text-shadow: none;
+   }
+ }
+ 
+ [data-text-highlight="dark"] pre[class*="language-"],
+ [data-text-highlight="dark"] :not(pre) > code[class*="language-"] {
+   background: hsl(30, 20%, 25%);
+ }
+ 
+ /* Code blocks */
+ [data-text-highlight="dark"] pre[class*="language-"] {
+   padding: 1em;
+   margin: .5em 0;
+   overflow: auto;
+   border: .3em solid hsl(30, 20%, 40%);
+   border-radius: .5em;
+   box-shadow: 1px 1px .5em black inset;
+ }
+ 
+ /* Inline code */
+ [data-text-highlight="dark"] :not(pre) > code[class*="language-"] {
+   padding: .15em .2em .05em;
+   border-radius: .3em;
+   border: .13em solid hsl(30, 20%, 40%);
+   box-shadow: 1px 1px .3em -.1em black inset;
+   white-space: normal;
+ }
+ 
+ [data-text-highlight="dark"] .token.comment,
+ [data-text-highlight="dark"] .token.prolog,
+ [data-text-highlight="dark"] .token.doctype,
+ [data-text-highlight="dark"] .token.cdata {
+   color: hsl(30, 20%, 50%);
+ }
+ 
+ [data-text-highlight="dark"] .token.punctuation {
+   opacity: .7;
+ }
+ 
+ [data-text-highlight="dark"] .token.namespace {
+   opacity: .7;
+ }
+ 
+ [data-text-highlight="dark"] .token.property,
+ [data-text-highlight="dark"] .token.tag,
+ [data-text-highlight="dark"] .token.boolean,
+ [data-text-highlight="dark"] .token.number,
+ [data-text-highlight="dark"] .token.constant,
+ [data-text-highlight="dark"] .token.symbol {
+   color: hsl(350, 40%, 70%);
+ }
+ 
+ [data-text-highlight="dark"] .token.selector,
+ [data-text-highlight="dark"] .token.attr-name,
+ [data-text-highlight="dark"] .token.string,
+ [data-text-highlight="dark"] .token.char,
+ [data-text-highlight="dark"] .token.builtin,
+ [data-text-highlight="dark"] .token.inserted {
+   color: hsl(75, 70%, 60%);
+ }
+ 
+ [data-text-highlight="dark"] .token.operator,
+ [data-text-highlight="dark"] .token.entity,
+ [data-text-highlight="dark"] .token.url,
+ [data-text-highlight="dark"] .language-css .token.string,
+ [data-text-highlight="dark"] .style .token.string,
+ [data-text-highlight="dark"] .token.variable {
+   color: hsl(40, 90%, 60%);
+   background-color: unset;
+ }
+ 
+ [data-text-highlight="dark"] .token.atrule,
+ [data-text-highlight="dark"] .token.attr-value,
+ [data-text-highlight="dark"] .token.keyword {
+   color: hsl(350, 40%, 70%);
+ }
+ 
+ [data-text-highlight="dark"] .token.regex,
+ [data-text-highlight="dark"] .token.important {
+   color: #e90;
+ }
+ 
+ [data-text-highlight="dark"] .token.important,
+ [data-text-highlight="dark"] .token.bold {
+   font-weight: bold;
+ }
+ [data-text-highlight="dark"] .token.italic {
+   font-style: italic;
+ }
+ 
+ [data-text-highlight="dark"] .token.entity {
+   cursor: help;
+ }
+ 
+ [data-text-highlight="dark"] .token.deleted {
+   color: red;
+ }

@@ -1,0 +1,63 @@
+::: {.content-visible when-format="html"}
+
+## Biology QA {#sec-biology-qa}
+
+The `biology_qa` example contains 20 advanced biology questions. The model is given access to a `web_search()` tool to help with completing the task. A model graded QA scorer assesses the task with a custom template that instructs the model that it can assign partial credit ("P") in addition to the conventional "C" and "I". Here are some samples from the dataset:
+
+| question                                         | answer       |
+|--------------------------------------------------|--------------|
+| How many species are estimated to live on Earth? | 8.7 million  |
+| A DNA molecule is described as being what shape? | Double helix |
+
+The `web_search()` tool uses [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). If you want to run the examples you will need to setup your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
+
+-   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
+
+-   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
+
+### Eval {.unlisted}
+
+Note that in the sample records above the dataset columns are not **input** and **target** so wee'll use a custom `FieldSpec` in our call to `example_dataset`. We also call the `use_tools()` function, passing `web_search()` as a tool---this gives the model access to a Google Search API that can be used to fill in background knowledge or specific facts. We use a `model_graded_qa()` scorer to more reliably score longer form model output.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import FieldSpec, example_dataset
+from inspect_ai.scorer import model_graded_qa
+from inspect_ai.solver import generate, use_tools, web_search
+
+@task
+def biology_qa() -> Task:
+    return Task(
+        dataset=example_dataset(
+            name="biology_qa",
+            sample_fields=FieldSpec(
+                input="question", 
+                target="answer"
+            ),
+        ),
+        plan=[use_tools(web_search()), generate()],
+        scorer=model_graded_qa(),
+    )
+```
+
+Now we run the evaluation (be sure to have set the `OPENAI_API_KEY` environment variable before running). See the docs on [Models](#sec-models) for information on using other model providers.
+
+```bash
+inspect eval biology_qa.py
+```
+
+Note that you may not be able to run this example as it requires that you setup a Google Custom Search Engine and provide the `GOOGLE_API_KEY` and `GOOGLE_CSE_ID` environment variables.
+
+The `web_search()` tool uses a model to summarize search results. By defualt it will use the same model as the one being evaluated, however you can choose a different model like this:
+
+``` python
+plan=[
+    use_tools(
+        web_search(model="anthropic/claude-3-opus-20240229")
+    ), 
+    generate()
+],
+```
+
+:::

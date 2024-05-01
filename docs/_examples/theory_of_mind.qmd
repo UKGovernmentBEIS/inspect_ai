@@ -1,0 +1,42 @@
+## Theory of Mind {#sec-theory-of-mind}
+
+The theory of mind example contains 100 question-answer pairs taken from the [ToMi](https://github.com/facebookresearch/ToMi) dataset. These are instances of the [Sally-Anne](https://en.wikipedia.org/wiki/Sally%E2%80%93Anne_test) test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:
+
+| input                                                                                                                                                                                                                                   | target  |
+|---------------------------------------------------------|---------------|
+| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?                     | bathtub |
+| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry  |
+
+### Eval {.unlisted}
+
+This example demonstrates adding parameters to a `@task` function to create dynamic variants of an evaluation. Here we use a `critique` parameter to deterine whether a `self_critique()` solver is able to improve on the model's baseline answer.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import (
+    chain_of_thought, generate, self_critique
+)
+
+@task
+def theory_of_mind(critique = False):
+    
+    # use self_critique if requested
+    plan = [chain_of_thought(), generate()]
+    if critique:
+        plan.append(self_critique())
+
+    return Task(
+        dataset=example_dataset("theory_of_mind"),
+        plan=plan,
+        scorer=model_graded_fact(),
+    )
+```
+
+Now, let's run the evaluation and opt-in to self critique using a task arg:
+
+```bash
+inspect eval theory_of_mind.py -T critique=true
+```
+

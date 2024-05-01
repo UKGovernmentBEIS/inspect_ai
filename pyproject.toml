@@ -1,0 +1,128 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm[toml]>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools_scm]
+
+[tool.ruff]
+extend-exclude = ["docs"]
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E",   # pycodestyle errors
+          "W",   # pycodestyle warnings
+          "F",   # flake8
+          "D",   # pydocstyle
+          "I",   # isort
+          # "RET", # flake8-return
+          # "RUF", # ruff rules
+        ]
+ignore = ["E203", "E501", "D10", "D212", "D415"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-rA -x --doctest-modules --color=yes --cov=inspect_ai"
+testpaths = ["tests"]
+doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
+
+[tool.mypy]
+warn_unused_ignores = true
+no_implicit_reexport = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module="inspect_ai.*"
+warn_return_any = true
+disallow_untyped_defs = true 
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+extra_checks = true
+
+[[tool.mypy.overrides]]
+module = "pandas-stubs.*"
+ignore_errors = true
+
+
+[project]
+name = "inspect_ai"
+description = "Framework for large language model evaluations"
+authors = [{name = "UK AI Safety Institute"}]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT License"}
+dynamic = ["version", "dependencies"]
+classifiers=[
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Documentation = "https://UKGovernmentBEIS.github.io/inspect_ai/"
+"Source Code" = "https://github.com/UKGovernmentBEIS/inspect_ai"
+"Issue Tracker" = "https://github.com/UKGovernmentBEIS/inspect_ai/issues"
+
+[project.scripts]
+inspect = "inspect_ai._cli.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pre-commit",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-dotenv",
+    "pytest-xdist",
+    "pandas-stubs",
+    "types-botocore",
+    "types-boto3",
+    "types-beautifulsoup4",
+    "types-protobuf",
+    "types-psutil",
+    "types-PyYAML",
+    "openai",
+    "anthropic",
+    "google-cloud-aiplatform",
+    "google-generativeai",
+    "mistralai",
+    "boto3",
+    "transformers",
+    "torch",
+    "datasets",
+    "langchain",
+    "langchainhub",
+    "wikipedia",
+    "ipywidgets",
+    "ipython",
+    "nbformat"
+]
+doc = [
+    "quarto-cli"
+]
+dist = [
+    "twine",
+    "build"
+]
+
+

@@ -1,0 +1,935 @@
+# Examples {#sec-examples}
+
+::: {.content-visible when-format="html"}
+These examples illustrate the basic features of Inspect:
+
+| Example                               | Demonstrates                                                  |
+|-----------------------------|:------------------------------------------|
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output.                |
+| [HellaSwag](#sec-hellaswag)           | Read external data formats; Multiple choice.                  |
+| [Theory of Mind](#sec-theory-of-mind) | Chain of thought; Self critique; Model grading of output.     |
+| [MATH](#sec-mathematics)              | Custom scorer that uses a model to judge equivalence.         |
+| [Biology QA](#sec-biology-qa)         | Built-in web search tool; Custom model grading template.      |
+| [ARC](#sec-arc)                       | Defining multiple tasks in a file; Multiple choice.           |
+| [Tool Use](#sec-tool-use)             | Tool usage and creating custom tools; Launching subprocesses. |
+| [GSM8K](#sec-gsm8k)                   | Using fewshot examples; Scoring numeric output.               |
+
+: {tbl-colwidths="\[30,70\]"}
+:::
+
+::: {.content-hidden when-format="html"}
+These examples illustrate the basic features of Inspect:
+
+| Example                               | Demonstrates                                                           |
+|-----------------------------|-------------------------------------------|
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output.                         |
+| [HellaSwag](#sec-hellaswag)           | Mapping external data formats into Inspect; Multiple choice questions. |
+| [Theory of Mind](#sec-theory-of-mind) | Chain of thought prompt; Self critique; Model grading of output.       |
+
+: {tbl-colwidths="\[30,70\]"}
+:::
+
+Many of these examples are simple for the purposes of illustration. However, Inspect is designed for the creation of considerably more complicated evaluations. See [Solvers](#sec-solvers), [Tools](#sec-tools), and [Scorers](#sec-scorers) to learn more.
+
+Several of the examples implement language model benchmarks. The code for these benchmarks and some others can be found in the [benchmarks directory](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks) of the Inspect repository.
+
+::: {.callout-note appearance="simple"}
+Note that in these examples we won't show a `--model` command line argument when we call `inspect eval` (the presumtion being that it has been already established via the `INSPECT_EVAL_MODEL` environment variable).
+:::
+
+## Security Guide {#sec-security-guide}
+
+The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [Open AI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
+
+| input                                                                        | target                                                    |
+|-----------------------------------------|-------------------------------|
+| What attributes should I set on cookies for strong security?                 | secure samesite and httponly                              |
+| How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
+
+### Setup {.unlisted}
+
+We'll start by importing the functions we need from Inspect and defining a system message that orients the model to its role as a computer security expert.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import generate, system_message
+
+SYSTEM_MESSAGE = """
+You are a computer security expert and you are tasked with
+providing concise response to the following questions.
+Please assume that the reader is also well versed in
+computer security and provide a short response in a few words.
+"""
+```
+
+### Eval {.unlisted}
+
+Discering whether the correct security guideance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
+
+```{python}
+@task
+def security_guide():
+    return Task(
+        dataset=example_dataset("security_guide"),
+        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        scorer=model_graded_fact(),
+    )
+```
+
+Note that we are using a `model_graded_fact()` scorer. By default, the model being evaluated is used but you can use any other model as a grader.
+
+Now we run the evaluation:
+
+```bash
+inspect eval security_guide.py
+```
+
+
+
+
+## HellaSwag {#sec-hellaswag}
+
+[HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challange for some language models.
+
+For example, here is one of the questions in the dataset along with its set of possible answer (the correct answer is C):
+
+> In home pet groomers demonstrate how to groom a pet. the person
+>
+> A) puts a setting engage on the pets tongue and leash.
+> B) starts at their butt rise, combing out the hair with a brush from a red.
+> C) is demonstrating how the dog's hair is trimmed with electric shears at their grooming salon. 
+> D) installs and interacts with a sleeping pet before moving away.
+
+### Setup {.unlisted}
+
+We'll start by importing the functions we need from Inspect, defining a  system message, and writing a function to convert dataset records to samples (we need to do this to convert the index-based label in the dataset to a letter).
+
+::: {.content-hidden}
+```{python}
+"""
+HellaSwag: Can a Machine Really Finish Your Sentence?
+
+Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali Farhadi, Yejin Choi
+https://arxiv.org/abs/1905.07830
+"""
+```
+:::
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.scorer import answer
+from inspect_ai.solver import multiple_choice, system_message
+
+SYSTEM_MESSAGE = """
+Choose the most plausible continuation for the story.
+"""
+
+def record_to_sample(record):
+    return Sample(
+        input=record["ctx"],
+        target=chr(ord("A") + int(record["label"])),
+        choices=record["endings"],
+        metadata=dict(
+            source_id=record["source_id"]
+        )
+    )
+```
+
+Note that even though we don't use it for the evaluation, we save the `source_id` as metadata as a way to reference samples in the underlying dataset.
+
+### Eval {.unlisted}
+
+We'll load the datasat from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the `hf_dataset()` function. We'll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we'll also pass `trust=True` to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):
+
+```{python}
+@task
+def hellaswag():
+   
+    # dataset
+    dataset = hf_dataset(
+        path="hellaswag",
+        split="validation",
+        sample_fields=record_to_sample,
+        trust=True,
+        shuffle=True
+    )
+
+    # define task
+    return Task(
+        dataset=dataset,
+        plan=[
+          system_message(SYSTEM_MESSAGE),
+          multiple_choice()
+        ],
+        scorer=answer("letter"),
+    )
+```
+
+We use the `multiple_choice()` solver and as you may have noted we don't call `generate()` directly here! This is because `multiple_choice()` calls `generate()` internally (it does this so that it can randomly shuffle the order of choices and then map the model output back to the underlying dataset index).
+
+Now we run the evaluation, limiting the samples read to 50 for development purposes:
+
+```bash
+inspect eval hellaswag.py --limit 50
+```
+
+
+
+## Theory of Mind {#sec-theory-of-mind}
+
+The theory of mind example contains 100 question-answer pairs taken from the [ToMi](https://github.com/facebookresearch/ToMi) dataset. These are instances of the [Sally-Anne](https://en.wikipedia.org/wiki/Sally%E2%80%93Anne_test) test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:
+
+| input                                                                                                                                                                                                                                   | target  |
+|---------------------------------------------------------|---------------|
+| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?                     | bathtub |
+| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry  |
+
+### Eval {.unlisted}
+
+This example demonstrates adding parameters to a `@task` function to create dynamic variants of an evaluation. Here we use a `critique` parameter to deterine whether a `self_critique()` solver is able to improve on the model's baseline answer.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import (
+    chain_of_thought, generate, self_critique
+)
+
+@task
+def theory_of_mind(critique = False):
+    
+    # use self_critique if requested
+    plan = [chain_of_thought(), generate()]
+    if critique:
+        plan.append(self_critique())
+
+    return Task(
+        dataset=example_dataset("theory_of_mind"),
+        plan=plan,
+        scorer=model_graded_fact(),
+    )
+```
+
+Now, let's run the evaluation and opt-in to self critique using a task arg:
+
+```bash
+inspect eval theory_of_mind.py -T critique=true
+```
+
+
+
+
+::: {.content-visible when-format="html"}
+## MATH {#sec-mathematics}
+
+The [MATH dataset](https://arxiv.org/abs/2103.03874) includes 12,500 challenging competition mathematics problems. Each problem in MATH has a full step-by-step solution which can be used to teach models to generate answer derivations and explanations. Here are some samples from the dataset:
+
+| Question                                                                                                                                                         | Answer |
+|------------------------------------------------------------|-----------:|
+| How many dollars in interest are earned in two years on a deposit of \$10,000 invested at 4.5% and compounded annually? Express your answer to the nearest cent. | 920.25 |
+| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$                                              |   1112 |
+
+: {tbl-colwidths=\[80,20\]}
+
+### Setup {.unlisted}
+
+We'll start by importing the functions we need from Inspect and defining a prompt that asks the model to reason step by step and respond with its answer on a line at the end. It also nudges the model not to enclose its answer in `\boxed`, a LaTeX command for displaying equations that models often use in math output.
+
+::: content-hidden
+```{python}
+"""
+Measuring Mathematical Problem Solving With the MATH Dataset
+
+Dan Hendrycks, Collin Burns, Saurav Kadavath, Akul Arora,
+Steven Basart, Eric Tang, Dawn Song, Jacob Steinhardt
+https://arxiv.org/abs/2103.03874
+
+Based on: https://github.com/openai/simple-evals/blob/main/math_eval.py
+"""
+```
+:::
+
+```{python}
+import re
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import FieldSpec, csv_dataset
+from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    AnswerPattern,
+    Score,
+    Target,
+    accuracy,
+    bootstrap_std,
+    scorer,
+)
+from inspect_ai.solver import TaskState, generate, prompt_template
+
+# setup for problem + instructions for providing answer
+PROMPT_TEMPLATE = """
+Solve the following math problem step by step. The last line
+of your response should be of the form ANSWER: $ANSWER (without
+quotes) where $ANSWER is the answer to the problem.
+
+{prompt}
+
+Remember to put your answer on its own line after "ANSWER:",
+and you do not need to use a \\boxed command.
+""".strip()
+```
+
+### Eval {.unlisted}
+
+Here is the basic setup for our eval. We `shuffle` the dataset so that when we use `--limit` to develop on smaller slices we get some variety of inputs and results:
+
+```{python}
+@task
+def math(shuffle=True):
+    return Task(
+        dataset=csv_dataset(
+            csv_file="datasets/math_test.csv",
+            sample_fields=FieldSpec(
+                input="Question", 
+                target="Answer"
+            ),
+            shuffle=shuffle,
+        ),
+        plan=[
+            prompt_template(PROMPT_TEMPLATE),
+            generate(),
+        ],
+        scorer=expression_equivalance(),
+        config=GenerateConfig(temperature=0.5),
+    )
+
+```
+
+The heart of this eval isn't in the task definition though, rather its in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we'll use a model to assess whether the output and the target are logically equivalent. the `expression_equivalance()` custom scorer implements this:
+
+```{python}
+@scorer(metrics=[accuracy(), bootstrap_std()])
+def expression_equivalance():
+    async def score(state: TaskState, target: Target):
+        # extract answer
+        match = re.search(AnswerPattern.LINE, state.output.completion)
+        if match:
+            # ask the model to judge equivalance
+            answer = match.group(1)
+            prompt = EQUIVALANCE_TEMPLATE % (
+                {"expression1": target.text, "expression2": answer}
+            )
+            result = await get_model().generate(prompt)
+
+            # return the score
+            correct = result.completion.lower() == "yes"
+            return Score(
+                value=CORRECT if correct else INCORRECT,
+                answer=answer,
+                explanation=state.output.completion,
+            )
+        else:
+            return Score(
+                value=INCORRECT,
+                explanation="Answer not found in model output: "
+                + f"{state.output.completion}",
+            )
+
+    return score
+```
+
+We are making a separate call to the model to assess equivalence. We prompt for this using an `EQUIVALANCE_TEMPLATE`. Here's a general flavor for how that template looks (there are more examples in the real template):
+
+``` python
+EQUIVALANCE_TEMPLATE = r"""
+Look at the following two expressions (answers to a math problem)
+and judge whether they are equivalent. Only perform trivial 
+simplifications
+
+Examples:
+
+    Expression 1: $2x+3$
+    Expression 2: $3+2x$
+
+Yes
+
+    Expression 1: $x^2+2x+1$
+    Expression 2: $y^2+2y+1$
+
+No
+
+    Expression 1: 72 degrees
+    Expression 2: 72
+
+Yes
+(give benefit of the doubt to units)
+---
+
+YOUR TASK
+
+Respond with only "Yes" or "No" (without quotes). Do not include
+a rationale.
+
+    Expression 1: %(expression1)s
+    Expression 2: %(expression2)s
+""".strip()
+```
+
+Now we run the evaluation, limiting it to 500 problems (as there are over 12,000 in the dataset):
+
+``` bash
+$ inspect eval arc.py --limit 500
+```
+
+This will draw 500 random samples from the dataset (because we defined `shuffle=True` in our call to load the dataset). The task lets you override this with a task parameter (e.g. in case you wanted to evaluate a specific sample or range of samples):
+
+``` bash
+$ inspect eval arc.py --limit 100,200 -T shuffle=false
+```
+
+::: content-hidden
+```{python}
+EQUIVALANCE_TEMPLATE = r"""
+Look at the following two expressions (answers to a math problem) and
+judge whether they are equivalent. Only perform trivial simplifications
+
+Examples:
+
+    Expression 1: $2x+3$
+    Expression 2: $3+2x$
+
+Yes
+
+    Expression 1: 3/2
+    Expression 2: 1.5
+
+Yes
+
+    Expression 1: $x^2+2x+1$
+    Expression 2: $y^2+2y+1$
+
+No
+
+    Expression 1: $x^2+2x+1$
+    Expression 2: $(x+1)^2$
+
+Yes
+
+    Expression 1: 3245/5
+    Expression 2: 649
+
+No
+(these are actually equal, don't mark them equivalent if you need to
+do nontrivial simplifications)
+
+    Expression 1: 2/(-3)
+    Expression 2: -2/3
+
+Yes
+(trivial simplifications are allowed)
+
+    Expression 1: 72 degrees
+    Expression 2: 72
+
+Yes
+(give benefit of the doubt to units)
+
+    Expression 1: 64
+    Expression 2: 64 square feet
+
+Yes
+(give benefit of the doubt to units)
+
+---
+
+YOUR TASK
+
+
+Respond with only "Yes" or "No" (without quotes). Do not include
+a rationale.
+
+    Expression 1: %(expression1)s
+    Expression 2: %(expression2)s
+""".strip()
+```
+:::
+:::
+
+
+::: {.content-visible when-format="html"}
+
+## Biology QA {#sec-biology-qa}
+
+The `biology_qa` example contains 20 advanced biology questions. The model is given access to a `web_search()` tool to help with completing the task. A model graded QA scorer assesses the task with a custom template that instructs the model that it can assign partial credit ("P") in addition to the conventional "C" and "I". Here are some samples from the dataset:
+
+| question                                         | answer       |
+|--------------------------------------------------|--------------|
+| How many species are estimated to live on Earth? | 8.7 million  |
+| A DNA molecule is described as being what shape? | Double helix |
+
+The `web_search()` tool uses [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). If you want to run the examples you will need to setup your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
+
+-   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
+
+-   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
+
+### Eval {.unlisted}
+
+Note that in the sample records above the dataset columns are not **input** and **target** so wee'll use a custom `FieldSpec` in our call to `example_dataset`. We also call the `use_tools()` function, passing `web_search()` as a tool---this gives the model access to a Google Search API that can be used to fill in background knowledge or specific facts. We use a `model_graded_qa()` scorer to more reliably score longer form model output.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import FieldSpec, example_dataset
+from inspect_ai.scorer import model_graded_qa
+from inspect_ai.solver import generate, use_tools, web_search
+
+@task
+def biology_qa() -> Task:
+    return Task(
+        dataset=example_dataset(
+            name="biology_qa",
+            sample_fields=FieldSpec(
+                input="question", 
+                target="answer"
+            ),
+        ),
+        plan=[use_tools(web_search()), generate()],
+        scorer=model_graded_qa(),
+    )
+```
+
+Now we run the evaluation (be sure to have set the `OPENAI_API_KEY` environment variable before running). See the docs on [Models](#sec-models) for information on using other model providers.
+
+```bash
+inspect eval biology_qa.py
+```
+
+Note that you may not be able to run this example as it requires that you setup a Google Custom Search Engine and provide the `GOOGLE_API_KEY` and `GOOGLE_CSE_ID` environment variables.
+
+The `web_search()` tool uses a model to summarize search results. By defualt it will use the same model as the one being evaluated, however you can choose a different model like this:
+
+``` python
+plan=[
+    use_tools(
+        web_search(model="anthropic/claude-3-opus-20240229")
+    ), 
+    generate()
+],
+```
+
+:::
+
+
+::: {.content-visible when-format="html"}
+
+## ARC {#sec-arc}
+
+The [ARC dataset](https://allenai.org/data/arc) consists of 7,787 science exam questions drawn from a variety of sources, including science questions provided under license by a research partner affiliated with [AI2](https://allenai.org). These are text-only, English language exam questions that span several grade levels as indicated in the files. Each question has a multiple choice structure (typically 4 answer options). The questions are sorted into a Challenge Set of 2,590 “hard” questions (those that both a retrieval and a co-occurrence method fail to answer correctly) and an Easy Set of 5,197 questions. Here are some samples from the dataset:
+
+| question                                                                                                                                                                                                     | choices                                                                                                                                                                            | answerKey |
+|-----------------------------|-------------------------|-------------------|
+| George wants to warm his hands quickly by rubbing them. Which skin surface will produce the most heat?                                                                                                       | { "text": \[ "dry palms", "wet palms", "palms covered with oil", "palms covered with lotion" \], "label": \[ "A", "B", "C", "D" \] }                                               | A         |
+| A toothpaste commercial states that a brand of toothpaste has a higher concentration of fluoride than any other toothpaste available. The commercial is most likely inferring that the advertised toothpaste | { "text": \[ "has a pleasant flavor.", "is recommended by dentists.", "promotes good dental hygiene.", "is the most expensive brand sold." \], "label": \[ "A", "B", "C", "D" \] } | C         |
+
+: {tbl-colwidths=\[40,40,20\]}
+
+### Setup {.unlisted}
+
+We'll start by importing what we need from Inspect and writing a `record_to_sample()` function to convert raw records to samples (note that the choices and labels are encoded in JSON within the **choices** field so need some special pre-processing).
+
+::: {.content-hidden}
+```{python}
+"""
+Think you have Solved Question Answering? Try ARC, the AI2 Reasoning Challenge
+
+Peter Clark, Isaac Cowhey, Oren Etzioni, Tushar Khot, Ashish Sabharwal, Carissa Schoenick, Oyvind Tafjord
+https://arxiv.org/abs/1803.05457
+
+# run all subsets
+inspect eval arc.py
+
+# run specific subsets
+inspect eval arc.py@easy
+inspect eval arc.py@challenge
+"""
+```
+:::
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.scorer import answer
+from inspect_ai.solver import multiple_choice, system_message
+
+def record_to_sample(record):
+  # read the labels and text
+  choices = record["choices"]
+  choices = dict(zip(choices["label"], choices["text"]))
+
+  # determine the target then normalize to letter
+  answerKey = record["answerKey"]
+  target = list(choices.keys()).index(answerKey)
+  target = chr(ord("A") + int(target))
+
+  # return sample
+  return Sample(
+    input=record["question"],
+    choices=list(choices.values()),
+    target=target
+  )
+```
+
+Since the label and answer could be encoded using either letters or numeric indexes, we lookup 
+
+### Eval {.unlisted}
+
+The ARC dataset has two subsets (ARC-Easy and ARC-Challenge). We'll create a shared task function that can be used to run either, and then export two `@task` decorated functions so that they can be run all together or in isolation.
+
+```{python}
+def arc_task(dataset_name):
+   return Task(
+     dataset=hf_dataset(
+       path="allenai/ai2_arc",
+       name=dataset_name,
+       split="test",
+       sample_fields=record_to_sample
+     ),
+     plan = multiple_choice(),
+     scorer = answer("letter")
+   )
+   
+@task
+def easy():
+  return arc_task("ARC-Easy")
+
+@task
+def challenge():
+  return arc_task("ARC-Challenge")
+```
+
+We use the `multiple_choice()` solver and as you may have noted we don't call `generate()` directly here! This is because `multiple_choice()` calls `generate()` internally (it does this so that it can randomly shuffle the order of choices and then map the model output back to the underlying dataset index).
+
+We can run either all tasks or individual tasks as follows:
+
+``` bash
+inspect eval arc.py      
+inspect eval arc.py@easy
+inspect eval arc.py@challenge
+```
+
+:::
+
+
+::: {.content-visible when-format="html"}
+
+## Tool Use {#sec-tool-use}
+
+This example illustrates how to define and use tools with model evaluations. Tools are Python functions that you provide for the model to call for assistance with various tasks (e.g. looking up information). Note that tools are actually *executed* on the client system, not on the system where the model is running.
+
+Note that tool use is not supported for every model provider. Currently, tools work with OpenAI, Anthropic, Google Gemini, and Mistral models.
+
+If you want to use tools in your evals it's worth taking some time to learn how to provide good tool definitions. Here are some resources you may find helpful:
+
+-   [Function Calling with LLMs](https://www.promptingguide.ai/applications/function_calling)
+-   [Best Practices for Tool Definitions](https://docs.anthropic.com/claude/docs/tool-use#best-practices-for-tool-definitions)
+
+### Addition {.unlisted}
+
+We'll start with a simple tool that adds two numbers. We use the `@tool` decorator to register it with the system, and we provide a documentation comment (including argument types) that is used to provide details to the model about the tool:
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import includes, match
+from inspect_ai.solver import (
+    generate, system_message, tool, use_tools
+)
+from inspect_ai.util import subprocess
+
+@tool(prompt="""
+    If you are given a math problem of any kind,
+    please use the add tool to compute the result.
+    """
+)
+def add():
+    async def execute(x: int, y: int):
+        """
+        Tool for adding two numbers.
+
+        Args:
+            x (int): First number to add.
+            y (int): Second number to add.
+
+        Returns:
+            The sum of the two numbers.
+        """
+        return x + y
+
+    return execute
+```
+
+Note the `prompt` argument passed to the `@tool` decorator. This prompt is intended to help the model reason about when to use the tool, and is automatically added to the system prompt.
+
+Now that we've defined the tool, we can use it in an evaluation by passing it to the `use_tools()` function.
+
+```{python}
+@task
+def addition_problem():
+    return Task(
+        dataset=[Sample(
+            input="What is 1 + 1?",
+            target=["2", "2.0"]
+        )],
+        plan=[use_tools(add()), generate()],
+        scorer=match(numeric=True),
+    )
+```
+
+We run the eval with:
+
+```bash
+inspect eval addition_problem.py
+```
+
+## File Listing {.unlisted}
+
+The next examples demonstrates how to define a tool that calls an external processs.
+
+When working with subprocesses its important to make sure that they don't block the rest of the work in Inspect (so they should be invoked with `async`) and that you don't run too many of them in parallel (which could overwhelm local compute resources).
+
+To assist with this, Inspect provides the `subprocess()` function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout (or stderr in the case of an error). The `subprocess()` function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`).
+
+Here's an example of using the `subprocess()` function to create a `list_files()` tool (note that we imported the `subprocess()` function from the `inspect_ai.util` module above):
+
+```{python}
+@tool(
+    prompt="""
+    If you are asked to list the files in a directory you
+    should call the list_files function to list the files.
+    """
+)
+def list_files():
+    async def execute(dir: str):
+        """List the files in a directory.
+
+        Args:
+            dir (str): Directory
+
+        Returns:
+            File listing of the directory
+        """
+        result = await subprocess(["ls", dir])
+        if result.success:
+            return result.stdout
+        else:
+            return f"Error: {result.stderr}"
+
+    return execute
+```
+
+Here's how we might use that tool in an evaluation:
+
+```{python}
+SYSTEM_MESSAGE = """
+Please answer exactly Yes or No with no additional words.
+"""
+
+@task
+def bash():
+
+    dataset = [Sample(
+        input=(
+            "Please list the files in the /usr/bin directory. "
+            + "Is there a file named 'python3' in the directory?"
+        ),
+        target=["Yes"],
+    )]
+
+    return Task(
+        dataset=dataset,
+        plan=[
+            system_message(SYSTEM_MESSAGE),
+            use_tools(list_files()),
+            generate(),
+        ],
+        scorer=includes(),
+    )
+```
+
+Now we run the evaluation:
+
+```bash
+inspect eval bash.py
+```
+
+:::
+
+
+
+::: {.content-visible when-format="html"}
+
+## GSM8K {#sec-gsm8k}
+
+[GSM8K](https://arxiv.org/abs/2110.14168) (Grade School Math 8K) is a dataset of 8.5K high quality linguistically diverse grade school math word problems. The dataset was created to support the task of question answering on basic mathematical problems that require multi-step reasoning. Here are some samples from the dataset:
+
+| question                                                                                                           | answer                                                                                                                                                                                    |
+|----------------------------|--------------------------------------------|
+| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year?             | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
+| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10**                                                      |
+
+: {tbl-colwidths="\[50,50\]"}
+
+Note that the final numeric answers are contained at the end of the **answer** field after the `####` delimiter.
+
+### Setup {.unlisted}
+
+We'll start by importing what we need from Inspect and writing a couple of data handling functions:
+
+1.  `record_to_sample()` to convert raw records to samples. Note that we need a function rather than just mapping field names with a `FieldSpec` because the **answer** field in the dataset needs to be divided into reasoning and the actual answer (which appears at the very end after `####`).
+2.  `sample_to_fewshot()` to generate fewshot examples from samples.
+
+::: {.content-hidden}
+```{python}
+"""
+Training Verifiers to Solve Math Word Problems
+
+Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, Christopher Hesse, John Schulman
+https://arxiv.org/abs/2110.14168
+
+# run with default fewshots (10)
+inspect eval gsm8k.py
+
+# run with less  or no fewshots
+inspect eval gsm8k.py -T fewshot=5
+inspect eval gsm8k.py -T fewshot=false
+"""
+```
+:::
+
+
+
+```{python}
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.scorer import match
+from inspect_ai.solver import (
+    generate, prompt_template, system_message
+)
+
+
+def record_to_sample(record):
+    DELIM = "####"
+    input = record["question"]
+    answer = record["answer"].split(DELIM)
+    target = answer.pop().strip()
+    reasoning = DELIM.join(answer)
+    return Sample(
+        input=input, 
+        target=target, 
+        metadata={"reasoning": reasoning.strip()}
+    )
+
+
+def sample_to_fewshot(sample):
+    return (
+        f"{sample.input}\n\nReasoning:\n"
+        + f"{sample.metadata['reasoning']}\n\n"
+        + f"ANSWER: {sample.target}"
+    )
+```
+
+Note that we save the "reasoning" part of the answer in `metadata`—we do this so that we can use it to compose the fewshot prompt (as illustrated in `sample_to_fewshot()`).
+
+Here's the prompt we'll used to elicit a chain of thought answer in the right format:
+
+```python
+# setup for problem + instructions for providing answer
+MATH_PROMPT_TEMPLATE = """
+Solve the following math problem step by step. The last line of your
+response should be of the form "ANSWER: $ANSWER" (without quotes) 
+where $ANSWER is the answer to the problem.
+
+{prompt}
+
+Remember to put your answer on its own line at the end in the form
+"ANSWER: $ANSWER" (without quotes) where $ANSWER is the answer to 
+the problem, and you do not need to use a \\boxed command.
+
+Reasoning:
+""".strip()
+```
+
+
+### Eval {.unlisted}
+
+We'll load the dataset from [HuggingFace](https://huggingface.co/datasets/gsm8k) using the `hf_dataset()` function. By default we use 10 fewshot examples, but the `fewshot` task arg can be used to turn this up, down, or off. The `fewshot_seed` is provided for stability of fewshot examples across runs.
+
+```{python}
+@task
+def gsm8k(fewshot=10, fewshot_seed=42):
+    # build plan dynamically (may or may not be doing fewshot)
+    plan = [prompt_template(MATH_PROMPT_TEMPLATE), generate()]
+    if fewshot:
+        fewshots = hf_dataset(
+            path="gsm8k",
+            data_dir="main",
+            split="train",
+            sample_fields=record_to_sample,
+            shuffle=True,
+            seed=fewshot_seed,
+            limit=fewshot,
+        )
+        plan.insert(
+            0,
+            system_message(
+                "\n\n".join([sample_to_fewshot(sample) for sample in fewshots])
+            ),
+        )
+
+    # define task
+    return Task(
+        dataset=hf_dataset(
+            path="gsm8k",
+            data_dir="main",
+            split="test",
+            sample_fields=record_to_sample,
+        ),
+        plan=plan,
+        scorer=match(numeric=True),
+    )
+```
+
+We instruct the `match()` scorer to look for numeric matches at the end of the output. Passing `numeric=True` tells `match()` that it should disregard punctuation used in numbers (e.g. `$`, `,`, or `.` at the end) when making comparisons.
+
+Now we run the evaluation, limiting the number of samples to 100 for development purposes:
+
+```bash
+inspect eval gsm8k.py --limit 100
+```
+
+:::
+
+
+::: {.content-hidden when-format="html"}
+## Additional Examples
+
+See the following additional examples in the online version of the Inspect documentation:
+
+| Example                                               | Demonstrates                                                  |
+|----------------------------|--------------------------------------------|
+| [MATH]({{< var examples-url >}}#sec-mathematics)      | Custom scorer that uses a model to judge equivalence.         |
+| [Biology QA]({{< var examples-url >}}#sec-biology-qa) | Built-in web search tool; Custom model grading template.      |
+| [ARC]({{< var examples-url >}}#sec-arc)               | Defining multiple tasks in a file; Multiple choice questions. |
+| [Tool Use]({{< var examples-url >}}#sec-tool-use)     | Tool usage and creating custom tools; Launching subprocesses. |
+| [GSM8K]({{< var examples-url >}}#sec-gsm8k)           | Using fewshot examples; Scoring numeric output.               |
+
+: {tbl-colwidths="\[30,70\]"}
+:::
+
+

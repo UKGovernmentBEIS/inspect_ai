@@ -1,0 +1,15 @@
+::: {.content-hidden when-format="html"}
+## Additional Examples
+
+See the following additional examples in the online version of the Inspect documentation:
+
+| Example                                               | Demonstrates                                                  |
+|----------------------------|--------------------------------------------|
+| [MATH]({{< var examples-url >}}#sec-mathematics)      | Custom scorer that uses a model to judge equivalence.         |
+| [Biology QA]({{< var examples-url >}}#sec-biology-qa) | Built-in web search tool; Custom model grading template.      |
+| [ARC]({{< var examples-url >}}#sec-arc)               | Defining multiple tasks in a file; Multiple choice questions. |
+| [Tool Use]({{< var examples-url >}}#sec-tool-use)     | Tool usage and creating custom tools; Launching subprocesses. |
+| [GSM8K]({{< var examples-url >}}#sec-gsm8k)           | Using fewshot examples; Scoring numeric output.               |
+
+: {tbl-colwidths="\[30,70\]"}
+:::

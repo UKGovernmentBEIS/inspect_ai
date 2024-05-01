@@ -1,0 +1,142 @@
+# Log Viewer {#sec-log-viewer}
+
+## Overview
+
+Inspect View provides a convenient way to visualise evaluation logs, including drilling into message histories, scoring decisions, and additional metadata written to the log. Here's what the main view of an evaluation log looks like:
+
+![](images/inspect-view-main.png){.border .lightbox}
+
+Below we'll describe how to get the most out of using Inspect View.
+
+Note that this section covers *interactively* exploring log files. You can also use the `EvalLog` API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the section on [Eval Logs](#sec-eval-logs) to learn more about how to process log files with code.
+
+## View Basics
+
+To run Inspect View, use the `inspect view` command:
+
+``` bash
+$ inspect view
+```
+
+By default, `inspect view` will use the configured log directory of the environment it is run from (e.g. `./logs`). You can specify an alternate log directory using `--log-dir` ,for example:
+
+``` bash
+$ inspect view --log-dir ./experiment-logs
+```
+
+By default it will run on port 7575 (and kill any existing `inspect view` using that port). If you want to run two instances of `inspect view` you can specify an alternate port:
+
+``` bash
+$ inspect view --log-dir ./experiment-logs --port 6565
+```
+
+You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
+
+### Log History
+
+You can view and navigate between a history of all evals in the log directory using the menu at the top right:
+
+![](images/inspect-view-history.png){.border .lightbox}
+
+## Sample Details
+
+Click a sample to drill into its messages, scoring, and metadata.
+
+### Messages
+
+The messages tab displays the message history. In this example we see that the model make two tool calls before answering (the final assistant message is not fully displayed for brevity):
+
+![](images/inspect-view-messages.png){.border .lightbox}
+
+Looking carefully at the message history (especially for agents or multi-turn solvers) is critically important for understanding how well your evaluation is constructed.
+
+### Scoring
+
+The scoring tab shows additional details including the full input and full model explanation for answers:
+
+![](images/inspect-view-scoring.png){.border .lightbox}
+
+### Metadata
+
+The metadata tab shows additional data made available by solvers, tools, an scorers (in this case the `web_search()` tool records which URLs it visited to retreive additional context):
+
+![](images/inspect-view-metadata.png){.border .lightbox}
+
+## Scores and Answers
+
+Reliable, high quality scoring is a critical component of every evaluation, and developing custom scorers that deliver this can be challenging. One major difficulty lies in the free form text nature of model output: we have a very specific target we are comparing against and we sometimes need to pick the answer out of a sea of text. Model graded output introduces another set of challenges entirely.
+
+For comparison based scoring, scorers typically perform two core tasks:
+
+1.  Extract the answer from the model's output; and
+2.  Compare the extracted answer to the target.
+
+A scorer can fail to correctly score output at either of these steps. Failing to extract an answer entirely can occur (e.g. due to a regex that's not quite flexible enough) and as can failing to correctly identify equivalent answers (e.g. thinking that "1,242" is different from "1242.00" or that "Yes." is different than "yes").
+
+You can use the log viewer to catch and evaluate these sorts of issues. For example, here we can see that we were unable to extract answers for a couple of questions that were scored incorrect:
+
+![](images/inspect-view-answers.png){.border .lightbox}
+
+It's possible that these answers are legitimately incorrect. However it's also possible that the correct answer is in the model's output but just in a format we didn't quite expect. In each case you'll need to drill into the sample to investigate.
+
+Answers don't just appear magically, scorers need to produce them during scoring. The scorers built in to Inspect all do this, but when you create a custom scorer, you should be sure to always include an `answer` in the `Score` objects you return if you can. For example:
+
+``` python
+return Score(
+    value="C" if extracted == target.text else "I", 
+    answer=extracted, 
+    explanation=state.output.completion
+)
+```
+
+If we only return the `value` of "C" or "I" we'd lose the context of exactly what was being compared when the score was assigned.
+
+Note there is also an `explanation` field: this is also important, as it allows you to view the entire context from which the answer was extracted from.
+
+## Filtering and Sorting
+
+It's often useful to filter log entries by score (for example, to investigate whether incorrect answers are due to scorer issues or are true negatives). Use the **Scores** picker to filter by specific scores:
+
+![](images/inspect-view-filter.png){.border .lightbox}
+
+By default, samples are ordered (with all samples for an epoch presented in sequence). However you can also order by score, or order by samples (so you see all of the results for a given sample across all epochs presented together). Use the **Sort** picker to control this:
+
+![](images/inspect-view-sort.png){.border .lightbox}
+
+Viewing by sample can be especially valuable for diagnosing the sources of inconsistency (and determining whether they are inherent or an artifact of the evaluation methodology). Above we can see that sample 1 is incorrect in epoch 1 because of issue the model had with forming a correct function call.
+
+## Python Logging
+
+Beyond the standard information included an eval log file, you may want to do additional console logging to assist with developing and debugging. Inspect installs a log handler that displays logging output above eval progress as well as saves it into the evaluation log file.
+
+If you use the [recommend practice](https://docs.python.org/3/library/logging.html) of the Python `logging` library for obtaining a logger your logs will interoperate well with Inspect. For example, here we developing a web search tool and want to log each time a query occurs:
+
+``` python
+# setup logger for this source file
+logger = logging.getLogger(__name__)
+
+# log each time we see a web query
+logger.info(f"web query: {query}")
+```
+
+You can see all of these log entries in the **Logging** tab:
+
+![](images/inspect-view-logging.png){.border .lightbox}
+
+It is important to note that the Inspect View will show all log entries level `info` or higher. However, printing every `info` message to the console during an eval might be too distracting, so the default log level for printing is `warning`. If you change it to `info` then you'll also see these log messages in the console:
+
+``` bash
+$ inspect eval biology_qa.py --log-level info
+```
+
+![](images/inspect-view-logging-console.png){.lightbox}
+
+A default log level of `warning` enables you to include many calls to `logger.info()` in your code without having them show by default, while also making them available in the log viewer should you need them.
+
+Note that you can also set the log level using the `INSPECT_LOG_LEVEL` environment variable (which is often included in a [.env configuration file](#sec-workflow-configuration)).
+
+## Task Information
+
+The **Info** panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, plan, and scorer details, git revision, and model token usage:
+
+![](images/inspect-view-info.png){style=".border .lightbox"}

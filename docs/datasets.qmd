@@ -1,0 +1,242 @@
+# Datasets {#sec-datasets}
+
+## Overview
+
+Inspect has native support for reading datasets in the CSV, JSON, and JSON Lines formats, as well as from [Hugging Face](#sec-hugging-face-datasets). In addition, the core dataset interface for the evaluation pipeline is flexible enough to accept data read from just about any source.
+
+If your data is already in a format amenable for direct reading as an Inspect `Sample`, reading a dataset is as simple as this:
+
+``` python
+from inspect_ai.dataset import csv_dataset, json_dataset
+dataset1 = csv_dataset("dataset1.csv")
+dataset2 = json_dataset("dataset2.json")
+```
+
+Of course, many real-world datasets won't be so trivial to read. Below we'll discuss the various ways you can adapt your datasets for use with Inspect.
+
+## Dataset Samples
+
+The core data type underlying the use of datasets with Inspect is the `Sample`. A sample has an `input`, a `target`, an optional `id`, and an optional collection of `metadata`.
+
+**Class** `inspect_ai.dataset.Sample`
+
+| Field      | Type                      | Description                                                                                           |
+|-------------------|---------------------|--------------------------------|
+| `input`    | `str | list[ChatMessage]` | The input to be submitted to the model.                                                               |
+| `choices`  | `list[str] | None`        | Optional. Multiple choice answer list.                                                                |
+| `target`   | `str | list[str] | None`  | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
+| `id`       | `str | None`              | Optional. Unique identifier for sample.                                                               |
+| `metadata` | `dict[str | Any] | None`  | Optional. Arbitrary metadata associated with the sample.                                              |
+
+: {tbl-colwidths="\[20,40,40\]"}
+
+So a CSV dataset with the following structure:
+
+| input                                                                        | target                                                    |
+|-----------------------------------------|-------------------------------|
+| What cookie attributes should I use for strong security?                     | secure samesite and httponly                              |
+| How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
+
+Can be read directly with:
+
+``` python
+dataset = csv_dataset("security_guide.csv")
+```
+
+Note that samples from datasets without and `id` field will automatically be assigned ids based on an auto-incrementing integer starting with 1.
+
+If your samples include `choices`, then the label should be a numeric index into the available `choices` rather a letter (this is an implicit assumption of the `multiple_choice()` solver).
+
+## Field Mapping
+
+If your dataset contains inputs and targets that don't use `input` and `target` as field names, you can map them into a `Dataset` using a `FieldSpec`. This same mechanism also enables you to collect arbitrary additional fields into the `Sample` `metadata` bucket. For example:
+
+``` python
+from inspect_ai.dataset import FieldSpec, json_dataset
+
+dataset = json_dataset(
+    "popularity.jsonl",
+    FieldSpec(
+        input="question",
+        target="answer_matching_behavior",
+        id="question_id",
+        metadata=["label_confidence"],
+    ),
+)
+```
+
+If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes an `index` and `record` (represented as a `dict`) from the underlying file and returns a `Sample`. For example:
+
+``` python
+from inspect_ai.dataset import Sample, json_dataset
+
+def record_to_sample(record):
+    return Sample(
+        input=record["question"],
+        target=record["answer_matching_behavior"].strip(),
+        id=record["question_id"],
+        metadata={
+            "label_confidence": record["label_confidence"]
+        }
+    )
+
+dataset = json_dataset("popularity.jsonl", record_to_sample)
+```
+
+## Filter and Shuffle
+
+The `Dataset` class includes `filter()` and `shuffle()` methods, as well as support for the slice operator.
+
+To select a subset of the dataset, use `filter()`:
+
+``` python
+dataset = json_dataset("popularity.jsonl", record_to_sample)
+dataset = dataset.filter(
+    lambda sample : sample.metadata["category"] == "advanced"
+)
+```
+
+To select a subset of records, use standard Python slicing:
+
+``` python
+dataset = dataset[0:100]
+```
+
+Shuffling is often helpful when you want to vary the samples used during evaluation development. To do this, either use the `shuffle()` method or the `shuffle` parameter of the dataset loading functions:
+
+``` python
+# shuffle method
+dataset = dataset.shuffle()
+
+# shuffle on load
+dataset = json_dataset("data.jsonl", shuffle=True)
+```
+
+Note that both of these methods optionally support specifying a random seed for shuffling.
+
+## Hugging Face {#sec-hugging-face-datasets}
+
+[Hugging Face Datasets](https://huggingface.co/docs/datasets/en/index) is a library for easily accessing and sharing datasets for machine learning, and features integration with [Hugging Face Hub](https://huggingface.co/datasets), a repository with a broad selection of publicly shared datasets. Typically datasets on Hugging Face will require specification of which split within the dataset to use (e.g. train, test, or validation) as well as some field mapping. Use the `hf_dataset()` function to read a dataset and specify the requisite split and field names:
+
+``` python
+from inspect_ai.dataset import FieldSpec, hf_dataset
+
+dataset=hf_dataset("openai_humaneval", 
+  split="test", 
+  sample_fields=FieldSpec(
+    id="task_id",
+    input="prompt",
+    target="canonical_solution",
+    metadata=["test", "entry_point"]
+  )
+)
+```
+
+Note that some HuggingFace datasets execute Python code in order to resolve the underlying dataset files. Since this code is run on your local machine, you need to specify `trust = True` in order to perform the download. This option should only be set to `True` for repositories you trust and in which you have read the code. Here's an example of using the `trust` option (note that it defaults to `False` if not specified):
+
+``` python
+dataset=hf_dataset("openai_humaneval", 
+  split="test", 
+  trust=True,
+  ...
+)
+```
+
+Under the hood, the `hf_dataset()` function is calling the [load_dataset()](https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset) function in the Hugging Face datasets package. You can additionally pass arbitrary parameters on to `load_dataset()` by including them in the call to `hf_dataset()`. For example `hf_dataset(..., cache_dir="~/my-cache-dir")`.
+
+## Amazon S3
+
+Inspect has integrated support for storing datasets on [Amazon S3](https://aws.amazon.com/pm/serv-s3/). Compared to storing data on the local file-system, using S3 can provide more flexible sharing and access control, and a more reliable long term store than local files.
+
+Using S3 is mostly a matter of substituting S3 URLs (e.g. `s3://my-bucket-name`) for local file-system paths. For example, here is how you load a dataset from S3:
+
+``` python
+json_dataset("s3://my-bucket/dataset.jsonl")
+```
+
+S3 buckets are normally access controlled so require authentication to read from. There are a wide variety of ways to configure your client for AWS authentication, all of which work with Inspect. See the article on [Configuring the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) for additional details
+
+## Chat Messages
+
+The most important data structure within `Sample` is the `ChatMessage`. Note that often datasets will contain a simple string as their input (which is then internally converted to a `ChatMessageUser`). However, it is possible to include a full message history as the input via `ChatMessage`. Another useful application of `ChatMessage` is providing multi-modal input (e.g. images).
+
+**Class** `inspect_ai.model.ChatMessage`
+
+| Field     | Type                                       | Description                                                                                                |
+|-------------------|---------------------|--------------------------------|
+| `role`    | `"system" | "user" | "assistant" | "tool"` | Role of this chat message.                                                                                 |
+| `content` | `str | list[ChatContent]`                  | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
+
+: {tbl-colwidths="\[10,35,55\]"}
+
+An input with chat messages in your dataset might will look something like this:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": "What cookie attributes should I use for strong security?"
+  }
+]
+```
+
+Note that for this example we wouldn't normally use a full chat message object (rather we'd just provide a simple string). Chat message objects are more useful when you want to include a system prompt or prime the conversation with "assistant" responses.
+
+## Image Input
+
+To include an image, your dataset input would look like this:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "text", "text": "What is this a picture of?"},
+        { "type": "image", "image": "picture.png"}
+    ]
+  }
+]
+```
+
+Where `"picture.png"` is located in the directory where your task runs. The image can be specified either as a URL (accessible to the model), a local file path, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the equivalent to the above would be:
+
+``` python
+ChatMessageUser(content = [
+    ContentText(text="What is this a picture of?"),
+    ContentImage(image="picture.png")
+])
+```
+
+::: {.callout-note appearance="simple"}
+Note that image input is currently only supported for Open AI vision models (e.g. [gpt-4-vision-preview](https://platform.openai.com/docs/guides/vision)), Google Gemini vision models (e.g. [gemini-pro-vision](https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/gemini-pro-vision)), and Anthropic Claude 3 models.
+:::
+
+## Custom Reader
+
+You are not restricted to the built in dataset functions for reading samples. Since the `dataset` field of the `Task` class takes either a `Dataset` or a sequences of`Sample`, the following is also valid:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import generate, system_message
+
+dataset=[
+    Sample(
+        input="What cookie attributes should I use for strong security?",
+        target="secure samesite and httponly",
+    )
+]
+
+@task
+def security_guide():
+    return Task(
+        dataset=dataset,
+        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        scorer=model_graded_fact(),
+    )
+```
+
+So if the built in dataset functions don't meet your needs, you can create a custom function that yields a list of `Sample` instances and pass those directly to your `Task`.

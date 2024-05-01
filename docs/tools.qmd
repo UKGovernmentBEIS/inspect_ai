@@ -1,0 +1,360 @@
+# Tools {#sec-tools}
+
+## Overview
+
+Many models now have the ability to interact with client-side Python functions in order to expand their capabilities. This enables you to equip models with your own set of custom tools so they can perform a wider variety of tasks.
+
+Inspect natively supports registering Python functions as tools and providing these tools to models that support them (currently OpenAI, Claude 3, Google Gemini, and Mistral). Inspect also includes one built-in tool (web search).
+
+::: {.callout-note}
+### Tools and Agents
+
+One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. We'll cover how to use agent scaffolds in [Agent Solvers](#agents) below.
+:::
+
+## Tool Basics
+
+To demonstrate the use of tools, we'll define a simple tool that adds two numbers. We use the `@tool` decorator to register it with the system, and we provide a documentation comment (including argument types) that is used to provide details to the model about the tool:
+
+``` python
+@tool(prompt="""
+    If you are given a math problem of any kind,
+    please use the add tool to compute the result."""
+)
+def add():
+    async def execute(x: int, y: int):
+        """
+        Tool for adding two numbers.
+
+        Args:
+            x (int): First number to add.
+            y (int): Second number to add.
+
+        Returns:
+            The sum of the two numbers.
+        """
+        return x + y
+
+    return execute
+```
+
+We can use this tool in an evaluation by passing it to the `use_tools()` Solver:
+
+``` python
+@task
+def addition_problem():
+    return Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2"])],
+        plan=[use_tools(add()), generate()],
+        scorer=match(numeric=True),
+    )
+```
+
+Note that this tool doesn't make network requests or do heavy computation, so is fine to run as inline Python code. If your tool does do more elaborate things, you'll want to make sure it plays well with Inspect's concurrency scheme. For network requests, this amounts to using `async` HTTP calls with `httpx`. For heavier computation, tools should use subprocesses as described in the next section.
+
+::: {.callout-note appearance="simple"}
+Note that when using tools with models, the models do not call the Python function directly. Rather, the model generates a structured request which includes function parameters, and then Inspect calls the function and returns the result to the model.
+:::
+
+## Subprocesses
+
+It's possible that your tool will need to launch a subprocess to do its work. When working with subprocesses its important to make sure that they don't block the rest of the work in the system (so they should be invoked with `async`) and that you don't run too many of them in parallel (which could overwhelm local compute resources).
+
+To assist with this, Inspect provides the `subprocess()` function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout (or stderr in the case of an error). The `subprocess()` function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`). Here's an example of using the `subprocess()` function to create a `list_files()` tool:
+
+``` python
+from inspect_ai.model import tool
+from inspect_ai.util import subprocess
+
+# define tool
+@tool(prompt=(
+    "If you are asked to list the files in a directory you should "
+    + "call the list_files function to access the listing."
+))
+def list_files():
+    async def execute(dir: str):
+        """List the files in a directory.
+
+        Args:
+            dir (str): Directory
+
+        Returns:
+            File listing of the directory
+        """
+        result = await subprocess(["ls", dir])
+        if result.success:
+            return result.stdout
+        else:
+            return f"Error: {result.stderr}"
+
+    return execute
+```
+
+Here's how we might use this tool in an evaluation:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+
+dataset = [
+  Sample(
+    input=(
+      "Please list the files in the /usr/local/bin directory. "
+      + "Is there a file named 'python3' in the directory?"
+    ),
+    target=["Yes"],
+  )
+]
+
+@task
+def bash():
+    return Task(
+        dataset=dataset,
+        plan=[
+            use_tools(list_files()),
+            generate(),
+        ],
+        scorer=includes(),
+    )
+```
+
+## Tool Choice
+
+By default models will use a tool if they think it's appropriate for the given task. You can override this behavior using the `tool_choice` parmaeter of the `use_tools()` Solver. For example:
+
+``` python
+# let the model decide whether to use the tool
+use_tools(addition(), tool_choice="auto")
+
+# force the use of a tool
+use_tools(addition(), tool_choice=ToolFunction(name="addition"))
+
+# prevent use of tools
+use_tools(addition(), tool_choice="none")
+```
+
+The last form (`tool_choice="none"`) would typically be used to turn off tool usage after an initial generation where the tool used. For example:
+
+``` python
+plan = [
+  use_tools(addition(), tool_choice=ToolFunction(name="addition")),
+  generate(),
+  follow_up_prompt(),
+  use_tools(tool_choice="none"),
+  generate()
+]
+```
+
+## Web Search
+
+Inspect has a built in `web_search()` tool that provides models with the ability to enhance their context window by performing a search. By default web searches retreives 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
+
+``` python
+def web_search(
+    provider: Literal["google"] = "google",
+    num_results: int = 3,
+    max_provider_calls: int = 3,
+    max_connections: int = 10,
+    model: str | Model | None = None,
+) -> Tool:
+    ...
+```
+
+You can use the `web_search()` tool in a plan like this:
+
+``` python
+plan=[
+    use_tools(web_search()), 
+    generate()
+],
+```
+
+Web search options include:
+
+-   `provider`---Web search provider (currently only Google is supported, see below for instructions on setup and configuration for Google).
+
+-   `num_results`---How many search results to return to the main model (defaults to 5).
+
+-   `max_provider_calls`---Number of times to retrieve more links from the search provider incase previous ones were irrelevant (defaults to 3)
+
+-   `max_connections`---Maximum number of concurrent connections to the search API provider (defaults to 10).
+
+-   `model`---Model to use to determine if search results are relevant (defaults to the model currently being evaluated).
+
+#### Google Provider
+
+The `web_search()` tool uses [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
+
+-   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
+
+-   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
+## Agent Solvers
+
+Agent solvers typically have multiple interactions with a model, generating completions, orchestrating the use of tools, and using the model to plan their next action. Agents are an area of active research, and many schemes for implementing them have been developed, including [AutoGPT](https://arxiv.org/abs/2306.02224), [ReAct](https://arxiv.org/pdf/2303.11366.pdf), and [Reflexion](https://arxiv.org/pdf/2303.11366.pdf). There are also Python libraries such [LangChain](https://python.langchain.com/docs/modules/agents/) and [Langroid](https://langroid.github.io/langroid/) which facilitate using these techniques with various LLMs.
+
+Inspect supports a wide variety of approaches to agents and agent libraries. Agent libraries generally take chat history as an input and produce a completion string as output—this interface can be easily adapted to solvers, with chat history coming from `TaskState` and completions being set as `ModelOutput`.
+
+There are several approaches to creating an Inspect solver that uses an agent scaffold:
+
+1.  Implement your own scaffolding (potentially implementing the ReAct algorithm or a derivative). This will involve repeated calls to `generate()` with various `tools` being made available in the `TaskState` for each call. It will also involve using the model to help determine what actions to take next.
+
+2.  Adapt another scaffolding scheme provided by a research paper or open source library.
+
+3.  Integrate a 3rd party agent library like [LangChain](https://python.langchain.com/docs/modules/agents/) and [Langroid](https://langroid.github.io/langroid/).
+
+If you are adapting research code or using a 3rd party library, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). We'll describe how to do that for [LangChain](https://python.langchain.com/docs/modules/agents/) in the example below.
+
+### Example: Wikipedia Search
+
+In this example we'll demonstrate how to integrate a LangChain OpenAI tools agent with Inspect. This agent will use Wikipedia via the [Tavili Search API](https://tavily.com/) to perform question answering tasks. If you want to start by getting some grounding in the code *without* the Inspect integration, see [this article](https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/) upon which the example is based.
+
+The main thing that an integration with an agent framework needs to account for is:
+
+1.  Bridging Inspect's model API into the API of the agent framework. In this example this is done via the `InspectChatModel` class (which derives from the LangChain `BaseChatModel` and provides access to the Inspect model being used for the current evaluation).
+
+2.  Bridging from the Inspect solver interface to the standard input and output types of the agent library. In this example this is provided by the `langchain_solver()` function, which takes a LangChain agent function and converts it to an Inspect solver.
+
+Here's the implementation of `langchain_solver()` (imports excluded for brevity):
+
+``` python
+# Interface for LangChain agent function
+class LangChainAgent(Protocol):
+    async def __call__(self, llm: BaseChatModel, input: dict[str, Any]): ...
+
+# Convert a LangChain agent function into a Solver
+def langchain_solver(agent: LangChainAgent) -> Solver:
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+
+        # create the inspect model api bridge
+        llm = InspectChatModel()
+
+        # call the agent
+        await agent(
+            llm = llm,
+            input = dict(
+                input=state.user_prompt.text,
+                chat_history=as_langchain_chat_history(
+                    state.messages[1:]
+                ),
+            )
+        )
+
+        # collect output from llm interface
+        state.messages = llm.messages
+        state.output = llm.output
+        state.output.completion = output
+        
+        # return state
+        return state
+
+    return solve
+
+# LangChain BaseChatModel for Inspect Model API
+class InspectChatModel(BaseChatModel):
+     async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
+        **kwargs: dict[str, Any],
+    ) -> ChatResult:
+        ...
+```
+
+::: {.callout-note appearance="simple"}
+Note that the the `inspect_langchain` module imported here is not a built in feature of Inspect. Rather, you can find its [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/langchain/inspect_langchain.py) as part of the example. You can use this to create your own LangChain agents or as the basis for creating similar integrations with other agent frameworks.
+:::
+
+Now here's the `wikipedia_search()` solver (imports again excluded for brevity):
+
+``` python
+@solver
+def wikipedia_search(
+    max_iterations: int | None = 15,
+    max_execution_time: float | None = None
+) -> Solver:
+    # standard prompt for tools agent
+    prompt = hub.pull("hwchase17/openai-tools-agent")
+
+    # tavily and wikipedia tools                # <1>
+    tavily_api = TavilySearchAPIWrapper()  # type: ignore
+    tools = (
+        [TavilySearchResults(api_wrapper=tavily_api)] + 
+        load_tools(["wikipedia"])
+    )
+
+    # agent function                            # <2>
+    async def agent(
+        llm: BaseChatModel, 
+        input: dict[str, Any]
+    ) -> str | list[str | dict[str,Any]]:  
+        # create agent
+        tools_agent = create_openai_tools_agent(
+          llm, tools, prompt
+        )
+        executor = AgentExecutor.from_agent_and_tools(
+            agent=cast(BaseMultiActionAgent, tools_agent),
+            tools=tools,
+            name="wikipedia_search",
+            max_iterations=max_iterations,  
+            max_execution_time=max_execution_time
+        )
+
+        # execute the agent and return output   # <3>
+        result = await executor.ainvoke(input)  
+        return result["output"]
+
+    # return agent function as inspect solver   # <4>
+    return langchain_solver(agent)
+```
+
+1.  Note that we register native LangChain tools. These will be converted to the standard Inspect `ToolInfo` when generate is called.
+2.  This is the standard interface to LangChain agents. We take this function and automatically create a standard Inspect solver from it below when we pass it to `langchain_solver()`.
+3.  Invoke the agent using the chat history passed in `input`. We call the async executor API to play well with Inspect's concurrency.
+4.  The `langchain_solver()` function maps the simpler agent function semantics into the standard Inspect solver API.
+
+If you reviewed the [original article](https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/) that this example was based on, you'll see that most of the code is unchanged (save for the fact that we have switched from a function agent to a tools agent). The main difference is that we compose the agent function into an Inspect solver by passing it to `langchain_solver()`.
+
+Finally, here's a task that uses the `wikipedia_search()` solver:
+
+``` python
+@task
+def wikipedia() -> Task:
+    return Task(
+        dataset=json_dataset("wikipedia.jsonl"),
+        plan=wikipedia_search(),
+        scorer=model_graded_fact(),
+    )
+```
+
+See the [working version](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain) of this example if you want to run and experiment with it.
+
+
+## Tool Params
+
+In some cases you may want to forward information from task metadata to a tool. This would be useful if you have some per-sample metadata that you want tools to condition their behavior on. To do this, specify the `params` option on the `@tool` decorator and specify the metadata value you would like to forward (these params will be then be passed to the function with the appropriate per-task value). For example:
+
+``` python
+@tool(
+   prompt = "Use the run_command function to run commands.",
+   params = dict(container_name="metadata.container_name")
+)
+def run_command():
+    """Run a command in a container.
+
+   Args:
+       container_name (str): Name of container to run within.
+       command (str): Command to run.
+
+   Returns:
+       Result of executing the command.
+   """
+   async def execute(container_name: str, command: str):
+       ...
+
+   return execute
+```
