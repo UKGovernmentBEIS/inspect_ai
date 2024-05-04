@@ -9,7 +9,7 @@ from http.server import HTTPServer
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 import psutil
 
@@ -128,9 +128,22 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
 
         # check for query params
         parsed = urlparse(path)
-        path = parsed.path
+
+        # read query parameters from the URL
         query_params = parse_qs(parsed.query)
         header_only = query_params.get("header-only", None) is not None
+
+        # reconstruct the path
+        path = urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                "",  # Clear the query component
+                parsed.fragment,
+            )
+        )
 
         ctype = self.guess_type(path)
         try:

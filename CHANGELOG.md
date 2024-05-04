@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.5 (04 May 2024)
+
+- Fix issue with logs from S3 buckets in inspect view.
+- Add `sort()` method to `Dataset` (defaults to sorting by sample input length).
+- Improve tokenization for HF provider (left padding, attention mask, and allow for custom chat template)
+- Improve batching for HF provider (generate as soon as queue fills, thread safety for future.set_result).
+- Various improvements to documentation.
+
 ## v0.3.4 (01 May 2024)
 
 - `write_eval_log()` now ignores unserializable objects in metadata fields.

@@ -75,7 +75,7 @@ class MistralAPI(ModelAPI):
             if not base_url:
                 raise ValueError(
                     "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
-                    + " environment variable or the --model_base_url CLI flag to set the base URL."
+                    + " environment variable or the --model-base-url CLI flag to set the base URL."
                 )
             model_args["endpoint"] = base_url
 

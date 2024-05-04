@@ -90,7 +90,7 @@ class OpenAIAPI(ModelAPI):
             if not base_url:
                 raise ValueError(
                     "You must provide a base URL when using OpenAI on Azure. Use the AZUREAI_OPENAI_BASE_URL "
-                    + " environment variable or the --model_base_url CLI flag to set the base URL."
+                    + " environment variable or the --model-base-url CLI flag to set the base URL."
                 )
 
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(

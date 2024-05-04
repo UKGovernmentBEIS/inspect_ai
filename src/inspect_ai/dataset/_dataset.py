@@ -1,11 +1,23 @@
 import abc
 import random
-from typing import Any, Callable, Iterator, Sequence, Union, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterator,
+    Optional,
+    Sequence,
+    Union,
+    overload,
+)
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai.model import ChatMessage
+
+if TYPE_CHECKING:
+    from _typeshed import SupportsRichComparison
 
 
 class Sample(BaseModel):
@@ -37,6 +49,21 @@ class Sample(BaseModel):
     """Arbitrary metadata associated with the sample."""
 
 
+def sample_input_len(sample: Sample) -> int:
+    """Measures the length of a samples `input` field.
+
+    The default length function use in `Dataset.sort()`.
+
+    Args:
+        sample (Sample): A Sample to be used in an evaluation task.
+    """
+    return (
+        len(sample.input)
+        if isinstance(sample.input, str)
+        else sum(len(inp.text) for inp in sample.input)
+    )
+
+
 DatasetRecord = dict[str, Any]
 
 DatasetReader = Iterator[DatasetRecord]
@@ -50,28 +77,22 @@ class Dataset(Sequence[Sample], abc.ABC):
     """
 
     @abc.abstractproperty
-    def name(self) -> str | None:
-        ...
+    def name(self) -> str | None: ...
 
     @abc.abstractproperty
-    def location(self) -> str | None:
-        ...
+    def location(self) -> str | None: ...
 
     @overload
-    def __getitem__(self, index: int) -> Sample:
-        ...
+    def __getitem__(self, index: int) -> Sample: ...
 
     @overload
-    def __getitem__(self, index: slice) -> "Dataset":
-        ...
+    def __getitem__(self, index: slice) -> "Dataset": ...
 
     @abc.abstractmethod
-    def __getitem__(self, index: Union[int, slice]) -> Union[Sample, "Dataset"]:
-        ...
+    def __getitem__(self, index: Union[int, slice]) -> Union[Sample, "Dataset"]: ...
 
     @abc.abstractmethod
-    def __len__(self) -> int:
-        ...
+    def __len__(self) -> int: ...
 
     @abc.abstractmethod
     def shuffle(self, seed: int | None = None) -> None:
@@ -81,6 +102,24 @@ class Dataset(Sequence[Sample], abc.ABC):
            seed: (int | None): Random seed for shuffling (optional).
         """
 
+    @abc.abstractmethod
+    def sort(
+        self,
+        reverse: bool = False,
+        key: Optional[Callable[[Sample], "SupportsRichComparison"]] = sample_input_len,
+    ) -> None:
+        """Sort the dataset (in place) in ascending order and return None.
+
+        If a key function is given, apply it once to each list item and sort them, ascending or descending, according to their function values.
+
+        The key function defaults to measuring the length of the sample's input field.
+
+        Args:
+            reverse (bool): if true, sort in descending order. Defaults to False.
+            key (Callable[[Any], Any]): a callable mapping each item to a numeric value (optional, defaults to sample_input_len).
+        """
+
+    @abc.abstractmethod
     def filter(
         self, predicate: Callable[[Sample], bool], name: str | None = None
     ) -> "Dataset":
@@ -93,11 +132,6 @@ class Dataset(Sequence[Sample], abc.ABC):
         Returns:
           Filtered dataset.
         """
-        return MemoryDataset(
-            name=name or self.name,
-            location=self.location,
-            samples=[sample for sample in self if predicate(sample)],
-        )
 
 
 class FieldSpec(BaseModel):
@@ -168,12 +202,10 @@ class MemoryDataset(Dataset):
         return self._location
 
     @overload
-    def __getitem__(self, index: int) -> Sample:
-        ...
+    def __getitem__(self, index: int) -> Sample: ...
 
     @overload
-    def __getitem__(self, index: slice) -> Dataset:
-        ...
+    def __getitem__(self, index: slice) -> Dataset: ...
 
     @override
     def __getitem__(self, index: Union[int, slice]) -> Union[Sample, Dataset]:
@@ -194,3 +226,21 @@ class MemoryDataset(Dataset):
             random.Random(seed).shuffle(self.samples)
         else:
             random.shuffle(self.samples)
+
+    @override
+    def sort(
+        self,
+        reverse: bool = False,
+        key: Optional[Callable[[Sample], "SupportsRichComparison"]] = sample_input_len,
+    ) -> None:
+        self.samples.sort(reverse=reverse, key=key)
+
+    @override
+    def filter(
+        self, predicate: Callable[[Sample], bool], name: str | None = None
+    ) -> "MemoryDataset":
+        return MemoryDataset(
+            name=name or self.name,
+            location=self.location,
+            samples=[sample for sample in self if predicate(sample)],
+        )

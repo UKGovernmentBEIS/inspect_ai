@@ -37,7 +37,7 @@ You can run this evaluation from the shell using the `inspect eval` command. For
 $ inspect eval theory.py --model openai/gpt-4
 ```
 
-![](images/running-theory.png)
+![](images/running-theory.png){fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete."}
 
 Immediately after an evaluation completes, a link to the log for the evaluation is written to the terminal (if you are running in VS Code this link will open the log in an editor within the IDE).
 
@@ -67,12 +67,12 @@ As you iterate on an evaluation, you'll typically want to dig further into messa
 $ inspect view
 ```
 
-![](images/inspect-view-main.png){.border .lightbox}
+![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displahing a summary of results for the task as well as 8 individual samples."}
 
 
 The log viewer will update automatically whenever a new evaluation is completed (you can also navigate back to previous evaluations). The log viewer summarises aggregate data and also provides a detailed view into each sample. For example, here we zoom in on the model's scoring explanation for a specific sample:
 
-![](images/inspect-view-scoring.png){.border .lightbox}
+![](images/inspect-view-scoring.png){.border .lightbox fig-alt="The Inspect log viewer showing a sample expanded, with details on the scoring of the sample, including the input, target, answer, and explanation."}
 
 See the [Log Viewer](#sec-log-viewer) section for additional details on using Inspect View.
 

@@ -183,7 +183,7 @@ Web search options include:
 
 -   `model`---Model to use to determine if search results are relevant (defaults to the model currently being evaluated).
 
-#### Google Provider
+### Google Provider
 
 The `web_search()` tool uses [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
 

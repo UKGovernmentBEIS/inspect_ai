@@ -9,7 +9,11 @@ from typing import Any, Literal, Protocol, cast
 import numpy as np
 import torch
 from torch import Tensor
-from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed  # type: ignore
+from transformers import (  # type: ignore
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    set_seed,
+)
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
@@ -55,6 +59,7 @@ class HuggingFaceAPI(ModelAPI):
         model_path = collect_model_arg("model_path")
         tokenizer_path = collect_model_arg("tokenizer_path")
         self.batch_size = collect_model_arg("batch_size")
+        self.chat_template = collect_model_arg("chat_template")
 
         # device
         if device:
@@ -88,6 +93,7 @@ class HuggingFaceAPI(ModelAPI):
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.padding_side = "left"
 
     async def generate(
         self,
@@ -129,6 +135,7 @@ class HuggingFaceAPI(ModelAPI):
                 tokenizer=tokenizer,
                 generator=generator,
                 decoder=decoder,
+                batch_size=config.max_connections or self.max_connections(),
             )
         )
 
@@ -165,9 +172,11 @@ class HuggingFaceAPI(ModelAPI):
         hf_messages = chat_api_input(messages)
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
-            hf_messages, add_generation_prompt=True, tokenize=False
+            hf_messages,
+            add_generation_prompt=True,
+            tokenize=False,
+            chat_template=self.chat_template,
         )
-
         # return
         return cast(str, chat)
 
@@ -182,18 +191,17 @@ def set_random_seeds(seed: int | None = None) -> None:
 
 
 class Tokenizer(Protocol):
-    def __call__(self, input: list[str]) -> dict[Literal["input_ids"], Tensor]:
-        ...
+    def __call__(
+        self, input: list[str]
+    ) -> dict[Literal["input_ids", "attention_mask"], Tensor]: ...
 
 
 class Generator(Protocol):
-    def __call__(self, input_ids: Tensor) -> Tensor:
-        ...
+    def __call__(self, input_ids: Tensor, attention_mask: Tensor) -> Tensor: ...
 
 
 class Decoder(Protocol):
-    def __call__(self, sequences: Tensor) -> list[str]:
-        ...
+    def __call__(self, sequences: Tensor) -> list[str]: ...
 
 
 @dataclass
@@ -203,6 +211,7 @@ class GenerateInput:
     tokenizer: Tokenizer
     generator: Generator
     decoder: Decoder
+    batch_size: int
 
 
 @dataclass
@@ -213,9 +222,16 @@ class GenerateOutput:
     total_tokens: int
 
 
+@dataclass
+class _QueueItem:
+    input: GenerateInput
+    future: asyncio.Future[GenerateOutput]
+    loop: asyncio.AbstractEventLoop
+
+
 batch_thread: Thread | None = None
 
-batch_queue: "Queue[tuple[GenerateInput, asyncio.Future[GenerateOutput]]]" = Queue()
+batch_queue: "Queue[_QueueItem]" = Queue()
 
 
 async def batched_generate(input: GenerateInput) -> GenerateOutput:
@@ -228,7 +244,7 @@ async def batched_generate(input: GenerateInput) -> GenerateOutput:
     # enque the job
     loop = asyncio.get_event_loop()
     future: asyncio.Future[GenerateOutput] = loop.create_future()
-    batch_queue.put((input, future))
+    batch_queue.put(_QueueItem(input=input, future=future, loop=loop))
 
     # await the job
     await future
@@ -244,8 +260,13 @@ def process_batches() -> None:
         while True:
             try:
                 input = batch_queue.get(timeout=2)
-                inputs.append(input)
+                loop = input.loop
+                inputs.append((input.input, input.future))
+                if len(inputs) == input.input.batch_size:
+                    # max batch size reached
+                    break
             except Empty:
+                # we have exhausted the queue
                 break
 
         # see if we have any work to do
@@ -261,12 +282,17 @@ def process_batches() -> None:
             decoder = first_input.decoder
 
             # tokenize and move to device
-            input_ids = tokenizer([item[0].input for item in inputs])["input_ids"]
+            tokenized_inputs = tokenizer([item[0].input for item in inputs])
+            input_ids = tokenized_inputs["input_ids"]
+            attention_mask = tokenized_inputs["attention_mask"]
             input_ids = input_ids.to(device)
+            attention_mask = attention_mask.to(device)
 
             # generate
             with torch.inference_mode():
-                generate_ids = generator(input_ids=input_ids)
+                generate_ids = generator(
+                    input_ids=input_ids, attention_mask=attention_mask
+                )
 
             # decode
             outputs = decoder(sequences=generate_ids[:, input_ids.size(dim=1) :])
@@ -276,15 +302,21 @@ def process_batches() -> None:
                 future = inputs[i][1]
                 input_tokens = input_ids.size(dim=1)
                 output_tokens = generate_ids.size(dim=1) - input_ids.size(dim=1)
-                future.set_result(
+
+                # asyncio futures are not thread safe, so we need to pass the event loop
+                # down to this point, so we can mark the future as done in a thread safe manner.
+                # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
+                loop.call_soon_threadsafe(
+                    future.set_result,
                     GenerateOutput(
                         output=output,
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
-                    )
+                    ),
                 )
+
         except Exception as ex:
-            for input in inputs:
-                future = input[1]
-                future.set_exception(ex)
+            for inp in inputs:
+                future = inp[1]
+                loop.call_soon_threadsafe(future.set_exception, ex)

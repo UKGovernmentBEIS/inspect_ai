@@ -108,6 +108,7 @@ dev = [
     "mistralai",
     "boto3",
     "transformers",
+    "accelerate",
     "torch",
     "datasets",
     "langchain",

@@ -17,7 +17,7 @@ book:
       description: "Open-source framework for large language model evaluations"
    sidebar:
       header: >
-         [![](images/aisi-logo.png)](https://www.gov.uk/government/organisations/ai-safety-institute)
+         [![](images/aisi-logo.png){fig-alt="UK AI Safety Institute Website"}](https://www.gov.uk/government/organisations/ai-safety-institute)
 
    page-footer: 
       left: 

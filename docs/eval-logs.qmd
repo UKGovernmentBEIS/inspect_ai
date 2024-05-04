@@ -8,7 +8,7 @@ Every time you use `inspect eval` or call the `eval()` function, an evaluation l
 $ inspect eval security_guide.py --model openai/gpt-4
 ```
 
-![](images/eval-log.png)
+![](images/eval-log.png){fig-alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."}
 
 You can also use the Inspect log viewer for interactive exploration of logs. Run this command once at the beginning of a working session (the view will update automatically when new evaluations are run):
 
@@ -16,7 +16,7 @@ You can also use the Inspect log viewer for interactive exploration of logs. Run
 $ inspect view
 ```
 
-![](images/inspect-view-main.png){.border .lightbox}
+![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displahing a summary of results for the task as well as 8 individual samples."}
 
 This section won't cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](#sec-log-viewer)  section for details on interactively exploring logs.
 

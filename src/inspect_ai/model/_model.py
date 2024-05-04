@@ -345,10 +345,11 @@ class ModelOutput(BaseModel):
         if len(self.choices) > 0:
             self.choices[0].message.text = completion
         else:
-            self.choices.append(ChatCompletionChoice(
-                message = ChatMessageAssistant(content = completion),
-                stop_reason="stop"
-            ))
+            self.choices.append(
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content=completion), stop_reason="stop"
+                )
+            )
 
     @staticmethod
     def from_content(
@@ -677,7 +678,7 @@ def get_model(
     model: str | Model | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
-    **model_args: dict[str, Any],
+    **model_args: Any,
 ) -> Model:
     """Get an instance of a model.
 
