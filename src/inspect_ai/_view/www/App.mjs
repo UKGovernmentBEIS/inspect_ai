@@ -22,11 +22,29 @@ export function App() {
   useEffect(() => {
     // Default select the first item
     let index = 0;
-
     setSelected(index);
   }, [logs]);
 
-  useEffect(() => {
+  useEffect(async () => {
+    // Read header information for the logs
+    // and then update
+    const headerResults = await Promise.all(logs.files.map((file) => {
+        return eval_log(file.name, true).then((result) => {
+          return { file: file.name, result };
+        }).catch(() => { return undefined});
+    }));
+    
+    // Update the headers
+    const updatedHeaders = logHeaders;
+    for (const headerResult of headerResults) {
+      if (headerResult) {
+        updatedHeaders[headerResult.file] = headerResult.result;
+      }
+    }
+    setLogHeaders({ ...updatedHeaders });
+  }, [logs]);
+
+  useEffect(async () => {
     const urlParams = new URLSearchParams(window.location.search);
 
     // Note whether we should default off canvas the sidebar
@@ -35,40 +53,21 @@ export function App() {
     // If the URL provides a task file, load that
     const logPath = urlParams.get("task_file");
     const loadLogs = logPath
-      ? () => {
+      ? async () => {
           setLogs({
             log_dir: "",
             files: [{ name: logPath }],
           });
         }
-      : () => {
-          eval_logs().then((logresult) => {
-            // Set the list of logs
-            setLogs(logresult);
+      : async () => {
+        // Set the list of logs
+          const logresult = await eval_logs();            
+          setLogs(logresult);
 
-            // Read header information for the logs
-            // and then update
-            const updatedHeaders = logHeaders;
-            Promise.all(
-              logresult.files.map(async (file) => {
-                try { 
-                  const result = await eval_log(file.name, true);
-                  return { file: file.name, result };
-                } catch { }
-              })
-            ).then((headerResults) => {
-              for (const headerResult of headerResults) {
-                if (headerResult) {
-                  updatedHeaders[headerResult.file] = headerResult.result;
-                }
-              }
-              setLogHeaders({ ...updatedHeaders });
-            });
-          });
         };
 
     // initial fetch of logs
-    loadLogs();
+    await loadLogs();
 
     // poll every 1s for events
     setInterval(() => {

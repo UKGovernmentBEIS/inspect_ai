@@ -3,7 +3,7 @@ from pathlib import Path
 PKG_AUTHOR = "UK AI Safety Institute"
 PKG_AUTHOR_DIR = "UK-AISI"
 PKG_NAME = Path(__file__).parent.parent.stem
-PKG_PATH = Path(__file__).parent.parent.parent.parent
+PKG_PATH = Path(__file__).parent.parent
 DEFAULT_EPOCHS = 1
 DEFAULT_MAX_RETRIES = 5
 DEFAULT_TIMEOUT = 120

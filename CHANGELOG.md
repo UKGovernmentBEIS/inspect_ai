@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.6 (06 May 2024)
+
+- Show first log file immediately (don't wait for fetching metadata for other logs)
+- Add `--version` CLI arg and `inspect info version` command for interogating version and runtime source path.
+- Fix: exclude `null` config values in output from `inspect info log-file`
+
 ## v0.3.5 (04 May 2024)
 
 - Fix issue with logs from S3 buckets in inspect view.
