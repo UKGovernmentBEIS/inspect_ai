@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg viewBox="0 0 128.084 128.671" xmlns="http://www.w3.org/2000/svg" xmlns:bx="https://boxy-svg.com">
+  <defs>
+    <style bx:fonts="Montserrat">@import url(https://fonts.googleapis.com/css2?family=Montserrat%3Aital%2Cwght%400%2C100..900%3B1%2C100..900&amp;display=swap);</style>
+  </defs>
+  <ellipse style="stroke: rgb(0, 0, 0); stroke-width: 10px; fill: none;" cx="63.749" cy="64.336" rx="57.286" ry="57.286" transform="matrix(0.9999999999999999, 0, 0, 0.9999999999999999, 0, -7.105427357601002e-15)"/>
+  <text style="fill: rgb(51, 51, 51); font-family: Montserrat; font-size: 86px; font-weight: 660;" x="50.767" y="95.182" transform="matrix(0.9999999999999999, 0, 0, 0.9999999999999999, 0, -7.105427357601002e-15)">i</text>
+</svg>

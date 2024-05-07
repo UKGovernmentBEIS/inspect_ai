@@ -1,0 +1,260 @@
+body {
+  --type-ramp-base-font-size: 13px;
+  --design-unit: 3;
+  padding: 0 14px 0.5em 14px;
+}
+
+
+.component-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.dropdown-container {
+  box-sizing: border-box;
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.full-width  {
+  width: 100%;
+}
+
+.two-cols > * {
+  flex-basis: calc(50% - .25em);
+}
+
+.hidden { 
+  display: none;
+}
+
+fast-number-field::part(label),
+.dropdown-container label {
+  display: block;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: var(--type-ramp-minus1-font-size);
+  line-height: 20px;
+  margin-bottom: 1px;
+}
+
+
+fieldset > vscode-text-field:nth-child(2) {
+  margin-top: 0;
+}
+
+fieldset {
+  padding-block-start: 0.75em;
+  padding-inline-start: 0em;
+
+  border-top: solid var(--panel-view-border) 1px;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+
+  width: 100%;
+}
+
+vscode-panels {
+  overflow: visible;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: .5em;
+}
+
+.cols {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+
+
+.empty-panel {
+  margin-top: 1em;
+  width: 100%;
+  height: 200px;
+  display: flex;
+  line-height: 20px;
+}
+
+.control-column > * {
+  flex-grow: 1;
+  flex-shrink: 0;
+}
+
+.no-wrap {
+  flex-wrap: nowrap;
+}
+
+form > fieldset:not(:first-child) {
+  margin-top: 1em;
+}
+
+form {
+  width: 100%;
+}
+
+fieldset > * {
+  flex-grow: 1;
+}
+
+vscode-panel-view {
+  padding-left: 2px;
+  padding-right: 0;
+}
+
+vscode-panels {
+  margin-left: -2px;
+}
+
+/* FAST COMPONENTS */
+
+
+fast-number-field::part(root),
+fast-combobox {
+  background: var(--vscode-dropdown-background);
+  border-radius: calc(var(--corner-radius-round) * 1px);
+  box-sizing: border-box;
+  color: var(--vscode-dropdown-foreground);
+  font-family: var(--font-family);
+  height: calc(var(--input-height) * 1px);
+  position: relative;
+  user-select: none;
+  min-width: var(--input-min-width);
+  outline: none;
+  vertical-align: top;
+  border-color: var(--vscode-dropdown-border);
+}
+
+fast-combobox:active::part(control) {
+  background: var(--vscode-dropdown-background);
+}
+
+fast-option,
+fast-combobox::part(listbox) {
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+}
+
+
+fast-number-field::part(root) {
+  min-width: 60px;
+}
+
+fast-number-field:focus::part(root),
+fast-combobox:focus {
+  border-color: var(--focus-border);
+}
+
+fast-number-field:focus-within:not([disabled])::part(root) {
+  box-shadow: none;
+}
+
+
+fast-option {
+  color: var(--vscode-foreground);
+  border-radius: calc(var(--corner-radius-round) * 1px);
+  height: 1.5em;
+}
+
+fast-option.selected,
+fast-option:hover 
+{
+  color: var(--vscode-list-activeSelectionForeground);
+  background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+fast-combobox::part(select-indicator)  {
+  margin: 0;
+  padding: 0;
+  min-height: 10px;
+  min-width: 10px;
+  width: 10px;
+  height: 10px;
+  max-width: 10px;
+  max-height: 10px;
+  font-size: 10px;
+  line-height: 10px;
+}
+
+
+fast-combobox::part(listbox) {
+  margin-top: -.5em;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+fast-combobox::part(control) {
+  padding-left: .4em;
+  padding-right: 0;
+}
+
+fast-combobox::part(indicator) {
+  margin-top: -.3em;
+}
+
+fast-combobox.open::part(control),
+fast-combobox.open::part(listbox) {
+  border: solid var(--vscode-focusBorder) 1px;
+}
+
+fast-combobox::part(option) {
+  padding: 8px 16px; /* Comfortable padding for each option */
+  font-family: Consolas, 'Courier New', monospace; /* Stylistic choice */
+}
+
+fast-number-field::part(step-up-glyph),
+fast-number-field::part(step-down-glyph) {
+  
+  padding: 4px 8px;
+  height: 8px;
+  width: 8px;
+  opacity: 0.7;
+}
+
+fast-number-field::part(step-up-glyph)::before {
+  border-width: 5px;
+  border-bottom-color: var(--vscode-activityBar-foreground)
+}
+fast-number-field::part(step-down-glyph)::before {
+  border-width: 5px;
+  border-top-color: var(--vscode-activityBar-foreground)
+}
+
+vscode-panels::part(tablist) {
+  column-gap: calc(var(--design-unit) * 4px);
+}
+
+vscode-panel-view {
+  padding-bottom: 0;
+}
+
+label vscode-link::part(control) {
+  margin-bottom: -.4em;
+  margin-top: -.1em;
+  line-height: var(--type-ramp-minus1-font-size);
+}
+
+vscode-text-field::part(label) {
+  font-size: var(--type-ramp-minus1-font-size);
+}
+
+vscode-checkbox{
+  font-size: var(--type-ramp-minus1-font-size);
+}
+
+vscode-text-field::part(root) {
+  min-width: 55px;
+}

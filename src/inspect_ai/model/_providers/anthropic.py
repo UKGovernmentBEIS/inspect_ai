@@ -207,6 +207,10 @@ class AnthropicAPI(ModelAPI):
     def collapse_user_messages(self) -> bool:
         return True
 
+    @override
+    def collapse_assistant_messages(self) -> bool:
+        return True
+
 
 #######################################################################################
 # Resolve input, tools, and config into the right shape of input for the Anthropic

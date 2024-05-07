@@ -156,12 +156,12 @@ from .util import parse_cli_args
     "--logprobs",
     type=bool,
     is_flag=True,
-    help="Return log probabilities of the output tokens. OpenAI and TogetherAI only.",
+    help="Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only.",
 )
 @click.option(
     "--top-logprobs",
     type=int,
-    help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI only.",
+    help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only.",
 )
 @common_options
 def eval_command(

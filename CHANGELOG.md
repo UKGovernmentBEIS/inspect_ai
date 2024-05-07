@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.7 (07 May 2024)
+
+- Add support for logprobs to HF provider, and create uniform API for other providers that support logprobs (Together and OpenAI).
+- Provide an option to merge asssistant messages and use it for Anthropoic models (as they don't allow consecutive assistant messages).
+- Supporting infrastructure in Inspect CLI for VS Code extension (additional list and info commands).
+
 ## v0.3.6 (06 May 2024)
 
 - Show first log file immediately (don't wait for fetching metadata for other logs)

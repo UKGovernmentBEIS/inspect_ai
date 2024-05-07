@@ -4,7 +4,7 @@ import functools
 import os
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Any, Callable, Literal, Union, cast
+from typing import Any, Callable, Literal, Type, Union, cast
 
 from pydantic import BaseModel, Field
 from tenacity import (
@@ -82,10 +82,10 @@ class GenerateConfigArgs(TypedDict, total=False):
     """How many chat completion choices to generate for each input message. Open AI, Google, and TogetherAI only."""
 
     logprobs: bool | None
-    """Return log probabilities of the output tokens. OpenAI and TogetherAI only."""
+    """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
 
     top_logprobs: int | None
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only."""
 
 
 class GenerateConfig(BaseModel):
@@ -140,10 +140,10 @@ class GenerateConfig(BaseModel):
     """How many chat completion choices to generate for each input message. Open AI, Google, and TogetherAI only."""
 
     logprobs: bool | None = Field(default=None)
-    """Return log probabilities of the output tokens. OpenAI and TogetherAI only."""
+    """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
 
     top_logprobs: int | None = Field(default=None)
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only."""
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]
@@ -303,14 +303,44 @@ StopReason = Literal["stop", "length", "tool_calls", "content_filter", "unknown"
 """Reason that the model stopped generating."""
 
 
+class TopLogprob(BaseModel):
+    token: str
+    """The top-kth token represented as a string."""
+
+    logprob: float
+    """The log probability value of the model for the top-kth token."""
+
+    bytes: list[int]
+    """The top-kth token represented as a byte array (a list of integers)."""
+
+
+class Logprob(BaseModel):
+    token: str
+    """The predicted token represented as a string."""
+
+    logprob: float
+    """The log probability value of the model for the predicted token."""
+
+    bytes: list[int]
+    """The predicted token represented as a byte array (a list of integers)."""
+
+    top_logprobs: list[TopLogprob] | None
+    """If the `top_logprobs` argument is greater than 0, this will contain an ordered list of the top K most likely tokens and their log probabilities."""
+
+
+class Logprobs(BaseModel):
+    content: list[Logprob]
+    """a (num_generated_tokens,) length list containing the individual log probabilities for each generated token."""
+
+
 class ChatCompletionChoice(BaseModel):
     message: ChatMessageAssistant
-    """Assistent message."""
+    """Assistant message."""
 
     stop_reason: StopReason = Field(default="unknown")
     """Reason that the model stopped generating."""
 
-    logprobs: dict[str, Any] | None = Field(default=None)
+    logprobs: Logprobs | None = Field(default=None)
     """Logprobs."""
 
 
@@ -433,6 +463,10 @@ class ModelAPI(abc.ABC):
         """Should consecutive user messages be collapsed into a single message."""
         return False
 
+    def collapse_assistant_messages(self) -> bool:
+        """Should consecutive assistant messages be collapsed into a single message."""
+        return False
+
 
 class Model:
     """Model interface."""
@@ -551,9 +585,12 @@ class Model:
                 if not is_inactive_tool_system_message(message)
             ]
 
-            # optionally collapse *consecutive* user messages into one - some apis eg anthropic require this
+            # optionally collapse *consecutive* messages into one - some apis eg anthropic require this
             if self.api.collapse_user_messages():
                 input = collapse_consecutive_user_messages(input)
+
+            if self.api.collapse_assistant_messages():
+                input = collapse_consecutive_assistant_messages(input)
 
         # retry for rate limit errors
         @retry(
@@ -803,32 +840,56 @@ def collapse_consecutive_user_messages(
     return functools.reduce(user_message_reducer, messages, [])
 
 
+# Functions to reduce consecutive assistant messages to a single user message -> required for some models
+def collapse_consecutive_assistant_messages(
+    messages: list[ChatMessage],
+) -> list[ChatMessage]:
+    return functools.reduce(assistant_message_reducer, messages, [])
+
+
 def user_message_reducer(
     messages: list[ChatMessage],
     message: ChatMessage,
 ) -> list[ChatMessage]:
+    return consecutive_message_reducer(messages, message, ChatMessageUser)
+
+
+def assistant_message_reducer(
+    messages: list[ChatMessage],
+    message: ChatMessage,
+) -> list[ChatMessage]:
+    return consecutive_message_reducer(messages, message, ChatMessageAssistant)
+
+
+def consecutive_message_reducer(
+    messages: list[ChatMessage],
+    message: ChatMessage,
+    message_type: Type[ChatMessage],
+) -> list[ChatMessage]:
     if (
-        isinstance(message, ChatMessageUser)
+        isinstance(message, message_type)
         and len(messages) > 0
-        and isinstance(messages[-1], ChatMessageUser)
+        and isinstance(messages[-1], message_type)
     ):
-        messages[-1] = combine_user_messages(messages[-1], message)
+        messages[-1] = combine_messages(messages[-1], message, message_type)
     else:
         messages.append(message)
     return messages
 
 
-def combine_user_messages(a: ChatMessageUser, b: ChatMessageUser) -> ChatMessageUser:
+def combine_messages(
+    a: ChatMessage, b: ChatMessage, message_type: Type[ChatMessage]
+) -> ChatMessageUser:
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return ChatMessageUser(content=f"{a.content}\n{b.content}")
+        return message_type(content=f"{a.content}\n{b.content}")
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return ChatMessageUser(content=a.content + b.content)
+        return message_type(content=a.content + b.content)
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return ChatMessageUser(content=b.content + [ContentText(text=a.content)])
+        return message_type(content=b.content + [ContentText(text=a.content)])
     else:
         content: list[Content] = [ContentText(text=a.text)]
         content.extend(cast(list[Content], b.content))
-        return ChatMessageUser(content=content)
+        return message_type(content=content)
 
 
 def init_async_context_model(model: Model) -> None:

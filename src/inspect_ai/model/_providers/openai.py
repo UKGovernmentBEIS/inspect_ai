@@ -33,6 +33,7 @@ from .._model import (
     ChatMessageAssistant,
     Content,
     GenerateConfig,
+    Logprobs,
     ModelAPI,
     ModelOutput,
     ModelUsage,
@@ -142,7 +143,7 @@ class OpenAIAPI(ModelAPI):
                 ),
                 **self.completion_params(config),
             )
-            choices = chat_choices_from_response(response)
+            choices = self._chat_choices_from_response(response)
             return ModelOutput(
                 model=response.model,
                 choices=choices,
@@ -164,6 +165,12 @@ class OpenAIAPI(ModelAPI):
                 stop_reason="content_filter",
                 error=str(error) if error else None,
             )
+
+    def _chat_choices_from_response(
+        self, response: ChatCompletion
+    ) -> list[ChatCompletionChoice]:
+        # adding this as a method so we can override from other classes (e.g together)
+        return chat_choices_from_response(response)
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -316,7 +323,9 @@ def chat_choices_from_response(response: ChatCompletion) -> list[ChatCompletionC
             message=chat_message_assistant(choice.message),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=(
-                choice.logprobs.model_dump() if choice.logprobs is not None else None
+                Logprobs(**choice.logprobs.model_dump())
+                if choice.logprobs is not None
+                else None
             ),
         )
         for choice in choices

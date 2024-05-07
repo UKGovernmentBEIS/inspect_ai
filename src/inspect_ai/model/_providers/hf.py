@@ -12,6 +12,7 @@ from torch import Tensor
 from transformers import (  # type: ignore
     AutoModelForCausalLM,
     AutoTokenizer,
+    PreTrainedTokenizerBase,
     set_seed,
 )
 from typing_extensions import override
@@ -23,9 +24,12 @@ from .._model import (
     ChatMessage,
     ChatMessageAssistant,
     GenerateConfig,
+    Logprob,
+    Logprobs,
     ModelAPI,
     ModelOutput,
     ModelUsage,
+    TopLogprob,
     simple_input_messages,
 )
 from .._tool import ToolChoice, ToolInfo
@@ -118,6 +122,11 @@ class HuggingFaceAPI(ModelAPI):
             kwargs["top_p"] = config.top_p
         if config.top_k is not None:
             kwargs["top_k"] = config.top_k
+        if config.logprobs is not None:
+            kwargs["output_logits"] = True
+        if "return_dict_in_generate" in kwargs:
+            assert kwargs["return_dict_in_generate"]
+        kwargs["return_dict_in_generate"] = True
         generator = functools.partial(self.model.generate, **kwargs)
 
         # prepare decoder
@@ -139,9 +148,24 @@ class HuggingFaceAPI(ModelAPI):
             )
         )
 
+        # gather logprobs
+        final_logprobs = None
+        if config.logprobs is not None:
+            final_logprobs = extract_logprobs(
+                response=response,
+                top_logprobs=config.top_logprobs,
+                tokenizer=self.tokenizer,
+            )
+
         # construct choice
         choice = ChatCompletionChoice(
-            message=ChatMessageAssistant(content=response.output, source="generate")
+            message=ChatMessageAssistant(
+                content=response.output,
+                source="generate",
+            ),
+            logprobs=Logprobs(content=final_logprobs)
+            if final_logprobs is not None
+            else None,
         )
 
         # return output
@@ -220,6 +244,7 @@ class GenerateOutput:
     input_tokens: int
     output_tokens: int
     total_tokens: int
+    logprobs: torch.Tensor | None
 
 
 @dataclass
@@ -290,12 +315,23 @@ def process_batches() -> None:
 
             # generate
             with torch.inference_mode():
-                generate_ids = generator(
+                generation_outputs = generator(
                     input_ids=input_ids, attention_mask=attention_mask
                 )
+                generate_ids = generation_outputs.sequences
+                logits = generation_outputs.logits
+
+            # get logprobs from logits
+            logprobs = None
+            if logits is not None:
+                logits = torch.stack(logits).transpose(0, 1)
+                logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
 
             # decode
-            outputs = decoder(sequences=generate_ids[:, input_ids.size(dim=1) :])
+            generated_tokens = generate_ids[:, input_ids.size(dim=1) :]
+            if logprobs is not None:
+                assert logprobs.shape[1] == generated_tokens.shape[1]
+            outputs = decoder(sequences=generated_tokens)
 
             # call back futures
             for i, output in enumerate(outputs):
@@ -313,6 +349,7 @@ def process_batches() -> None:
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
+                        logprobs=logprobs[i] if logprobs is not None else None,
                     ),
                 )
 
@@ -320,3 +357,36 @@ def process_batches() -> None:
             for inp in inputs:
                 future = inp[1]
                 loop.call_soon_threadsafe(future.set_exception, ex)
+
+
+def extract_logprobs(
+    response: GenerateOutput,
+    top_logprobs: int | None,
+    tokenizer: PreTrainedTokenizerBase,
+) -> list[Logprob]:
+    assert response.logprobs is not None
+    k = top_logprobs or 1
+    topk_values, topk_inds = response.logprobs.topk(k=k, dim=-1)
+    final_logprobs = []
+    for toks, vals in zip(topk_inds, topk_values):
+        top_logprobs = []
+        for tok, val in zip(toks, vals):
+            # TODO: you get byte artifacts converting single ids to tokens like this...
+            # but `tokenizer.decode` strips spaces. There must be a better way to do this.
+            token_str = tokenizer.convert_ids_to_tokens(tok.item())
+            top_logprobs.append(
+                TopLogprob(
+                    token=token_str,
+                    logprob=val,
+                    bytes=list(map(ord, token_str)),
+                )
+            )
+        final_logprobs.append(
+            Logprob(
+                token=top_logprobs[0].token,
+                logprob=top_logprobs[0].logprob,
+                bytes=top_logprobs[0].bytes,
+                top_logprobs=top_logprobs,
+            )
+        )
+    return final_logprobs

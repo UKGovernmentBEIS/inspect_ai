@@ -1,0 +1,352 @@
+{
+  "name": "inspect-ai",
+  "displayName": "Inspect",
+  "description": "Extension for the Inspect large language model evaluation framework.",
+  "publisher": "ukaisi",
+  "icon": "assets/logo/inspect.png",
+  
+  
+  "author": {
+    "name": "UK AI Safety Institute"
+  },
+  "version": "0.3.6",
+  "license": "MIT",
+  "homepage": "https://ukgovernmentbeis.github.io/inspect_ai/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UKGovernmentBEIS/inspect_ai"
+  },
+  "bugs": {
+    "url": "https://github.com/UKGovernmentBEIS/inspect_ai/issues"
+  },
+  "engines": {
+    "vscode": "^1.87.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Data Science",
+    "Testing"
+  ],
+  "extensionDependencies": [
+    "ms-python.python"
+  ],
+  "activationEvents": [
+    "onWebviewPanel:inspect.logview",
+    "onWebviewPanel:inspect_ai.task-configuration",
+    "onWebviewPanel:inspect_ai.env-configuration-view",
+    "onLanguage:python",
+    "workspaceContains:*.py",
+    "workspaceContains:*.ipynb"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "inspect.showLogview",
+        "title": "Show Logs",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.createTask",
+        "title": "Create Task",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.runTask",
+        "title": "Run Task",
+        "icon": "$(play)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.debugTask",
+        "title": "Debug Task",
+        "icon": "$(debug-alt)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.taskOutlineList",
+        "title": "Show as List",
+        "icon": "$(list-flat)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.taskOutlineTree",
+        "title": "Show as Tree",
+        "icon": "$(list-tree)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.runSelectedTask",
+        "title": "Run",
+        "icon": "$(play)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.debugSelectedTask",
+        "title": "Debug Task",
+        "icon": "$(debug-alt)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.editSelectedTask",
+        "title": "Edit Task",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.editEnvFile",
+        "title": "Edit .env file",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.runActiveTask",
+        "title": "Run Active Task",
+        "icon": "$(play)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.debugActiveTask",
+        "title": "Debug Active Task",
+        "icon": "$(debug-alt)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.runConfigTask",
+        "icon": "$(play)",
+        "title": "Run Task",
+        "enablement": "workspaceFolderCount != 0"        
+      },
+      {
+        "command": "inspect.debugConfigTask",
+        "icon": "$(debug-alt)",
+        "title": "Debug Task",
+        "enablement": "workspaceFolderCount != 0"        
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "inspect.runActiveTask",
+        "key": "ctrl+shift+u",
+        "mac": "cmd+shift+u",
+        "when": "inspect_ai.activeTask"
+      },
+      {
+        "command": "inspect.debugActiveTask",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t",
+        "when": "inspect_ai.activeTask"
+      },
+      {
+        "command": "inspect.showLogview",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l"
+      }
+    ],
+    "configuration": {
+      "title": "Inspect AI",
+      "properties": {
+        "inspect_ai.logViewAuto": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically show the Inspect log view when evaluations in the workspace complete."
+        },
+        "inspect_ai.logViewType": {
+          "type": "string",
+          "default": "html",
+          "enum": [
+            "html",
+            "text"
+          ],
+          "markdownEnumDescriptions": [
+            "Use `inspect view` to display evaluation log files.",
+            "Use a text editor to display evaluation log files."
+          ]
+        },
+        "inspect_ai.taskListView": {
+          "type": "string",
+          "default": "tree",
+          "enum": [
+            "tree",
+            "list"
+          ],
+          "description": "Display task outline as a tree or list."
+        },
+        "inspect_ai.debugSingleSample": {
+          "type": "boolean",
+          "default": true,
+          "description": "Limit evaluation to one sample when debugging."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "inspect_ai-activity-bar",
+          "title": "Inspect",
+          "icon": "assets/logo/inspect.svg"
+        }
+      ]
+    },
+    "views": {
+      "inspect_ai-activity-bar": [
+        {
+          "type": "webview",
+          "id": "inspect_ai.env-configuration-view",
+          "name": "Configuration (.env)",
+          "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false"
+        },
+        {
+          "type": "webview",
+          "id": "inspect_ai.task-configuration",
+          "name": "Task",
+          "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false"
+        },
+        {
+          "id": "inspect_ai.task-outline-view",
+          "name": "Tasks",
+          "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "inspect_ai.task-outline-view",
+        "contents": "Inspect Package not Installed",
+        "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect"
+      },
+      {
+        "view": "inspect_ai.task-outline-view",
+        "contents": "No tasks were found for this workspace.\n[Create a Task](command:inspect.createTask)",
+        "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.tasksLoaded && inspect_ai.task-outline-view.noTasks"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "inspect.taskOutlineList",
+          "when": "view == inspect_ai.task-outline-view && config.inspect_ai.taskListView == 'tree'"
+        },
+        {
+          "command": "inspect.taskOutlineTree",
+          "when": "view == inspect_ai.task-outline-view && config.inspect_ai.taskListView == 'list'"
+        },
+        {
+          "command": "inspect.debugConfigTask",
+          "when": "view == inspect_ai.task-configuration && inspect_ai.activeTask",
+          "group": "navigation"
+        },
+        {
+          "command": "inspect.runConfigTask",
+          "when": "view == inspect_ai.task-configuration && inspect_ai.activeTask",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "inspect.debugSelectedTask",
+          "group": "inline",
+          "when": "view == inspect_ai.task-outline-view && viewItem == runnable"
+        },
+        {
+          "command": "inspect.runSelectedTask",
+          "group": "inline",
+          "when": "view == inspect_ai.task-outline-view && viewItem == runnable"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "inspect.debugSelectedTask",
+          "when": "false"
+        },
+        {
+          "command": "inspect.runSelectedTask",
+          "when": "false"
+        },
+        {
+          "command": "inspect.runTask",
+          "when": "false"
+        },
+        {
+          "command": "inspect.debugTask",
+          "when": "false"
+        },
+        {
+          "command": "inspect.taskOutlineList",
+          "when": "false"
+        },
+        {
+          "command": "inspect.taskOutlineTree",
+          "when": "false"
+        },
+        {
+          "command": "inspect.editSelectedTask",
+          "when": "false"
+        },
+        {
+          "command": "inspect.runConfigTask",
+          "when": "false"
+        },
+        {
+          "command": "inspect.debugConfigTask",
+          "when": "false"
+        },
+        {
+          "command": "inspect.runActiveTask",
+          "when": "false"
+        },
+        {
+          "command": "inspect.debugActiveTask",
+          "when": "false"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "yarn run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "yarn run compile-tests && yarn run compile && yarn run lint",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.0",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.87.0",
+    "@typescript-eslint/eslint-plugin": "^7.4.0",
+    "@typescript-eslint/parser": "^7.4.0",
+    "@vscode/test-cli": "^0.0.8",
+    "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^2.26.1",
+    "css-loader": "^7.1.1",
+    "eslint": "^8.57.0",
+    "global": "^4.4.0",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.91.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@microsoft/fast-components": "^2.30.6",
+    "@microsoft/fast-element": "^1.13.0",
+    "@vscode/webview-ui-toolkit": "^1.4.0",
+    "lodash": "^4.17.21",
+    "semver": "^7.6.0"
+  }
+}

@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse, urlunparse
 
 import psutil
+from pydantic_core import to_jsonable_python
 
 from inspect_ai._display import display
 from inspect_ai._display.logger import init_logger
@@ -24,7 +25,12 @@ from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.file import FileSystem, file, filesystem
 from inspect_ai._util.http import InspectHTTPRequestHandler
-from inspect_ai.log._file import eval_log_json, list_eval_logs, read_eval_log
+from inspect_ai.log._file import (
+    eval_log_json,
+    list_eval_logs,
+    read_eval_log,
+    read_eval_log_headers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +40,7 @@ WWW_DIR = os.path.abspath((Path(__file__).parent / "www").as_posix())
 
 LOGS_PATH = "/api/logs"
 LOGS_DIR = f"{LOGS_PATH}/"
+LOG_HEADERS_PATH = "/api/log-headers"
 
 
 def view(
@@ -93,6 +100,8 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == LOGS_PATH:
             self.handle_logs()
+        elif self.path.startswith(LOG_HEADERS_PATH):
+            self.handle_log_headers()
         elif self.path.startswith(LOGS_DIR):
             self.handle_log()
         else:
@@ -120,6 +129,16 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
             )
         )
         self.send_json(json_files)
+
+    def handle_log_headers(self) -> None:
+        # check for query params
+        parsed = urlparse(self.path)
+        query_params = parse_qs(parsed.query)
+        files = query_params.get("file", [])
+        headers = read_eval_log_headers(files)
+        self.send_json(
+            json.dumps(to_jsonable_python(headers, exclude_none=True), indent=2)
+        )
 
     def handle_log(self) -> None:
         """Serve log files from /api/logs/* url."""

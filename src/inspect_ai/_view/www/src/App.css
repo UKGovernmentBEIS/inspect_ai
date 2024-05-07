@@ -1,3 +1,118 @@
+body[class^="vscode-"] {
+  --bs-border-radius: 0;
+  --bs-body-bg: var(--vscode-editor-background);
+  --bs-card-bg: var(--vscode-editor-background);
+  --bs-table-bg: var(--vscode-editor-background);
+  --bs-light-bg-subtle: var(--vscode-editor-selectionHighlightBackground);
+  --bs-body-color: var(--vscode-editor-foreground);
+  --bs-table-color: var(--vscode-editor-foreground);
+  --bs-accordion-btn-color: var(--vscode-editor-foreground);
+  --bs-emphasis-color: var(--vscode-editor-foreground);
+  --bs-navbar-brand-color: var(--vscode-editor-foreground);
+  --bs-navbar-brand-hover-color: var(--vscode-editor-foreground);
+  --bs-code-color: var(--vscode-editorInfo-foreground);
+  --bs-light: var(--vscode-peekViewTitle-background);
+  --bs-btn-bg: var(--vscode-peekViewTitle-background);
+  --bs-primary: var(--vscode-banner-iconForeground);
+  --bs-nav-pills-link-active-bg: var(--vscode-banner-iconForeground);
+  --bs-secondary: var(--vscode-breadcrumb-foreground);
+  --bs-secondary-bg: var(--vscode-list-inactiveSelectionBackground);
+  --bs-border-color: var(--vscode-editorGroup-border);
+  --bs-card-border-color: var(--vscode-editorGroup-border);
+}
+
+body[class^="vscode-"] code {
+  background-color: transparent;
+}
+
+
+body[class^="vscode-"] .accordion-button::after {
+  --bs-accordion-btn-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='black'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");      
+  background: white;
+  mask-image: var(--bs-accordion-btn-icon);
+}
+
+body[class^="vscode-"] .navbar-text i.bi {
+  color: var(--vscode-editor-foreground);
+}
+
+body[class^="vscode-"] .btn-tools {
+  --bs-btn-hover-bg: var(--vscode-peekViewTitle-background);
+  --bs-btn-bg: var(--vscode-peekViewTitle-background);
+  --bs-btn-border-color: var(--vscode-peekViewTitle-background); 
+  --bs-btn-hover-border-color: var(--vscode-peekViewTitle-background);
+  --bs-btn-color: var(--vscode-peekViewTitleDescription-foreground);
+  --bs-btn-hover-color: var(--vscode-peekViewTitleDescription-foreground);
+}
+
+body[class^="vscode-"] .navbar-brand {
+  --bs-navbar-brand-color: var(--vscode-sideBarSectionHeader-foreground);
+  --bs-navbar-brand-hover-color: var(--vscode-sideBarSectionHeader-foreground);
+}
+
+body[class^="vscode-"] .navbar-text {
+  --bs-navbar-color: var(--vscode-sideBarSectionHeader-foreground);
+}
+
+body[class^="vscode-"] .accordion-item {
+  --bs-accordion-active-bg: var(--vscode-list-inactiveSelectionBackground);
+}
+
+body[class^="vscode-"] .card-header {
+  --bs-border-color: var(--vscode-editorGroup-border);
+  --bs-card-border-color: var(--vscode-editorGroup-border);
+}
+
+body[class^="vscode-"] .card {
+  --bs-border-color: var(--vscode-editorGroup-border);
+  --bs-card-border-color: var(--vscode-editorGroup-border);
+}
+
+body[class^="vscode-"] .nav-pills {
+  --bs-nav-pills-link-active-bg: var(--vscode-list-inactiveSelectionBackground);
+  --bs-nav-pills-link-active-color: var(--vscode-editor-selectionForeground);
+}
+
+body[class^="vscode-"] .nav-link {
+  --bs-nav-link-color: var(--vscode-editor-selectionForeground);
+  --bs-link-hover-color: var(--vscode-editor-selectionForeground);
+}
+
+body[class^="vscode-"] .nav-link:hover {
+  --bs-nav-link-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-link-hover-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-tabs-link-hover-border-color: var(--vscode-editor-selectionForeground);
+}
+
+body[class^="vscode-"] .ansi-display {
+  --ansiBlack: var(--vscode-terminal-ansiBlack);
+  --ansiRed: var(--vscode-terminal-ansiRed);
+  --ansiGreen: var(--vscode-terminal-ansiGreen);
+  --ansiYellow: var(--vscode-terminal-ansiYellow);
+  --ansiBlue: var(--vscode-terminal-ansiBlue);
+  --ansiMagenta: var(--vscode-terminal-ansiMagenta);
+  --ansiCyan: var(--vscode-terminal-ansiCyan);
+  --ansiWhite: var(--vscode-terminal-ansiWhite);
+  --ansiBrightBlack: var(--vscode-terminal-ansiBrightBlack);
+  --ansiBrightRed: var(--vscode-terminal-ansiBrightRed);
+  --ansiBrightGreen: var(--vscode-terminal-ansiBrightGreen);
+  --ansiBrightYellow: var(--vscode-terminal-ansiBrightYellow);
+  --ansiBrightBlue: var(--vscode-terminal-ansiBrightBlue);
+  --ansiBrightMagenta: var(--vscode-terminal-ansiBrightMagenta);
+  --ansiBrightCyan: var(--vscode-terminal-ansiBrightCyan);
+  --ansiBrightWhite: var(--vscode-terminal-ansiBrightWhite);
+}
+
+body[class^="vscode-"] .sidebar .list-group {
+  --bs-tertiary-bg: var(--vscode-list-hoverBackground);
+  --bs-secondary-color: var(--vscode-foreground);
+  --bs-list-group-active-bg: var(--vscode-sideBarSectionHeader-background);
+  --bs-list-group-active-border-color: var(--vscode-sideBarSectionHeader-background);
+  --bs-list-group-action-active-bg: var(--vscode-sideBarSectionHeader-background);
+  --bs-list-group-active-color: var(--vscode-sideBarSectionHeader-foreground);
+}
+
+
 :root {
   --bs-navbar-padding-y: 0;
   --bs-navbar-brand-padding-y: 0;
@@ -7,6 +122,8 @@
 
 body {
   --bs-border-radius: "0";
+  margin: 0;
+  padding: 0;
 }
 
 .navbar {

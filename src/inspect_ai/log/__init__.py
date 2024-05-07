@@ -1,6 +1,5 @@
 from ._file import (
     EvalLogInfo,
-    eval_log_json,
     list_eval_logs,
     read_eval_log,
     write_eval_log,
@@ -43,5 +42,4 @@ __all__ = [
     "list_eval_logs",
     "read_eval_log",
     "write_eval_log",
-    "eval_log_json",
 ]

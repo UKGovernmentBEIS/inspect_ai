@@ -1,0 +1,19 @@
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate
+
+
+@task
+def {{<taskName>}}():
+
+    # TODO: load dataset
+    dataset = [Sample(input = "Say hello", target = "Hello.")]
+
+    return Task(
+        dataset=dataset,
+        plan=[
+          generate(),
+        ],
+        scorer=match(),
+    )

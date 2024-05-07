@@ -1,0 +1,62 @@
+.dropdown-container #provider {
+  flex-grow: 1;
+}
+
+#model-help {
+  float:right;
+}
+
+#model-help .codicon::before {
+  margin-top: 2px;
+  margin-bottom: -2px;
+}
+
+#model-display {
+  margin-top: 0.3em;
+  margin-bottom: 0.6em;
+}
+
+#model-container vscode-text-field,
+#model-container {
+  width: 100%;
+}
+
+#log-level {
+  margin-top: 3px;
+}
+
+#limit {
+  flex-basis: 1;
+  flex-grow: 1;
+}
+
+#epochs {
+  flex-basis: 1;
+  flex-grow: 1;
+}
+
+#log-dir {
+  flex-grow: 1;
+}
+
+#provider-label {
+  width: 100%;
+}
+
+#show-base-url-container {
+  width: 100%;
+}
+
+#show-base-url-container vscode-link {
+  float: right;
+  margin-right: 0.5em;
+  margin-top: -10px;
+  height: 10px;
+  color: var(--vscode-foreground);
+}
+
+#show-base-url-container vscode-link i:before {
+  height: 4px;
+  line-height: 4px;
+}
+

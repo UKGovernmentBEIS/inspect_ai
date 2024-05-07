@@ -150,6 +150,10 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
             return log
 
 
+def read_eval_log_headers(log_files: list[str] | list[FileInfo]) -> list[EvalLog]:
+    return [read_eval_log(log_file, header_only=True) for log_file in log_files]
+
+
 class FileRecorder(Recorder):
     def __init__(
         self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}

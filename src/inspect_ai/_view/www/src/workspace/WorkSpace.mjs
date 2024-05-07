@@ -27,7 +27,7 @@ import { ToolButton } from "../components/ToolButton.mjs";
 import { TabSet, Tab } from "../components/TabSet.mjs";
 import { SampleFilter } from "./SampleFilter.mjs";
 import { samplesDescriptor } from "./SamplesDescriptor.mjs";
-import { eval_log } from "../../api.mjs";
+import api from "../api/index.mjs";
 import { PlanCard } from "../plan/PlanCard.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -372,10 +372,12 @@ export const WorkSpace = (props) => {
    */
   const showLog = (log) => {
     if (log.contents) {
-      setSelectedTab(state, kEvalTabId);
+
+      const defaultTab = log.contents?.status === "success" ? kEvalTabId : kInfoTabId;
+      setSelectedTab(state, defaultTab);
 
       divRef.current.scrollTop = 0;
-      if (log.contents.samples.length <= 200) {
+      if (log.contents.samples?.length <= 200) {
         codeRef.current.innerHTML = Prism.highlight(
           JSON.stringify(log.contents, null, 2),
           Prism.languages.javascript,
@@ -394,16 +396,18 @@ export const WorkSpace = (props) => {
       if (state.log.path !== log.name) {
         setState({...state, status: "loading"});
         try {
-          const logContents = await eval_log(log?.name);
-          viewState.openSamples = [];
-          viewState.sort = kDefaultSort;
-          viewState.filter = {};
-          viewState.epoch = "all";
+          const logContents = await api.eval_log(log?.name, false);
+          if (logContents) {
+            viewState.openSamples = [];
+            viewState.sort = kDefaultSort;
+            viewState.filter = {};
+            viewState.epoch = "all";
 
-          setState({
-            log: { contents: logContents, path: log.name },
-            viewState,
-          });
+            setState({
+              log: { contents: logContents, path: log.name },
+              viewState,
+            });
+          }
         } catch (e) {
           // Show an error
           console.log(e);

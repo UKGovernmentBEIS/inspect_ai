@@ -1,22 +1,24 @@
 
 
+
 const loaded_time = Date.now()
 let last_eval_time = 0
 
-export async function client_events() {
-  const params = new URLSearchParams()
-  params.append("loaded_time", loaded_time.valueOf())
-  params.append("last_eval_time", last_eval_time.valueOf())
-  return api("GET", `/api/events?${params.toString()}`)
+
+async function client_events() {
+    const params = new URLSearchParams()
+    params.append("loaded_time", loaded_time.valueOf())
+    params.append("last_eval_time", last_eval_time.valueOf())
+    return api("GET", `/api/events?${params.toString()}`)
 }
 
-export async function eval_logs() {
+async function eval_logs() {
   const logs = await api("GET", `/api/logs`)
   last_eval_time = Date.now()
   return logs
 }
 
-export async function eval_log(file, headerOnly) {
+async function eval_log(file, headerOnly) {
   if (headerOnly) {
     return api("GET", `/api/logs/${file}?header-only=true`)
   } else {
@@ -24,7 +26,15 @@ export async function eval_log(file, headerOnly) {
   }
 }
 
-export async function api(method, path, body) {
+async function eval_log_headers(files) {
+  const params = new URLSearchParams();
+  for (const file of files) {
+    params.append("file", file);
+  }
+  return api("GET", `/api/log-headers?${params.toString()}`)
+}
+
+async function api(method, path, body) {
   // build headers
   const headers = {
     Accept: "application/json",
@@ -50,3 +60,11 @@ export async function api(method, path, body) {
   }
 
 }
+
+export default {
+  client_events,
+  eval_logs,
+  eval_log,
+  eval_log_headers
+}
+
