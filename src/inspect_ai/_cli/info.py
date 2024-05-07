@@ -50,7 +50,7 @@ def log(path: str, header_only: bool) -> None:
 def log_file_headers(files: tuple[str]) -> None:
     """Read and print a JSON list of log file headers."""
     headers = read_eval_log_headers(list(files))
-    print(dumps(to_jsonable_python(headers), indent=2))
+    print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))
 
 
 @info_command.command("log-schema")

@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.8 (07 May 2024)
+
+- Exclude null config values from listings in log viewer.
+
 ## v0.3.7 (07 May 2024)
 
 - Add support for logprobs to HF provider, and create uniform API for other providers that support logprobs (Together and OpenAI).

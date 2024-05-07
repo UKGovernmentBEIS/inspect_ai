@@ -23,7 +23,7 @@ import { inspectBinPath, inspectVersion } from "./inspect/props";
 
 export const kInspectViewOutputChannelName = "Inspect View";
 export const kInspectEnvironmentOutputChannelName = "Inspect Environment";
-const kInspectMinimumVersion = "0.3.6";
+const kInspectMinimumVersion = "0.3.8";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed

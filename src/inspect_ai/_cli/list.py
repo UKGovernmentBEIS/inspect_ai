@@ -76,7 +76,7 @@ def tasks(
 
     # print as JSON or plain text
     if json:
-        print(dumps(to_jsonable_python(tasks), indent=2))
+        print(dumps(to_jsonable_python(tasks, exclude_none=True), indent=2))
     else:
         print("\n".join([f"{task.file}@{task.name}" for task in tasks]))
 
