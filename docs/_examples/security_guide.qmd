@@ -1,6 +1,6 @@
 ## Security Guide {#sec-security-guide}
 
-The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [Open AI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
+The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [OpenAI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
 
 | input                                                                        | target                                                    |
 |-----------------------------------------|-------------------------------|

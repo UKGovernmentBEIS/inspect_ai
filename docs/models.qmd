@@ -14,7 +14,7 @@ Inspect has built in support for a variety of language model API providers and c
 | TogetherAI   | `pip install openai`              | `TOGETHER_API_KEY`                                                     |
 | AWS Bedrock  | `pip install boto3`               | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
 | Azure AI     | None required                     | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL`                      |
-| CloudFlare   | None required                     | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`                     |
+| Cloudflare   | None required                     | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`                     |
 
 : {tbl-colwidths="\[18,45,37\]"}
 
@@ -32,7 +32,7 @@ To select a model for use in an evaluation task you specify it using a *model na
 | TogetherAI   | `together/lmsys/vicuna-13b-v1.5`  | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                 |
 | AWS Bedrock  | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/)                                           |
 | Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)                                          |
-| CloudFlare   | `cf/meta/llama-2-7b-chat-fp16`    | [CloudFlare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation)       |
+| Cloudflare   | `cf/meta/llama-2-7b-chat-fp16`    | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation)       |
 
 : {tbl-colwidths="\[18,45,37\]"}
 
@@ -73,7 +73,7 @@ Each model also can use a different base URL than the default (e.g. if running t
 | TogetherAI  | `TOGETHER_BASE_URL`   |
 | AWS Bedrock | `BEDROCK_BASE_URL`    |
 | Azure AI    | `AZUREAI_BASE_URL`    |
-| CloudFlare  | `CLOUDFLARE_BASE_URL` |
+| Cloudflare  | `CLOUDFLARE_BASE_URL` |
 
 : {tbl-colwidths="\[50,50\]"}
 
@@ -312,11 +312,11 @@ The additional `model_args` are forwarded as follows for the various providers:
 | Hugging Face | `AutoModelForCausalLM.from_pretrained` |
 | TogetherAI   | `AsyncOpenAI`                          |
 | AzureAI      | Chat HTTP Post Body                    |
-| CloudFlare   | Chat HTTP Post Body                    |
+| Cloudflare   | Chat HTTP Post Body                    |
 
 : {tbl-colwidths="\[30,70\]"}
 
-See the OpenAI, Anthropic, Google, Mistral, Hugging Face, TogetherAI, Azure AI, and CloudFlare provider documentation for more information on the additional options available.
+See the OpenAI, Anthropic, Google, Mistral, Hugging Face, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.
 
 ## Custom Models
 

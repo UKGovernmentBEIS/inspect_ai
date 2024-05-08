@@ -122,7 +122,7 @@ def bash():
 
 ## Tool Choice
 
-By default models will use a tool if they think it's appropriate for the given task. You can override this behavior using the `tool_choice` parmaeter of the `use_tools()` Solver. For example:
+By default models will use a tool if they think it's appropriate for the given task. You can override this behavior using the `tool_choice` parameter of the `use_tools()` Solver. For example:
 
 ``` python
 # let the model decide whether to use the tool
@@ -177,7 +177,7 @@ Web search options include:
 
 -   `num_results`---How many search results to return to the main model (defaults to 5).
 
--   `max_provider_calls`---Number of times to retrieve more links from the search provider incase previous ones were irrelevant (defaults to 3)
+-   `max_provider_calls`---Number of times to retrieve more links from the search provider in case previous ones were irrelevant (defaults to 3).
 
 -   `max_connections`---Maximum number of concurrent connections to the search API provider (defaults to 10).
 

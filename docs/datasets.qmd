@@ -210,7 +210,7 @@ ChatMessageUser(content = [
 ```
 
 ::: {.callout-note appearance="simple"}
-Note that image input is currently only supported for Open AI vision models (e.g. [gpt-4-vision-preview](https://platform.openai.com/docs/guides/vision)), Google Gemini vision models (e.g. [gemini-pro-vision](https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/gemini-pro-vision)), and Anthropic Claude 3 models.
+Note that image input is currently only supported for OpenAI vision models (e.g. [gpt-4-vision-preview](https://platform.openai.com/docs/guides/vision)), Google Gemini vision models (e.g. [gemini-pro-vision](https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/gemini-pro-vision)), and Anthropic Claude 3 models.
 :::
 
 ## Custom Reader

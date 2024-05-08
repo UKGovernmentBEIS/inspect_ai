@@ -39,7 +39,7 @@ Note that in these examples we won't show a `--model` command line argument when
 
 ## Security Guide {#sec-security-guide}
 
-The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [Open AI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
+The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [OpenAI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
 
 | input                                                                        | target                                                    |
 |-----------------------------------------|-------------------------------|
@@ -66,7 +66,7 @@ computer security and provide a short response in a few words.
 
 ### Eval {.unlisted}
 
-Discering whether the correct security guideance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
+Discerning whether the correct security guideance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
 
 ```{python}
 @task
@@ -699,7 +699,7 @@ inspect eval addition_problem.py
 
 ## File Listing {.unlisted}
 
-The next examples demonstrates how to define a tool that calls an external processs.
+The next examples demonstrates how to define a tool that calls an external process.
 
 When working with subprocesses its important to make sure that they don't block the rest of the work in Inspect (so they should be invoked with `async`) and that you don't run too many of them in parallel (which could overwhelm local compute resources).
 

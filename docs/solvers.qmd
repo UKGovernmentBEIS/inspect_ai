@@ -31,7 +31,7 @@ def theory_of_mind():
 Typically, a call to `generate()` is included in the list of solvers (this solver is just a simple call to the model). You can also create a more sophisticated solver that calls `generate()` internally, perhaps even more than once (this is often required for more complex evaluations). Next, we'll describe how solvers operate on *task states* to do their work.
 
 ::: {.callout-note appearance="simple"}
-The concept of using solvers and task states for evals was originally introduced in [Open AI Evals](https://github.com/openai/evals/blob/main/evals/solvers/README.md). Inspect solvers are an evolution of this core design.
+The concept of using solvers and task states for evals was originally introduced in [OpenAI Evals](https://github.com/openai/evals/blob/main/evals/solvers/README.md). Inspect solvers are an evolution of this core design.
 :::
 
 ## Task States
@@ -52,7 +52,7 @@ A prompt engineering solver will modify the content of `messages`. A model gener
 
 ## Solver Function
 
-We've covered the role of solvers in the system, but what exactly are solvers technically? A solver is a Python function that tasks a `TaskState` and `generate` function, and then transforms and returns the `TaskState` (the `generate` function may or may not be called depending on the solver).
+We've covered the role of solvers in the system, but what exactly are solvers technically? A solver is a Python function that takes a `TaskState` and `generate` function, and then transforms and returns the `TaskState` (the `generate` function may or may not be called depending on the solver).
 
 ``` python
 async def solve(state: TaskState, generate: Generate):
@@ -79,7 +79,7 @@ Here are what some of the built-in solvers do with the `TaskState`:
 
 4.  The `self_critique()` solver takes the `ModelOutput` and then sends it to another model for critique. It then replays this critique back within the `messages` stream and re-calls `generate` to get a refined answer.
 
-You can also imagine solvers that call other models to help come up with a better prompt, or solvers the implement a multi-turn dialog. Anything you can imagine is possible.
+You can also imagine solvers that call other models to help come up with a better prompt, or solvers that implement a multi-turn dialog. Anything you can imagine is possible.
 
 ## Built-In Solvers
 
@@ -316,7 +316,7 @@ In this example the `finish_up()` solver will always be called even if the plan 
 
 ## Plan Cleanup
 
-If your solvers allocate resources (for example, run a Docker container or mount a drive), you will want to make sure that these resources are cleaned up even in the case of an error occurring during the evaluaton. To arrange for this, use a `Plan` object with a `cleanup` function:
+If your solvers allocate resources (for example, run a Docker container or mount a drive), you will want to make sure that these resources are cleaned up even in the case of an error occurring during the evaluation. To arrange for this, use a `Plan` object with a `cleanup` function:
 
 ```python
 

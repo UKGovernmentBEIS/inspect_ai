@@ -131,7 +131,7 @@ One thing to keep in mind if you are storing logs on S3 is that they will no lon
 
 ## Log CLI Commands
 
-We've shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. Typescript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.
+We've shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.
 
 ### Listing Logs
 
@@ -160,7 +160,7 @@ $ inspect info log-file file:///home/user/log/logfile.json
 $ inspect info log-file s3://my-evals-bucket/logfile.json
 ```
 
-Log files are stored in JSON. You can get the JSON schema and Typescript type definitions for the log file format with the following calls to `inspect info`:
+Log files are stored in JSON. You can get the JSON schema and TypeScript type definitions for the log file format with the following calls to `inspect info`:
 
 ``` bash
 $ inspect info log-schema
