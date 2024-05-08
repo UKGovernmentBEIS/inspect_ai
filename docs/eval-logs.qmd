@@ -23,7 +23,7 @@ This section won't cover using `inspect view` though. Rather, it will cover the 
 
 ## Log Location
 
-By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable
+By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:
 
 ``` bash
 $ inspect eval popularity.py --model openai/gpt-4 --log-dir ./experiment-log
@@ -108,7 +108,7 @@ Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False`
 
 The example above isn't quite complete as it doesn't demonstrate checking the log for success status. This also begs the question of what to do with failed evaluation tasks. In some cases failed tasks need further debugging, but in other cases they may have failed due to connectivity or API rate limiting. For these cases, Inspect includes an `eval_retry()` function that you can pass a log to.
 
-Here's an example of checking for logs with errors and retrying them with a lower number of max connections(the theory in this case being that too many concurrent connections may have caused a rate limit error:
+Here's an example of checking for logs with errors and retrying them with a lower number of max connections (the theory in this case being that too many concurrent connections may have caused a rate limit error):
 
 ``` python
 logs = list_eval_logs(filter = lambda log: log.status == "error")

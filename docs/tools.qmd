@@ -205,7 +205,7 @@ There are several approaches to creating an Inspect solver that uses an agent sc
 
 3.  Integrate a 3rd party agent library like [LangChain](https://python.langchain.com/docs/modules/agents/) and [Langroid](https://langroid.github.io/langroid/).
 
-If you are adapting research code or using a 3rd party library, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). We'll describe how to do that for [LangChain](https://python.langchain.com/docs/modules/agents/) in the example below.
+If you are adapting research code or using a 3rd party library, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!) We'll describe how to do that for [LangChain](https://python.langchain.com/docs/modules/agents/) in the example below.
 
 ### Example: Wikipedia Search
 

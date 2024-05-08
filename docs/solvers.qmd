@@ -45,7 +45,7 @@ class TaskState:
 ```
 
 ::: {.callout-note appearance="simple"}
-Note that the above is a bit of simplification, there are other fields in a `TaskState` but we're excluding them here for clarity.
+Note that the `TaskState` definition above is simplified: there are other fields in a `TaskState` but we're excluding them here for clarity.
 :::
 
 A prompt engineering solver will modify the content of `messages`. A model generation solver will call the model, append an assistant `message`, and set the `output` (a multi-turn dialog solver might do this in a loop).
