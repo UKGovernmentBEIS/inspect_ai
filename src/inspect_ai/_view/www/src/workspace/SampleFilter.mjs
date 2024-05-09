@@ -106,7 +106,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
 
 const SelectFilter = ({ options, filterFn }) => {
   return html`
-    <div style=${{ display: "flex", marginRight: "0.5rem" }}>
+    <div style=${{ display: "flex" }}>
       <span
         class="sample-label"
         style=${{ alignSelf: "center", marginRight: "0.5em" }}

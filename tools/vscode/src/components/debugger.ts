@@ -8,7 +8,7 @@ export class DebuggerManager {
     debug.onDidStartDebugSession((debugSession: DebugSession) => {
       if (this.activeSession_) {
         throw new Error(
-          "Unxpectedly tried to start a debug session when one is already running!"
+          "Unexpectedly tried to start a debug session when one is already running!"
         );
       }
       if (debugSession.configuration.name === sessionName_) {

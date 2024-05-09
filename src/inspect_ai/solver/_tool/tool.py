@@ -44,7 +44,7 @@ r"""Tool type.
 
 Valid tool types include:
  - Functions that return a Tool
- - Classes derivied from Tool
+ - Classes derived from Tool
 """
 
 
@@ -77,7 +77,7 @@ def tool(
     Args:
         prompt (str):
             System prompt associated with this tool (provides
-            guideance to the LLM on how to use the tool)
+            guidance to the LLM on how to use the tool)
         name (str | None):
             Optional name for tool. If the decorator has no name
             argument then the name of the underlying ToolType
@@ -102,7 +102,7 @@ def tool(
     Returns:
         Tool with registry attributes.
     """
-    # remove spurous spacing from prompt (can occur if a multline string
+    # remove spurious spacing from prompt (can occur if a multiline string
     # is used to specify the prompt)
     if prompt:
         prompt = re.sub(r"\s+", " ", prompt)
@@ -113,7 +113,7 @@ def tool(
             tool_type, name if name else getattr(tool_type, "__name__")
         )
 
-        # wrap instatiations of scorer so they carry registry info and metrics
+        # wrap instantiations of scorer so they carry registry info and metrics
         def tool_wrapper(*args: Any, **kwargs: Any) -> Tool:
             tool = tool_type(*args, **kwargs)
             registry_tag(

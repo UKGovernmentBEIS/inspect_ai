@@ -1,8 +1,8 @@
-
+import { existsSync } from "node:fs";
 import { AbsolutePath, toAbsolutePath } from "../path";
 import { runProcess, spawnProcess } from "../process";
-import { pythonInterpreter } from "./interpreter";
-
+import { PythonInterpreter, pythonInterpreter } from "./interpreter";
+import { dirname, join } from "path";
 
 export function runPythonModule(
   module: string,
@@ -12,16 +12,53 @@ export function runPythonModule(
   return runPython(["-m", module, ...args], cwd);
 }
 
+export function pythonBinaryPath(
+  interpreter: PythonInterpreter,
+  binary: string
+): AbsolutePath | null {
+  // First trying using the interpreter's bin dir to find Inspect
+  if (interpreter.pythonBinDir) {
+    const binaryPath = toAbsolutePath(interpreter.pythonBinDir)
+      .child(inspectBinDir())
+      .child(binary);
+    if (existsSync(binaryPath.path)) {
+      return binaryPath;
+    }
+  }
 
-export function pythonBinaryPath(pythonBinDir: string, binary: string = "python3"): AbsolutePath {
-  return toAbsolutePath(pythonBinDir).child(inspectBinDir()).child(binary);
+  // We couldn't find it, so now look around based upon heuristics
+  const path = platformPaths(interpreter, binary).find((path) => {
+    return existsSync(path);
+  });
+  if (path) {
+    return toAbsolutePath(path);
+  } else {
+    return null;
+  }
 }
 
-export function runPython(
-  args: string[],
-  cwd?: AbsolutePath
-) {
+// A list of heuristic paths to use if we can't find inspect
+// using the interpreter path. This will happen in cases
+// where the global interpreter is being used (and it doesn't install
+// scripts relative to the interpreter but instead in a global location)
+const platformPaths = (interpreter: PythonInterpreter, binary: string) => {
+  switch (process.platform) {
+    case "darwin": {
+      // find the folder that contained the python bin
+      const binDir =
+        interpreter.execCommand && interpreter.execCommand.length > 0
+          ? dirname(interpreter.execCommand[0])
+          : "";
+      return [join(binDir, binary)];
+    }
+    case "linux":
+      return [join(process.env.HOME || "", ".local", "bin", binary)];
+    default:
+      return [];
+  }
+};
 
+export function runPython(args: string[], cwd?: AbsolutePath) {
   const execCommand = pythonInterpreter().execCommand;
   if (execCommand) {
     args = [...execCommand.slice(1), ...args];
@@ -51,9 +88,7 @@ export function spawnPython(
   } else {
     throw new Error("No active Python interpreter available.");
   }
-
 }
-
 
 export function spawnPythonModule(
   module: string,
@@ -70,7 +105,6 @@ export function spawnPythonModule(
 ) {
   return spawnPython(["-m", module, ...args], cwd, io, lifecycle);
 }
-
 
 function inspectBinDir(): string {
   switch (process.platform) {

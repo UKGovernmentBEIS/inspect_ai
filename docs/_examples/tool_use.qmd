@@ -71,7 +71,7 @@ inspect eval addition_problem.py
 
 ## File Listing {.unlisted}
 
-The next examples demonstrates how to define a tool that calls an external processs.
+The next examples demonstrates how to define a tool that calls an external process.
 
 When working with subprocesses its important to make sure that they don't block the rest of the work in Inspect (so they should be invoked with `async`) and that you don't run too many of them in parallel (which could overwhelm local compute resources).
 

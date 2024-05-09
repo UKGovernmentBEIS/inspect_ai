@@ -164,7 +164,7 @@ class EvalSpec(BaseModel):
     """Unique task id."""
 
     run_id: str = Field(default="")
-    """Unqiue run id"""
+    """Unique run id"""
 
     created: str
     """Time created."""
@@ -182,7 +182,7 @@ class EvalSpec(BaseModel):
     """Attributes of the @task decorator."""
 
     task_args: dict[str, Any] = Field(default={})
-    """Arguments used for involing the task."""
+    """Arguments used for invoking the task."""
 
     model_args: dict[str, Any] = Field(default={})
     """Model specific arguments."""
@@ -309,7 +309,7 @@ class EvalLog(BaseModel):
     """Eval identity and configuration."""
 
     plan: EvalPlan = Field(default=EvalPlan())
-    """Eval plan (sovers and config)"""
+    """Eval plan (solvers and config)"""
 
     results: EvalResults | None = None
     """Eval results (scores and metrics)."""

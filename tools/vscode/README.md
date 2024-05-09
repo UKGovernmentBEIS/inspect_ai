@@ -4,7 +4,7 @@ VS Code extension for the Inspect framework for large language model evaluations
 
 - Integrated viewer for evaluation log files
 - Panel to browse, run, and debug tasks in the workspace
-- Panel for editting Inspect `.env` file
+- Panel for editing Inspect `.env` file
 - Panel for configuring task CLI options and args
 - Commands and key-bindings for running tasks
 - Commands and key-bindings for debugging tasks

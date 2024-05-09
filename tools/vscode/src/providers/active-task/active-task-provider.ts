@@ -11,6 +11,7 @@ import {
   Uri,
   commands,
   window,
+
 } from "vscode";
 import { sleep } from "../../core/wait";
 import {
@@ -20,7 +21,7 @@ import {
 import { InspectEvalManager } from "../inspect/inspect-eval";
 import { Command } from "../../core/command";
 
-// Activates the provider which tracks the curently active task (document and task name)
+// Activates the provider which tracks the currently active task (document and task name)
 export function activateActiveTaskProvider(
   inspectEvalManager: InspectEvalManager,
   context: ExtensionContext
@@ -55,7 +56,7 @@ export interface ActiveTaskChangedEvent {
 // Tracks task information for the current editor
 export class ActiveTaskManager {
   constructor(context: ExtensionContext) {
-    // Listen for the editor changing and udpate task state
+    // Listen for the editor changing and update task state
     // when there is a new selection
     context.subscriptions.push(
       window.onDidChangeTextEditorSelection(async (event) => {
@@ -63,6 +64,18 @@ export class ActiveTaskManager {
           event.textEditor.document,
           event.selections[0]
         );
+      })
+    );
+
+    context.subscriptions.push(
+      window.onDidChangeActiveNotebookEditor(async (event) => {
+        if (window.activeNotebookEditor?.selection.start) {
+          const cell = event?.notebook.cellAt(window.activeNotebookEditor.selection.start);
+          await this.updateActiveTask(
+            cell?.document,
+            new Selection(new Position(0, 0), new Position(0, 0))
+          );
+        }
       })
     );
 
@@ -97,8 +110,10 @@ export class ActiveTaskManager {
     if (document && selection) {
       if (document.languageId === "python") {
         const activeTaskInfo = await getTaskInfo(document, selection);
-        this.setActiveTaskInfo(activeTaskInfo);
-        taskActive = activeTaskInfo !== undefined;
+        if (activeTaskInfo) {
+          this.setActiveTaskInfo(activeTaskInfo);
+          taskActive = activeTaskInfo !== undefined;
+        }
       }
       await commands.executeCommand(
         "setContext",
@@ -133,7 +148,10 @@ async function getTaskInfo(
       document.uri
     );
     count++;
-    await sleep(500);
+    if (!symbols) {
+      await sleep(500);
+    }
+
   } while (count <= 5 && !symbols);
 
   if (symbols) {

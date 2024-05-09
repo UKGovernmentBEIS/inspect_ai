@@ -6,6 +6,7 @@ import {
   ConfigurationTarget,
   ExtensionContext,
   ViewColumn,
+  commands
 } from "vscode";
 
 import { Command } from "../../core/command";
@@ -19,8 +20,8 @@ import { writeFileSync } from "fs";
 
 import { readTemplate, templates } from "../../components/templates";
 import { isValidPythonFnName } from "../../core/python";
-import { documentHasTasks, taskRangeForDocument } from "../../components/document";
-import { isNotebook, taskRangeForNotebook } from "../../components/notebook";
+import { documentHasTasks, firstTaskRangeForDocument, taskRangeForDocument } from "../../components/document";
+import { firstTaskRangeForNotebook, isNotebook, taskRangeForNotebook } from "../../components/notebook";
 import { scheduleReturnFocus } from "../../components/focus";
 import { InspectLogviewManager } from "../logview/logview-manager";
 
@@ -102,21 +103,36 @@ export class EditSelectedTaskCommand implements Command {
       if (isNotebook(fileUri)) {
         // Compute the cell and position of the task
         const notebookDocument = await workspace.openNotebookDocument(fileUri);
-        const taskSelection = task
-          ? await taskRangeForNotebook(task, notebookDocument)
-          : undefined;
+
+        const findTaskSelection = async (task: string | undefined) => {
+          if (task) {
+            return await taskRangeForNotebook(task, notebookDocument);
+          } else {
+            return await firstTaskRangeForNotebook(notebookDocument);
+          }
+        };
+        const taskSelection = await findTaskSelection(task);
 
         // Open the notebook to the specified cell, if any
         const selections = taskSelection?.cell ? [taskSelection?.cell] : undefined;
         await window.showNotebookDocument(notebookDocument, { selections, preview: false, viewColumn: findTargetViewColumn(logViewColumn) });
+        if (selections) {
+          await commands.executeCommand('notebook.cell.edit');
+        }
       } else {
+
         // Find the task selection for the document (if any)
-        const taskSelection = task
-          ? await taskRangeForDocument(task, fileUri)
-          : undefined;
+        const findTaskSelection = async (task: string | undefined) => {
+          if (task) {
+            return taskRangeForDocument(task, fileUri);
+          } else {
+            return await firstTaskRangeForDocument(fileUri);
+          }
+        };
+        const selection = await findTaskSelection(task);
 
         // Show the document
-        await window.showTextDocument(fileUri, { selection: taskSelection, viewColumn: findTargetViewColumn(logViewColumn), preview: false });
+        await window.showTextDocument(fileUri, { selection, viewColumn: findTargetViewColumn(logViewColumn), preview: false });
       }
     }
   }

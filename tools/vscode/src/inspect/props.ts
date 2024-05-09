@@ -8,8 +8,10 @@ import { pythonBinaryPath, pythonInterpreter } from "../core/python";
 import { AbsolutePath, toAbsolutePath } from "../core/path";
 import { Disposable } from "vscode";
 import { runProcess } from "../core/process";
+import { join } from "path";
+import { userRuntimeDir } from "../core/appdirs";
 
-
+const kPythonPackageName = "inspect_ai";
 
 // we cache the results of these functions so long as 
 // they (a) return success, and (b) the active python 
@@ -125,16 +127,14 @@ export function inspectViewPath(): AbsolutePath | null {
   }
 }
 
-
-
 export function inspectBinPath(): AbsolutePath | null {
   if (inspectPropsCache_.binPath) {
     return inspectPropsCache_.binPath;
   } else {
     const interpreter = pythonInterpreter();
-    if (interpreter.available && interpreter.pythonBinDir) {
+    if (interpreter.available) {
       try {
-        const binPath = pythonBinaryPath(interpreter.pythonBinDir, inspectFileName());
+        const binPath = pythonBinaryPath(interpreter, inspectFileName());
         if (binPath) {
           inspectPropsCache_.setBinPath(binPath);
         }
@@ -148,6 +148,11 @@ export function inspectBinPath(): AbsolutePath | null {
       return null;
     }
   }
+}
+
+export function inspectLastEvalPath(): AbsolutePath | null {
+  const lastEvalFile = join(userRuntimeDir(kPythonPackageName), "view", "last-eval");
+  return toAbsolutePath(lastEvalFile);
 }
 
 function inspectFileName(): string {

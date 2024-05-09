@@ -163,7 +163,7 @@ def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
     Args:
       path (str): Local path or remote URL e.g. s3://).  The
         `fsspec` package is used to resolve filesystem URLs.
-      fs_options (dict[str, Any]): Optional. Addional arguments to pass through
+      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
         if you are accessing a public S3 bucket with no credentials.
 

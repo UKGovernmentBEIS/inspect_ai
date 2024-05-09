@@ -3,20 +3,19 @@ import {
   Disposable,
   EventEmitter,
   Event,
-  FileSystemWatcher,
-  OutputChannel,
   Uri,
-  workspace,
-  GlobPattern,
 } from "vscode";
 import { clearEnv, readEnv, writeEnv } from "../../core/env";
 import { isEqual } from "lodash";
 import { workspaceEnvCommands } from "./workspace-env-commands";
 import { activeWorkspaceFolder } from "../../core/workspace";
+import { log } from "../../core/log";
+import { statSync } from "fs";
+import { toAbsolutePath, workspaceRelativePath } from "../../core/path";
 
-export function activateWorkspaceEnv(outputChannel: OutputChannel): [Command[], WorkspaceEnvManager] {
+export function activateWorkspaceEnv(): [Command[], WorkspaceEnvManager] {
   // Monitor changes to the file
-  const envManager = new WorkspaceEnvManager(outputChannel);
+  const envManager = new WorkspaceEnvManager();
   return [workspaceEnvCommands(), envManager];
 }
 
@@ -25,26 +24,27 @@ export interface EnvironmentChangedEvent { }
 
 // Manages the workspace environment
 export class WorkspaceEnvManager implements Disposable {
-  constructor(
-    outputChannel: OutputChannel
-  ) {
-
+  constructor() {
     const envUri = this.getEnvUri();
     this.env = readEnv(envUri);
-
-
-    // When the file changes, notify listeners if it is 
-    // actually different
-    const onChange = (uri: Uri) => {
-      const newEnv = readEnv(uri);
-      if (!isEqual(this.env, newEnv)) {
-        this.env = newEnv;
-        this.onEnvironmentChanged_.fire({});
+    this.lastUpdated_ = Date.now();
+    const envRelativePath = workspaceRelativePath(toAbsolutePath(envUri.fsPath));
+    log.appendLine(`Watching ${envRelativePath}`);
+    this.envWatcher_ = setInterval(() => {
+      const envUpdated = statSync(envUri.fsPath).mtime.getTime();
+      if (envUpdated > this.lastUpdated_) {
+        this.lastUpdated_ = envUpdated;
+        const newEnv = readEnv(envUri);
+        if (!isEqual(this.env, newEnv)) {
+          log.appendLine(`${envRelativePath} changed`);
+          this.env = newEnv;
+          this.onEnvironmentChanged_.fire({});
+        }
       }
-    };
-    this.envWatcher_ = new EnvFileWatcher("**/.env", outputChannel, onChange);
+    }, 1000);
   }
-  private envWatcher_: EnvFileWatcher;
+  private envWatcher_: NodeJS.Timeout;
+  private lastUpdated_: number;
   private env: Record<string, string> = {};
 
   public getValues(): Record<string, string> {
@@ -87,42 +87,9 @@ export class WorkspaceEnvManager implements Disposable {
   }
 
   dispose() {
-    this.envWatcher_.dispose();
+    if (this.envWatcher_) {
+      log.appendLine(`Stop watching .env`);
+      clearTimeout(this.envWatcher_);
+    }
   }
 }
-
-class EnvFileWatcher implements Disposable {
-  constructor(
-    envGlob: GlobPattern,
-    private readonly outputChannel_: OutputChannel,
-    onChange: (e: Uri) => void
-  ) {
-    this.outputChannel_.appendLine("Watching environment...");
-    this.watcher = workspace.createFileSystemWatcher(
-      envGlob,
-      false,
-      false,
-      false
-    );
-    const myChanged = (uri: Uri) => {
-      onChange(uri);
-    };
-
-    this.disposables.push(this.watcher.onDidCreate(myChanged));
-    this.disposables.push(this.watcher.onDidChange(myChanged));
-    this.disposables.push(this.watcher.onDidDelete(myChanged));
-  }
-  [Symbol.dispose](): void {
-    throw new Error("Method not implemented.");
-  }
-
-  dispose() {
-    this.disposables.forEach((d) => { d.dispose(); });
-    this.outputChannel_.appendLine("Stopping watching environment...");
-    this.watcher.dispose();
-  }
-  private watcher: FileSystemWatcher;
-  private disposables: Disposable[] = [];
-}
-
-

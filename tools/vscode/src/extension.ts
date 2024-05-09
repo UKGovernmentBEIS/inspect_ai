@@ -1,4 +1,4 @@
-import { ExtensionContext, MessageItem, OutputChannel, window } from "vscode";
+import { ExtensionContext, MessageItem, window } from "vscode";
 
 import { CommandManager } from "./core/command";
 import { activateCodeLens } from "./providers/codelens/codelens-provider";
@@ -21,8 +21,6 @@ import { activateInspectManager } from "./providers/inspect/inspect-manager";
 import { checkActiveWorkspaceFolder } from "./core/workspace";
 import { inspectBinPath, inspectVersion } from "./inspect/props";
 
-export const kInspectViewOutputChannelName = "Inspect View";
-export const kInspectEnvironmentOutputChannelName = "Inspect Environment";
 const kInspectMinimumVersion = "0.3.8";
 
 // This method is called when your extension is activated
@@ -52,10 +50,7 @@ export async function activate(context: ExtensionContext) {
   const [stateCommands, stateManager] = activateWorkspaceState(context);
 
   // For now, create an output channel for env changes
-  const envOutputChannel = window.createOutputChannel(
-    kInspectEnvironmentOutputChannelName
-  );
-  const workspaceActivationResult = activateWorkspaceEnv(envOutputChannel);
+  const workspaceActivationResult = activateWorkspaceEnv();
   const [envComands, workspaceEnvManager] = workspaceActivationResult;
   context.subscriptions.push(workspaceEnvManager);
 
@@ -76,11 +71,6 @@ export async function activate(context: ExtensionContext) {
   // Active the workspace manager to watch for tasks
   const workspaceTaskMgr = activateWorkspaceTaskProvider(inspectManager, context);
 
-  // Create the inspect view output channel
-  const viewOutputChannel = window.createOutputChannel(
-    kInspectViewOutputChannelName
-  );
-
   // Read the extension configuration
   const settingsMgr = new InspectSettingsManager(() => {
     // If settings have changed, see if we need to stop or start the file watcher
@@ -91,7 +81,7 @@ export async function activate(context: ExtensionContext) {
       settingsMgr.getSettings().logViewAuto &&
       inspectLogviewManager
     ) {
-      startLogWatcher(logviewWebviewManager, viewOutputChannel);
+      startLogWatcher(logviewWebviewManager);
     }
   });
 
@@ -123,7 +113,7 @@ export async function activate(context: ExtensionContext) {
 
   // Activate the file watcher for this workspace
   if (settingsMgr.getSettings().logViewAuto) {
-    startLogWatcher(logviewWebviewManager, viewOutputChannel);
+    startLogWatcher(logviewWebviewManager);
   }
 
   // Activate Code Lens
@@ -154,11 +144,9 @@ let logFileWatcher: LogViewFileWatcher | undefined;
 
 const startLogWatcher = (
   logviewWebviewManager: InspectLogviewManager,
-  viewOutputChannel: OutputChannel
 ) => {
   logFileWatcher = new LogViewFileWatcher(
-    logviewWebviewManager,
-    viewOutputChannel
+    logviewWebviewManager
   );
 };
 
@@ -177,7 +165,7 @@ const checkInspectVersion = async () => {
       const close: MessageItem = { title: "Close" };
       await window.showInformationMessage<MessageItem>(
         "The VS Code extension requires a newer version of Inspect. Please update " +
-        "with pip install —upgrade inspect-ai",
+        "with pip install --upgrade inspect-ai",
         close
       );
     }

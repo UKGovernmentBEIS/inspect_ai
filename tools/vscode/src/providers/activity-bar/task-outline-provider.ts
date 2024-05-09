@@ -345,9 +345,11 @@ async function findTask(
       } else {
         taskEl = el;
       }
-      break;
     } else if (el.taskPath.type === "folder") {
       taskEl = await findTask(filePath, treeDataProvider, taskName, el);
+    }
+    if (taskEl) {
+      return taskEl;
     }
   }
   return taskEl;

@@ -266,7 +266,7 @@ async def batched_generate(input: GenerateInput) -> GenerateOutput:
         batch_thread = Thread(target=process_batches, daemon=True)
         batch_thread.start()
 
-    # enque the job
+    # enqueue the job
     loop = asyncio.get_event_loop()
     future: asyncio.Future[GenerateOutput] = loop.create_future()
     batch_queue.put(_QueueItem(input=input, future=future, loop=loop))
@@ -280,7 +280,7 @@ async def batched_generate(input: GenerateInput) -> GenerateOutput:
 
 def process_batches() -> None:
     while True:
-        # drain the queue (wait until no new messages have shown up for 2 secones)
+        # drain the queue (wait until no new messages have shown up for 2 seconds)
         inputs: list[tuple[GenerateInput, asyncio.Future[GenerateOutput]]] = []
         while True:
             try:

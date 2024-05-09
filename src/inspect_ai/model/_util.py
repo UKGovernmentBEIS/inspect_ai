@@ -54,7 +54,7 @@ async def chat_api_request(
 def chat_api_input(input: list[ChatMessage]) -> list[dict[str, str]]:
     """Prepare chat prompt data for sending in an HTTP POST request.
 
-    Many chat APIs (e.g. Mistral and CloudFlare) take the OpenAI
+    Many chat APIs (e.g. Mistral and Cloudflare) take the OpenAI
     role/content data structure. This is a convenience function that
     takes the `input` to `generate()` and converts it into a JSON
     serializable object that conforms to this structure.
@@ -145,7 +145,7 @@ def chat_api_tool(tool: ToolInfo) -> ChatApiTool:
 
 # When calling chat_api_request() we use tenacity as the retry wrapper, so
 # checking for rate limit errors needs to punch through the RetryError and
-# look at its `__cause__`. we've observed CloudFlare giving transient 500
+# look at its `__cause__`. we've observed Cloudflare giving transient 500
 # status as well as a ReadTimeout, so we count these as rate limit errors
 def is_chat_api_rate_limit(ex: BaseException) -> bool:
     return isinstance(ex, RetryError) and (

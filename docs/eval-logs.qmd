@@ -16,14 +16,14 @@ You can also use the Inspect log viewer for interactive exploration of logs. Run
 $ inspect view
 ```
 
-![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displahing a summary of results for the task as well as 8 individual samples."}
+![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."}
 
 This section won't cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](#sec-log-viewer)  section for details on interactively exploring logs.
 
 
 ## Log Location
 
-By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable
+By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:
 
 ``` bash
 $ inspect eval popularity.py --model openai/gpt-4 --log-dir ./experiment-log
@@ -98,7 +98,7 @@ os.environ["INSPECT_LOG_DIR"] = "./experiment-logs"
 eval(popularity, model="openai/gpt-4")
 eval(security_guide, model="openai/gpt-4")
 
-# analyze the reuslts in the logs
+# analyze the results in the logs
 logs = list_eval_logs()
 ```
 
@@ -108,7 +108,7 @@ Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False`
 
 The example above isn't quite complete as it doesn't demonstrate checking the log for success status. This also begs the question of what to do with failed evaluation tasks. In some cases failed tasks need further debugging, but in other cases they may have failed due to connectivity or API rate limiting. For these cases, Inspect includes an `eval_retry()` function that you can pass a log to.
 
-Here's an example of checking for logs with errors and retrying them with a lower number of max connections(the theory in this case being that too many concurrent connections may have caused a rate limit error:
+Here's an example of checking for logs with errors and retrying them with a lower number of max connections(the theory in this case being that too many concurrent connections may have caused a rate limit error):
 
 ``` python
 logs = list_eval_logs(filter = lambda log: log.status == "error")
@@ -131,7 +131,7 @@ One thing to keep in mind if you are storing logs on S3 is that they will no lon
 
 ## Log CLI Commands
 
-We've shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. Typescript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.
+We've shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.
 
 ### Listing Logs
 
@@ -160,7 +160,7 @@ $ inspect info log-file file:///home/user/log/logfile.json
 $ inspect info log-file s3://my-evals-bucket/logfile.json
 ```
 
-Log files are stored in JSON. You can get the JSON schema and Typescript type definitions for the log file format with the following calls to `inspect info`:
+Log files are stored in JSON. You can get the JSON schema and TypeScript type definitions for the log file format with the following calls to `inspect info`:
 
 ``` bash
 $ inspect info log-schema

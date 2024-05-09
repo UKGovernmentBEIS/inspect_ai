@@ -103,7 +103,7 @@ class TaskState:
         Tasks are very general and can have may types of inputs.
         However, in many cases solvers assume they can interact with
         the state as a "chat" in a predictable fashion (e.g. prompt
-        engineering solvers). This propery enables easy read and
+        engineering solvers). This property enables easy read and
         write access to the user chat prompt. Raises an
         exception if there is no user prompt
 
@@ -141,7 +141,7 @@ class Solver(Protocol):
     r"""Contribute to solving an evaluation task.
 
     Contribute to the solution of a task by transforming a TaskState
-    (e.g. prompt enhancement, eliciation, etc.). Solvers return a
+    (e.g. prompt enhancement, elicitation, etc.). Solvers return a
     TaskState (which could simply be a modified version of the one
     they were passed) and optionally may call the generate() function
     to generate output (and a new TaskState with that output).
@@ -167,7 +167,7 @@ r"""Solver type.
 
 Valid solver types include:
  - Functions that return a Solver
- - Classes derivied from Solver
+ - Classes derived from Solver
 """
 
 
@@ -225,7 +225,7 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
     Returns:
         Solver with registry attributes.
 
-    Exmaples:
+    Examples:
         @solver
         def prompt_cot(state: TaskState, generate: Generate) -> None:
             ...
@@ -276,7 +276,7 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
 
         return wrapper
 
-    # create a solver wrapper for the passsed solver_type
+    # create a solver wrapper for the passed solver_type
     else:
         solver_type = name
         return create_solver_wrapper(solver_type)

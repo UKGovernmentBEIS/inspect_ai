@@ -54,7 +54,7 @@ def view(
     init_dotenv()
     init_logger(log_level)
 
-    # intialize the right filesytem for this log_dir
+    # initialize the right filesystem for this log_dir
     log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
     fs = filesystem(log_dir, fs_options)
 

@@ -49,7 +49,7 @@ def test_collapse_consecutive_assistant_messages_alternating_messages(
     assert collapse_consecutive_assistant_messages(messages) == messages
 
 
-def test_collapse_consecutive_assistant_messages_consecutive_assistaht_messages(
+def test_collapse_consecutive_assistant_messages_consecutive_assistant_messages(
     assistant_message_str,
 ):
     messages = [assistant_message_str, assistant_message_str, assistant_message_str]

@@ -70,7 +70,7 @@ r"""Scorer type.
 
 Valid scorer types include:
  - Functions that return a Scorer
- - Classes derivied from Scorer
+ - Classes derived from Scorer
 """
 
 
@@ -130,7 +130,7 @@ def scorer(
             scorer_type, name if name else getattr(scorer_type, "__name__")
         )
 
-        # wrap instatiations of scorer so they carry registry info and metrics
+        # wrap instantiations of scorer so they carry registry info and metrics
         def scorer_wrapper(*args: Any, **kwargs: Any) -> Scorer:
             scorer = scorer_type(*args, **kwargs)
 

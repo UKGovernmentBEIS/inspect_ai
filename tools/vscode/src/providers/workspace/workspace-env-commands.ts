@@ -16,7 +16,7 @@ export class EditEnvFileCommand implements Command {
     const absPath = workspacePath(`.env`);
 
 
-    // Ensure env file actuall exists
+    // Ensure env file actually exists
     if (!existsSync(absPath.path)) {
       writeFileSync(absPath.path,
         "",

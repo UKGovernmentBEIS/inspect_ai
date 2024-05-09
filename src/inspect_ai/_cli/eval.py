@@ -104,7 +104,7 @@ from .util import parse_cli_args
 @click.option(
     "--best-of",
     type=int,
-    help="Generates best_of completions server-side and returns the 'best' (the one withthe highest log probability per token). OpenAI only.",
+    help="Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only.",
 )
 @click.option(
     "--frequency-penalty",

@@ -1,5 +1,6 @@
 import { extname } from "path";
 import { DocumentSymbol, NotebookCellKind, NotebookDocument, NotebookRange, Position, Range, Selection, Uri, commands } from "vscode";
+import { symbolIsTask } from "./symbol";
 
 export interface NotebookCellSelection {
   cell: NotebookRange,
@@ -29,6 +30,34 @@ export const taskRangeForNotebook = async (task: string, document: NotebookDocum
   if (cellSelection) {
     const symbol = cellSelection.symbols.find((sym) => {
       return sym.name === task;
+    });
+
+    if (symbol) {
+      const position = new Position(symbol.range.start.line + 1, 0);
+      return {
+        cell: new NotebookRange(cellSelection.cellIndex, cellSelection.cellIndex),
+        selection: new Selection(position, position)
+      };
+    }
+  }
+};
+
+export const firstTaskRangeForNotebook = async (document: NotebookDocument) => {
+  const cellSelections = await taskCellsForNotebook(document);
+
+  // Find a cell that contains a task
+  const cellSelection = cellSelections.find((selection) => {
+    return selection.symbols.find((symbol) => {
+      return symbolIsTask(document.cellAt(selection.cellIndex).document, symbol);
+    });
+  });
+
+  // If there is a cell with a task, compute its range
+  if (cellSelection) {
+
+    // Just take the first task in the cell
+    const symbol = cellSelection.symbols.find((sym) => {
+      return symbolIsTask(document.cellAt(cellSelection.cellIndex).document, sym);
     });
 
     if (symbol) {

@@ -1,15 +1,13 @@
 {
   "name": "inspect-ai",
-  "displayName": "Inspect",
+  "displayName": "Inspect AI",
   "description": "Extension for the Inspect large language model evaluation framework.",
   "publisher": "ukaisi",
   "icon": "assets/logo/inspect.png",
-  
-  
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.6",
+  "version": "0.3.12",
   "license": "MIT",
   "homepage": "https://ukgovernmentbeis.github.io/inspect_ai/",
   "repository": {
@@ -20,7 +18,7 @@
     "url": "https://github.com/UKGovernmentBEIS/inspect_ai/issues"
   },
   "engines": {
-    "vscode": "^1.87.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Machine Learning",
@@ -125,13 +123,13 @@
         "command": "inspect.runConfigTask",
         "icon": "$(play)",
         "title": "Run Task",
-        "enablement": "workspaceFolderCount != 0"        
+        "enablement": "workspaceFolderCount != 0"
       },
       {
         "command": "inspect.debugConfigTask",
         "icon": "$(debug-alt)",
         "title": "Debug Task",
-        "enablement": "workspaceFolderCount != 0"        
+        "enablement": "workspaceFolderCount != 0"
       }
     ],
     "keybindings": [
@@ -215,20 +213,20 @@
         {
           "id": "inspect_ai.task-outline-view",
           "name": "Tasks",
-          "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false"
+          "when": "workspaceFolderCount != 0"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "inspect_ai.task-outline-view",
-        "contents": "Inspect Package not Installed",
+        "contents": "The Inspect extension requires the inspect-ai package. Please install with\n\n pip install --upgrade inspect-ai",
         "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect"
       },
       {
         "view": "inspect_ai.task-outline-view",
         "contents": "No tasks were found for this workspace.\n[Create a Task](command:inspect.createTask)",
-        "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.tasksLoaded && inspect_ai.task-outline-view.noTasks"
+        "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.tasksLoaded && inspect_ai.task-outline-view.noTasks && inspect_ai.task-outline-view.noInspect == false"
       }
     ],
     "menus": {
@@ -327,7 +325,7 @@
     "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "18.x",
-    "@types/vscode": "^1.87.0",
+    "@types/vscode": "1.85",
     "@typescript-eslint/eslint-plugin": "^7.4.0",
     "@typescript-eslint/parser": "^7.4.0",
     "@vscode/test-cli": "^0.0.8",

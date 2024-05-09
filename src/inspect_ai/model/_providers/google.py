@@ -279,7 +279,7 @@ def completion_choices_from_candidates(
     return [completion_choice_from_candidate(candidate) for candidate in candidates]
 
 
-# google deson't export FinishReason (it's in a sub-namespace with a beta
+# google doesn't export FinishReason (it's in a sub-namespace with a beta
 # designation that seems destined to change, so we vendor the enum here)
 class FinishReason:
     FINISH_REASON_UNSPECIFIED = 0

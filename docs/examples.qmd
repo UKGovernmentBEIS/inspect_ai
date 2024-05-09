@@ -34,12 +34,12 @@ Many of these examples are simple for the purposes of illustration. However, Ins
 Several of the examples implement language model benchmarks. The code for these benchmarks and some others can be found in the [benchmarks directory](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks) of the Inspect repository.
 
 ::: {.callout-note appearance="simple"}
-Note that in these examples we won't show a `--model` command line argument when we call `inspect eval` (the presumtion being that it has been already established via the `INSPECT_EVAL_MODEL` environment variable).
+Note that in these examples we won't show a `--model` command line argument when we call `inspect eval` (the presumption being that it has been already established via the `INSPECT_EVAL_MODEL` environment variable).
 :::
 
 ## Security Guide {#sec-security-guide}
 
-The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [Open AI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
+The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [OpenAI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
 
 | input                                                                        | target                                                    |
 |-----------------------------------------|-------------------------------|
@@ -66,7 +66,7 @@ computer security and provide a short response in a few words.
 
 ### Eval {.unlisted}
 
-Discering whether the correct security guideance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
+Discerning whether the correct security guidance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
 
 ```{python}
 @task
@@ -91,7 +91,7 @@ inspect eval security_guide.py
 
 ## HellaSwag {#sec-hellaswag}
 
-[HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challange for some language models.
+[HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challenge for some language models.
 
 For example, here is one of the questions in the dataset along with its set of possible answer (the correct answer is C):
 
@@ -142,7 +142,7 @@ Note that even though we don't use it for the evaluation, we save the `source_id
 
 ### Eval {.unlisted}
 
-We'll load the datasat from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the `hf_dataset()` function. We'll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we'll also pass `trust=True` to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):
+We'll load the dataset from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the `hf_dataset()` function. We'll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we'll also pass `trust=True` to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):
 
 ```{python}
 @task
@@ -189,7 +189,7 @@ The theory of mind example contains 100 question-answer pairs taken from the [To
 
 ### Eval {.unlisted}
 
-This example demonstrates adding parameters to a `@task` function to create dynamic variants of an evaluation. Here we use a `critique` parameter to deterine whether a `self_critique()` solver is able to improve on the model's baseline answer.
+This example demonstrates adding parameters to a `@task` function to create dynamic variants of an evaluation. Here we use a `critique` parameter to determine whether a `self_critique()` solver is able to improve on the model's baseline answer.
 
 ```{python}
 from inspect_ai import Task, eval, task
@@ -304,24 +304,24 @@ def math(shuffle=True):
             prompt_template(PROMPT_TEMPLATE),
             generate(),
         ],
-        scorer=expression_equivalance(),
+        scorer=expression_equivalence(),
         config=GenerateConfig(temperature=0.5),
     )
 
 ```
 
-The heart of this eval isn't in the task definition though, rather its in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we'll use a model to assess whether the output and the target are logically equivalent. the `expression_equivalance()` custom scorer implements this:
+The heart of this eval isn't in the task definition though, rather it's in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we'll use a model to assess whether the output and the target are logically equivalent. the `expression_equivalence()` custom scorer implements this:
 
 ```{python}
 @scorer(metrics=[accuracy(), bootstrap_std()])
-def expression_equivalance():
+def expression_equivalence():
     async def score(state: TaskState, target: Target):
         # extract answer
         match = re.search(AnswerPattern.LINE, state.output.completion)
         if match:
-            # ask the model to judge equivalance
+            # ask the model to judge equivalence
             answer = match.group(1)
-            prompt = EQUIVALANCE_TEMPLATE % (
+            prompt = EQUIVALENCE_TEMPLATE % (
                 {"expression1": target.text, "expression2": answer}
             )
             result = await get_model().generate(prompt)
@@ -343,10 +343,10 @@ def expression_equivalance():
     return score
 ```
 
-We are making a separate call to the model to assess equivalence. We prompt for this using an `EQUIVALANCE_TEMPLATE`. Here's a general flavor for how that template looks (there are more examples in the real template):
+We are making a separate call to the model to assess equivalence. We prompt for this using an `EQUIVALENCE_TEMPLATE`. Here's a general flavor for how that template looks (there are more examples in the real template):
 
 ``` python
-EQUIVALANCE_TEMPLATE = r"""
+EQUIVALENCE_TEMPLATE = r"""
 Look at the following two expressions (answers to a math problem)
 and judge whether they are equivalent. Only perform trivial 
 simplifications
@@ -394,7 +394,7 @@ $ inspect eval arc.py --limit 100,200 -T shuffle=false
 
 ::: content-hidden
 ```{python}
-EQUIVALANCE_TEMPLATE = r"""
+EQUIVALENCE_TEMPLATE = r"""
 Look at the following two expressions (answers to a math problem) and
 judge whether they are equivalent. Only perform trivial simplifications
 
@@ -481,7 +481,7 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 
 ### Eval {.unlisted}
 
-Note that in the sample records above the dataset columns are not **input** and **target** so wee'll use a custom `FieldSpec` in our call to `example_dataset`. We also call the `use_tools()` function, passing `web_search()` as a tool---this gives the model access to a Google Search API that can be used to fill in background knowledge or specific facts. We use a `model_graded_qa()` scorer to more reliably score longer form model output.
+Note that in the sample records above the dataset columns are not **input** and **target** so we'll use a custom `FieldSpec` in our call to `example_dataset`. We also call the `use_tools()` function, passing `web_search()` as a tool---this gives the model access to a Google Search API that can be used to fill in background knowledge or specific facts. We use a `model_graded_qa()` scorer to more reliably score longer form model output.
 
 ```{python}
 from inspect_ai import Task, eval, task
@@ -512,7 +512,7 @@ inspect eval biology_qa.py
 
 Note that you may not be able to run this example as it requires that you setup a Google Custom Search Engine and provide the `GOOGLE_API_KEY` and `GOOGLE_CSE_ID` environment variables.
 
-The `web_search()` tool uses a model to summarize search results. By defualt it will use the same model as the one being evaluated, however you can choose a different model like this:
+The `web_search()` tool uses a model to summarize search results. By default it will use the same model as the one being evaluated, however you can choose a different model like this:
 
 ``` python
 plan=[
@@ -699,7 +699,7 @@ inspect eval addition_problem.py
 
 ## File Listing {.unlisted}
 
-The next examples demonstrates how to define a tool that calls an external processs.
+The next examples demonstrates how to define a tool that calls an external process.
 
 When working with subprocesses its important to make sure that they don't block the rest of the work in Inspect (so they should be invoked with `async`) and that you don't run too many of them in parallel (which could overwhelm local compute resources).
 

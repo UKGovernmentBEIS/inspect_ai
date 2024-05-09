@@ -189,7 +189,7 @@ async def eval_async(
     # resolve tasks
     eval_tasks = resolve_tasks(tasks, model, task_args)
 
-    # warn and return empty string if we resovled no tasks
+    # warn and return empty string if we resolved no tasks
     if len(eval_tasks) == 0:
         log.warning("No inspect tasks were found at the specified paths.")
         return []
@@ -431,7 +431,7 @@ async def eval_retry_async(
 
 
 # A list of eval logs is returned from eval(). We've already displayed
-# all of the ouptut we need to to though, so we make the return
+# all of the output we need to to though, so we make the return
 # value 'invisible'
 class EvalLogs(list[EvalLog]):
     def _ipython_display_(self) -> None:

@@ -182,7 +182,7 @@ class AnthropicAPI(ModelAPI):
 
     @override
     def max_tokens(self) -> int | None:
-        # anthropic requires you to expicitly specify max_tokens (most others
+        # anthropic requires you to explicitly specify max_tokens (most others
         # set it to the maximum allowable output tokens for the model).
         return DEFAULT_MAX_TOKENS
 
@@ -193,8 +193,8 @@ class AnthropicAPI(ModelAPI):
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
         # We have observed that anthropic will frequently return InternalServerError
-        # seeminly in place of RateLimitError (at the very least the errors seem to
-        # always be transient). Equating this to rate limit errors may occationally
+        # seemingly in place of RateLimitError (at the very least the errors seem to
+        # always be transient). Equating this to rate limit errors may occasionally
         # result in retrying too many times, but much more often will avert a failed
         # eval that just needed to survive a transient error
         return (
@@ -269,10 +269,10 @@ async def resolve_tools_beta_chat_input(
 
 
 async def tools_beta_message_param(message: ChatMessage) -> ToolsBetaMessageParam:
-    # no system role for anthropic (this is more like an asseration,
+    # no system role for anthropic (this is more like an assertion,
     # as these should have already been filtered out)
     if message.role == "system":
-        raise ValueError("Antropic models do not support the system role")
+        raise ValueError("Anthropic models do not support the system role")
 
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
@@ -426,8 +426,8 @@ def split_system_message(
 # Resolve input, tools, and config into the right shape of input for Anthropic models.
 #
 # Anthropic tools are defined not using a tools component of their API, but rather by
-# defineing all available tools in the system message. If there are tools then there
-# is also a requirement to define a custom stop sequence. This fucntion sorts all of
+# defining all available tools in the system message. If there are tools then there
+# is also a requirement to define a custom stop sequence. This function sorts all of
 # that out and returns a system message, a stop sequence (if necessary) and the list
 # of anthropic-native MessageParam objects (including converting role="tool" messages
 # into XML encoded role="user" messages for Claude
@@ -508,7 +508,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
     # no system role for anthropic (this is more like an assertion,
     # as these should have already been filtered out)
     if message.role == "system":
-        raise ValueError("Antropic models do not support the system role")
+        raise ValueError("Anthropic models do not support the system role")
 
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
@@ -759,7 +759,7 @@ def extract_function_calls(message: Message) -> ContentWithFunctionCalls | None:
         )
         if not parameters:
             raise ValueError(
-                "Missing <parameters></paraeters> tags inside of <invoke></invoke> tags."
+                "Missing <parameters></parameters> tags inside of <invoke></invoke> tags."
             )
 
         if len(parameters) > 1:
@@ -808,7 +808,7 @@ def extract_function_calls(message: Message) -> ContentWithFunctionCalls | None:
 
 
 #######################################################################################
-# Thse functions deal with converting Anthropic <function_call> to our native ToolCall
+# These functions deal with converting Anthropic <function_call> to our native ToolCall
 #######################################################################################
 
 

@@ -39,7 +39,13 @@ $ inspect eval theory.py --model openai/gpt-4
 
 ![](images/running-theory.png){fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete."}
 
-Immediately after an evaluation completes, a link to the log for the evaluation is written to the terminal (if you are running in VS Code this link will open the log in an editor within the IDE).
+Immediately after an evaluation completes, a link to the log for the evaluation is written to the terminal.
+
+::: {.callout-note title="VS Code Extension"}
+
+If you are using VS Code, we also recommend installing the VS Code Extension, which includes tools for running, tuning, debugging, and visualising evals. See the article on the [VS Code Extension](#sec-vscode) for more details on installing and using the extension.
+
+:::
 
 ### Models
 
@@ -67,7 +73,7 @@ As you iterate on an evaluation, you'll typically want to dig further into messa
 $ inspect view
 ```
 
-![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displahing a summary of results for the task as well as 8 individual samples."}
+![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."}
 
 
 The log viewer will update automatically whenever a new evaluation is completed (you can also navigate back to previous evaluations). The log viewer summarises aggregate data and also provides a detailed view into each sample. For example, here we zoom in on the model's scoring explanation for a specific sample:
@@ -228,7 +234,7 @@ if __name__ == "__main__"
 ```
 
 ::: {.callout-note appearance="minimal"}
-If you aren't familliar with the `__name__ == "__main__"` idiom, see the docs on [\_\_main\_\_](https://docs.python.org/3/library/main.html) for additional details.
+If you aren't familiar with the `__name__ == "__main__"` idiom, see the docs on [\_\_main\_\_](https://docs.python.org/3/library/main.html) for additional details.
 :::
 
 Now we can take the same script and use it with `inspect eval` (while leaving our exploratory code intact and protected by the `__main__` check):
@@ -258,11 +264,11 @@ $ inspect eval security.ipynb
 $ inspect eval security.ipynb -T system=devops.txt
 ```
 
-Once you've stabilized the definition of an eval, you might also prefer to keep exploratory code and eval task definitions entirely separate. In that case, keep your `@task` function in `security.py` and then just import it into one or more noteoboks used to try out variations, analyze logs, etc.
+Once you've stabilized the definition of an eval, you might also prefer to keep exploratory code and eval task definitions entirely separate. In that case, keep your `@task` function in `security.py` and then just import it into one or more notebooks used to try out variations, analyze logs, etc.
 
 ## Eval Suites
 
-The examples above either run a single evaluation task from a script or notebook, or perhaps run a dynamic set of tasks within an interactive session. While this is a good workflow for the development of evaluations, eventually you may want to compose a set of evalutions into a suite that you run repeadedly for different models.
+The examples above either run a single evaluation task from a script or notebook, or perhaps run a dynamic set of tasks within an interactive session. While this is a good workflow for the development of evaluations, eventually you may want to compose a set of evaluations into a suite that you run repeatedly for different models.
 
 For example, the left/right listing below shows a project with multiple Python scripts, some of which include eval tasks. At right, there is a call to `inspect list tasks` to enumerate all the tasks:
 

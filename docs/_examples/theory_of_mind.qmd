@@ -9,7 +9,7 @@ The theory of mind example contains 100 question-answer pairs taken from the [To
 
 ### Eval {.unlisted}
 
-This example demonstrates adding parameters to a `@task` function to create dynamic variants of an evaluation. Here we use a `critique` parameter to deterine whether a `self_critique()` solver is able to improve on the model's baseline answer.
+This example demonstrates adding parameters to a `@task` function to create dynamic variants of an evaluation. Here we use a `critique` parameter to determine whether a `self_critique()` solver is able to improve on the model's baseline answer.
 
 ```{python}
 from inspect_ai import Task, eval, task

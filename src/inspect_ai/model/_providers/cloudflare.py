@@ -20,7 +20,7 @@ from .._util import (
     is_chat_api_rate_limit,
 )
 
-# CloudFlare supported models:
+# Cloudflare supported models:
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
 
 

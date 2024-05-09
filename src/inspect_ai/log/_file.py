@@ -54,8 +54,8 @@ def list_eval_logs(
       recursive (bool): List log files recursively (defaults to True).
 
       extensions (list[str]): File extension to scan for logs
-      descending (bool): List in descening order.
-      fs_options (dict[str, Any]): Optional. Addional arguments to pass through
+      descending (bool): List in descending order.
+      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
           to the filesystem provider (e.g. `S3FileSystem`).
 
     Returns:

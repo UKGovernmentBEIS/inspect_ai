@@ -112,7 +112,6 @@ body[class^="vscode-"] .sidebar .list-group {
   --bs-list-group-active-color: var(--vscode-sideBarSectionHeader-foreground);
 }
 
-
 :root {
   --bs-navbar-padding-y: 0;
   --bs-navbar-brand-padding-y: 0;

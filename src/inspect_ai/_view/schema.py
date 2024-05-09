@@ -10,7 +10,7 @@ WWW_DIR = os.path.abspath((Path(__file__).parent / "www").as_posix())
 
 
 def sync_view_schema() -> None:
-    """Genreate a JSON schema and Typescript types for EvalLog.
+    """Generate a JSON schema and Typescript types for EvalLog.
 
     This is useful for keeping log file viewer JS development
     in sync w/ Python development

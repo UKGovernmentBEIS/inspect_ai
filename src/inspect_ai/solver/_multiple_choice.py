@@ -33,7 +33,7 @@ Answer the following multiple choice question. The last line of your response sh
 """
 
 
-# max tokens for differnet variations
+# max tokens for different variations
 MULTIPLE_CHOICE_MAX_TOKENS = 32
 MULTIPLE_CHOICE_MAX_TOKENS_COT = 1024
 

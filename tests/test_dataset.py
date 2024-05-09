@@ -29,7 +29,7 @@ def test_dataset(type: Type[T_ds], file: str) -> None:
     assert_sample(dataset[0])
 
 
-# test reading a dataset with an explcit fields specification
+# test reading a dataset with an explicit fields specification
 @pytest.mark.parametrize("type,file", dataset_params)
 def test_dataset_fields(type: Type[T_ds], file: str) -> None:
     dataset: Dataset = type.__call__(

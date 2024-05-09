@@ -21,7 +21,7 @@ def python_type_to_json_type(python_type: str | None) -> JSONType:
             return "object"
         case "None":
             return "null"
-        # treat 'unknown' as string as anyting can be converted to string
+        # treat 'unknown' as string as anything can be converted to string
         case None:
             return "string"
         case _:
@@ -48,5 +48,5 @@ def json_type_to_python_type(json_type: str) -> PythonType:
             return "None"
         case _:
             raise ValueError(
-                f"Unsupported type: {json_type} for JSON to Python converstion."
+                f"Unsupported type: {json_type} for JSON to Python conversion."
             )

@@ -1,26 +1,15 @@
 ---
-toc: false
+toc: true
 ---
-
-::: {layout=[45,55] .splash}
-
-- Easy creation of simple benchmark-style evaluations.
-
-- Scale up to more sophsisticated evals with multi-turn dialog, agent scaffolds and model grading.
-
-- Interactive workflows for researchers; production workflows for larger evaluation suites. 
-
-- Adapt and extend the framework with custom Python components.
-
-![](images/inspect-view-splash.png){.lightbox .border fig-alt="The Inspect log viewer, displahing a summary of results for the task as well as 5 individual samples."}
-
-:::
 
 ## Welcome
 
 Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Safety Institute](https://www.gov.uk/government/organisations/ai-safety-institute).
 
-Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
+Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages. 
+
+![](images/inspect.png){.lightbox .border fig-alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."}
+
 
 We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Workflow](#sec-workflow), [Solvers](#sec-solvers), [Tools](#sec-tools), [Scorers](#sec-scorers), [Datasets](#sec-datasets), and [Models](#sec-models) to learn how to create more advanced evaluations.
 
@@ -86,13 +75,13 @@ $ inspect eval ctf.py --model together/Qwen/Qwen1.5-72B-Chat
 ```
 :::
 
-In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, and CloudFlare. See the documentation on [Models](#sec-models) for additional detals.
+In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, and Cloudflare. See the documentation on [Models](#sec-models) for additional details.
 
 ## Hello, Inspect {#sec-hello-inspect}
 
 Inspect evaluations have three main components:
 
-1.  **Datasets** contain a set of labeled samples. Datasets are typically just a table with `input` and `target` columns, where `input` is a prompt and `target` is either literal value(s) or grading guideance.
+1.  **Datasets** contain a set of labeled samples. Datasets are typically just a table with `input` and `target` columns, where `input` is a prompt and `target` is either literal value(s) or grading guidance.
 
 2.  **Solvers** are composed together in a *plan* to evaluate the `input` in the dataset. The most elemental solver, `generate()`, just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, etc.
 
@@ -152,7 +141,7 @@ You can also explore eval results using the Inspect log viewer. Run `inspect vie
 $ inspect view
 ```
 
-![](images/inspect-view-home.png){.border .lightbox fig-alt="The Inspect log viewer, displahing a summary of results for the task as well as 7 individual samples."}
+![](images/inspect-view-home.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."}
 
 See the [Log Viewer](#sec-log-viewer) section for additional details on using Inspect View.
 
@@ -162,13 +151,15 @@ This example demonstrates evals being run from the terminal with the `inspect ev
 
 ## Learning More
 
-To get stared with Inspect, we highly recommend you read at least these sections for a high level overview of the system:
+To get started with Inspect, we highly recommend you read at least these sections for a high level overview of the system:
 
 -   [Workflow](#sec-workflow) covers the mechanics of running evaluations, including how to create evals in both scripts and notebooks, specifying configuration and options, how to parameterise tasks for different scenarios, and how to work with eval log files.
 
 -   [Log Viewer](#sec-log-viewer) goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python's standard logging module.
 
--   [Examples](#sec-examples) provides several complete examples with commentary on the use of various features (as with the above example, they are fairly simplistic for the purposes of illustration). You can also find implementations of a few popular [LLM benchmarks](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks) in the Inspect repository.
+-   [VS Code](#sec-vscode) provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.
+
+-   [Examples](#sec-examples) includes several complete examples with commentary on the use of various features (as with the above example, they are fairly simplistic for the purposes of illustration). You can also find implementations of a few popular [LLM benchmarks](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks) in the Inspect repository.
 
 These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.
 
@@ -182,7 +173,7 @@ These sections provide a more in depth treatment of the various components used 
 
 -   [Models](#sec-models) provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).
 
-These sections discuss more advanced features and workflow. You don't need to review them at the outset, but be sure to revist them as you get more comfortable with the basics.
+These sections discuss more advanced features and workflow. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
 
 -   [Eval Logs](#sec-eval-logs) describes how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
 

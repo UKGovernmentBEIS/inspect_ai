@@ -79,24 +79,24 @@ def math(shuffle=True):
             prompt_template(PROMPT_TEMPLATE),
             generate(),
         ],
-        scorer=expression_equivalance(),
+        scorer=expression_equivalence(),
         config=GenerateConfig(temperature=0.5),
     )
 
 ```
 
-The heart of this eval isn't in the task definition though, rather its in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we'll use a model to assess whether the output and the target are logically equivalent. the `expression_equivalance()` custom scorer implements this:
+The heart of this eval isn't in the task definition though, rather it's in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we'll use a model to assess whether the output and the target are logically equivalent. the `expression_equivalence()` custom scorer implements this:
 
 ```{python}
 @scorer(metrics=[accuracy(), bootstrap_std()])
-def expression_equivalance():
+def expression_equivalence():
     async def score(state: TaskState, target: Target):
         # extract answer
         match = re.search(AnswerPattern.LINE, state.output.completion)
         if match:
-            # ask the model to judge equivalance
+            # ask the model to judge equivalence
             answer = match.group(1)
-            prompt = EQUIVALANCE_TEMPLATE % (
+            prompt = EQUIVALENCE_TEMPLATE % (
                 {"expression1": target.text, "expression2": answer}
             )
             result = await get_model().generate(prompt)
@@ -118,10 +118,10 @@ def expression_equivalance():
     return score
 ```
 
-We are making a separate call to the model to assess equivalence. We prompt for this using an `EQUIVALANCE_TEMPLATE`. Here's a general flavor for how that template looks (there are more examples in the real template):
+We are making a separate call to the model to assess equivalence. We prompt for this using an `EQUIVALENCE_TEMPLATE`. Here's a general flavor for how that template looks (there are more examples in the real template):
 
 ``` python
-EQUIVALANCE_TEMPLATE = r"""
+EQUIVALENCE_TEMPLATE = r"""
 Look at the following two expressions (answers to a math problem)
 and judge whether they are equivalent. Only perform trivial 
 simplifications
@@ -169,7 +169,7 @@ $ inspect eval arc.py --limit 100,200 -T shuffle=false
 
 ::: content-hidden
 ```{python}
-EQUIVALANCE_TEMPLATE = r"""
+EQUIVALENCE_TEMPLATE = r"""
 Look at the following two expressions (answers to a math problem) and
 judge whether they are equivalent. Only perform trivial simplifications
 

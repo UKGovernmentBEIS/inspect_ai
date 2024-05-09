@@ -1,7 +1,6 @@
 import { Disposable, Event, EventEmitter, ExtensionContext } from "vscode";
 import { pythonInterpreter } from "../../core/python";
 import { inspectBinPath } from "../../inspect/props";
-import { constants, existsSync, promises } from "fs";
 
 // Activates the provider which tracks the availability of Inspect
 export function activateInspectManager(context: ExtensionContext) {
@@ -31,36 +30,28 @@ export class InspectManager implements Disposable {
   }
 
   private updateInspectAvailable() {
-    const inspectPath = inspectBinPath();
-    const available = inspectPath !== null && existsSync(inspectPath.path);
+    const available = inspectBinPath() !== null;
     const valueChanged = this.inspectAvailable_ !== available;
     this.inspectAvailable_ = available;
     if (valueChanged) {
       this.onInspectChanged_.fire({ available: this.inspectAvailable_ });
     }
-    if (inspectPath && !available) {
-      this.watchForInspect(inspectPath.path);
+    if (!available) {
+      this.watchForInspect();
     }
   }
 
-  watchForInspect(path: string) {
+  watchForInspect() {
     this.inspectTimer = setInterval(() => {
-      this.checkFileExistence(path);
-    }, 1000);
-  }
-
-  checkFileExistence(filePath: string) {
-    promises.access(filePath, constants.F_OK)
-      .then(() => {
+      const path = inspectBinPath();
+      if (path) {
         if (this.inspectTimer) {
           clearInterval(this.inspectTimer);
           this.inspectTimer = null;
           this.updateInspectAvailable();
         }
-      })
-      .catch(() => {
-        console.log(`File does not exist: ${filePath}`);
-      });
+      }
+    }, 3000);
   }
 
   private inspectTimer: NodeJS.Timeout | null = null;
@@ -71,9 +62,6 @@ export class InspectManager implements Disposable {
       this.inspectTimer = null;
     }
   }
-
-
-
 
   private readonly onInspectChanged_ = new EventEmitter<InspectChangedEvent>();
   public readonly onInspectChanged: Event<InspectChangedEvent> =

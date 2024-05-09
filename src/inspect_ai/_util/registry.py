@@ -28,8 +28,8 @@ def registry_add(o: object, info: RegistryInfo) -> None:
     r"""Add an object to the registry.
 
     Add the passed object to the registry using the RegistryInfo
-    to index it for retreival. The RegistryInfo is also added
-    to the object as an attribute, which can retrevied by calling
+    to index it for retrieval. The RegistryInfo is also added
+    to the object as an attribute, which can retrieved by calling
     registry_info() on an object instance.
 
     Args:
@@ -55,7 +55,7 @@ def registry_tag(
     Tag the passed object with RegistryInfo. This function DOES NOT
     add the object to the registry (call registry_add() to both
     tag and add an object to the registry). Call registry_info()
-    on a tagged/registered object to retreive its info
+    on a tagged/registered object to retrieve its info
 
     Args:
         type (T): type of object being tagged
@@ -89,8 +89,8 @@ def registry_tag(
 def registry_name(o: object, name: str) -> str:
     r"""Compute the registry name of an object.
 
-    This function checks whether the passsed object is in a package,
-    and if it is, preprends the package name as a namespace
+    This function checks whether the passed object is in a package,
+    and if it is, prepends the package name as a namespace
     """
     package = get_package_name(o)
     return f"{package}/{name}" if package else name
@@ -217,13 +217,13 @@ def registry_log_name(o: object) -> str:
 
 
 def registry_unqualified_name(o: object) -> str:
-    r"""Unqualfied name of object (i.e. without package prefix).
+    r"""Unqualified name of object (i.e. without package prefix).
 
     Args:
-        o (object): Object to get unqualfied name for
+        o (object): Object to get unqualified name for
 
     Returns:
-        Unqualfieid name of object
+        Unqualified name of object
     """
     parts = registry_info(o).name.split("/")
     if len(parts) == 1:

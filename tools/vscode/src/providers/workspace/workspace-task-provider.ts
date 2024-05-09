@@ -6,7 +6,7 @@ import { Event, EventEmitter, ExtensionContext, FileSystemWatcher, workspace } f
 import { throttle } from "lodash";
 import { InspectChangedEvent, InspectManager } from "../inspect/inspect-manager";
 
-// Activates the provider which tracks the curently active task (document and task name)
+// Activates the provider which tracks the currently active task (document and task name)
 export function activateWorkspaceTaskProvider(inspectManager: InspectManager, context: ExtensionContext) {
 
   // The task manager

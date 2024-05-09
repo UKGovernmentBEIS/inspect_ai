@@ -214,7 +214,7 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
                             <fast-option value="together">TogetherAI</fast-option>
                             <fast-option value="bedrock">AWS Bedrock</fast-option>
                             <fast-option value="azureai">Azure AI</fast-option>
-                            <fast-option value="cf">CloudFlare</fast-option>
+                            <fast-option value="cf">Cloudflare</fast-option>
                           </fast>
                         </div>
                       </div>

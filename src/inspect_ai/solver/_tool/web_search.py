@@ -128,7 +128,7 @@ async def page_if_relevant(
     Returns:
         str: Web page contents if relevant, else None.
     """
-    # retreive document
+    # retrieve document
     try:
         response = await client.get(link)
         response.raise_for_status()

@@ -6,6 +6,7 @@ import { Command } from "../../core/command";
 import { AbsolutePath, activeWorkspacePath, workspaceRelativePath } from "../../core/path";
 import { WorkspaceStateManager } from "../workspace/workspace-state-provider";
 import { inspectVersion } from "../../inspect";
+import { inspectBinPath } from "../../inspect/props";
 
 
 const kDebugSessionName = "Inspect Eval";
@@ -99,7 +100,7 @@ export class InspectEvalManager {
     }
 
     // Run the command
-    runEvalCmd("inspect", args, workspaceDir.path);
+    runEvalCmd(args, workspaceDir.path);
 
     // If we're debugging, attach the debugger
     if (debug) {
@@ -108,7 +109,12 @@ export class InspectEvalManager {
   }
 }
 
-const runEvalCmd = (cmd: string, args: string[], cwd: string) => {
+const runEvalCmd = (args: string[], cwd: string) => {
+  // Figure out which version of inspect to use - rely on path
+  // or form a full path
+  const binPath = inspectBinPath();
+  const inspect = process.platform === "linux" && binPath && binPath.path.includes(".local/bin") ? binPath.path : "inspect";
+
   // See if there a non-busy terminal that we can re-use
   const name = "Inspect Eval";
   let terminal = window.terminals.find((t) => {
@@ -118,5 +124,5 @@ const runEvalCmd = (cmd: string, args: string[], cwd: string) => {
     terminal = window.createTerminal({ name, cwd });
   }
   terminal.show();
-  terminal.sendText([cmd, ...args].join(" "));
+  terminal.sendText([inspect, ...args].join(" "));
 };

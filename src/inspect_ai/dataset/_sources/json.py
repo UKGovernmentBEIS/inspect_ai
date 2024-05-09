@@ -49,7 +49,7 @@ def json_dataset(
       encoding (str): Text encoding for file (defaults to "utf-8").
       name (str): Optional name for dataset (for logging). If not specified,
         defaults to the stem of the filename.
-      fs_options (dict[str, Any]): Optional. Addional arguments to pass through
+      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
         if you are accessing a public S3 bucket with no credentials.
 

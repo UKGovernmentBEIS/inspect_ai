@@ -38,7 +38,7 @@ class ToolInfo:
 @dataclass
 class ToolCall:
     id: str
-    """Unique identifer for tool call."""
+    """Unique identifier for tool call."""
 
     function: str
     """Function called."""

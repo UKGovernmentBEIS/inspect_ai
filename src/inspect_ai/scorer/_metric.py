@@ -26,7 +26,7 @@ CORRECT = "C"
 """Value to assign for correct answers."""
 
 INCORRECT = "I"
-"""Value to assing for incorrect answers."""
+"""Value to assign for incorrect answers."""
 
 PARTIAL = "P"
 """Value to assign for partial credit."""
@@ -87,7 +87,7 @@ class Score(BaseModel):
         return float(self._as_scalar())
 
     def as_bool(self) -> bool:
-        """Read the score as a boolan."""
+        """Read the score as a boolean."""
         return bool(self._as_scalar())
 
     def _as_scalar(self) -> str | int | float | bool:
@@ -165,7 +165,7 @@ MetricType = TypeVar("MetricType", Callable[..., Metric], type[Metric])
 r"""Metric type.
 Valid metric types include:
  - Functions that return a Metric
- - Classes derivied from Metric
+ - Classes derived from Metric
 """
 
 
@@ -258,7 +258,7 @@ def metric(name: str | MetricType) -> Callable[..., MetricType] | MetricType:
 
         return wrapper
 
-    # create a metric wrapper for the passsed metric_type
+    # create a metric wrapper for the passed metric_type
     else:
         metric_type = name
         return create_metric_wrapper(metric_type)

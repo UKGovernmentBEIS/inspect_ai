@@ -79,7 +79,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
 
     num_choices: int | None
-    """How many chat completion choices to generate for each input message. Open AI, Google, and TogetherAI only."""
+    """How many chat completion choices to generate for each input message. OpenAI, Google, and TogetherAI only."""
 
     logprobs: bool | None
     """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
@@ -137,7 +137,7 @@ class GenerateConfig(BaseModel):
     """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
 
     num_choices: int | None = Field(default=None)
-    """How many chat completion choices to generate for each input message. Open AI, Google, and TogetherAI only."""
+    """How many chat completion choices to generate for each input message. OpenAI, Google, and TogetherAI only."""
 
     logprobs: bool | None = Field(default=None)
     """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
@@ -430,7 +430,7 @@ class ModelAPI(abc.ABC):
 
         Args:
           input (str | list[ChatMessage]): Chat message
-            input (if a `str` is passed it is convereted
+            input (if a `str` is passed it is converted
             to a `ChatUserMessage`).
           tools (list[ToolInfo]): Tools available for the
             model to call.
@@ -504,7 +504,7 @@ class Model:
 
         Args:
           input (str | list[ChatMessage]): Chat message
-            input (if a `str` is passed it is convereted
+            input (if a `str` is passed it is converted
             to a `ChatUserMessage`).
           tools (list[ToolInfo]): Tools available for the
             model to call.
@@ -538,7 +538,7 @@ class Model:
             async with self._connection_concurrency(config):
                 return await self._generate(input, tools, tool_choice, config)
 
-        # no connection semaphore, just proceed straight ot the call
+        # no connection semaphore, just proceed straight to the call
         else:
             return await self._generate(input, tools, tool_choice, config)
 
@@ -585,7 +585,7 @@ class Model:
                 if not is_inactive_tool_system_message(message)
             ]
 
-            # optionally collapse *consecutive* messages into one - some apis eg anthropic require this
+            # optionally collapse *consecutive* messages into one - some apis e.g. anthropic require this
             if self.api.collapse_user_messages():
                 input = collapse_consecutive_user_messages(input)
 
@@ -644,7 +644,7 @@ class Model:
     # to enforce max_connections (e.g. by account/api_key, by endpoint, etc.)
 
     def _connection_concurrency(self, config: GenerateConfig) -> asyncio.Semaphore:
-        """Get the appropiate connection semaphore for this model instance."""
+        """Get the appropriate connection semaphore for this model instance."""
         max_connections = (
             config.max_connections
             if config.max_connections
@@ -664,7 +664,7 @@ class ModelName:
     Can be used for structural pattern matching of models against
     various string specifications of models. Used primarily by
     tasks to allow them to condition their behavior on models or
-    model famillies.
+    model families.
 
     String specifications can be fully specified (e.g. openai/gpt-4),
     partially specified by model name only (e.g. gpt-4) or even
@@ -769,7 +769,7 @@ def get_model(
             # if there is an api_name explicitly specified that
             # matches the registered api then trust the model name
             # TODO: this is ugly, we need to clarify the relationship
-            # and registraiton semantics of pkg -> provider -> model
+            # and registration semantics of pkg -> provider -> model
             if (
                 info.name == api_name
                 or info.name.replace(f"{PKG_NAME}/", "") == api_name

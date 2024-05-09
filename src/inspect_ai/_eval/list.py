@@ -43,7 +43,7 @@ def list_tasks(
     Returns:
         List of TaskInfo
     """
-    # resovle globs
+    # resolve globs
     globs = globs if isinstance(globs, list) else [globs]
 
     # build list of tasks to return
@@ -71,7 +71,7 @@ def create_tasks(
 
     for glob in globs:
         # sometimes globs are direct references to files
-        # that inclue an @ index. for this case directly
+        # that include an @ index. for this case directly
         # create the task (we also need to load the file
         # so the task is registered before we create it)
         spec_split = split_task_spec(glob)
@@ -173,7 +173,7 @@ def create_file_tasks(
 # don't call this function directly, rather, call one of the
 # higher level loading functions above (those functions
 # change the working directory, this one does not b/c it is
-# intended as a helper funciton)
+# intended as a helper function)
 def _load_task_specs(task_path: Path) -> list[RegistryInfo]:
     # load the module
     module = load_task_module(task_path)

@@ -40,7 +40,7 @@ def resource(
           interpret the resource as a literal string if its not
           a valid path. For "file", always interpret it as
           a file path.
-        fs_options (dict[str, Any]): Optional. Addional
+        fs_options (dict[str, Any]): Optional. Additional
           arguments to pass through to the `fsspec` filesystem
           provider (e.g. `S3FileSystem`). Use `{"anon": True }`
           if you are accessing a public S3 bucket with no

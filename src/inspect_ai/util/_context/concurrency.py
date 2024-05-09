@@ -26,8 +26,8 @@ def concurrency(
     Args:
       name (str): Name for concurrency context. This serves as the
          display name for the context, and also the unique context
-         key (if the `key` parameter is ommitted)
-      concurrency (int): Maximum number of couroutines that can
+         key (if the `key` parameter is omitted)
+      concurrency (int): Maximum number of coroutines that can
          enter the context.
       key (str | None): Unique context key for this context. Optional.
          Used if the unique key isn't human readable -- e.g. includes
@@ -43,7 +43,7 @@ def concurrency(
     # get semaphores dict (only valid when an eval is running)
     concurrency_semaphores = concurrency_semaphores_context_var.get(None)
     if concurrency_semaphores is None:
-        raise RuntimeError("Attempted to get eval sempahore when eval not running")
+        raise RuntimeError("Attempted to get eval semaphore when eval not running")
 
     # do we have an existing semaphore? if not create one and store it
     semaphore = concurrency_semaphores.get(key, None)

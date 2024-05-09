@@ -83,7 +83,7 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
 
   private async updatePreview(state?: LogviewState) {
     if (this.isVisible()) {
-      // see if there is an explcit state update (otherwise inspect hte active editor)
+      // see if there is an explicit state update (otherwise inspect the active editor)
       if (state) {
         await this.updateViewState(state);
       } else {
@@ -127,12 +127,12 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
     );
 
 
-    const disconnecct = webviewPanelJsonRpcServer(this._webviewPanel, {
+    const disconnect = webviewPanelJsonRpcServer(this._webviewPanel, {
       [kMethodEvalLogs]: evalLogs,
       [kMethodEvalLog]: (params: unknown[]) => evalLog(params[0] as string, params[1] as boolean),
       [kMethodEvalLogHeaders]: (params: unknown[]) => evalLogHeaders(params[0] as string[])
     });
-    this._register(new Disposable(disconnecct));
+    this._register(new Disposable(disconnect));
 
   }
 
@@ -160,12 +160,20 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       // get base html
       let indexHtml = readFileSync(viewDir.child("index.html").path, "utf-8");
 
+      // Add a stylesheet to further customize the view appearance
+      const overrideCssPath = this.extensionResourceUrl(["assets",
+        "www",
+        "view",
+        "view-overrides.css"]);
+
+
       // add content security policy
       indexHtml = indexHtml.replace("<head>\n", `<head>
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._webviewPanel.webview.cspSource} data:; font-src ${this._webviewPanel.webview.cspSource}; style-src ${this._webviewPanel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
-  `);
+    <link rel="stylesheet" type ="text/css" href="${overrideCssPath.toString()}" >
+    `);
 
-      // funtion to resolve resource uri
+      // function to resolve resource uri
       const resourceUri = (path: string) => this._webviewPanel.webview.asWebviewUri(
         Uri.joinPath(viewDirUri, path)
       ).toString();

@@ -19,10 +19,10 @@ def match(
           Location to match at. "any" matches anywhere in the
           output; "exact" requires the output be exactly
           equal to the target (module whitespace, etc.)
-       ignore_case (bool): Do case insenstive comparison.
+       ignore_case (bool): Do case insensitive comparison.
        numeric (bool): Is this a numeric match? (in this
           case different punctuation removal rules are
-          used and numbers are normalized before comparisoin).
+          used and numbers are normalized before comparison).
     """
 
     def check(value: str, target: str) -> tuple[str, bool]:

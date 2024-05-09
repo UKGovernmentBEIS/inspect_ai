@@ -1,6 +1,6 @@
 ## HellaSwag {#sec-hellaswag}
 
-[HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challange for some language models.
+[HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challenge for some language models.
 
 For example, here is one of the questions in the dataset along with its set of possible answer (the correct answer is C):
 
@@ -51,7 +51,7 @@ Note that even though we don't use it for the evaluation, we save the `source_id
 
 ### Eval {.unlisted}
 
-We'll load the datasat from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the `hf_dataset()` function. We'll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we'll also pass `trust=True` to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):
+We'll load the dataset from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the `hf_dataset()` function. We'll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we'll also pass `trust=True` to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):
 
 ```{python}
 @task

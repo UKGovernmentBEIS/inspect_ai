@@ -76,7 +76,7 @@ function readLine(line: string) {
   const key = trimmed.substring(0, eqIdx).trim();
   let value = trimmed.substring(eqIdx + 1).trim();
 
-  ["'", "'"].forEach((quote) => {
+  ["'", '"'].forEach((quote) => {
     if (value.startsWith(quote) && value.endsWith(quote)) {
       value = value.substring(quote.length, value.length - quote.length);
     }
@@ -91,11 +91,10 @@ function readEnvLines(file: Uri) {
 }
 
 function toLine(key: string, value: string) {
-  const needsQuote = [" ", "'", "\""].some((char) => {
+  const needsQuote = [" ", "'", '"'].some((char) => {
     return value.indexOf(char) > -1;
   });
 
-  const quoteChar =
-    !needsQuote ? "" : value.indexOf('"') > -1 ? "'" : '"';
+  const quoteChar = !needsQuote ? "" : value.indexOf('"') > -1 ? "'" : '"';
   return `${key}=${quoteChar}${value}${quoteChar}`;
 }

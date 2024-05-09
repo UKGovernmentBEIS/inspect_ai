@@ -69,7 +69,7 @@ def task_create(name: str, model: ModelName, **kwargs: Any) -> Task:
     kwargs[MODEL_PARAM] = model
 
     # match kwargs params to signature (warn if param not found)
-    # (note that we always pass the 'model' param but tasks arne't
+    # (note that we always pass the 'model' param but tasks aren't
     # required to consume it, so we don't warn for 'model')
     task = registry_lookup("task", name)
     task_info = registry_info(task)

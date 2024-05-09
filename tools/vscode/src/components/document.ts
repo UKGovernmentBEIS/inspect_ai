@@ -1,4 +1,5 @@
-import { DocumentSymbol, Position, Range, Selection, SymbolKind, TextDocument, Uri, commands, workspace } from "vscode";
+import { DocumentSymbol, Position, Selection, TextDocument, Uri, commands, workspace } from "vscode";
+import { symbolIsTask } from "./symbol";
 
 
 // Provides a Selection for a task with a document
@@ -11,6 +12,23 @@ export const taskRangeForDocument = async (task: string, documentUri: Uri) => {
   });
 
   // If the task is within this document, find its position
+  if (taskSymbol) {
+    const position = new Position(taskSymbol.range.start.line + 1, 0);
+    return new Selection(position, position);
+  }
+};
+
+export const firstTaskRangeForDocument = async (documentUri: Uri) => {
+  const symbols = await commands.executeCommand<DocumentSymbol[]>(
+    "vscode.executeDocumentSymbolProvider",
+    documentUri
+  );
+
+  const document = await workspace.openTextDocument(documentUri);
+  const taskSymbol = symbols.find((pred) => {
+    return symbolIsTask(document, pred);
+  });
+
   if (taskSymbol) {
     const position = new Position(taskSymbol.range.start.line + 1, 0);
     return new Selection(position, position);
@@ -40,16 +58,4 @@ export const documentHasTasks = async (document: TextDocument) => {
   return symbols.some((pred) => {
     return symbolIsTask(document, pred);
   });
-};
-
-const symbolIsTask = (document: TextDocument, pred: DocumentSymbol) => {
-  if (pred.kind === SymbolKind.Function) {
-    const textRange = new Range(pred.range.start, pred.range.end);
-    const textBeforeFunction = document.getText(textRange);
-
-    // Check if the text contains the `@task` decorator
-    if (textBeforeFunction && textBeforeFunction.startsWith('@task')) {
-      return true;
-    }
-  }
 };

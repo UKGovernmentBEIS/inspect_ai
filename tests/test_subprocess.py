@@ -13,13 +13,13 @@ async def test_subprocess_execute():
 
 
 @pytest.mark.asyncio
-async def test_suprocess_fail():
+async def test_subprocess_fail():
     result = await subprocess(["python4"])
     assert result.success is False
 
 
 @pytest.mark.asyncio
-async def test_suprocess_stdin():
+async def test_subprocess_stdin():
     input = "tell me a story"
     result = await subprocess(
         ["python3", "-c", "import sys; print(sys.stdin.read())"], input=input
@@ -28,7 +28,7 @@ async def test_suprocess_stdin():
 
 
 @pytest.mark.asyncio
-async def test_suprocess_binary():
+async def test_subprocess_binary():
     input = "tell me a story".encode()
     result = await subprocess(
         ["python3", "-c", "import sys; print(sys.stdin.read())"],

@@ -31,7 +31,7 @@ def pattern(pattern: str, ignore_case: bool = True) -> Scorer:
 
         # got a match
         if match:
-            # handle case insentitive
+            # handle case insensitive
             answer = match.group(1) if len(match.groups()) == 1 else match.group(2)
             input = answer
             if ignore_case:

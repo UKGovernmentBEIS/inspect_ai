@@ -6,8 +6,8 @@ from .._registry import modelapi
 
 # Defer importing model api classes until they are actually used
 # (this allows the package to load without the optional deps)
-# Note that some api providers (e.g. CloudFlare, AzureAI) don't
-# strictly require this treament but we do it anyway for uniformity,
+# Note that some api providers (e.g. Cloudflare, AzureAI) don't
+# strictly require this treatment but we do it anyway for uniformity,
 
 
 @modelapi(name="openai", models=["gpt"])

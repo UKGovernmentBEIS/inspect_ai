@@ -122,7 +122,7 @@ def bash():
 
 ## Tool Choice
 
-By default models will use a tool if they think it's appropriate for the given task. You can override this behavior using the `tool_choice` parmaeter of the `use_tools()` Solver. For example:
+By default models will use a tool if they think it's appropriate for the given task. You can override this behavior using the `tool_choice` parameter of the `use_tools()` Solver. For example:
 
 ``` python
 # let the model decide whether to use the tool
@@ -149,7 +149,7 @@ plan = [
 
 ## Web Search
 
-Inspect has a built in `web_search()` tool that provides models with the ability to enhance their context window by performing a search. By default web searches retreives 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
+Inspect has a built in `web_search()` tool that provides models with the ability to enhance their context window by performing a search. By default web searches retrieves 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
 
 ``` python
 def web_search(
@@ -177,7 +177,7 @@ Web search options include:
 
 -   `num_results`---How many search results to return to the main model (defaults to 5).
 
--   `max_provider_calls`---Number of times to retrieve more links from the search provider incase previous ones were irrelevant (defaults to 3)
+-   `max_provider_calls`---Number of times to retrieve more links from the search provider in case previous ones were irrelevant (defaults to 3).
 
 -   `max_connections`---Maximum number of concurrent connections to the search API provider (defaults to 10).
 
@@ -205,7 +205,7 @@ There are several approaches to creating an Inspect solver that uses an agent sc
 
 3.  Integrate a 3rd party agent library like [LangChain](https://python.langchain.com/docs/modules/agents/) and [Langroid](https://langroid.github.io/langroid/).
 
-If you are adapting research code or using a 3rd party library, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). We'll describe how to do that for [LangChain](https://python.langchain.com/docs/modules/agents/) in the example below.
+If you are adapting research code or using a 3rd party library, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!) We'll describe how to do that for [LangChain](https://python.langchain.com/docs/modules/agents/) in the example below.
 
 ### Example: Wikipedia Search
 

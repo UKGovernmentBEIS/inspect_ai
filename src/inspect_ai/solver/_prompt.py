@@ -16,7 +16,7 @@ def prompt_template(template: str, **params: dict[str, Any]) -> Solver:
 
     Args:
       template (str | list[Message]):
-          The conversation template to use. A sipmle string or
+          The conversation template to use. A simple string or
           a list of messages
       **params (dict[str,Any]):
           A mapping of the parameters to fill into the template
@@ -42,7 +42,7 @@ def system_message(message: str) -> Solver:
     """Solver which inserts a system message into the conversation.
 
     The new message will go after other system messages (if there
-    are none it will be inserted at the beginnign of the conversation).
+    are none it will be inserted at the beginning of the conversation).
 
     Args:
        message (str): System message.

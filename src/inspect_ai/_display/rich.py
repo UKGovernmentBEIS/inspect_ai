@@ -219,7 +219,7 @@ def task_panel(
     if config:
         table.add_row(config)
 
-    # footer if sepecified
+    # footer if specified
     if footer:
         table.add_row()
         table.add_row(footer[0], footer[1])
@@ -227,7 +227,7 @@ def task_panel(
     # enclose in outer table for log link footer
     root = table
     if log_location:
-        # if we are in jupyter then use a real hyperink
+        # if we are in jupyter then use a real hyperlink
         if options.jupyter:
             log_location = f"[link={log_location}]{log_location}[/link]"
 

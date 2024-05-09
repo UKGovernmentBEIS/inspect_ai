@@ -34,5 +34,5 @@ Many of these examples are simple for the purposes of illustration. However, Ins
 Several of the examples implement language model benchmarks. The code for these benchmarks and some others can be found in the [benchmarks directory](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks) of the Inspect repository.
 
 ::: {.callout-note appearance="simple"}
-Note that in these examples we won't show a `--model` command line argument when we call `inspect eval` (the presumtion being that it has been already established via the `INSPECT_EVAL_MODEL` environment variable).
+Note that in these examples we won't show a `--model` command line argument when we call `inspect eval` (the presumption being that it has been already established via the `INSPECT_EVAL_MODEL` environment variable).
 :::

@@ -65,7 +65,7 @@ class Plan:
     """Solvers to run for this plan."""
 
     finish: Solver | None = None
-    """Finishing sover that is always run even for early exit."""
+    """Finishing solver that is always run even for early exit."""
 
     cleanup: Callable[[TaskState], Awaitable[None]] | None = None
     """Function  called at the end of the plan (even if an exception occurs).

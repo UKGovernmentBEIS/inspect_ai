@@ -2,9 +2,9 @@
 
 ## Overview
 
-Inspect View provides a convenient way to visualise evaluation logs, including drilling into message histories, scoring decisions, and additional metadata written to the log. Here's what the main view of an evaluation log looks like:
+Inspect View provides a convenient way to visualize evaluation logs, including drilling into message histories, scoring decisions, and additional metadata written to the log. Here's what the main view of an evaluation log looks like:
 
-![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displahing a summary of results for the task as well as 8 individual samples."}
+![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."}
 
 Below we'll describe how to get the most out of using Inspect View.
 
@@ -58,7 +58,7 @@ The scoring tab shows additional details including the full input and full model
 
 ### Metadata
 
-The metadata tab shows additional data made available by solvers, tools, an scorers (in this case the `web_search()` tool records which URLs it visited to retreive additional context):
+The metadata tab shows additional data made available by solvers, tools, an scorers (in this case the `web_search()` tool records which URLs it visited to retrieve additional context):
 
 ![](images/inspect-view-metadata.png){.border .lightbox fig-alt="The Inspect log viewer showing a sample expanded, with details on the metadata recorded by the web search tool during the evaluation (specifically, the URLs queried by the web search tool for the sample)."}
 
@@ -129,7 +129,7 @@ It is important to note that the Inspect View will show all log entries level `i
 $ inspect eval biology_qa.py --log-level info
 ```
 
-![](images/inspect-view-logging-console.png){.lightbox fig-alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the the task diplay."}
+![](images/inspect-view-logging-console.png){.lightbox fig-alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display."}
 
 A default log level of `warning` enables you to include many calls to `logger.info()` in your code without having them show by default, while also making them available in the log viewer should you need them.
 

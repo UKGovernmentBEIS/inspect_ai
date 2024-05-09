@@ -67,7 +67,7 @@ client = httpx.AsyncClient()
 async def solve(state: TaskState, generate: Generate):
   ...
   # wrap the call to client.get() in an async concurrency 
-  # block to limit simulaneous connections to 10
+  # block to limit simultaneous connections to 10
   async with concurrency("my-rest-api", 10):
     response = await client.get("https://example.com/api")
 ```
@@ -76,7 +76,7 @@ Note that we pass a name ("my-rest-api") to the `concurrency()` function. This p
 
 ## Subprocesses
 
-It's possible that your custom solvers, tools, or scorers will need to launch child processes to perform various tasks. Subprocesses have similar considerations as calling APIs: you want to make sure that they don't block the rest of the work in Inspect (so they should be invoked with `async`) and you also want to make sure they don't provide *too much* concurrency (i.e. you wouldn't want to launch 200 processes at once on a 4 core machine!).
+It's possible that your custom solvers, tools, or scorers will need to launch child processes to perform various tasks. Subprocesses have similar considerations as calling APIs: you want to make sure that they don't block the rest of the work in Inspect (so they should be invoked with `async`) and you also want to make sure they don't provide *too much* concurrency (i.e. you wouldn't want to launch 200 processes at once on a 4 core machine!)
 
 To assist with this, Inspect provides the `subprocess()` function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout and stderr. The `subprocess()` function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`). Here's an example from the implementation of a `list_files()` tool:
 
