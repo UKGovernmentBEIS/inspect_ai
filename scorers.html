@@ -104,12 +104,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 }</script>
 
 
-<meta property="og:title" content="Inspect - Scorers">
+<meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
+<meta property="og:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
 <meta property="og:site_name" content="Inspect">
-<meta name="twitter:title" content="Inspect - Scorers">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:width" content="2400">
+<meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image-height" content="1260">
+<meta name="twitter:image-width" content="2400">
 </head>
 
 <body class="nav-sidebar floating">
@@ -141,29 +147,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <a href="./">Inspect</a> 
         <div class="sidebar-tools-main">
     <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
-    <div class="dropdown">
-      <a href="" title="Download" id="quarto-navigation-tool-dropdown-0" class="quarto-navigation-tool dropdown-toggle px-1" data-bs-toggle="dropdown" aria-expanded="false" role="link" aria-label="Download"><i class="bi bi-download"></i></a>
-      <ul class="dropdown-menu" aria-labelledby="quarto-navigation-tool-dropdown-0">
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.pdf">
-              <i class="bi bi-file-pdf pe-1"></i>
-            Download PDF
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.epub">
-              <i class="bi bi-journal pe-1"></i>
-            Download ePub
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.docx">
-              <i class="bi bi-file-word pe-1"></i>
-            Download Docx
-            </a>
-          </li>
-      </ul>
-    </div>
 </div>
     </div>
       </div>
@@ -196,6 +179,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vscode.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">VS Code</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -561,7 +549,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> score</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that the call to <code>model_grader.generate()</code> is done with <code>await</code>—this is critical to ensure that the scorer participates correctly in the scheduling of generation work.</p>
-<p>Note also e use the <code>input_text</code> property of the <code>TaskState</code> to access a string version of the original user input to substitute it into the grading template. Using the <code>input_text</code> has two benefits: (1) It is guaranteed to cover the original input from the dataset (rather than a transformed prompt in <code>messages</code>); and (2) It normalises the input to a string (as it could have been a message list).</p>
+<p>Note also we use the <code>input_text</code> property of the <code>TaskState</code> to access a string version of the original user input to substitute it into the grading template. Using the <code>input_text</code> has two benefits: (1) It is guaranteed to cover the original input from the dataset (rather than a transformed prompt in <code>messages</code>); and (2) It normalises the input to a string (as it could have been a message list).</p>
 </section>
 </section>
 <section id="metrics" class="level2">

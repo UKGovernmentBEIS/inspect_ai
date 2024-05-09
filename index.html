@@ -108,13 +108,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
+<meta property="og:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
 <meta property="og:site_name" content="Inspect">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:width" content="2400">
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image-height" content="1260">
+<meta name="twitter:image-width" content="2400">
 </head>
 
-<body class="nav-sidebar floating fullcontent">
+<body class="nav-sidebar floating">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
@@ -143,29 +149,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <a href="./">Inspect</a> 
         <div class="sidebar-tools-main">
     <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
-    <div class="dropdown">
-      <a href="" title="Download" id="quarto-navigation-tool-dropdown-0" class="quarto-navigation-tool dropdown-toggle px-1" data-bs-toggle="dropdown" aria-expanded="false" role="link" aria-label="Download"><i class="bi bi-download"></i></a>
-      <ul class="dropdown-menu" aria-labelledby="quarto-navigation-tool-dropdown-0">
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.pdf">
-              <i class="bi bi-file-pdf pe-1"></i>
-            Download PDF
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.epub">
-              <i class="bi bi-journal pe-1"></i>
-            Download ePub
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.docx">
-              <i class="bi bi-file-word pe-1"></i>
-            Download Docx
-            </a>
-          </li>
-      </ul>
-    </div>
 </div>
     </div>
       </div>
@@ -198,6 +181,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vscode.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">VS Code</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -274,7 +262,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </nav>
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
-    
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#welcome" id="toc-welcome" class="nav-link active" data-scroll-target="#welcome">Welcome</a></li>
+  <li><a href="#getting-started" id="toc-getting-started" class="nav-link" data-scroll-target="#getting-started">Getting Started</a></li>
+  <li><a href="#sec-hello-inspect" id="toc-sec-hello-inspect" class="nav-link" data-scroll-target="#sec-hello-inspect">Hello, Inspect</a></li>
+  <li><a href="#learning-more" id="toc-learning-more" class="nav-link" data-scroll-target="#learning-more">Learning More</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+    </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
@@ -298,28 +297,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<div>
-
-</div>
-<div class="splash quarto-layout-panel" data-layout="[45,55]">
-<div class="quarto-layout-row">
-<div class="quarto-layout-cell" style="flex-basis: 45.0%;justify-content: flex-start;">
-<ul>
-<li><p>Easy creation of simple benchmark-style evaluations.</p></li>
-<li><p>Scale up to more sophsisticated evals with multi-turn dialog, agent scaffolds and model grading.</p></li>
-<li><p>Interactive workflows for researchers; production workflows for larger evaluation suites.</p></li>
-<li><p>Adapt and extend the framework with custom Python components.</p></li>
-</ul>
-</div>
-<div class="quarto-layout-cell" style="flex-basis: 55.0%;justify-content: center;">
-<p><a href="images/inspect-view-splash.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-splash.png" class="border img-fluid" alt="The Inspect log viewer, displahing a summary of results for the task as well as 5 individual samples."></a></p>
-</div>
-</div>
-</div>
 <section id="welcome" class="level2">
 <h2 class="anchored" data-anchor-id="welcome">Welcome</h2>
 <p>Welcome to Inspect, a framework for large language model evaluations created by the <a href="https://www.gov.uk/government/organisations/ai-safety-institute">UK AI Safety Institute</a>.</p>
 <p>Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g.&nbsp;to support new elicitation and scoring techniques) can be provided by other Python packages.</p>
+<p><a href="images/inspect.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect.png" class="border img-fluid" alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."></a></p>
 <p>We’ll walk through a fairly trivial “Hello, Inspect” example below. Read on to learn the basics, then read the documentation on <a href="workflow.html">Workflow</a>, <a href="solvers.html">Solvers</a>, <a href="tools.html">Tools</a>, <a href="scorers.html">Scorers</a>, <a href="datasets.html">Datasets</a>, and <a href="models.html">Models</a> to learn how to create more advanced evaluations.</p>
 </section>
 <section id="getting-started" class="level2">
@@ -363,13 +345,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, and CloudFlare. See the documentation on <a href="models.html">Models</a> for additional detals.</p>
+<p>In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, and Cloudflare. See the documentation on <a href="models.html">Models</a> for additional details.</p>
 </section>
 <section id="sec-hello-inspect" class="level2">
 <h2 class="anchored" data-anchor-id="sec-hello-inspect">Hello, Inspect</h2>
 <p>Inspect evaluations have three main components:</p>
 <ol type="1">
-<li><p><strong>Datasets</strong> contain a set of labeled samples. Datasets are typically just a table with <code>input</code> and <code>target</code> columns, where <code>input</code> is a prompt and <code>target</code> is either literal value(s) or grading guideance.</p></li>
+<li><p><strong>Datasets</strong> contain a set of labeled samples. Datasets are typically just a table with <code>input</code> and <code>target</code> columns, where <code>input</code> is a prompt and <code>target</code> is either literal value(s) or grading guidance.</p></li>
 <li><p><strong>Solvers</strong> are composed together in a <em>plan</em> to evaluate the <code>input</code> in the dataset. The most elemental solver, <code>generate()</code>, just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, etc.</p></li>
 <li><p><strong>Scorers</strong> evaluate the final output of solvers. They may use text comparisons, model grading, or other custom schemes</p></li>
 </ol>
@@ -436,7 +418,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>By default, eval logs are written to the <code>./logs</code> sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.</p>
 <p>You can also explore eval results using the Inspect log viewer. Run <code>inspect view</code> to open the viewer (you only need to do this once as the viewer will automatically updated when new evals are run):</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><a href="images/inspect-view-home.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-home.png" class="border img-fluid" alt="The Inspect log viewer, displahing a summary of results for the task as well as 7 individual samples."></a></p>
+<p><a href="images/inspect-view-home.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-home.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."></a></p>
 <p>See the <a href="log-viewer.html">Log Viewer</a> section for additional details on using Inspect View.</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
@@ -451,11 +433,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="learning-more" class="level2">
 <h2 class="anchored" data-anchor-id="learning-more">Learning More</h2>
-<p>To get stared with Inspect, we highly recommend you read at least these sections for a high level overview of the system:</p>
+<p>To get started with Inspect, we highly recommend you read at least these sections for a high level overview of the system:</p>
 <ul>
 <li><p><a href="workflow.html">Workflow</a> covers the mechanics of running evaluations, including how to create evals in both scripts and notebooks, specifying configuration and options, how to parameterise tasks for different scenarios, and how to work with eval log files.</p></li>
 <li><p><a href="log-viewer.html">Log Viewer</a> goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python’s standard logging module.</p></li>
-<li><p><a href="examples.html">Examples</a> provides several complete examples with commentary on the use of various features (as with the above example, they are fairly simplistic for the purposes of illustration). You can also find implementations of a few popular <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks">LLM benchmarks</a> in the Inspect repository.</p></li>
+<li><p><a href="vscode.html">VS Code</a> provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.</p></li>
+<li><p><a href="examples.html">Examples</a> includes several complete examples with commentary on the use of various features (as with the above example, they are fairly simplistic for the purposes of illustration). You can also find implementations of a few popular <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks">LLM benchmarks</a> in the Inspect repository.</p></li>
 </ul>
 <p>These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.</p>
 <ul>
@@ -465,7 +448,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><a href="datasets.html">Datasets</a> provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.</p></li>
 <li><p><a href="models.html">Models</a> provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g.&nbsp;for critique or grading).</p></li>
 </ul>
-<p>These sections discuss more advanced features and workflow. You don’t need to review them at the outset, but be sure to revist them as you get more comfortable with the basics.</p>
+<p>These sections discuss more advanced features and workflow. You don’t need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.</p>
 <ul>
 <li><p><a href="eval-logs.html">Eval Logs</a> describes how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.</p></li>
 <li><p><a href="eval-tuning.html">Eval Tuning</a> delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture—here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.</p></li>
@@ -981,7 +964,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </a>
   </li>  
 </ul>
-    <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
     <div class="nav-footer-right">
       <ul class="footer-items list-unstyled">
     <li class="nav-item compact">
@@ -1000,7 +983,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","descPosition":"bottom","loop":false,"selector":".lightbox","closeEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom","closeEffect":"zoom"});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;

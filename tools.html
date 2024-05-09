@@ -104,12 +104,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 }</script>
 
 
-<meta property="og:title" content="Inspect - Tools">
+<meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
+<meta property="og:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
 <meta property="og:site_name" content="Inspect">
-<meta name="twitter:title" content="Inspect - Tools">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:width" content="2400">
+<meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image-height" content="1260">
+<meta name="twitter:image-width" content="2400">
 </head>
 
 <body class="nav-sidebar floating">
@@ -141,29 +147,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <a href="./">Inspect</a> 
         <div class="sidebar-tools-main">
     <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
-    <div class="dropdown">
-      <a href="" title="Download" id="quarto-navigation-tool-dropdown-0" class="quarto-navigation-tool dropdown-toggle px-1" data-bs-toggle="dropdown" aria-expanded="false" role="link" aria-label="Download"><i class="bi bi-download"></i></a>
-      <ul class="dropdown-menu" aria-labelledby="quarto-navigation-tool-dropdown-0">
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.pdf">
-              <i class="bi bi-file-pdf pe-1"></i>
-            Download PDF
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.epub">
-              <i class="bi bi-journal pe-1"></i>
-            Download ePub
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.docx">
-              <i class="bi bi-file-word pe-1"></i>
-            Download Docx
-            </a>
-          </li>
-      </ul>
-    </div>
 </div>
     </div>
       </div>
@@ -196,6 +179,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vscode.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">VS Code</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -433,7 +421,7 @@ Tools and Agents
 </section>
 <section id="tool-choice" class="level2">
 <h2 class="anchored" data-anchor-id="tool-choice">Tool Choice</h2>
-<p>By default models will use a tool if they think it’s appropriate for the given task. You can override this behavior using the <code>tool_choice</code> parmaeter of the <code>use_tools()</code> Solver. For example:</p>
+<p>By default models will use a tool if they think it’s appropriate for the given task. You can override this behavior using the <code>tool_choice</code> parameter of the <code>use_tools()</code> Solver. For example:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># let the model decide whether to use the tool</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>use_tools(addition(), tool_choice<span class="op">=</span><span class="st">"auto"</span>)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -453,7 +441,7 @@ Tools and Agents
 </section>
 <section id="web-search" class="level2">
 <h2 class="anchored" data-anchor-id="web-search">Web Search</h2>
-<p>Inspect has a built in <code>web_search()</code> tool that provides models with the ability to enhance their context window by performing a search. By default web searches retreives 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the <code>web_search()</code> function:</p>
+<p>Inspect has a built in <code>web_search()</code> tool that provides models with the ability to enhance their context window by performing a search. By default web searches retrieves 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the <code>web_search()</code> function:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_search(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    provider: Literal[<span class="st">"google"</span>] <span class="op">=</span> <span class="st">"google"</span>,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    num_results: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>,</span>
@@ -471,7 +459,7 @@ Tools and Agents
 <ul>
 <li><p><code>provider</code>—Web search provider (currently only Google is supported, see below for instructions on setup and configuration for Google).</p></li>
 <li><p><code>num_results</code>—How many search results to return to the main model (defaults to 5).</p></li>
-<li><p><code>max_provider_calls</code>—Number of times to retrieve more links from the search provider incase previous ones were irrelevant (defaults to 3)</p></li>
+<li><p><code>max_provider_calls</code>—Number of times to retrieve more links from the search provider in case previous ones were irrelevant (defaults to 3).</p></li>
 <li><p><code>max_connections</code>—Maximum number of concurrent connections to the search API provider (defaults to 10).</p></li>
 <li><p><code>model</code>—Model to use to determine if search results are relevant (defaults to the model currently being evaluated).</p></li>
 </ul>
@@ -494,7 +482,7 @@ Tools and Agents
 <li><p>Adapt another scaffolding scheme provided by a research paper or open source library.</p></li>
 <li><p>Integrate a 3rd party agent library like <a href="https://python.langchain.com/docs/modules/agents/">LangChain</a> and <a href="https://langroid.github.io/langroid/">Langroid</a>.</p></li>
 </ol>
-<p>If you are adapting research code or using a 3rd party library, it’s important that the agent scaffolding use Inspect’s model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). We’ll describe how to do that for <a href="https://python.langchain.com/docs/modules/agents/">LangChain</a> in the example below.</p>
+<p>If you are adapting research code or using a 3rd party library, it’s important that the agent scaffolding use Inspect’s model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!) We’ll describe how to do that for <a href="https://python.langchain.com/docs/modules/agents/">LangChain</a> in the example below.</p>
 <section id="example-wikipedia-search" class="level3">
 <h3 class="anchored" data-anchor-id="example-wikipedia-search">Example: Wikipedia Search</h3>
 <p>In this example we’ll demonstrate how to integrate a LangChain OpenAI tools agent with Inspect. This agent will use Wikipedia via the <a href="https://tavily.com/">Tavili Search API</a> to perform question answering tasks. If you want to start by getting some grounding in the code <em>without</em> the Inspect integration, see <a href="https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/">this article</a> upon which the example is based.</p>

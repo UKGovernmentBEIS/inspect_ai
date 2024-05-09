@@ -104,12 +104,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 }</script>
 
 
-<meta property="og:title" content="Inspect - Models">
+<meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
+<meta property="og:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
 <meta property="og:site_name" content="Inspect">
-<meta name="twitter:title" content="Inspect - Models">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:width" content="2400">
+<meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image-height" content="1260">
+<meta name="twitter:image-width" content="2400">
 </head>
 
 <body class="nav-sidebar floating">
@@ -141,29 +147,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <a href="./">Inspect</a> 
         <div class="sidebar-tools-main">
     <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
-    <div class="dropdown">
-      <a href="" title="Download" id="quarto-navigation-tool-dropdown-0" class="quarto-navigation-tool dropdown-toggle px-1" data-bs-toggle="dropdown" aria-expanded="false" role="link" aria-label="Download"><i class="bi bi-download"></i></a>
-      <ul class="dropdown-menu" aria-labelledby="quarto-navigation-tool-dropdown-0">
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.pdf">
-              <i class="bi bi-file-pdf pe-1"></i>
-            Download PDF
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.epub">
-              <i class="bi bi-journal pe-1"></i>
-            Download ePub
-            </a>
-          </li>
-          <li>
-            <a class="dropdown-item sidebar-tools-main-item" href="./Inspect.docx">
-              <i class="bi bi-file-word pe-1"></i>
-            Download Docx
-            </a>
-          </li>
-      </ul>
-    </div>
 </div>
     </div>
       </div>
@@ -196,6 +179,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vscode.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">VS Code</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -379,7 +367,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>AZURE_API_KEY</code> and <code>INSPECT_EVAL_MODEL_BASE_URL</code></td>
 </tr>
 <tr class="odd">
-<td>CloudFlare</td>
+<td>Cloudflare</td>
 <td>None required</td>
 <td><code>CLOUDFLARE_ACCOUNT_ID</code> and <code>CLOUDFLARE_API_TOKEN</code></td>
 </tr>
@@ -444,9 +432,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><a href="https://ai.azure.com/explore/models">Azure AI Models</a></td>
 </tr>
 <tr class="odd">
-<td>CloudFlare</td>
+<td>Cloudflare</td>
 <td><code>cf/meta/llama-2-7b-chat-fp16</code></td>
-<td><a href="https://developers.cloudflare.com/workers-ai/models/#text-generation">CloudFlare Models</a></td>
+<td><a href="https://developers.cloudflare.com/workers-ai/models/#text-generation">Cloudflare Models</a></td>
 </tr>
 </tbody>
 </table>
@@ -454,7 +442,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval security_guide <span class="at">--model</span> openai/gpt-3.5-turbo</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval security_guide <span class="at">--model</span> anthropic/claude-instant-1.2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(security_guide, model<span class="op">=</span><span class="st">"openai/opeangpt-3.5-turbo"</span>)</span>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(security_guide, model<span class="op">=</span><span class="st">"openai/gpt-3.5-turbo"</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(security_guide, model<span class="op">=</span><span class="st">"anthropic/claude-instant-1.2"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Alternatively, you can set the <code>INSPECT_EVAL_MODEL</code> environment variable (either in the shell or a <code>.env</code> file) to select a model externally:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_MODEL</span><span class="op">=</span>google/gemini-1.0-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -512,7 +500,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>AZUREAI_BASE_URL</code></td>
 </tr>
 <tr class="even">
-<td>CloudFlare</td>
+<td>Cloudflare</td>
 <td><code>CLOUDFLARE_BASE_URL</code></td>
 </tr>
 </tbody>
@@ -611,7 +599,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="other-models" class="level4">
 <h4 class="anchored" data-anchor-id="other-models">Other Models</h4>
-<p>Azure AI supports many other model types, you can access these using the <code>azureai</code> model provider. As with OpenAI and Mistral, you’ll need to specify an <code>AZUREAI_API_KEY</code> along with an <code>AZUREAI_BASE_URL</code>, as well as use the the <a href="https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model">Azure Deployment Name</a> of your model as the model name. For example:</p>
+<p>Azure AI supports many other model types, you can access these using the <code>azureai</code> model provider. As with OpenAI and Mistral, you’ll need to specify an <code>AZUREAI_API_KEY</code> along with an <code>AZUREAI_BASE_URL</code>, as well as use the <a href="https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model">Azure Deployment Name</a> of your model as the model name. For example:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export AZUREAI_API_KEY=key</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export AZUREAI_BASE_URL=https://your-url-at.azure.com</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> azureai/llama-2-70b-chat-wnsnw</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -737,12 +725,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Chat HTTP Post Body</td>
 </tr>
 <tr class="even">
-<td>CloudFlare</td>
+<td>Cloudflare</td>
 <td>Chat HTTP Post Body</td>
 </tr>
 </tbody>
 </table>
-<p>See the OpenAI, Anthropic, Google, Mistral, Hugging Face, TogetherAI, Azure AI, and CloudFlare provider documentation for more information on the additional options available.</p>
+<p>See the OpenAI, Anthropic, Google, Mistral, Hugging Face, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.</p>
 </section>
 <section id="custom-models" class="level2">
 <h2 class="anchored" data-anchor-id="custom-models">Custom Models</h2>
