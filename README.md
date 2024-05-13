@@ -18,4 +18,4 @@ $ cd inspect_ai
 $ pip install -e ".[dev]"
 ```
 
-If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be promoted to install these when you open the project in VS Code.
+If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.
