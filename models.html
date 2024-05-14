@@ -352,27 +352,42 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>HF_TOKEN</code></td>
 </tr>
 <tr class="even">
+<td>Ollama</td>
+<td><code>pip install openai</code></td>
+<td>None required</td>
+</tr>
+<tr class="odd">
 <td>TogetherAI</td>
 <td><code>pip install openai</code></td>
 <td><code>TOGETHER_API_KEY</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>AWS Bedrock</td>
 <td><code>pip install boto3</code></td>
 <td><code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>, and <code>AWS_DEFAULT_REGION</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Azure AI</td>
 <td>None required</td>
 <td><code>AZURE_API_KEY</code> and <code>INSPECT_EVAL_MODEL_BASE_URL</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Cloudflare</td>
 <td>None required</td>
 <td><code>CLOUDFLARE_ACCOUNT_ID</code> and <code>CLOUDFLARE_API_TOKEN</code></td>
 </tr>
 </tbody>
 </table>
+<div class="callout callout-style-simple callout-note no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Note that some providers (<a href="https://github.com/ollama/ollama/blob/main/docs/openai.md">Ollama</a> and <a href="https://docs.together.ai/docs/openai-api-compatibility">TogetherAI</a>) support the OpenAI Python package as a client, which is why you need to <code>pip install openai</code> for these providers even though you aren’t actually interacting with the OpenAI service when you use them.</p>
+</div>
+</div>
+</div>
 </section>
 <section id="using-models" class="level2">
 <h2 class="anchored" data-anchor-id="using-models">Using Models</h2>
@@ -417,21 +432,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><a href="https://huggingface.co/models?pipeline_tag=text-generation&amp;sort=trending">Hugging Face Models</a></td>
 </tr>
 <tr class="even">
+<td>Ollama</td>
+<td><code>ollama/llama3</code></td>
+<td><a href="https://ollama.com/library">Ollama Models</a></td>
+</tr>
+<tr class="odd">
 <td>TogetherAI</td>
 <td><code>together/lmsys/vicuna-13b-v1.5</code></td>
 <td><a href="https://docs.together.ai/docs/inference-models#chat-models">TogetherAI Models</a></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>AWS Bedrock</td>
 <td><code>bedrock/meta.llama2-70b-chat-v1</code></td>
 <td><a href="https://aws.amazon.com/bedrock/">AWS Bedrock Models</a></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Azure AI</td>
 <td><code>azureai/azure-deployment-name</code></td>
 <td><a href="https://ai.azure.com/explore/models">Azure AI Models</a></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Cloudflare</td>
 <td><code>cf/meta/llama-2-7b-chat-fp16</code></td>
 <td><a href="https://developers.cloudflare.com/workers-ai/models/#text-generation">Cloudflare Models</a></td>
@@ -492,14 +512,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>TOGETHER_BASE_URL</code></td>
 </tr>
 <tr class="even">
+<td>Ollama</td>
+<td><code>OLLAMA_BASE_URL</code></td>
+</tr>
+<tr class="odd">
 <td>AWS Bedrock</td>
 <td><code>BEDROCK_BASE_URL</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Azure AI</td>
 <td><code>AZUREAI_BASE_URL</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Cloudflare</td>
 <td><code>CLOUDFLARE_BASE_URL</code></td>
 </tr>
@@ -717,20 +741,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>AutoModelForCausalLM.from_pretrained</code></td>
 </tr>
 <tr class="even">
-<td>TogetherAI</td>
+<td>Ollama</td>
 <td><code>AsyncOpenAI</code></td>
 </tr>
 <tr class="odd">
+<td>TogetherAI</td>
+<td><code>AsyncOpenAI</code></td>
+</tr>
+<tr class="even">
 <td>AzureAI</td>
 <td>Chat HTTP Post Body</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Cloudflare</td>
 <td>Chat HTTP Post Body</td>
 </tr>
 </tbody>
 </table>
-<p>See the OpenAI, Anthropic, Google, Mistral, Hugging Face, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.</p>
+<p>See the OpenAI, Anthropic, Google, Mistral, Hugging Face, Ollama, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.</p>
 </section>
 <section id="custom-models" class="level2">
 <h2 class="anchored" data-anchor-id="custom-models">Custom Models</h2>

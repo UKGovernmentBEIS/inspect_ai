@@ -498,7 +498,7 @@ VS Code Extension
 <i class="callout-icon no-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>If you aren’t familiar with the <code>__name__ == "__main__"</code> idiom, see the docs on <a href="https://docs.python.org/3/library/main.html">__main__</a> for additional details.</p>
+<p>If you aren’t familiar with the <code>__name__ == "__main__"</code> idiom, see the docs on <a href="https://docs.python.org/3/library/__main__.html">__main__</a> for additional details.</p>
 </div>
 </div>
 </div>
@@ -512,7 +512,7 @@ VS Code Extension
 <p>We refer to notebooks above but show scripts in all of the examples. Everything demonstrated for scripts will work similarly in notebooks, specifically:</p>
 <ol type="1">
 <li><p>You can use the <code>__name__ == "__main__"</code> check to protect cells that should only be run in exploratory mode.</p></li>
-<li><p>You can pass a notebook to <code>insect eval</code> just the same as a script (including passing task parameters)</p></li>
+<li><p>You can pass a notebook to <code>inspect eval</code> just the same as a script (including passing task parameters)</p></li>
 </ol>
 <p>For example, imagine that all of the code shown above for <code>security.py</code> was in <code>security.ipynb</code>. You could run the eval and optionally pass a task parameter as follows:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval security.ipynb </span>
@@ -1090,7 +1090,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","selector":".lightbox","closeEffect":"zoom","loop":false,"descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"openEffect":"zoom","descPosition":"bottom"});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;

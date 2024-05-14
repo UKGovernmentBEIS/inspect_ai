@@ -345,7 +345,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, and Cloudflare. See the documentation on <a href="models.html">Models</a> for additional details.</p>
+<p>In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, and Cloudflare, as well as local models with Ollama. See the documentation on <a href="models.html">Models</a> for additional details.</p>
 </section>
 <section id="sec-hello-inspect" class="level2">
 <h2 class="anchored" data-anchor-id="sec-hello-inspect">Hello, Inspect</h2>
@@ -983,7 +983,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom","openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","closeEffect":"zoom","openEffect":"zoom","loop":false,"descPosition":"bottom"});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;

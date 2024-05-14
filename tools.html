@@ -317,7 +317,7 @@ Tools and Agents
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. We’ll cover how to use agent scaffolds in <a href="#agents">Agent Solvers</a> below.</p>
+<p>One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. We’ll cover how to use agent scaffolds in <a href="#agent-solvers">Agent Solvers</a> below.</p>
 </div>
 </div>
 </section>
@@ -441,7 +441,7 @@ Tools and Agents
 </section>
 <section id="web-search" class="level2">
 <h2 class="anchored" data-anchor-id="web-search">Web Search</h2>
-<p>Inspect has a built in <code>web_search()</code> tool that provides models with the ability to enhance their context window by performing a search. By default web searches retrieves 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the <code>web_search()</code> function:</p>
+<p>Inspect has a built in <code>web_search()</code> tool that provides models with the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the <code>web_search()</code> function:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_search(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    provider: Literal[<span class="st">"google"</span>] <span class="op">=</span> <span class="st">"google"</span>,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    num_results: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>,</span>
