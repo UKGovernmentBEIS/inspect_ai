@@ -1,8 +1,7 @@
 from pathlib import Path
 from typing import Callable
 
-from inspect_ai._eval.list import list_tasks
-from inspect_ai._eval.task import TaskInfo
+from inspect_ai import TaskInfo, list_tasks
 
 TEST_TASKS_DIR = Path("tests/test_task_list")
 

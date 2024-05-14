@@ -9,7 +9,7 @@ Inspect natively supports registering Python functions as tools and providing th
 ::: {.callout-note}
 ### Tools and Agents
 
-One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. We'll cover how to use agent scaffolds in [Agent Solvers](#agents) below.
+One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. We'll cover how to use agent scaffolds in [Agent Solvers](#agent-solvers) below.
 :::
 
 ## Tool Basics
@@ -149,7 +149,7 @@ plan = [
 
 ## Web Search
 
-Inspect has a built in `web_search()` tool that provides models with the ability to enhance their context window by performing a search. By default web searches retrieves 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
+Inspect has a built in `web_search()` tool that provides models with the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
 
 ``` python
 def web_search(

@@ -153,7 +153,7 @@ class HuggingFaceAPI(ModelAPI):
         if config.logprobs is not None:
             final_logprobs = extract_logprobs(
                 response=response,
-                top_logprobs=config.top_logprobs,
+                top=config.top_logprobs,
                 tokenizer=self.tokenizer,
             )
 
@@ -163,9 +163,9 @@ class HuggingFaceAPI(ModelAPI):
                 content=response.output,
                 source="generate",
             ),
-            logprobs=Logprobs(content=final_logprobs)
-            if final_logprobs is not None
-            else None,
+            logprobs=(
+                Logprobs(content=final_logprobs) if final_logprobs is not None else None
+            ),
         )
 
         # return output
@@ -212,6 +212,12 @@ def set_random_seeds(seed: int | None = None) -> None:
     os.environ["PYTHONHASHSEED"] = str(seed)
     # transformers seed
     set_seed(seed)
+
+
+# return value from generate as a result of specifying return_dict_in_generate
+class ModelGenerateOutput:
+    sequences: Tensor
+    logits: tuple[Tensor]
 
 
 class Tokenizer(Protocol):
@@ -315,8 +321,9 @@ def process_batches() -> None:
 
             # generate
             with torch.inference_mode():
-                generation_outputs = generator(
-                    input_ids=input_ids, attention_mask=attention_mask
+                generation_outputs = cast(
+                    ModelGenerateOutput,
+                    generator(input_ids=input_ids, attention_mask=attention_mask),
                 )
                 generate_ids = generation_outputs.sequences
                 logits = generation_outputs.logits
@@ -324,8 +331,8 @@ def process_batches() -> None:
             # get logprobs from logits
             logprobs = None
             if logits is not None:
-                logits = torch.stack(logits).transpose(0, 1)
-                logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
+                stacked_logits = torch.stack(logits).transpose(0, 1)
+                logprobs = torch.nn.functional.log_softmax(stacked_logits, dim=-1)
 
             # decode
             generated_tokens = generate_ids[:, input_ids.size(dim=1) :]
@@ -361,15 +368,15 @@ def process_batches() -> None:
 
 def extract_logprobs(
     response: GenerateOutput,
-    top_logprobs: int | None,
+    top: int | None,
     tokenizer: PreTrainedTokenizerBase,
 ) -> list[Logprob]:
     assert response.logprobs is not None
-    k = top_logprobs or 1
+    k = top or 1
     topk_values, topk_inds = response.logprobs.topk(k=k, dim=-1)
     final_logprobs = []
     for toks, vals in zip(topk_inds, topk_values):
-        top_logprobs = []
+        top_logprobs: list[TopLogprob] = []
         for tok, val in zip(toks, vals):
             # TODO: you get byte artifacts converting single ids to tokens like this...
             # but `tokenizer.decode` strips spaces. There must be a better way to do this.

@@ -1,4 +1,3 @@
-import json
 import os
 import re
 from pathlib import Path
@@ -7,7 +6,7 @@ from urllib.parse import urlparse
 
 import json_stream  # type: ignore
 from pydantic import BaseModel, Field
-from pydantic_core import to_json
+from pydantic_core import from_json, to_json
 
 from inspect_ai._util.file import FileInfo, file, filesystem
 
@@ -116,38 +115,69 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
     Returns:
        EvalLog object read from file.
     """
+    # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
-    with file(log_file, "r") as f:
-        # header-only uses json-stream
-        if header_only:
-            data = json_stream.load(f, persistent=True)
 
-            def read_field(field: str) -> Any:
-                if field in data.keys():
-                    return json_stream.to_standard_types(data[field])
+    # verify we know about this version of the log file format
+    def validate_version(ver: int) -> None:
+        if ver > 1:
+            raise ValueError(f"Unable to read version {ver} of log format.")
+
+    # header-only uses json-stream
+    if header_only:
+        with file(log_file, "r") as f:
+            try:
+                data = json_stream.load(f, persistent=True)
+
+                def read_field(field: str) -> Any:
+                    if field in data.keys():
+                        return json_stream.to_standard_types(data[field])
+                    else:
+                        return None
+
+                # fail for unknown version
+                version = read_field("version")
+                validate_version(version)
+
+                results = read_field("results")
+                error = read_field("error")
+
+                return EvalLog(
+                    version=version,
+                    status=read_field("status"),
+                    eval=EvalSpec(**read_field("eval")),
+                    plan=EvalPlan(**read_field("plan")),
+                    results=EvalResults(**results) if results else None,
+                    stats=EvalStats(**read_field("stats")),
+                    error=EvalError(**error) if error else None,
+                )
+            # The Python JSON serializer supports NaN and Inf, however
+            # this isn't technically part of the JSON spec. The json-stream
+            # library shares this limitation, so if we fail with an
+            # invalid character then we move on and and parse w/ pydantic
+            # (which does support NaN and Inf by default)
+            except ValueError as ex:
+                if str(ex).find("Invalid JSON character") != -1:
+                    pass
                 else:
-                    return None
+                    raise ex
 
-            results = read_field("results")
-            error = read_field("error")
+    # parse full log (also used as a fallback for header_only encountering NaN or Inf)
+    with file(log_file, "r") as f:
+        # parse w/ pydantic
+        raw_data = from_json(f.read())
+        log = EvalLog(**raw_data)
 
-            return EvalLog(
-                version=read_field("version"),
-                status=read_field("status"),
-                eval=EvalSpec(**read_field("eval")),
-                plan=EvalPlan(**read_field("plan")),
-                results=EvalResults(**results) if results else None,
-                stats=EvalStats(**read_field("stats")),
-                error=EvalError(**error) if error else None,
-            )
+        # fail for unknown version
+        validate_version(log.version)
 
-        # otherwise normal json parse
-        else:
-            raw_data = json.load(f)
-            log = EvalLog(**raw_data)
-            if log.version > 1:
-                raise ValueError(f"Unable to read version {log.version} of log format.")
-            return log
+        # prune if header_only
+        if header_only:
+            log.samples = None
+            log.logging.clear()
+
+        # return log
+        return log
 
 
 def read_eval_log_headers(log_files: list[str] | list[FileInfo]) -> list[EvalLog]:

@@ -11,12 +11,17 @@ Inspect has built in support for a variety of language model API providers and c
 | Google       | `pip install google-generativeai` | `GOOGLE_API_KEY`                                                       |
 | Mistral      | `pip install mistralai`           | `MISTRAL_API_KEY`                                                      |
 | Hugging Face | `pip install transformers`        | `HF_TOKEN`                                                             |
+| Ollama       | `pip install openai`              | None required                                                          |
 | TogetherAI   | `pip install openai`              | `TOGETHER_API_KEY`                                                     |
 | AWS Bedrock  | `pip install boto3`               | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
 | Azure AI     | None required                     | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL`                      |
 | Cloudflare   | None required                     | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`                     |
 
 : {tbl-colwidths="\[18,45,37\]"}
+
+::: {.callout-note appearance="minimal"}
+Note that some providers ([Ollama](https://github.com/ollama/ollama/blob/main/docs/openai.md) and [TogetherAI](https://docs.together.ai/docs/openai-api-compatibility)) support the OpenAI Python package as a client, which is why you need to `pip install openai` for these providers even though you aren't actually interacting with the OpenAI service when you use them.
+:::
 
 ## Using Models
 
@@ -29,6 +34,7 @@ To select a model for use in an evaluation task you specify it using a *model na
 | Google       | `google/gemini-1.0-pro`           | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models)             |
 | Mistral      | `mistral/mistral-large-latest`    | [Mistral Models](https://docs.mistral.ai/platform/endpoints/)                                   |
 | Hugging Face | `hf/openai-community/gpt2`        | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
+| Ollama       | `ollama/llama3`                   | [Ollama Models](https://ollama.com/library)                                                     |
 | TogetherAI   | `together/lmsys/vicuna-13b-v1.5`  | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                 |
 | AWS Bedrock  | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/)                                           |
 | Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)                                          |
@@ -71,6 +77,7 @@ Each model also can use a different base URL than the default (e.g. if running t
 | Google      | `GOOGLE_BASE_URL`     |
 | Mistral     | `MISTRAL_BASE_URL`    |
 | TogetherAI  | `TOGETHER_BASE_URL`   |
+| Ollama      | `OLLAMA_BASE_URL`     |
 | AWS Bedrock | `BEDROCK_BASE_URL`    |
 | Azure AI    | `AZUREAI_BASE_URL`    |
 | Cloudflare  | `CLOUDFLARE_BASE_URL` |
@@ -310,13 +317,14 @@ The additional `model_args` are forwarded as follows for the various providers:
 | Google       | `genai.configure`                      |
 | Mistral      | `MistralAsyncClient`                   |
 | Hugging Face | `AutoModelForCausalLM.from_pretrained` |
+| Ollama       | `AsyncOpenAI`                          |
 | TogetherAI   | `AsyncOpenAI`                          |
 | AzureAI      | Chat HTTP Post Body                    |
 | Cloudflare   | Chat HTTP Post Body                    |
 
 : {tbl-colwidths="\[30,70\]"}
 
-See the OpenAI, Anthropic, Google, Mistral, Hugging Face, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.
+See the OpenAI, Anthropic, Google, Mistral, Hugging Face, Ollama, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.
 
 ## Custom Models
 

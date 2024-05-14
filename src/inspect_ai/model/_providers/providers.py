@@ -10,7 +10,7 @@ from .._registry import modelapi
 # strictly require this treatment but we do it anyway for uniformity,
 
 
-@modelapi(name="openai", models=["gpt"])
+@modelapi(name="openai")
 def openai() -> type[ModelAPI]:
     # validate
     validate_openai_client("OpenAI API")
@@ -21,7 +21,7 @@ def openai() -> type[ModelAPI]:
     return OpenAIAPI
 
 
-@modelapi(name="anthropic", models=["claude"])
+@modelapi(name="anthropic")
 def anthropic() -> type[ModelAPI]:
     FEATURE = "Anthropic API"
     PACKAGE = "anthropic"
@@ -42,7 +42,7 @@ def anthropic() -> type[ModelAPI]:
     return AnthropicAPI
 
 
-@modelapi(name="google", models=["gemini", "bison", "gdm"])
+@modelapi(name="google")
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-generativeai"
@@ -68,7 +68,9 @@ def hf() -> type[ModelAPI]:
     try:
         from .hf import HuggingFaceAPI
     except ImportError:
-        raise pip_dependency_error("Hugging Face Models", ["torch", "transformers"])
+        raise pip_dependency_error(
+            "Hugging Face Models", ["torch", "transformers", "accelerate"]
+        )
 
     return HuggingFaceAPI
 
@@ -110,6 +112,17 @@ def together() -> type[ModelAPI]:
     from .together import TogetherAIAPI
 
     return TogetherAIAPI
+
+
+@modelapi(name="ollama")
+def ollama() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("Ollama API")
+
+    # in the clear
+    from .ollama import OllamaAPI
+
+    return OllamaAPI
 
 
 @modelapi(name="azureai")

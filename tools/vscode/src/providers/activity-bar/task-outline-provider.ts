@@ -13,6 +13,7 @@ import {
   Disposable,
   TreeView,
   TreeViewVisibilityChangeEvent,
+  Uri,
 } from "vscode";
 import {
   RunSelectedEvalCommand,
@@ -32,13 +33,13 @@ import {
 } from "../workspace/workspace-task-provider";
 import { basename, relative, sep } from "path";
 import {
-  ActiveTaskInfo,
   ActiveTaskManager,
 } from "../active-task/active-task-provider";
 import { throttle } from "lodash";
 import { inspectVersion } from "../../inspect";
 import { InspectManager } from "../inspect/inspect-manager";
 import { InspectLogviewManager } from "../logview/logview-manager";
+import { DocumentTaskInfo } from "../../components/task";
 
 // Activation function for the task outline
 export async function activateTaskOutline(
@@ -70,9 +71,11 @@ export async function activateTaskOutline(
   };
 
   // If the interpreter changes, refresh the tasks
-  context.subscriptions.push(inspectManager.onInspectChanged(async () => {
-    await checkInspect();
-  }));
+  context.subscriptions.push(
+    inspectManager.onInspectChanged(async () => {
+      await checkInspect();
+    })
+  );
   await checkInspect();
 
   const tree = window.createTreeView(TaskOutLineTreeDataProvider.viewType, {
@@ -81,11 +84,34 @@ export async function activateTaskOutline(
     canSelectMany: false,
   });
 
-  // Activate task tracking
   context.subscriptions.push(
-    ...await activateTaskTracking(treeDataProvider, tree, activeTaskManager)
+    tree.onDidChangeVisibility(async (e: TreeViewVisibilityChangeEvent) => {
+      // If the tree becomes visible with nothing selected, try selecting
+      if (e.visible && tree.selection.length === 0) {
+        const activeTask = activeTaskManager.getActiveTaskInfo();
+        if (activeTask) {
+          await showTreeItem(treeDataProvider, tree, activeTask);
+        } else {
+          const first = await findFirstTask(treeDataProvider);
+          if (first) {
+            await activeTaskManager.updateActiveTask(Uri.file(first.taskPath.path), first.taskPath.name);
+          }
+        }
+      } else if (e.visible) {
+        // Tree just became visible, be sure selection matches the active task
+        await showTreeItem(
+          treeDataProvider,
+          tree,
+          activeTaskManager.getActiveTaskInfo()
+        );
+      }
+    })
   );
 
+  // Activate task tracking
+  context.subscriptions.push(
+    ...(await activateTaskTracking(treeDataProvider, tree, activeTaskManager))
+  );
 
   return [
     [
@@ -93,52 +119,61 @@ export async function activateTaskOutline(
       new ShowTaskTree(treeDataProvider),
       new RunSelectedEvalCommand(inspectEvalMgr),
       new DebugSelectedEvalCommand(inspectEvalMgr),
-      new EditSelectedTaskCommand(tree, inspectLogviewManager),
+      new EditSelectedTaskCommand(tree, inspectLogviewManager, activeTaskManager),
       new CreateTaskCommand(context),
     ],
     treeDataProvider,
   ];
 }
 
-
 const activateTaskTracking = async (
   treeDataProvider: TaskOutLineTreeDataProvider,
   tree: TreeView<TaskTreeItem>,
   activeTaskManager: ActiveTaskManager
 ) => {
-
-  const showTreeItem = async (activeTask?: ActiveTaskInfo) => {
-    if (!activeTask) {
-      return;
-    }
-
-    const treeItem = await findTreeItem(activeTask, treeDataProvider);
-    if (treeItem && treeItem.taskPath.type === "task") {
-      // Don't reveal the item if the tree isn't visible (this will force the
-      // activity bar containing the tree to become visible, which is very jarring)
-      if (tree.visible) {
-        await tree.reveal(treeItem, { select: true, focus: false });
-      }
-    }
-  };
-
   // Listen for changes to the active task and drive the tree to the item
   const activeTaskChanged = activeTaskManager.onActiveTaskChanged(async (e) => {
-    await showTreeItem(e.activeTaskInfo);
-  });
-
-  const treeVisibilityChanged = tree.onDidChangeVisibility(async (e: TreeViewVisibilityChangeEvent) => {
-    // Since we may have been ignoring activation events for tasks, when the tree reveals
-    // itself, ensure that we select the currently activate task, if any
-    if (e.visible) {
-      await showTreeItem(activeTaskManager.getActiveTaskInfo());
-    }
+    await showTreeItem(treeDataProvider, tree, e.activeTaskInfo);
   });
 
   const currentlyActive = activeTaskManager.getActiveTaskInfo();
-  await showTreeItem(currentlyActive);
-  return [activeTaskChanged, treeVisibilityChanged];
+  await showTreeItem(treeDataProvider, tree, currentlyActive);
+  return [activeTaskChanged];
 };
+
+const showTreeItem = async (
+  treeDataProvider: TaskOutLineTreeDataProvider,
+  tree: TreeView<TaskTreeItem>,
+  activeTask?: DocumentTaskInfo
+) => {
+  if (!activeTask) {
+    return;
+  }
+
+  const treeItem = await findTreeItem(activeTask, treeDataProvider);
+  if (treeItem && treeItem.taskPath.type === "task") {
+    // Don't reveal the item if the tree isn't visible (this will force the
+    // activity bar containing the tree to become visible, which is very jarring)
+    if (tree.visible) {
+      await tree.reveal(treeItem, { select: true, focus: false });
+    }
+  }
+};
+
+const findFirstTask = async (
+  treeDataProvider: TaskOutLineTreeDataProvider,
+  element?: TaskTreeItem
+): Promise<TaskTreeItem | undefined> => {
+  const children = await treeDataProvider.getChildren(element);
+  for (const child of children) {
+    if (child.taskPath.type === "task") {
+      return child;
+    } else {
+      return await findFirstTask(treeDataProvider, child);
+    }
+  }
+};
+
 
 // A tree item for a task, file, or folder
 export class TaskTreeItem extends TreeItem {
@@ -199,23 +234,28 @@ export class TaskOutLineTreeDataProvider
     private readonly workspaceMgr: WorkspaceTaskManager,
     private readonly command_?: VsCodeCommand
   ) {
-
     this.disposables_.push(
-      this.workspaceMgr.onTasksChanged(throttle(async (e: TasksChangedEvent) => {
-        this.setTasks(e.tasks || []);
-        await commands.executeCommand(
-          "setContext",
-          "inspect_ai.task-outline-view.tasksLoaded",
-          true
-        );
-        await commands.executeCommand(
-          "setContext",
-          "inspect_ai.task-outline-view.noTasks",
-          e.tasks?.length === 0
-        );
-      }, 500, { leading: true, trailing: true })));
+      this.workspaceMgr.onTasksChanged(
+        throttle(
+          async (e: TasksChangedEvent) => {
+            this.setTasks(e.tasks || []);
+            await commands.executeCommand(
+              "setContext",
+              "inspect_ai.task-outline-view.tasksLoaded",
+              true
+            );
+            await commands.executeCommand(
+              "setContext",
+              "inspect_ai.task-outline-view.noTasks",
+              e.tasks?.length === 0
+            );
+          },
+          500,
+          { leading: true, trailing: true }
+        )
+      )
+    );
     this.workspaceMgr.refresh();
-
   }
   private disposables_: Disposable[] = [];
   dispose() {
@@ -315,7 +355,7 @@ function describeRelativePath(path: string, workspacePath?: AbsolutePath) {
 // Find a task in the tree based upon its
 // path (e.g. document path and task name)
 async function findTreeItem(
-  activeTask: ActiveTaskInfo,
+  activeTask: DocumentTaskInfo,
   treeDataProvider: TaskOutLineTreeDataProvider
 ) {
   const filePath = activeTask.document.fsPath;

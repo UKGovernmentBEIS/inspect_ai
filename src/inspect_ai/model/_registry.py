@@ -10,34 +10,28 @@ from inspect_ai._util.registry import (
 from ._model import ModelAPI
 
 
-def modelapi_register(
-    model_type: type[ModelAPI], name: str, models: list[str]
-) -> type[ModelAPI]:
+def modelapi_register(model_type: type[ModelAPI], name: str) -> type[ModelAPI]:
     r"""Register a model api.
 
     Args:
         model_type (type[Model]): Class deriving from Model
         name (str): API serving this model
-        models (list[str]): Model names by this API
 
     Returns:
         Model API with registry attributes.
     """
     registry_add(
         model_type,
-        RegistryInfo(type="modelapi", name=name, metadata=dict(models=models)),
+        RegistryInfo(type="modelapi", name=name),
     )
     return model_type
 
 
-def modelapi(name: str, models: list[str] = []) -> Callable[..., type[ModelAPI]]:
+def modelapi(name: str) -> Callable[..., type[ModelAPI]]:
     r"""Decorator for registering model APIs.
 
     Args:
         name (str): Name of API
-        models (list[str]): Model names that should match this API.
-          If no `models` are provided then this model type will always
-          require an API prefix (e.g. "hf/openai-community/gpt2")
 
     Returns:
         Model API with registry attributes.
@@ -66,14 +60,13 @@ def modelapi(name: str, models: list[str] = []) -> Callable[..., type[ModelAPI]]
                 RegistryInfo(
                     type="modelapi",
                     name=model_api,
-                    metadata=dict(models=models),
                 ),
                 *args,
                 **kwargs,
             )
             return model
 
-        return modelapi_register(cast(type[ModelAPI], model_wrapper), model_api, models)
+        return modelapi_register(cast(type[ModelAPI], model_wrapper), model_api)
 
     def wrapper(
         model_type: type[ModelAPI] | Callable[..., type[ModelAPI]],

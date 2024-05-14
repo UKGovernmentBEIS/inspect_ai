@@ -10,6 +10,7 @@ from typing import (
 
 from typing_extensions import Unpack
 
+from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -255,6 +256,9 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
 
         def solver_wrapper(*args: Any, **kwargs: dict[str, Any]) -> Solver:
             solver = solver_type(*args, **kwargs)
+
+            if not is_callable_coroutine(solver):
+                raise TypeError(f"'{solver}' is not declared as an async callable.")
 
             registry_tag(
                 solver_type,

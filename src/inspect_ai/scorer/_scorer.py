@@ -10,6 +10,7 @@ from typing import (
     runtime_checkable,
 )
 
+from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -133,6 +134,11 @@ def scorer(
         # wrap instantiations of scorer so they carry registry info and metrics
         def scorer_wrapper(*args: Any, **kwargs: Any) -> Scorer:
             scorer = scorer_type(*args, **kwargs)
+
+            if not is_callable_coroutine(scorer):
+                raise TypeError(
+                    f"'{scorer_name}' is not declared as an async callable."
+                )
 
             registry_tag(
                 scorer_type,

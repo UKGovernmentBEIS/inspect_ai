@@ -16,6 +16,7 @@ from ._metrics.accuracy import accuracy
 from ._metrics.mean import mean
 from ._metrics.std import bootstrap_std
 from ._model import model_graded_fact, model_graded_qa
+from ._multi import ScoreReducer, majority_vote, multi_scorer
 from ._pattern import pattern
 from ._scorer import (
     Scorer,
@@ -47,4 +48,7 @@ __all__ = [
     "INCORRECT",
     "PARTIAL",
     "NOANSWER",
+    "multi_scorer",
+    "majority_vote",
+    "ScoreReducer",
 ]

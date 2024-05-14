@@ -1,0 +1,63 @@
+{
+    "version": 1,
+    "status": "success",
+    "eval": {
+        "task": "wikipedia",
+        "task_version": 0,
+        "task_file": "examples/agents/langchain/wikipedia.py",
+        "task_id": "YAdbKczyeSb6mEgPd3R9Qs",
+        "run_id": "i5LyrzaUdD9K4EW5WTAd5t",
+        "created": "2024-05-05T07:59:35",
+        "dataset": {
+            "name": "wikipedia",
+            "location": "wikipedia.jsonl"
+        },
+        "model": "openai/gpt-4",
+        "task_attribs": {},
+        "task_args": {},
+        "model_args": {},
+        "config": {
+            "limit": 20
+        }
+    },
+    "plan": {
+        "name": "plan",
+        "steps": [
+            {
+                "solver": "wikipedia_search",
+                "params": {}
+            }
+        ],
+        "config": {}
+    },
+    "results": {
+        "scorer": {
+            "name": "model_graded_fact",
+            "params": {}
+        },
+        "metrics": {
+            "accuracy": {
+                "name": "accuracy",
+                "value": NaN,
+                "options": {}
+            },
+            "bootstrap_std": {
+                "name": "bootstrap_std",
+                "value": 0.0,
+                "options": {}
+            }
+        }
+    },
+    "stats": {
+        "started_at": "2024-05-05T07:59:35",
+        "completed_at": "2024-05-05T08:00:03",
+        "model_usage": {
+            "openai/gpt-4": {
+                "input_tokens": 8868,
+                "output_tokens": 1351,
+                "total_tokens": 10219
+            }
+        }
+    },
+    "logging": []
+}

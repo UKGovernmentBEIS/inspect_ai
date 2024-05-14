@@ -1,6 +1,6 @@
 import { extname } from "path";
-import { DocumentSymbol, NotebookCellKind, NotebookDocument, NotebookRange, Position, Range, Selection, Uri, commands } from "vscode";
-import { symbolIsTask } from "./symbol";
+import { NotebookCellKind, NotebookDocument, NotebookRange, Position, Range, Selection, Uri } from "vscode";
+import { TaskData, readTaskData } from "./task";
 
 export interface NotebookCellSelection {
   cell: NotebookRange,
@@ -9,94 +9,78 @@ export interface NotebookCellSelection {
 
 // Tests whether a given Uri is a notebook
 export const isNotebook = (uri: Uri) => {
-  const ext = extname(uri.fsPath);
+  return isNotebookPath(uri.path);
+};
+
+export const isNotebookPath = (path: string) => {
+  const ext = extname(path);
   return ext === ".ipynb";
 };
 
 // Find the cell selection for a task within a notebook
 // Note that this provides both the cell range and the selection
 // within the cell
-export const taskRangeForNotebook = async (task: string, document: NotebookDocument): Promise<NotebookCellSelection | undefined> => {
-  const cellSelections = await taskCellsForNotebook(document);
+export const taskRangeForNotebook = (task: string, document: NotebookDocument): NotebookCellSelection | undefined => {
+  const cells = cellTasks(document);
 
   // Find the cell that contains the task
-  const cellSelection = cellSelections.find((selection) => {
-    return selection.symbols.find((symbol) => {
-      return symbol.name === task;
+  const cellTask = cells.find((cell) => {
+    return cell.tasks.find((child) => {
+      return child.name === task;
     });
   });
 
-  // If there is a cell with this task, compute its range
-  if (cellSelection) {
-    const symbol = cellSelection.symbols.find((sym) => {
-      return sym.name === task;
+  if (cellTask) {
+    const taskDetail = cellTask.tasks.find((child) => {
+      return child.name === task;
     });
-
-    if (symbol) {
-      const position = new Position(symbol.range.start.line + 1, 0);
+    if (taskDetail) {
+      const index = cellTask.cellIndex;
+      const position = new Position(taskDetail.line + 1, 0);
       return {
-        cell: new NotebookRange(cellSelection.cellIndex, cellSelection.cellIndex),
+        cell: new NotebookRange(index, index),
         selection: new Selection(position, position)
       };
     }
   }
 };
 
-export const firstTaskRangeForNotebook = async (document: NotebookDocument) => {
-  const cellSelections = await taskCellsForNotebook(document);
+export const firstTaskRangeForNotebook = (document: NotebookDocument) => {
+  const cells = cellTasks(document);
 
   // Find a cell that contains a task
-  const cellSelection = cellSelections.find((selection) => {
-    return selection.symbols.find((symbol) => {
-      return symbolIsTask(document.cellAt(selection.cellIndex).document, symbol);
-    });
+  const cellTask = cells.find((cell) => {
+    return cell.tasks.length > 0;
   });
 
   // If there is a cell with a task, compute its range
-  if (cellSelection) {
+  if (cellTask) {
 
     // Just take the first task in the cell
-    const symbol = cellSelection.symbols.find((sym) => {
-      return symbolIsTask(document.cellAt(cellSelection.cellIndex).document, sym);
-    });
-
-    if (symbol) {
-      const position = new Position(symbol.range.start.line + 1, 0);
-      return {
-        cell: new NotebookRange(cellSelection.cellIndex, cellSelection.cellIndex),
-        selection: new Selection(position, position)
-      };
-    }
+    const task = cellTask.tasks[0];
+    const index = cellTask.cellIndex;
+    const position = new Position(task.line + 1, 0);
+    return {
+      cell: new NotebookRange(index, index),
+      selection: new Selection(position, position)
+    };
   }
 };
 
-
 // Describes a cell position and the symbols within a cell
-interface NotebookSymbols {
+interface CellTasks {
   cellIndex: number;
-  symbols: DocumentSymbol[];
+  tasks: TaskData[];
 }
 
 // Provides a list of cell and DocumentSymbols within the cells which contain tasks
-const taskCellsForNotebook = async (document: NotebookDocument): Promise<NotebookSymbols[]> => {
-  const ranges: NotebookSymbols[] = [];
+export const cellTasks = (document: NotebookDocument): CellTasks[] => {
+  const ranges: CellTasks[] = [];
   for (const cell of document.getCells()) {
     if (cell.kind === NotebookCellKind.Code) {
-
-      // Execute the document symbol provider for the cell document
-      const symbols: DocumentSymbol[] = await commands.executeCommand(
-        'vscode.executeDocumentSymbolProvider', cell.document.uri) || [];
-
-      // Find the function symbol in the cell
-      const taskSymbols = symbols.filter(symbol => {
-        // Check for the `@task` decorator before the function
-        const textRange = new Range(symbol.range.start, symbol.range.end);
-        const textBeforeFunction = cell.document.getText(textRange);
-        return textBeforeFunction.startsWith('@task');
-      });
-
-      if (taskSymbols.length > 0) {
-        ranges.push({ cellIndex: cell.index, symbols: taskSymbols });
+      const tasks = readTaskData(cell.document);
+      if (tasks.length > 0) {
+        ranges.push({ cellIndex: cell.index, tasks });
       }
     }
   }

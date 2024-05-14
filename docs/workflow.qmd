@@ -234,7 +234,7 @@ if __name__ == "__main__"
 ```
 
 ::: {.callout-note appearance="minimal"}
-If you aren't familiar with the `__name__ == "__main__"` idiom, see the docs on [\_\_main\_\_](https://docs.python.org/3/library/main.html) for additional details.
+If you aren't familiar with the `__name__ == "__main__"` idiom, see the docs on [\_\_main\_\_](https://docs.python.org/3/library/__main__.html) for additional details.
 :::
 
 Now we can take the same script and use it with `inspect eval` (while leaving our exploratory code intact and protected by the `__main__` check):
@@ -255,7 +255,7 @@ We refer to notebooks above but show scripts in all of the examples. Everything 
 
 1.  You can use the `__name__ == "__main__"` check to protect cells that should only be run in exploratory mode.
 
-2.  You can pass a notebook to `insect eval` just the same as a script (including passing task parameters)
+2.  You can pass a notebook to `inspect eval` just the same as a script (including passing task parameters)
 
 For example, imagine that all of the code shown above for `security.py` was in `security.ipynb`. You could run the eval and optionally pass a task parameter as follows:
 

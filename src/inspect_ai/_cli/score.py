@@ -6,6 +6,7 @@ from typing_extensions import Unpack
 from inspect_ai._display import display
 from inspect_ai._display.logger import init_logger
 from inspect_ai._eval.loader import load_tasks
+from inspect_ai._eval.score import task_score
 from inspect_ai._util.constants import SCORED_SUFFIX
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai.log._file import JSONRecorder
@@ -76,7 +77,7 @@ async def score(
     score_task = load_tasks([task], model)[0]
 
     # re-score the task
-    eval_log = await score_task.score(eval_log)
+    eval_log = await task_score(score_task, eval_log)
 
     # re-write the log (w/ a -score suffix if requested)
     scored = f"{SCORED_SUFFIX}.json"

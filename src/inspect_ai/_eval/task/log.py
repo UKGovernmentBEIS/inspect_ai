@@ -1,4 +1,5 @@
 from importlib import metadata as importlib_metadata
+from logging import LogRecord
 from typing import Any
 
 from shortuuid import uuid
@@ -7,6 +8,10 @@ from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.git import git_context
 from inspect_ai._util.path import cwd_relative_path
+from inspect_ai._util.registry import (
+    registry_log_name,
+    registry_params,
+)
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
     EvalConfig,
@@ -14,6 +19,7 @@ from inspect_ai.log import (
     EvalError,
     EvalLog,
     EvalPlan,
+    EvalPlanStep,
     EvalResults,
     EvalRevision,
     EvalSample,
@@ -22,12 +28,18 @@ from inspect_ai.log import (
     LoggingMessage,
 )
 from inspect_ai.log._log import LogEvent, Recorder
-from inspect_ai.model import Model, ModelName
+from inspect_ai.model import (
+    GenerateConfig,
+    Model,
+    ModelName,
+)
+from inspect_ai.model._model import collect_model_usage
 from inspect_ai.scorer import Score
-from inspect_ai.solver import TaskState
+from inspect_ai.solver import Plan, Solver, TaskState
+from inspect_ai.util._context.logger import collect_logger_records
 
 
-class EvalLogger:
+class TaskLogger:
     def __init__(
         self,
         task_name: str,
@@ -123,3 +135,50 @@ class EvalLogger:
 
     def log_failure(self, stats: EvalStats, error: EvalError) -> EvalLog:
         return self.recorder.log_failure(self.eval, stats, error)
+
+
+def log_output(
+    logger: TaskLogger,
+    epoch: int,
+    samples: list[Sample],
+    states: list[TaskState],
+    scores: list[Score | None],
+) -> None:
+    for i in range(len(samples)):
+        logger.log_sample(epoch, samples[i], states[i], scores[i])
+
+
+def log_plan(
+    logger: TaskLogger,
+    plan: Plan,
+    config: GenerateConfig,
+) -> None:
+    def eval_plan_step(solver: Solver) -> EvalPlanStep:
+        return EvalPlanStep(
+            solver=registry_log_name(solver), params=registry_params(solver)
+        )
+
+    eval_plan = EvalPlan(
+        name=plan.name,
+        steps=[eval_plan_step(solver) for solver in plan.steps],
+        finish=eval_plan_step(plan.finish) if plan.finish else None,
+        config=config,
+    )
+    if plan.finish:
+        eval_plan.steps.append(eval_plan_step(plan.finish))
+
+    logger.log_event("plan", eval_plan)
+
+
+def collect_eval_data(stats: EvalStats, logger: TaskLogger) -> None:
+    # collect stats
+    stats.completed_at = iso_now()
+    stats.model_usage = collect_model_usage()
+
+    # collect log output
+    log_logger_records(logger, collect_logger_records())
+
+
+def log_logger_records(logger: TaskLogger, records: list[LogRecord]) -> None:
+    for record in records:
+        logger.log_event("logging", LoggingMessage.from_log_record(record))

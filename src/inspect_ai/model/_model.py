@@ -304,6 +304,8 @@ StopReason = Literal["stop", "length", "tool_calls", "content_filter", "unknown"
 
 
 class TopLogprob(BaseModel):
+    """List of the most likely tokens and their log probability, at this token position."""
+
     token: str
     """The top-kth token represented as a string."""
 
@@ -315,6 +317,8 @@ class TopLogprob(BaseModel):
 
 
 class Logprob(BaseModel):
+    """Log probability for a token."""
+
     token: str
     """The predicted token represented as a string."""
 
@@ -329,6 +333,8 @@ class Logprob(BaseModel):
 
 
 class Logprobs(BaseModel):
+    """Log probability information for a completion choice."""
+
     content: list[Logprob]
     """a (num_generated_tokens,) length list containing the individual log probabilities for each generated token."""
 
@@ -759,32 +765,25 @@ def get_model(
         model = "/".join(parts[1:])
 
     # predicate to match model
-    def match_model(info: RegistryInfo) -> bool:
+    def match_modelapi_type(info: RegistryInfo) -> bool:
         # strip package name (we use the 'api' as the namespace, we will
         # introduce package scoping if it proves necessary)
-        if info.type == "modelapi":
-            # model patterns for this provider
-            models = info.metadata.get("models", [])
 
-            # if there is an api_name explicitly specified that
-            # matches the registered api then trust the model name
-            # TODO: this is ugly, we need to clarify the relationship
-            # and registration semantics of pkg -> provider -> model
-            if (
-                info.name == api_name
-                or info.name.replace(f"{PKG_NAME}/", "") == api_name
-            ):
-                return True
-            # otherwise check for a name match
-            else:
-                return len([name for name in models if name in model]) > 0
+        # if there is an api_name explicitly specified that
+        # matches the registered api then trust the model name
+        # TODO: this is ugly, we need to clarify the relationship
+        # and registration semantics of pkg -> provider -> model
+        if info.type == "modelapi" and (
+            info.name == api_name or info.name.replace(f"{PKG_NAME}/", "") == api_name
+        ):
+            return True
         else:
             return False
 
     # find a matching model type
-    model_types = registry_find(match_model)
-    if len(model_types) > 0:
-        modelapi_type = cast(type[ModelAPI], model_types[0])
+    modelapi_types = registry_find(match_modelapi_type)
+    if len(modelapi_types) > 0:
+        modelapi_type = cast(type[ModelAPI], modelapi_types[0])
         modelapi_instance = modelapi_type(
             model_name=model, base_url=base_url, config=config, **model_args
         )
@@ -879,7 +878,7 @@ def consecutive_message_reducer(
 
 def combine_messages(
     a: ChatMessage, b: ChatMessage, message_type: Type[ChatMessage]
-) -> ChatMessageUser:
+) -> ChatMessage:
     if isinstance(a.content, str) and isinstance(b.content, str):
         return message_type(content=f"{a.content}\n{b.content}")
     elif isinstance(a.content, list) and isinstance(b.content, list):

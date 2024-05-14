@@ -1,3 +1,4 @@
+import pytest
 from utils import run_example, skip_if_no_openai
 
 from inspect_ai import Task, eval, score
@@ -22,6 +23,41 @@ def match() -> Scorer:
 def test_scorer_lookup():
     scorer = scorer_create("test_match")
     assert scorer
+
+
+def test_invalid_scorers_error():
+    def not_async():
+        def inner(state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+        return inner
+
+    class NotCallable:
+        async def inner(self, state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+    class NotAsyncCallable:
+        def __call__(self, state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+    for f in [not_async, NotCallable, NotAsyncCallable]:
+        with pytest.raises(TypeError):
+            scorer(metrics=[accuracy()], name=f.__name__)(f)()
+
+
+def test_valid_scorers_succeed():
+    def is_async():
+        async def inner(state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+        return inner
+
+    class IsAsyncCallable:
+        async def __call__(self, state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+    for f in [is_async, IsAsyncCallable]:
+        scorer(metrics=[accuracy()], name=f.__name__)(f)()
 
 
 @skip_if_no_openai

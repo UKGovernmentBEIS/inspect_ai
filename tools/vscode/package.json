@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.12",
+  "version": "0.3.13",
   "license": "MIT",
   "homepage": "https://ukgovernmentbeis.github.io/inspect_ai/",
   "repository": {
@@ -42,6 +42,7 @@
       {
         "command": "inspect.showLogview",
         "title": "Show Logs",
+        "icon": "$(code-oss)",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"
       },
@@ -238,6 +239,11 @@
         {
           "command": "inspect.taskOutlineTree",
           "when": "view == inspect_ai.task-outline-view && config.inspect_ai.taskListView == 'list'"
+        },
+        {
+          "command": "inspect.showLogview",
+          "when": "view == inspect_ai.task-outline-view",
+          "group": "navigation"
         },
         {
           "command": "inspect.debugConfigTask",

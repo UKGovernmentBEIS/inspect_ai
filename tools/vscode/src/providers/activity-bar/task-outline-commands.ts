@@ -6,7 +6,7 @@ import {
   ConfigurationTarget,
   ExtensionContext,
   ViewColumn,
-  commands
+  commands,
 } from "vscode";
 
 import { Command } from "../../core/command";
@@ -20,10 +20,19 @@ import { writeFileSync } from "fs";
 
 import { readTemplate, templates } from "../../components/templates";
 import { isValidPythonFnName } from "../../core/python";
-import { documentHasTasks, firstTaskRangeForDocument, taskRangeForDocument } from "../../components/document";
-import { firstTaskRangeForNotebook, isNotebook, taskRangeForNotebook } from "../../components/notebook";
+import {
+  documentHasTasks,
+  firstTaskRangeForDocument,
+  taskRangeForDocument,
+} from "../../components/document";
+import {
+  firstTaskRangeForNotebook,
+  isNotebook,
+  taskRangeForNotebook,
+} from "../../components/notebook";
 import { scheduleReturnFocus } from "../../components/focus";
 import { InspectLogviewManager } from "../logview/logview-manager";
+import { ActiveTaskManager } from "../active-task/active-task-provider";
 
 export class ShowTaskTree implements Command {
   constructor(private readonly provider_: TaskOutLineTreeDataProvider) { }
@@ -56,7 +65,11 @@ export class RunSelectedEvalCommand implements Command {
     const task =
       treeItem.taskPath.type === "task" ? treeItem.taskPath.name : undefined;
 
-    const evalPromise = this.inspectEvalMgr_.startEval(toAbsolutePath(path), task, false);
+    const evalPromise = this.inspectEvalMgr_.startEval(
+      toAbsolutePath(path),
+      task,
+      false
+    );
     const resumeFocusCommand = "inspect_ai.task-outline-view.focus";
     scheduleReturnFocus(resumeFocusCommand);
     await evalPromise;
@@ -78,7 +91,11 @@ export class DebugSelectedEvalCommand implements Command {
 }
 
 export class EditSelectedTaskCommand implements Command {
-  constructor(private readonly tree_: TreeView<TaskTreeItem>, private inspectLogviewManager_: InspectLogviewManager) { }
+  constructor(
+    private readonly tree_: TreeView<TaskTreeItem>,
+    private inspectLogviewManager_: InspectLogviewManager,
+    private activeTaskManager_: ActiveTaskManager
+  ) { }
   async execute() {
     if (this.tree_.selection.length > 1) {
       throw new Error("Expected only a single selector for the task tree");
@@ -95,32 +112,42 @@ export class EditSelectedTaskCommand implements Command {
 
       // If this is a specific task, go right to that
       const task =
-        treeItem.taskPath.type === "task" ? treeItem.taskPath.name : undefined;
+        treeItem.taskPath.type === "task" ? treeItem.taskPath.name : treeItem.taskPath.children?.[0].name;
 
       // Note if/where the logview is showing
       const logViewColumn = this.inspectLogviewManager_.viewColumn();
+
+      // Update the active task
+      if (task) {
+        await this.activeTaskManager_.updateActiveTask(fileUri, task);
+      }
 
       if (isNotebook(fileUri)) {
         // Compute the cell and position of the task
         const notebookDocument = await workspace.openNotebookDocument(fileUri);
 
-        const findTaskSelection = async (task: string | undefined) => {
+        const findTaskSelection = (task: string | undefined) => {
           if (task) {
-            return await taskRangeForNotebook(task, notebookDocument);
+            return taskRangeForNotebook(task, notebookDocument);
           } else {
-            return await firstTaskRangeForNotebook(notebookDocument);
+            return firstTaskRangeForNotebook(notebookDocument);
           }
         };
-        const taskSelection = await findTaskSelection(task);
+        const taskSelection = findTaskSelection(task);
 
         // Open the notebook to the specified cell, if any
-        const selections = taskSelection?.cell ? [taskSelection?.cell] : undefined;
-        await window.showNotebookDocument(notebookDocument, { selections, preview: false, viewColumn: findTargetViewColumn(logViewColumn) });
+        const selections = taskSelection?.cell
+          ? [taskSelection?.cell]
+          : undefined;
+        await window.showNotebookDocument(notebookDocument, {
+          selections,
+          preview: false,
+          viewColumn: findTargetViewColumn(logViewColumn),
+        });
         if (selections) {
-          await commands.executeCommand('notebook.cell.edit');
+          await commands.executeCommand("notebook.cell.edit");
         }
       } else {
-
         // Find the task selection for the document (if any)
         const findTaskSelection = async (task: string | undefined) => {
           if (task) {
@@ -132,7 +159,11 @@ export class EditSelectedTaskCommand implements Command {
         const selection = await findTaskSelection(task);
 
         // Show the document
-        await window.showTextDocument(fileUri, { selection, viewColumn: findTargetViewColumn(logViewColumn), preview: false });
+        await window.showTextDocument(fileUri, {
+          selection,
+          viewColumn: findTargetViewColumn(logViewColumn),
+          preview: false,
+        });
       }
     }
   }
@@ -156,7 +187,7 @@ export const findTargetViewColumn = (logViewColumn?: ViewColumn) => {
       return targetEditor.viewColumn;
     }
 
-    // There are no editors with tasks, but if there is any active 
+    // There are no editors with tasks, but if there is any active
     // editor, let's use that
     if (visibleEditors.length > 0) {
       return visibleEditors[0].viewColumn;
@@ -165,7 +196,7 @@ export const findTargetViewColumn = (logViewColumn?: ViewColumn) => {
 
   // If we get here, there are no editors open at all
   // so as a last ditch, just open next to the logview
-  // (if it showing) or in the first column 
+  // (if it showing) or in the first column
   // (who knows what it showing in this case)
   if (logViewColumn) {
     // The log view is open, but not any editors
@@ -195,7 +226,6 @@ export class CreateTaskCommand implements Command {
     });
 
     if (taskName) {
-
       // force the task name to lower case
       const taskNameLower = taskName.toLowerCase();
 
@@ -212,7 +242,6 @@ export class CreateTaskCommand implements Command {
       // Create empty document
       const document = await workspace.openTextDocument(absPath.path);
       await window.showTextDocument(document);
-
     }
   }
 

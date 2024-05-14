@@ -43,6 +43,34 @@ export interface EnvConfiguration {
   modelBaseUrl?: string;
 }
 
+// A list of the auto-complete models and the minimum
+// version required in order to support the model
+const kInspectModels: Record<string, string> = {
+  "openai": "0.3.8",
+  "anthropic": "0.3.8",
+  "google": "0.3.8",
+  "mistral": "0.3.8",
+  "hf": "0.3.8",
+  "together": "0.3.8",
+  "bedrock": "0.3.8",
+  "ollama": "0.3.9",
+  "azureai": "0.3.8",
+  "cf": "0.3.8"
+};
+
+const inspectModels = () => {
+  const currentVersion = inspectVersion();
+  return Object.keys(kInspectModels).filter((key) => {
+    const ver = kInspectModels[key];
+    if (currentVersion !== null) {
+      return currentVersion.compare(ver) > -1;
+    } else {
+      return false;
+    }
+  });
+};
+
+
 export class EnvConfigurationProvider implements WebviewViewProvider {
   public static readonly viewType = "inspect_ai.env-configuration-view";
 
@@ -78,9 +106,41 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
             break;
           }
           case "setEnvValue":
-            setConfiguration(data.default, data.value, this.env);
-            this.envManager_.setValues(configToEnv(this.env));
-            break;
+            {
+              // Set the value
+              setConfiguration(data.default, data.value, this.env);
+
+              // Special case for provider, potentially restoring the 
+              // previously used model
+              let updateWebview = false;
+              if (data.default === "provider") {
+                const modelState = this.stateManager_.getModelState(data.value);
+                setConfiguration("model", modelState.lastModel || "", this.env);
+                updateWebview = true;
+              }
+
+              // Save the most recently used model for this provider
+              if (this.env.provider && data.default === "model") {
+                const modelState = this.stateManager_.getModelState(this.env.provider);
+                modelState.lastModel = data.value;
+                await this.stateManager_.setModelState(this.env.provider, modelState);
+              }
+
+              // Save the env
+              this.envManager_.setValues(configToEnv(this.env));
+
+
+              if (updateWebview) {
+                await webviewView.webview.postMessage({
+                  type: kEnvChanged,
+                  message: {
+                    env: this.env,
+                  },
+                });
+              }
+
+              break;
+            }
           case "openUrl":
             await env.openExternal(Uri.parse(data.url));
             break;
@@ -168,6 +228,10 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
     // Use a nonce to only allow a specific script to be run.
     const nonce = getNonce();
 
+    const modelOptions = inspectModels().map((model) => {
+      return `<fast-option value="${model}">${model}</fast-option>`;
+    });
+
     return `<!DOCTYPE html>
               <html lang="en">
               <head>
@@ -206,15 +270,7 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
                         <div class="cols full-width no-wrap">
                           <fast-combobox autocomplete="both" id="provider" placeholder="Provider">
                             <fast-option value="">None</fast-option>
-                            <fast-option value="openai">OpenAI</fast-option>
-                            <fast-option value="anthropic">Anthropic</fast-option>
-                            <fast-option value="google">Google</fast-option>
-                            <fast-option value="mistral">Mistral</fast-option>
-                            <fast-option value="hf">Hugging Face</fast-option>
-                            <fast-option value="together">TogetherAI</fast-option>
-                            <fast-option value="bedrock">AWS Bedrock</fast-option>
-                            <fast-option value="azureai">Azure AI</fast-option>
-                            <fast-option value="cf">Cloudflare</fast-option>
+                            ${modelOptions.join("\n")}
                           </fast>
                         </div>
                       </div>

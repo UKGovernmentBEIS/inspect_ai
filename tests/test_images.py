@@ -36,7 +36,7 @@ def test_google_images():
 
 @skip_if_no_openai
 def test_openai_images():
-    check_images("opeanai/gpt-4")
+    check_images("openai/gpt-4")
 
 
 @skip_if_no_anthropic

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.9 (14 May 2024)
+
+- Add `ollama` local model provider.
+- Add `multi_scorer()` and `majority_vote()` functions for combining multiple scorers into a single score.
+- Add support for multiple model graders in `model_graded_qa()`.
+- Raise `TypeError` for solvers and scorers not declared as `async`.
+- Fallback to standard parase if `NaN` or `Inf` is encountered while reading log file header.
+- Remove deprecated support for matching partial model names (e.g. "gpt" or "claude").
+
 ## v0.3.8 (07 May 2024)
 
 - Exclude null config values from listings in log viewer.

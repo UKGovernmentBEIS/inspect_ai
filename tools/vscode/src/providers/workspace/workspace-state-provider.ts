@@ -18,6 +18,10 @@ export interface DocumentState {
   params?: Record<string, string>;
 }
 
+export interface ModelState {
+  lastModel?: string;
+}
+
 export class WorkspaceStateManager {
   constructor(private readonly context_: ExtensionContext) {
   }
@@ -37,6 +41,14 @@ export class WorkspaceStateManager {
   public async setTaskState(taskFilePath: string, state: DocumentState, taskName?: string) {
     await this.context_.workspaceState.update(taskKey(taskFilePath, taskName), state);
   }
+
+  public getModelState(provider: string): ModelState {
+    return this.context_.workspaceState.get(modelKey(provider)) || {};
+  }
+
+  public async setModelState(provider: string, state: ModelState) {
+    await this.context_.workspaceState.update(modelKey(provider), state);
+  }
 }
 
 function taskKey(file: string, task?: string) {
@@ -45,5 +57,9 @@ function taskKey(file: string, task?: string) {
   } else {
     return `${file}`;
   }
+}
+
+function modelKey(provider: string) {
+  return `provider-${provider}`;
 }
 

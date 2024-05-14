@@ -1,4 +1,5 @@
 import re
+from functools import partial
 
 from inspect_ai.model import ChatMessageUser, Model, get_model
 from inspect_ai.solver import TaskState
@@ -6,6 +7,7 @@ from inspect_ai.util import resource
 
 from ._metric import INCORRECT, Score
 from ._metrics import accuracy, bootstrap_std
+from ._multi import majority_vote, multi_scorer
 from ._scorer import Scorer, Target, scorer
 
 
@@ -15,7 +17,7 @@ def model_graded_fact(
     instructions: str | None = None,
     grade_pattern: str | None = None,
     partial_credit: bool = False,
-    model: str | Model | None = None,
+    model: list[str | Model] | str | Model | None = None,
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
 
@@ -38,8 +40,7 @@ def model_graded_fact(
          to `False`. Note that this parameter is only used
          with the default `instructions` (as custom instructions
          provide their own prompts for grades).
-      model (str | Model | none): Model to use for grading
-         (by default the model being evaluated is used).
+      model (list[str | Model] | str | Model | None): Model or Models to use for grading. If multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -56,7 +57,7 @@ def model_graded_qa(
     instructions: str | None = None,
     grade_pattern: str | None = None,
     partial_credit: bool = False,
-    model: str | Model | None = None,
+    model: list[str | Model] | str | Model | None = None,
 ) -> Scorer:
     """Score a question/answer task using a model.
 
@@ -79,9 +80,32 @@ def model_graded_qa(
         to `False`. Note that this parameter is only used
         with the default `instructions` (as custom instructions
         provide their own prompts for grades).
-      model (str | Model | None): Model to use for grading
-        (by default the model being evaluated is used).
+      model (list[str | Model] | str | Model | None): Model or Models to use for grading. If     multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
     """
+    # bind variables
+    get_scorer = partial(
+        _model_graded_qa_single, template, instructions, grade_pattern, partial_credit
+    )
+    # if only a single model is passed, return a single scorer
+    if model is None or not isinstance(model, list):
+        return get_scorer(model)
+
+    # otherwise, use multi scorer
+    assert isinstance(model, list)
+    scorers = [get_scorer(model) for model in model]
+    return multi_scorer(scorers, majority_vote)
+
+
+@scorer(metrics=[accuracy(), bootstrap_std()])
+def _model_graded_qa_single(
+    template: str | None = None,
+    instructions: str | None = None,
+    grade_pattern: str | None = None,
+    partial_credit: bool = False,
+    model: str | Model | None = None,
+) -> Scorer:
+    # returns a scorer that does model graded qa for a single model
+
     # resolve model
     grader_model = get_model(model)
 

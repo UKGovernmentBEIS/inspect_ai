@@ -13,16 +13,16 @@ import {
 } from "../workspace/workspace-state-provider";
 import {
   ActiveTaskChangedEvent,
-  ActiveTaskInfo,
   ActiveTaskManager,
 } from "../active-task/active-task-provider";
 import { basename } from "path";
 import { inspectVersion } from "../../inspect";
 import { InspectManager } from "../inspect/inspect-manager";
+import { DocumentTaskInfo } from "../../components/task";
 
 export type SetActiveTaskCommand = {
   type: "setActiveTask";
-  task: ActiveTaskInfo;
+  task: DocumentTaskInfo;
   state: DocumentState;
 } & Record<string, unknown>;
 
@@ -74,6 +74,14 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
       });
     };
 
+    const updateTaskInfo = async (activeTaskInfo?: DocumentTaskInfo) => {
+      if (activeTaskInfo) {
+        await postActiveTaskMsg(activeTaskInfo);
+      } else {
+        webviewView.description = "";
+      }
+    };
+
     this.disposables_.push(
       this.taskManager_.onActiveTaskChanged(
         async (e: ActiveTaskChangedEvent) => {
@@ -94,9 +102,7 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
 
     this.disposables_.push(webviewView.onDidChangeVisibility(async () => {
       const activeTask = this.taskManager_.getActiveTaskInfo();
-      if (activeTask) {
-        await postActiveTaskMsg(activeTask);
-      }
+      await updateTaskInfo(activeTask);
     }));
 
     webviewView.webview.html = this.htmlForWebview(webviewView.webview);
@@ -104,7 +110,8 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
 
     await initMsg();
 
-    const postActiveTaskMsg = async (activeTaskInfo: ActiveTaskInfo) => {
+
+    const postActiveTaskMsg = async (activeTaskInfo: DocumentTaskInfo) => {
       // Ignore active task changes that don't include a task (e.g. they are files)
       if (
         !activeTaskInfo.activeTask ||
@@ -130,19 +137,16 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
     this.disposables_.push(
       this.taskManager_.onActiveTaskChanged(async (e) => {
         await updateSidebarState(e.activeTaskInfo);
-        if (e.activeTaskInfo) {
-          await postActiveTaskMsg(e.activeTaskInfo);
-        }
+        await updateTaskInfo(e.activeTaskInfo);
       })
     );
 
     if (inspectVersion() === null) {
       await noInspectMsg();
     }
+
     const activeTask = this.taskManager_.getActiveTaskInfo();
-    if (activeTask) {
-      await postActiveTaskMsg(activeTask);
-    }
+    await updateTaskInfo(activeTask);
 
     // Process UI messages
     webviewView.webview.onDidReceiveMessage(
@@ -287,7 +291,7 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
   }
 }
 
-const updateSidebarState = async (taskInfo?: ActiveTaskInfo) => {
+const updateSidebarState = async (taskInfo?: DocumentTaskInfo) => {
   await commands.executeCommand(
     "setContext",
     "inspect_ai.task-configuration.task-active",

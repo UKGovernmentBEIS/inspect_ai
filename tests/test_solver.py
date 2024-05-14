@@ -1,3 +1,4 @@
+import pytest
 from utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
@@ -67,3 +68,38 @@ def test_solvers_termination():
     log = eval(task, model=model, max_messages=2)[0]
     assert len(log.samples[0].messages) == 2
     assert log.samples[0].output.completion == "finished"
+
+
+def test_invalid_solvers_error():
+    def not_async():
+        def inner(state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+        return inner
+
+    class NotCallable:
+        async def inner(self, state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+    class NotAsyncCallable:
+        def __call__(self, state: TaskState, target: Generate) -> TaskState:
+            return state
+
+    for f in [not_async, NotCallable, NotAsyncCallable]:
+        with pytest.raises(TypeError):
+            solver(name=f.__name__)(f)()
+
+
+def test_valid_solvers_succeed():
+    def is_async():
+        async def inner(self, state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+        return inner
+
+    class IsAsyncCallable:
+        async def __call__(self, state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+    for f in [is_async, IsAsyncCallable]:
+        solver(name=f.__name__)(f)()

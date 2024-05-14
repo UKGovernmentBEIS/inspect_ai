@@ -3,6 +3,16 @@ import asyncio
 from inspect_ai._util.images import image_as_data_uri
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ChatMessageUser, Content, ContentImage
+from inspect_ai.solver import TaskState
+
+
+async def states_with_base64_images(states: list[TaskState]) -> list[TaskState]:
+    return await asyncio.gather(*[state_with_base64_images(state) for state in states])
+
+
+async def state_with_base64_images(state: TaskState) -> TaskState:
+    state.messages = await messages_with_base64_images(state.messages)
+    return state
 
 
 async def samples_with_base64_images(samples: list[Sample]) -> list[Sample]:

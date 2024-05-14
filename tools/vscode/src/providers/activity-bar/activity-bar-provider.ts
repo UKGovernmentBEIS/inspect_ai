@@ -30,9 +30,9 @@ export async function activateActivityBar(
     window.registerWebviewViewProvider(EnvConfigurationProvider.viewType, envProvider)
   );
 
-  const taskConfigPRovider = new TaskConfigurationProvider(context.extensionUri, workspaceStateMgr, activeTaskManager, inspectManager);
+  const taskConfigProvider = new TaskConfigurationProvider(context.extensionUri, workspaceStateMgr, activeTaskManager, inspectManager);
   context.subscriptions.push(
-    window.registerWebviewViewProvider(TaskConfigurationProvider.viewType, taskConfigPRovider)
+    window.registerWebviewViewProvider(TaskConfigurationProvider.viewType, taskConfigProvider)
   );
   const taskConfigCommands = [
     new RunConfigTaskCommand(activeTaskManager, inspectEvalMgr),

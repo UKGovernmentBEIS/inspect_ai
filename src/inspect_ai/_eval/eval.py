@@ -26,8 +26,10 @@ from inspect_ai.solver import Solver
 from inspect_ai.util._context import init_async_context
 
 from .loader import resolve_tasks
-from .log import EvalLogger
-from .task import Tasks, TaskSpec, task_file, task_run_dir
+from .task.log import TaskLogger
+from .task.run import task_run
+from .task.util import task_file, task_run_dir
+from .types import Tasks, TaskSpec
 
 log = logging.getLogger(__name__)
 
@@ -130,34 +132,35 @@ async def eval_async(
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
 
-    tasks: (Tasks): Task(s) to evaluate. If None, attempt
-        to evaluate a task in the current working directory
-    model (str | Model | None): Model for evaluation. If not
-        specified uses the current eval's model, or failing that
-        the value of the INSPECT_EVAL_MODEL environment variable.
-    model_base_url: (str | None): Base URL for communicating
-        with the model API.
-    model_args (dict[str,Any]): Model creation parameters
-    task_args (dict[str,Any]): Task arguments
-    plan (Solver | list[Solver] | None): Alternative plan
-        for evaluating task(s). Optional (uses task plan by default).
-    log_level (str | None): "debug", "http", "info", "warning", "error",
-        or "critical" (defaults to "info")
-    log_dir (str | None): Output path for logging results
-        (defaults to file log in ./logs directory).
-    limit (int | tuple[int, int] | None): Limit evaluated samples
-        (defaults to all samples).
-    epochs (int | None): Number of times to repeat evaluation of
-        samples (defaults to 1)
-    max_messages (int | None): Maximum number of messages to allow
-        in a task conversation.
-    max_subprocesses (int | None): Maximum number of subprocesses to
-        run in parallel (default is os.cpu_count())
-    log_samples: (bool | None): Log detailed samples and scores (defaults to True)
-    log_images: (bool | None): Log base64 encoded version of images,
-        even if specified as a filename or URL (defaults to True)
-    score (bool): Score output (defaults to True)
-    **kwargs (GenerateConfigArgs): Model generation options.
+    Args:
+        tasks: (Tasks): Task(s) to evaluate. If None, attempt
+            to evaluate a task in the current working directory
+        model (str | Model | None): Model for evaluation. If not
+            specified uses the current eval's model, or failing that
+            the value of the INSPECT_EVAL_MODEL environment variable.
+        model_base_url: (str | None): Base URL for communicating
+            with the model API.
+        model_args (dict[str,Any]): Model creation parameters
+        task_args (dict[str,Any]): Task arguments
+        plan (Solver | list[Solver] | None): Alternative plan
+            for evaluating task(s). Optional (uses task plan by default).
+        log_level (str | None): "debug", "http", "info", "warning", "error",
+            or "critical" (defaults to "info")
+        log_dir (str | None): Output path for logging results
+            (defaults to file log in ./logs directory).
+        limit (int | tuple[int, int] | None): Limit evaluated samples
+            (defaults to all samples).
+        epochs (int | None): Number of times to repeat evaluation of
+            samples (defaults to 1)
+        max_messages (int | None): Maximum number of messages to allow
+            in a task conversation.
+        max_subprocesses (int | None): Maximum number of subprocesses to
+            run in parallel (default is os.cpu_count())
+        log_samples: (bool | None): Log detailed samples and scores (defaults to True)
+        log_images: (bool | None): Log base64 encoded version of images,
+            even if specified as a filename or URL (defaults to True)
+        score (bool): Score output (defaults to True)
+        **kwargs (GenerateConfigArgs): Model generation options.
 
     Returns:
         List of EvalLog (one for each task)
@@ -214,7 +217,7 @@ async def eval_async(
     )
 
     run_id = uuid()
-    loggers: list[EvalLogger] = []
+    loggers: list[TaskLogger] = []
     results: list[EvalLog] = []
     for index, name, version, task in zip(
         range(0, len(task_names)), task_names, task_versions, eval_tasks
@@ -227,10 +230,10 @@ async def eval_async(
             task_eval_config.max_messages = task.max_messages
 
         # create and track the logger
-        logger = EvalLogger(
+        logger = TaskLogger(
             task_name=name,
             task_version=version,
-            task_file=task_file(task, True),
+            task_file=task_file(task, relative=True),
             task_run_dir=task_run_dir(task),
             task_id=task_id if task_id else uuid(),
             run_id=run_id,
@@ -245,7 +248,8 @@ async def eval_async(
         loggers.append(logger)
 
         # run the eval
-        result = await task.run(
+        result = await task_run(
+            task=task,
             sequence=(index + 1, len(task_names)),
             model=model,
             logger=logger,

@@ -14,7 +14,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.model import ModelName
 
-from .task import Task
+from .types import Task
 
 MODEL_PARAM = "model"
 

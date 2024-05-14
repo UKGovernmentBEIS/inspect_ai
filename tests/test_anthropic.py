@@ -8,7 +8,7 @@ from inspect_ai.model import GenerateConfig, get_model
 @skip_if_no_anthropic
 async def test_anthropic_api() -> None:
     model = get_model(
-        "claude-2.1",
+        "anthropic/claude-2.1",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,

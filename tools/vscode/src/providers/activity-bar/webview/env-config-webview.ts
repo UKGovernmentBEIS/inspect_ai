@@ -87,9 +87,7 @@ function getProviderEl() {
 
 function getProviderText() {
   const providerEl = getProviderEl();
-
-  const index = providerEl.selectedIndex;
-  return index > -1 ? providerEl.options[index].value : providerEl.value;
+  return providerEl.value;
 }
 
 function resetModel() {
@@ -157,10 +155,7 @@ const attachListeners = () => {
       getProviderEl().value = "";
     }
     if (e.target) {
-      const index = el.selectedIndex;
-      const value = index > -1 ? el.options[index].value : el.value;
-      setEnvValue("provider", value);
-      setEnvValue("model", "");
+      setEnvValue("provider", txt);
       resetModel();
       showProviderHelp();
     }
@@ -169,7 +164,6 @@ const attachListeners = () => {
   const el = document.getElementById("provider") as HTMLSelectElement;
 
   el.addEventListener("change", providerChanged);
-  el.addEventListener("keyup", debounce(providerChanged, kBounceInterval));
 
   setEnvWhenKeyup("model", "model");
 

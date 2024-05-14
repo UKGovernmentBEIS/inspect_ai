@@ -1,25 +1,24 @@
 import {
-  DocumentSymbol,
   Event,
   EventEmitter,
   ExtensionContext,
   Position,
-  Range,
   Selection,
-  SymbolKind,
   TextDocument,
   Uri,
   commands,
   window,
+  workspace,
 
 } from "vscode";
-import { sleep } from "../../core/wait";
 import {
   DebugActiveTaskCommand,
   RunActiveTaskCommand,
 } from "./active-task-command";
 import { InspectEvalManager } from "../inspect/inspect-eval";
 import { Command } from "../../core/command";
+import { DocumentTaskInfo, readTaskData } from "../../components/task";
+import { cellTasks, isNotebook } from "../../components/notebook";
 
 // Activates the provider which tracks the currently active task (document and task name)
 export function activateActiveTaskProvider(
@@ -35,22 +34,9 @@ export function activateActiveTaskProvider(
   return [commands, activeTaskManager];
 }
 
-// Task information for a document
-export interface ActiveTaskInfo {
-  document: Uri;
-  tasks: TaskData[];
-  activeTask?: TaskData;
-}
-
-// Describes the current active task
-export interface TaskData {
-  name: string;
-  params: string[];
-}
-
 // Fired when the active task changes
 export interface ActiveTaskChangedEvent {
-  activeTaskInfo?: ActiveTaskInfo;
+  activeTaskInfo?: DocumentTaskInfo;
 }
 
 // Tracks task information for the current editor
@@ -60,7 +46,7 @@ export class ActiveTaskManager {
     // when there is a new selection
     context.subscriptions.push(
       window.onDidChangeTextEditorSelection(async (event) => {
-        await this.updateActiveTask(
+        await this.updateActiveTaskWithDocument(
           event.textEditor.document,
           event.selections[0]
         );
@@ -71,7 +57,7 @@ export class ActiveTaskManager {
       window.onDidChangeActiveNotebookEditor(async (event) => {
         if (window.activeNotebookEditor?.selection.start) {
           const cell = event?.notebook.cellAt(window.activeNotebookEditor.selection.start);
-          await this.updateActiveTask(
+          await this.updateActiveTaskWithDocument(
             cell?.document,
             new Selection(new Position(0, 0), new Position(0, 0))
           );
@@ -81,20 +67,20 @@ export class ActiveTaskManager {
 
     context.subscriptions.push(window.onDidChangeActiveTextEditor(async (event) => {
       if (event) {
-        await this.updateActiveTask(
+        await this.updateActiveTaskWithDocument(
           event.document
         );
       }
     }));
   }
-  private activeTaskInfo_: ActiveTaskInfo | undefined;
+  private activeTaskInfo_: DocumentTaskInfo | undefined;
   private readonly onActiveTaskChanged_ = new EventEmitter<ActiveTaskChangedEvent>();
 
   // Event to be notified when task information changes
   public readonly onActiveTaskChanged: Event<ActiveTaskChangedEvent> = this.onActiveTaskChanged_.event;
 
   // Get the task information for the current selection
-  public getActiveTaskInfo(): ActiveTaskInfo | undefined {
+  public getActiveTaskInfo(): DocumentTaskInfo | undefined {
     return this.activeTaskInfo_;
   }
 
@@ -102,29 +88,51 @@ export class ActiveTaskManager {
   public async refresh() {
     const currentSelection = window.activeTextEditor?.selection;
     const currentDocument = window.activeTextEditor?.document;
-    await this.updateActiveTask(currentDocument, currentSelection);
+    await this.updateActiveTaskWithDocument(currentDocument, currentSelection);
   }
 
-  async updateActiveTask(document?: TextDocument, selection?: Selection) {
+  private async updateTask(activeTaskInfo?: DocumentTaskInfo) {
     let taskActive = false;
+    if (activeTaskInfo) {
+      this.setActiveTaskInfo(activeTaskInfo);
+      taskActive = activeTaskInfo !== undefined;
+    }
+    await commands.executeCommand(
+      "setContext",
+      "inspect_ai.activeTask",
+      taskActive
+    );
+  }
+
+  async updateActiveTaskWithDocument(document?: TextDocument, selection?: Selection) {
     if (document && selection) {
-      if (document.languageId === "python") {
-        const activeTaskInfo = await getTaskInfo(document, selection);
-        if (activeTaskInfo) {
-          this.setActiveTaskInfo(activeTaskInfo);
-          taskActive = activeTaskInfo !== undefined;
-        }
+      const activeTaskInfo = document.languageId === "python" ? getTaskInfoFromDocument(document, selection) : undefined;
+      await this.updateTask(activeTaskInfo);
+    }
+  }
+
+  async updateActiveTask(documentUri: Uri, task: string) {
+    if (isNotebook(documentUri)) {
+      // Compute the cell and position of the task
+      const notebookDocument = await workspace.openNotebookDocument(documentUri);
+      const cells = cellTasks(notebookDocument);
+      const cellTask = cells.find((c) => {
+        return c.tasks.find((t) => { return t.name === task; });
+      });
+      if (cellTask) {
+        const cell = notebookDocument.cellAt(cellTask?.cellIndex);
+        const taskInfo = getTaskInfo(cell.document, task);
+        await this.updateTask(taskInfo);
       }
-      await commands.executeCommand(
-        "setContext",
-        "inspect_ai.activeTask",
-        taskActive
-      );
+    } else {
+      const document = await workspace.openTextDocument(documentUri);
+      const taskInfo = getTaskInfo(document, task);
+      await this.updateTask(taskInfo);
     }
   }
 
   // Set the task information
-  setActiveTaskInfo(task?: ActiveTaskInfo) {
+  setActiveTaskInfo(task?: DocumentTaskInfo) {
     if (this.activeTaskInfo_ !== task) {
       this.activeTaskInfo_ = task;
       this.onActiveTaskChanged_.fire({ activeTaskInfo: this.activeTaskInfo_ });
@@ -132,103 +140,56 @@ export class ActiveTaskManager {
   }
 }
 
-async function getTaskInfo(
+function getTaskInfoFromDocument(
   document: TextDocument,
-  selection: Selection
-): Promise<ActiveTaskInfo | undefined> {
+  selection?: Selection
+): DocumentTaskInfo | undefined {
   // Try to get symbols to read task info for this document
   // Note that the retry is here since the symbol provider
   // has latency in loading and there wasn't a way to wait
   // on it specifically (waiting on the Python extension didn't work)
-  let symbols: DocumentSymbol[] | undefined;
-  let count = 0;
-  do {
-    symbols = await commands.executeCommand<DocumentSymbol[]>(
-      "vscode.executeDocumentSymbolProvider",
-      document.uri
-    );
-    count++;
-    if (!symbols) {
-      await sleep(500);
-    }
+  const tasks = readTaskData(document);
 
-  } while (count <= 5 && !symbols);
-
-  if (symbols) {
-    const functionSymbols = symbols.filter(
-      (symbol) => symbol.kind === SymbolKind.Function
-    );
-
-    const tasks: TaskData[] = [];
-    let activeTask = undefined;
-
-    if (functionSymbols) {
-      functionSymbols.forEach((symbol) => {
-        if (isTask(document, symbol)) {
-          const signatureRange = getSignatureRange(document, symbol);
-
-          const variables = symbol.children.filter(
-            (child) => child.kind === SymbolKind.Variable
-          );
-          const params = variables
-            .filter((variable) => {
-              return signatureRange?.contains(variable.range);
-            })
-            .map((variable) => variable.name);
-
-          const task = {
-            name: symbol.name,
-            params,
-          };
-          tasks.push(task);
-
-          if (symbol.range.contains(selection.start)) {
-            activeTask = task;
-          }
-        }
-      });
-    }
-
-    // If there are tasks in this file, just consider the first task active
-    if (tasks.length > 0 && !activeTask) {
-      activeTask = tasks[0];
-    }
-
-    return {
-      document: document.uri,
-      tasks,
-      activeTask,
-    };
+  // If there are no tasks in this document, return undefined
+  if (tasks.length === 0) {
+    return undefined;
   }
+
+
+  const selectionLine = selection?.start.line || 0;
+
+  // Find the first task that appears before the selection
+  // or otherwise the first task
+
+  const activeTask = [...tasks].reverse().find((task) => {
+    return task.line <= selectionLine;
+  });
+  return {
+    document: document.uri,
+    tasks,
+    activeTask: activeTask || (tasks.length > 0 ? tasks[0] : undefined)
+  };
 }
 
-function isTask(document: TextDocument, symbol: DocumentSymbol) {
-  const functionText = document.getText(symbol.range);
-  if (functionText.startsWith("@task")) {
-    return true;
-  }
-}
+function getTaskInfo(
+  document: TextDocument,
+  task: string
+): DocumentTaskInfo | undefined {
+  // Try to get symbols to read task info for this document
+  // Note that the retry is here since the symbol provider
+  // has latency in loading and there wasn't a way to wait
+  // on it specifically (waiting on the Python extension didn't work)
+  const tasks = readTaskData(document);
 
-function getSignatureRange(document: TextDocument, symbol: DocumentSymbol) {
-  const functionText = document.getText(symbol.range);
+  // Find the first task that appears before the selection
+  // or otherwise the first task
 
-  // Split the text into lines to process it line-by-line
-  const lines = functionText.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.trim().startsWith("def") && line.trim().endsWith(":")) {
-      // Calculate the end position of the function definition line
-      const startLine = symbol.range.start.line + i;
-      const endLine = startLine;
-
-      // End at the end of the definition line
-      const endCharacter = line.length;
-
-      // Create a new range for just the definition
-      return new Range(
-        new Position(startLine, 0),
-        new Position(endLine, endCharacter)
-      );
-    }
-  }
+  const activeTask = [...tasks].reverse().find((t) => {
+    return t.name === task;
+  });
+  return {
+    document: document.uri,
+    tasks,
+    activeTask: activeTask || (tasks.length > 0 ? tasks[0] : undefined)
+  };
 }
