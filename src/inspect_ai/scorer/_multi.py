@@ -8,14 +8,15 @@ from typing import (
 from inspect_ai.solver import TaskState
 
 from ._metric import Score
-from ._scorer import Scorer, Target
+from ._metrics import accuracy, bootstrap_std
+from ._scorer import Scorer, Target, scorer
 
 
 @runtime_checkable
 class ScoreReducer(Protocol):
     def __call__(self, scores: list[Score]) -> Score: ...
 
-
+@scorer(metrics=[accuracy(), bootstrap_std()])
 def multi_scorer(scorers: list[Scorer], reducer: ScoreReducer) -> Scorer:
     r"""Returns a Scorer that runs multiple Scorers in parallel and aggregates their results into a single Score using the provided reducer function.
 
