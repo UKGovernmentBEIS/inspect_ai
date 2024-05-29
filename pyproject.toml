@@ -35,7 +35,6 @@ testpaths = ["tests"]
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
 norecursedirs = [
     "tests/test_helpers",
-    "tests/test_package",
     "tests/test_task_list",
 ]
 
