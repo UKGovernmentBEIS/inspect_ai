@@ -2,9 +2,6 @@ import logging
 import re
 from random import Random
 
-from inspect_ai._util.pattern import (
-    ANSWER_PATTERN_LETTER,
-)
 from inspect_ai.util import resource
 
 from ._solver import Generate, Solver, TaskState, solver
@@ -13,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 # this template is based on the multiple choice template in openai simple evals:
 # https://github.com/openai/simple-evals/blob/main/mmlu_eval.py
-
 
 MULTIPLE_CHOICE_TEMPLATE = r"""
 Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
@@ -31,6 +27,11 @@ Answer the following multiple choice question. The last line of your response sh
 
 {choices}
 """
+
+
+# Default regex for matching out the answer, note the three capture groups which
+# is required to handle shuffling
+MULTIPLE_CHOICE_ANSWER = r"(?i)(ANSWER\s*:\s*)([A-Za-z])([^\w]|\n|$)"
 
 
 # max tokens for different variations
@@ -75,27 +76,28 @@ def multiple_choice(
           `False`, pass `True` or an instance of `Random` to shuffle)
         answer_pattern (str | None): Regex used to find the answer letter. This is
           only used when `shuffle` is enabled. The regex should have 3 capture groups
-         (before the answer, the answer, and after the answer). If the answer is
-         expected at the beginning or end then you can use explicit capture groups
-         for beginning or end of string, for example (^.*) or (.*$).
+          (before the answer, the answer, and after the answer). If the answer is
+          expected at the beginning or end then you can use explicit capture groups
+          for beginning or end of string, for example (^.*) or (.*$).
     """
     # resolve parameters
-    template = (
-        template
-        if template
-        else MULTIPLE_CHOICE_TEMPLATE_COT if cot else MULTIPLE_CHOICE_TEMPLATE
-    )
-    max_tokens = (
-        max_tokens
-        if max_tokens
-        else MULTIPLE_CHOICE_MAX_TOKENS_COT if cot else MULTIPLE_CHOICE_MAX_TOKENS
-    )
-    answer_pattern = answer_pattern if answer_pattern else ANSWER_PATTERN_LETTER
+    if template is None:
+        if cot:
+            template = MULTIPLE_CHOICE_TEMPLATE_COT
+        else:
+            template = MULTIPLE_CHOICE_TEMPLATE
 
-    # resolve template contents
     template = resource(template)
 
-    # resolve shuffle
+    if max_tokens is None:
+        if cot:
+            max_tokens = MULTIPLE_CHOICE_MAX_TOKENS_COT
+        else:
+            max_tokens = MULTIPLE_CHOICE_MAX_TOKENS
+
+    if answer_pattern is None:
+        answer_pattern = MULTIPLE_CHOICE_ANSWER
+
     if shuffle is True:
         shuffle = Random()
 

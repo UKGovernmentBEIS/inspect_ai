@@ -1,6 +1,6 @@
 from typing import Any
 
-from utils import skip_if_no_openai
+from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME

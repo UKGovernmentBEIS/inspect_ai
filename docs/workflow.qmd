@@ -131,6 +131,10 @@ Evaluation development is often highly exploratory and requires trying (and meas
 
 For exploratory work, you'll still write a `@task` function, but you'll give it arguments that reflect the things you want to try out and vary. You'll then call Inspect's `eval()` function interactively rather than calling `inspect eval` from the shell.
 
+::: {.callout-note appearance="simple"}
+Note that the code below demonstrates exploratory workflows, but unlike the code above isn't intended for direct execution but rather only for illustration. For example, we call the `plot_results()` function which isn't directly defined but rather just an example of a function you might call after running some eval tasks.
+:::
+
 ### Task Args
 
 To illustrate, we'll use a very simple example: an evaluation that checks whether a model can provide good computer security advice. The eval uses a model to score the results, and we want to explore how different system prompts, grader instructions, and grader models affect the quality of the eval.

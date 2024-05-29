@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     Any,
     Literal,
@@ -49,6 +49,9 @@ class ToolCall:
     type: Literal["function"]
     """Type of tool call (currently only 'function')"""
 
+    parse_error: str | None = field(default=None)
+    """Error which occurred parsing tool call."""
+
 
 @dataclass
 class ToolFunction:
@@ -56,9 +59,10 @@ class ToolFunction:
     """The name of the function to call."""
 
 
-ToolChoice = Union[Literal["none", "auto"], ToolFunction]
+ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]
 """Specify which tool to call.
 
-"auto" means the model decides; "none" means never call a tool; and
-ToolFunction instructs the model to call a specific function.
+"auto" means the model decides; "any" means use at least one tool,
+"none" means never call a tool; ToolFunction instructs the model
+to call a specific function.
 """

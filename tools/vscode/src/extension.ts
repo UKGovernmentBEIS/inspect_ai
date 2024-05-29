@@ -12,7 +12,7 @@ import { activateEvalManager } from "./providers/inspect/inspect-eval";
 import { activateActivityBar } from "./providers/activity-bar/activity-bar-provider";
 import { activateActiveTaskProvider } from "./providers/active-task/active-task-provider";
 import { activateWorkspaceTaskProvider } from "./providers/workspace/workspace-task-provider";
-import { activateWorkspaceState } from "./providers/workspace/workspace-state-provider";
+import { WorkspaceStateManager, activateWorkspaceState } from "./providers/workspace/workspace-state-provider";
 import { initializeWorkspace } from "./providers/workspace/workspace-init";
 import { activateWorkspaceEnv } from "./providers/workspace/workspace-env-provider";
 import { initPythonInterpreter } from "./core/python";
@@ -81,7 +81,7 @@ export async function activate(context: ExtensionContext) {
       settingsMgr.getSettings().logViewAuto &&
       inspectLogviewManager
     ) {
-      startLogWatcher(logviewWebviewManager);
+      startLogWatcher(logviewWebviewManager, stateManager);
     }
   });
 
@@ -113,7 +113,7 @@ export async function activate(context: ExtensionContext) {
 
   // Activate the file watcher for this workspace
   if (settingsMgr.getSettings().logViewAuto) {
-    startLogWatcher(logviewWebviewManager);
+    startLogWatcher(logviewWebviewManager, stateManager);
   }
 
   // Activate Code Lens
@@ -144,9 +144,11 @@ let logFileWatcher: LogViewFileWatcher | undefined;
 
 const startLogWatcher = (
   logviewWebviewManager: InspectLogviewManager,
+  workspaceStateManager: WorkspaceStateManager
 ) => {
   logFileWatcher = new LogViewFileWatcher(
-    logviewWebviewManager
+    logviewWebviewManager,
+    workspaceStateManager
   );
 };
 

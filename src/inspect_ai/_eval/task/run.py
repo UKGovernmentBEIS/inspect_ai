@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import sys
 from copy import deepcopy
 from logging import getLogger
@@ -147,6 +148,14 @@ async def task_run(
                             max_messages=config.max_messages,
                         )
 
+                    # optional semaphore to limit concurrency
+                    task_semaphore = (
+                        asyncio.Semaphore(config.max_samples)
+                        if config.max_samples
+                        else None
+                    )
+
+                    # create tasks
                     tasks = [
                         task_run_sample(
                             task_name=task.name,
@@ -157,11 +166,12 @@ async def task_run(
                             scorer=scorer,
                             generate=generate,
                             progress=progress,
+                            semaphore=task_semaphore,
                         )
                         for (sample, state) in zip(samples, states)
                     ]
 
-                    # run them in parallel
+                    # run them in parallel (subject to config.max_samples)
                     scores = await asyncio.gather(*tasks)
 
                 # log output by epoch
@@ -229,45 +239,53 @@ async def task_run_sample(
     scorer: Scorer | None,
     generate: Generate,
     progress: Callable[..., None],
+    semaphore: asyncio.Semaphore | None,
 ) -> Score | None:
+
+    # use semaphore if provided
+    cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
+        semaphore if semaphore else contextlib.nullcontext()
+    )
+
     # solver loop
-    try:
-        # run plan steps (checking for early termination)
-        for index, solver in enumerate(plan.steps):
-            # run the solver
-            state = await solver(state, generate)
-            progress()
+    async with cm:
+        try:
+            # run plan steps (checking for early termination)
+            for index, solver in enumerate(plan.steps):
+                # run the solver
+                state = await solver(state, generate)
+                progress()
 
-            # check for early termination (tick remaining progress)
-            if state.completed or has_max_messages(state, max_messages):
-                for _ in range(index + 1, len(plan.steps)):
-                    progress()
-                break
+                # check for early termination (tick remaining progress)
+                if state.completed or has_max_messages(state, max_messages):
+                    for _ in range(index + 1, len(plan.steps)):
+                        progress()
+                    break
 
-        # run finishing step them mark completed
-        if plan.finish:
-            state = await plan.finish(state, generate)
-            progress()
-        state.completed = True
+            # run finishing step them mark completed
+            if plan.finish:
+                state = await plan.finish(state, generate)
+                progress()
+            state.completed = True
 
-    finally:
-        # safely run cleanup function if there is one
-        if plan.cleanup:
-            try:
-                await plan.cleanup(state)
-            except Exception as ex:
-                logger.warning(
-                    f"Exception occurred during plan cleanup for task {task_name}: "
-                    + f"{exception_message(ex)}"
-                )
-                pass
+        finally:
+            # safely run cleanup function if there is one
+            if plan.cleanup:
+                try:
+                    await plan.cleanup(state)
+                except Exception as ex:
+                    logger.warning(
+                        f"Exception occurred during plan cleanup for task {task_name}: "
+                        + f"{exception_message(ex)}"
+                    )
+                    pass
 
-    # score it
-    result = await scorer(state, Target(sample.target)) if scorer else None
-    progress()
+        # score it
+        result = await scorer(state, Target(sample.target)) if scorer else None
+        progress()
 
-    # return
-    return result
+        # return
+        return result
 
 
 async def resolve_dataset(

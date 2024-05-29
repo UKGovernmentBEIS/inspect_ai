@@ -3,7 +3,6 @@ from typing import (
     Any,
     Callable,
     Protocol,
-    Tuple,
     TypeVar,
     cast,
     runtime_checkable,
@@ -15,8 +14,9 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
+from inspect_ai.model import Content
 
-ToolResult = str | int | float | bool | Tuple[str | int | float | bool, dict[str, Any]]
+ToolResult = str | int | float | bool | list[Content]
 
 
 @runtime_checkable
@@ -25,7 +25,7 @@ class Tool(Protocol):
         self,
         *args: Any,
         **kwargs: Any,
-    ) -> ToolResult:
+    ) -> ToolResult | tuple[ToolResult, dict[str, Any]]:
         r"""Additional tool that an agent can use to solve a task.
 
         Args:

@@ -73,7 +73,7 @@ def model_graded_qa(
     instructions: str | None = None,
     grade_pattern: str | None = None,
     partial_credit: bool = False,
-    model: str | Model | None = None,
+    model: list[str | Model] | str | Model | None = None,
 ) -> Scorer:
     ...
 ```
@@ -95,7 +95,7 @@ The built-in model graded scorers also support using multiple grader models (whe
 
 ```python
 model_graded_qa(
-    models = [
+    model = [
         "google/gemini-1.0-pro",
         "anthropic/claude-3-opus-20240229" 
         "together/meta-llama/Llama-3-70b-chat-hf",
@@ -173,7 +173,7 @@ Next, we'll take a look at the source code for a couple of the built in scorers 
 Here is the source code for the built-in `includes()` scorer:
 
 ``` python
-@scorer(metrics=[accuracy(), bootstrap_str()])   # <1>
+@scorer(metrics=[accuracy(), bootstrap_std()])   # <1>
 def includes(ignore_case: bool = True):
 
     async def score(state: TaskState, target: Target):   # <2>
@@ -284,13 +284,16 @@ def average_score(scores: list[Score]) -> Score:
     )
 ```
 
-Which might be used like this:
+
+Further, you will need to wrap your use of `multi_scorer()` inside a `@scorer` decorated function (with the requisite `metrics` specified). For example:
 
 ```python
-multi_scorer(
-    scorers = [model_graded_qa(model=model) for model in models],
-    reducer = average_score
-)
+@scorer(metrics=[mean()])
+def multi_model_graded(models)
+    return multi_scorer(
+        scorers = [model_graded_qa(model=model) for model in models],
+        reducer = average_score
+    )
 ```
 
 

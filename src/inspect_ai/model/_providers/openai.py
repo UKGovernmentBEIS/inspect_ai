@@ -40,7 +40,11 @@ from .._model import (
 )
 from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
-from .util import as_stop_reason, model_base_url
+from .util import (
+    as_stop_reason,
+    model_base_url,
+    parse_tool_call,
+)
 
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
@@ -296,6 +300,9 @@ def chat_tool_choice(tool_choice: ToolChoice) -> ChatCompletionToolChoiceOptionP
         return ChatCompletionNamedToolChoiceParam(
             type="function", function=dict(name=tool_choice.name)
         )
+    # openai does not support 'any' so we force it to 'auto'
+    elif tool_choice == "any":
+        return "auto"
     else:
         return tool_choice
 
@@ -303,12 +310,7 @@ def chat_tool_choice(tool_choice: ToolChoice) -> ChatCompletionToolChoiceOptionP
 def chat_tool_calls(message: ChatCompletionMessage) -> list[ToolCall] | None:
     if message.tool_calls:
         return [
-            ToolCall(
-                id=call.id,
-                function=call.function.name,
-                arguments=json.loads(call.function.arguments),
-                type="function",
-            )
+            parse_tool_call(call.id, call.function.name, call.function.arguments)
             for call in message.tool_calls
         ]
     else:

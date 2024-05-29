@@ -1,5 +1,5 @@
 import pytest
-from utils import skip_if_no_openai
+from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval_async
 from inspect_ai._util.registry import registry_info

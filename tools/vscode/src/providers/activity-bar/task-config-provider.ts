@@ -76,9 +76,37 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
 
     const updateTaskInfo = async (activeTaskInfo?: DocumentTaskInfo) => {
       if (activeTaskInfo) {
+        // Remove any task parameters that may have been removed by this update
+        await removeStaleTaskParams(activeTaskInfo);
+
+        // Notify the UI
         await postActiveTaskMsg(activeTaskInfo);
       } else {
         webviewView.description = "";
+      }
+    };
+
+    const removeStaleTaskParams = async (activeTaskInfo: DocumentTaskInfo) => {
+      const currentState = this.stateManager_.getTaskState(
+        activeTaskInfo.document.fsPath,
+        activeTaskInfo.activeTask?.name
+      );
+      const keysToRemove = Object.keys(currentState.params || {}).filter(
+        (key) => {
+          return !activeTaskInfo.activeTask?.params.includes(key);
+        }
+      );
+      if (keysToRemove.length > 0) {
+        keysToRemove.forEach((key) => {
+          if (currentState.params) {
+            delete currentState.params[key];
+          }
+        });
+        await this.stateManager_.setTaskState(
+          activeTaskInfo.document.fsPath,
+          currentState,
+          activeTaskInfo.activeTask?.name
+        );
       }
     };
 

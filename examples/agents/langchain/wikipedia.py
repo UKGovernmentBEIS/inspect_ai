@@ -6,10 +6,10 @@ from langchain.agents import (
     AgentExecutor,
     BaseMultiActionAgent,
     create_openai_tools_agent,
-    load_tools,
 )
-from langchain.tools.tavily_search import TavilySearchResults
-from langchain.utilities.tavily_search import TavilySearchAPIWrapper
+from langchain_community.agent_toolkits.load_tools import load_tools
+from langchain_community.tools.tavily_search.tool import TavilySearchResults
+from langchain_community.utilities.tavily_search import TavilySearchAPIWrapper
 from langchain_core.language_models import BaseChatModel
 
 from inspect_ai import Task, task

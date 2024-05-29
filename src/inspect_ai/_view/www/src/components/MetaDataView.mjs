@@ -10,11 +10,16 @@ export const MetaDataView = ({
   tableOptions,
   context,
   expanded,
+  compact
 }) => {
   const baseId = baseClass || "metadataview";
 
-  const cellStyle = { padding: "0.3em 0.3em 0.3em 0em" };
-  const cellKeyStyle = {
+  const cellStyle = compact ? { padding: "0em"} : { padding: "0.3em 0.3em 0.3em 0em" };
+  const cellKeyStyle = compact ?  {
+    fontWeight: "400",
+    paddingRight: "0.2em",
+    whiteSpace: "nowrap",
+  } : {
     fontWeight: "400",
     paddingRight: "1em",
     whiteSpace: "nowrap",
@@ -46,8 +51,7 @@ export const MetaDataView = ({
 
   const entryEls = (entries || []).map((entry, index) => {
     const id = `${baseId}-value-${index}`;
-    return html`
-      <tr class="${baseId}-row">
+    return html`<tr class="${baseId}-row">
         <td class="${baseId}-key" style=${{ ...cellStyle, ...cellKeyStyle }}>
           <span style=${cellKeyTextStyle}>${entry.name}</span>
         </td>
@@ -62,11 +66,10 @@ export const MetaDataView = ({
             options=${{ expanded }}
           />
         </td>
-      </tr>
-    `;
+      </tr>`;
   });
 
-  return html` <table
+  return html`<table
     ...${{ id }}
     class="${classes || ""} table ${tblClz.join(" ")}"
     style=${{

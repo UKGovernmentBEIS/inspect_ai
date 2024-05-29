@@ -6,27 +6,49 @@ import { inspectLastEvalPath } from "../../inspect/props";
 import { existsSync, readFileSync, statSync } from "fs";
 import { log } from "../../core/log";
 import { toAbsolutePath, workspaceRelativePath } from "../../core/path";
+import { WorkspaceStateManager } from "../workspace/workspace-state-provider";
+import { withMinimumInspectVersion } from "../../inspect/version";
+import { kInspectChangeEvalSignalVersion } from "../inspect/inspect-constants";
 
 export class LogViewFileWatcher implements Disposable {
   constructor(
     private readonly logviewManager_: InspectLogviewManager,
+    private readonly workspaceStateManager_: WorkspaceStateManager
   ) {
     log.appendLine("Watching for evaluation logs");
     this.lastEval_ = Date.now();
 
-    const lastEvalPath = inspectLastEvalPath();
-    const lastEvalFile = lastEvalPath?.path;
+    const evalSignalFile = inspectLastEvalPath()?.path;
 
     this.watchInterval_ = setInterval(() => {
-      if (lastEvalFile && existsSync(lastEvalFile)) {
-        const updated = statSync(lastEvalFile).mtime.getTime();
+      if (evalSignalFile && existsSync(evalSignalFile)) {
+        const updated = statSync(evalSignalFile).mtime.getTime();
         if (updated > this.lastEval_) {
           this.lastEval_ = updated;
-          const evalLogPath = readFileSync(lastEvalFile, { encoding: "utf-8" });
-          log.appendLine(`New log: ${workspaceRelativePath(toAbsolutePath(evalLogPath))}`);
-          this.logviewManager_.showLogFile(Uri.file(evalLogPath)).catch(async (err: Error) => {
-            await showError("Unable to preview log file - failed to start Inspect View", err);
+
+          let evalLogPath;
+          let workspaceId;
+          const contents = readFileSync(evalSignalFile, { encoding: "utf-8" });
+
+          // Parse the eval signal file result
+          withMinimumInspectVersion(kInspectChangeEvalSignalVersion, () => {
+            // 0.3.10- or later
+            const contentsObj = JSON.parse(contents) as { location: string, workspace_id?: string };
+            evalLogPath = contentsObj.location;
+            workspaceId = contentsObj.workspace_id;
+          }, () => {
+            // 0.3.8 or earlier
+            evalLogPath = contents;
           });
+
+          if (evalLogPath) {
+            if (!workspaceId || workspaceId === this.workspaceStateManager_.getWorkspaceInstance()) {
+              log.appendLine(`New log: ${workspaceRelativePath(toAbsolutePath(evalLogPath))}`);
+              this.logviewManager_.showLogFile(Uri.file(evalLogPath)).catch(async (err: Error) => {
+                await showError("Unable to preview log file - failed to start Inspect View", err);
+              });
+            }
+          }
         }
       }
     }, 1000);

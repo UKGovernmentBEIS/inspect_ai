@@ -70,7 +70,7 @@ The Inspect Activity Bar provides an interface for tuning both global configurat
 
 The activity bar has three panels:
 
--   **Configuration** edits global configuration by reading and writing values from the workspace `.env` config file (see the documentation on [Configuration](#0) for more details on `.env` files).
+-   **Configuration** edits global configuration by reading and writing values from the workspace `.env` config file (see the documentation on [Configuration](workflow.qmd#configuration) for more details on `.env` files).
 
 -   **Task** provides a way to tweak the CLI arguments passed to `inspect eval` when it is run from the user interface.
 

@@ -25,7 +25,7 @@ def openai() -> type[ModelAPI]:
 def anthropic() -> type[ModelAPI]:
     FEATURE = "Anthropic API"
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.23.0"
+    MIN_VERSION = "0.26.0"
 
     # verify we have the package
     try:

@@ -217,10 +217,12 @@ def code_has_task(code: str) -> bool:
                     if isinstance(decorator, ast.Name):
                         if str(decorator.id) == "task":
                             return True
-                    elif isinstance(decorator, ast.Call):
-                        if isinstance(decorator.func, ast.Name):
-                            if str(decorator.func.id) == "task":
-                                return True
+                    elif (
+                        isinstance(decorator, ast.Call)
+                        and isinstance(decorator.func, ast.Name)
+                        and str(decorator.func.id) == "task"
+                    ):
+                        return True
     except SyntaxError:
         pass
 

@@ -1,12 +1,12 @@
 import { html } from "htm/preact";
-import { isNumeric } from "../utils/Type.mjs";
+import { isNumeric } from "../../utils/Type.mjs";
 
 import {
   kScoreTypeCategorical,
   kScoreTypeNumeric,
   kScoreTypeObject,
   kScoreTypePassFail,
-} from "./SamplesDescriptor.mjs";
+} from "../SamplesDescriptor.mjs";
 
 export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
   const filterCategory = (e) => {

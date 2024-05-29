@@ -1,22 +1,3 @@
-/* custom navbar treatment for vscode */
-body[class^="vscode-"] .navbar {
-  height: 26px;
-}
-
-body[class^="vscode-"] .navbar-brand {
-  font-size: 0.7em;
-  font-weight: 600;
-}
-
-body[class^="vscode-"] .navbar-text {
-  font-size: 0.7em !important;
-  padding-bottom: 0.4em !important;
-}
-
-body[class^="vscode-"] #sidebarToggle > i.bi {
-  font-size: 1em;
-}
-
 /* custom title block treatment for vscode */
 
 body[class^="vscode-"] .workspace {

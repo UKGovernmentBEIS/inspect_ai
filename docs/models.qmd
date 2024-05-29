@@ -356,14 +356,33 @@ The `__init__()` method *must* call the `super().__init__()` method, and typical
 
 The `generate()` method handles interacting with the model. In addition, there are some optional methods you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, etc.)
 
-Once you've created the class and decorated it with `@modelapi` as shown above, you can reference it as follows:
+### Model Registration
+
+If you are publishing a custom model within a Python package, you should register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads your extension before it attempts to resolve a model name that uses your provider.
+
+For example, if your package was named `custom_models` and your model provider was exported from a source file named `inspect_ai.py` at the root of your package, `pyproject.toml` that would look like this:
+
+``` toml
+[project.entry-points.inspect_ai]
+custom_models = "custom_models.inspect_ai"
+```
+
+### Using the Model
+
+Once you've created the class, decorated it with `@modelapi` as shown above, and registered it, then you can use it as follows:
+
+``` bash
+inspect eval ctf.py --model custom/my-model
+```
+
+Where `my-model` is the name of some model supported by your provider (this will be passed to `__init()__` in the `model_name` argument).
+
+You can also reference it from within Python calls to `get_model()` or `eval()`:
 
 ``` python
 # get a model instance
-model = get_model("custom/name-of-model")
+model = get_model("custom/my-model")
 
 # run an eval with the model
-eval(math, model = "custom/name-of-model")
+eval(math, model = "custom/my-model")
 ```
-
-In this example, the `model_name` argument passed to `__init__()` will be "name-of-model".

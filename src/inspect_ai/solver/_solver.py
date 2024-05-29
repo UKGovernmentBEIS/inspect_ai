@@ -92,10 +92,16 @@ class TaskState:
         if isinstance(self._input, str):
             return self._input
         else:
-            return next(
-                (message.text for message in self.messages if message.role == "user"),
-                "",
+            input = next(
+                (message.text for message in self._input if message.role == "user"),
+                None,
             )
+            if input:
+                return input
+            else:
+                raise ValueError(
+                    "input_text requested from TaskState but none available"
+                )
 
     @property
     def user_prompt(self) -> ChatMessageUser:
@@ -109,15 +115,13 @@ class TaskState:
         exception if there is no user prompt
 
         Returns:
-           First user `ChatMessage` if the current state has one, else `None`
+           First user `ChatMessage` in the task state.
         """
-        prompt = next(
-            (m for m in self.messages if isinstance(m, ChatMessageUser)), None
-        )
+        prompt = next((m for m in self.messages if m.role == "user"), None)
         if prompt:
             return prompt
         else:
-            raise ValueError("User prompt requested from TaskState but none available")
+            raise ValueError("user_prompt requested from TaskState but none available")
 
 
 @runtime_checkable

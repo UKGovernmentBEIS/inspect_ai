@@ -3,7 +3,8 @@ import os
 import pytest
 
 from inspect_ai import eval
-from inspect_ai.solver import tool
+from inspect_ai.model import ContentText, ModelName, ModelOutput
+from inspect_ai.solver import TaskState, tool
 
 
 def skip_if_env_var(var: str, exists=True):
@@ -70,6 +71,23 @@ def addition():
         Returns:
             The sum of the two numbers.
         """
-        return x + y
+        # return as list[Content] to confirm that codepath works
+        return [ContentText(text=str(x + y))]
 
     return add
+
+
+# The intention of this `simple_task_state` helper is to remove some of the
+# boiler plate of creating a task for use in solver checks where we just need
+# "some" state. Over time this will likely expand and need to be extracted into
+# its own helper file with multiple options.
+def simple_task_state(content: str) -> TaskState:
+    return TaskState(
+        model=ModelName(model="fake/model"),
+        sample_id=0,
+        epoch=0,
+        input=[],
+        choices=None,
+        messages=[],
+        output=ModelOutput.from_content(model="model", content=content),
+    )

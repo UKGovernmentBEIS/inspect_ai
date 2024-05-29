@@ -1,5 +1,5 @@
 import pytest
-from utils import (
+from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_mistral,
     skip_if_no_openai,

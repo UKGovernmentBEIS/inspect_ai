@@ -1,6 +1,6 @@
 import os
 
-from utils import (
+from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_openai,

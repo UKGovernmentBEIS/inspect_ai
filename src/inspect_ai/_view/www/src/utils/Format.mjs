@@ -21,6 +21,10 @@ const shorteners = [/^.*(\[.+\])$/m];
  * @param string completion
  */
 export const shortenCompletion = (completion) => {
+  if (!completion) {
+    return completion;
+  }
+
   let shortened = undefined;
   for (const shortenPattern of shorteners) {
     const shortMatch = completion.match(shortenPattern);
@@ -36,7 +40,7 @@ export const answerForSample = (sample) => {
   if (sample) {
     if (sample.score?.answer) {
       return sample.score.answer;
-    } else {
+    } else if (sample.output.choices && sample.output.choices.length > 0) {
       const content = sample.output.choices[0].message.content;
       if (typeof content === "string") {
         return content;
@@ -49,6 +53,21 @@ export const answerForSample = (sample) => {
     return undefined;
   }
 };
+
+// Gets a string for a sample input
+export const inputString = (input) => {
+  if (typeof input === "string") {
+    return input;
+  } else {
+    return input.map((inp) => {
+      if (typeof inp === "string") {
+        return inp;
+      } else {
+        return inp.content;
+      }
+    })
+  }
+}
 
 export const formatDataset = (name, samples, epochs) => {
   const perEpochSamples = epochs > 0 ? samples / epochs : samples;

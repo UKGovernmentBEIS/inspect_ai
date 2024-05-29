@@ -8,29 +8,20 @@ import {
 } from "preact/hooks";
 
 import { icons } from "../Constants.mjs";
-import { EpochFilter } from "./EpochFilter.mjs";
-import {
-  SortFilter,
-  sort,
-  kDefaultSort,
-  byEpoch,
-  bySample,
-} from "./SortFilter.mjs";
-import { formatTime } from "../utils/Format.mjs";
-import { TitleBlock } from "../title/TitleBlock.mjs";
-import { AppErrorBoundary } from "../components/AppErrorBoundary.mjs";
-import { ErrorPanel } from "../components/ErrorPanel.mjs";
-import { SamplesCard } from "../samples/SamplesCard.mjs";
-import { LoggingPanel } from "../logging/LoggingPanel.mjs";
-import { LoadingScreen } from "../components/LoadingScreen.mjs";
-import { ToolButton } from "../components/ToolButton.mjs";
-import { TabSet, Tab } from "../components/TabSet.mjs";
-import { SampleFilter } from "./SampleFilter.mjs";
-import { samplesDescriptor } from "./SamplesDescriptor.mjs";
-import api from "../api/index.mjs";
-import { PlanCard } from "../plan/PlanCard.mjs";
-import { UsageCard } from "../usage/UsageCard.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
+import { TabSet, TabPanel } from "../components/TabSet.mjs";
+import { ToolButton } from "../components/ToolButton.mjs";
+import { LoggingPanel } from "../logging/LoggingPanel.mjs";
+import { PlanCard } from "../plan/PlanCard.mjs";
+import { samplesDescriptor } from "../samples/SamplesDescriptor.mjs";
+import { SamplesTab } from "../samples/SamplesTab.mjs";
+import { SampleTools } from "../samples/SamplesTools.mjs";
+import {
+  kDefaultSort,
+} from "../samples/tools/SortFilter.mjs";
+import { TitleBlock } from "../title/TitleBlock.mjs";
+import { UsageCard } from "../usage/UsageCard.mjs";
+
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 
 const kEvalTabId = "eval-tab";
@@ -42,15 +33,11 @@ export const WorkSpace = (props) => {
   const divRef = useRef();
   const codeRef = useRef();
 
+  const workspaceLog = props.log;
+
   // State tracking for the view
   const [state, setState] = useState({
-    log: {
-      contents: undefined,
-      path: undefined,
-    },
     logFiltered: undefined,
-    status: "loading", //loaded,error
-    error: undefined,
     viewState: {
       selectedTab: kEvalTabId,
       openSamples: [],
@@ -71,34 +58,12 @@ export const WorkSpace = (props) => {
 
   const sampleDescriptor = useMemo(() => {
     return samplesDescriptor(
-      state.log.contents?.samples,
-      state.log.contents?.eval?.config?.epochs || 1,
+      workspaceLog.contents?.samples,
+      workspaceLog.contents?.eval?.config?.epochs || 1,
       context
     );
-  }, [state.log]);
+  }, [workspaceLog]);
 
-  const toggleSample = (id) => {
-    const idx = state.viewState.openSamples.indexOf(id);
-    const viewState = state.viewState;
-    if (idx < 0) {
-      viewState.openSamples.push(id);
-    } else {
-      viewState.openSamples.splice(idx, 1);
-    }
-    setState({ log: state.log, viewState });
-  };
-
-  const toggleAllSamples = (showAll) => {
-    const viewState = state.viewState;
-    if (showAll) {
-      viewState.openSamples = state.log.contents.samples.map((sample) => {
-        return `${sample.id}-${sample.epoch}` ;
-      });
-    } else {
-      viewState.openSamples = [];
-    }
-    setState({ log: state.log, viewState });
-  };
 
   // Tabs that are available within the app
   // Include the tab contents as well as any tools that the tab provides
@@ -108,113 +73,34 @@ export const WorkSpace = (props) => {
 
     // The samples tab
     // Currently only appears when the result is successful
-    if (state.log.contents?.status === "success") {
+    if (workspaceLog.contents?.status === "success") {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        label: "Samples",
+        label: workspaceLog.contents?.samples?.length >  1 ? "Samples" : "Sample",
         content: () => {
-          // Filter the samples based upon the filter state
-          const filter = state.viewState.filter;
-          const samples = (state.log.contents?.samples || []).filter(
-            (sample) => {
-              // Filter by epoch if specified
-              if (state.viewState.epoch && state.viewState.epoch !== "all") {
-                if (state.viewState.epoch !== sample.epoch + "") {
-                  return false;
-                }
-              }
-
-              if (filter.filterFn && filter.value) {
-                return filter.filterFn(sample, filter.value);
-              } else {
-                return true;
-              }
-            }
-          );
-
-          const { sorted, numbering } = sort(
-            state.viewState.sort,
-            samples,
-            sampleDescriptor
-          );
-
-          const groupBy = (sort, sampleDescriptor) => {
-            // No grouping if there is only one epoch
-            if (sampleDescriptor.epochs < 2) {
-              return "";
-            }
-
-            if (byEpoch(sort) || state.viewState.epoch !== "all") {
-              return "epoch";
-            } else if (bySample(sort)) {
-              return "sample";
-            } else {
-              return "";
-            }
-          };
-
-          return html`<${SamplesCard}
-            samples="${sorted}"
-            toggleSample=${toggleSample}
-            openSamples=${state.viewState.openSamples}
-            context=${context}
+          return html`
+          <${SamplesTab}
+            task=${workspaceLog.contents?.eval?.task}
+            model=${workspaceLog.contents?.eval?.model}
+            samples=${workspaceLog.contents?.samples}
             sampleDescriptor=${sampleDescriptor}
-            groupBy=${groupBy(state.viewState.sort, sampleDescriptor)}
-            numbering=${numbering}
-          />`;
+            filter=${state.viewState.filter}
+            sort=${state.viewState.sort}
+            epoch=${state.viewState.epoch}
+            context=${context}
+           />`
         },
         tools: (state) => {
-          const hasEpochs = state.log.contents?.eval?.config?.epochs > 1;
-          const tools = [];
-          if (hasEpochs) {
-            tools.push(
-              html`<${EpochFilter}
-                epoch=${state.viewState.epoch}
-                setEpoch="${setEpoch}"
-                epochs=${state.log.contents.eval.config.epochs}
-              />`
-            );
-          }
-
-          tools.push(
-            html`<${SampleFilter}
+          return html`<${SampleTools}
+              epoch=${state.viewState.epoch}
+              epochs=${workspaceLog.contents?.eval?.config?.epochs}
+              setEpoch=${setEpoch}
               filter=${state.viewState.filter}
               filterChanged=${filterChanged}
-              descriptor=${sampleDescriptor}
-            />`
-          );
-
-          tools.push(
-            html`<${SortFilter}
               sort=${state.viewState.sort}
               setSort=${setSort}
-              epochs=${hasEpochs}
-            />`
-          );
-
-          if (state.viewState.openSamples.length > 0) {
-            tools.push(
-              html`<${ToolButton}
-                name="Close All"
-                icon="${icons["expand-all"]}"
-                onclick="${hideAll}"
-              />`
-            );
-          }
-          if (
-            state.viewState.openSamples.length <
-            state.log.contents?.samples?.length
-          ) {
-            tools.push(
-              html`<${ToolButton}
-                name="Open All"
-                icon="${icons["collapse-all"]}"
-                onclick="${showAll}"
-              />`
-            );
-          }
-
-          return tools;
+              sampleDescriptor=${sampleDescriptor}
+          />`;
         },
       };
     }
@@ -225,24 +111,26 @@ export const WorkSpace = (props) => {
       label: "Info",
       content: () => {
         const infoCards = [
-          html`<${PlanCard} log="${state.log.contents}" context=${context} />`,
+          html`<${PlanCard} log="${workspaceLog.contents}" context=${context} />`,
           html`<${UsageCard}
-            stats=${state.log.contents?.stats}
+            stats=${workspaceLog.contents?.stats}
             context=${context}
           />`,
         ];
 
         // If there is error or progress, includes those within info
-        if (state.log.contents?.status === "error") {
+        if (workspaceLog.contents?.status === "error") {
           infoCards.unshift(
-            html`<${TaskErrorCard} evalError=${state.log.contents.error} />`
+            html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`
           );
-        } else if (state.log.contents?.status === "started") {
+        } else if (workspaceLog.contents?.status === "started") {
           infoCards.unshift(
             html`<${EmptyPanel}>The task is currently running.</${EmptyPanel}>`
           );
         }
-        return html` ${infoCards} `;
+        return html`<div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+          ${infoCards}
+        </div>`;
       },
     };
 
@@ -252,7 +140,7 @@ export const WorkSpace = (props) => {
       label: "Logging",
       content: () => {
         return html`<${LoggingPanel}
-          logging=${state.log.contents?.logging}
+          logging=${workspaceLog.contents?.logging}
           context=${context}
         />`;
       },
@@ -264,10 +152,21 @@ export const WorkSpace = (props) => {
       id: kJsonTabId,
       label: "JSON",
       content: () => {
+        if (codeRef.current) {
+          if (workspaceLog.contents.samples?.length <= 200) {
+            codeRef.current.innerHTML = Prism.highlight(
+              workspaceLog.raw,
+              Prism.languages.javascript,
+              "javacript"
+            );
+          } else {
+            const textNode = document.createTextNode(workspaceLog.raw);
+            codeRef.current.innerText = "";
+            codeRef.current.appendChild(textNode);
+          }  
+        }
         return html`<div
           style=${{
-            border: "solid 1px var(--bs-border-color)",
-            borderRadius: "var(--bs-border-radius)",
             padding: "1rem",
             fontSize: "0.9rem",
           }}
@@ -291,37 +190,20 @@ export const WorkSpace = (props) => {
     };
 
     return resolvedTabs;
-  }, [state]);
+  }, [state, workspaceLog]);
 
   const setSelectedTab = (currentState, selectedTab) => {
     const viewState = currentState.viewState;
     viewState.selectedTab = selectedTab;
-    setState({
-      log: currentState.log,
-      viewState,
-    });
+    setState({ viewState });
   };
 
-  const showAll = useCallback(
-    (e) => {
-      toggleAllSamples(true);
-    },
-    [state]
-  );
-
-  const hideAll = useCallback(
-    (e) => {
-      toggleAllSamples(false);
-    },
-    [state]
-  );
 
   const filterChanged = useCallback(
     (filter) => {
       const viewState = state.viewState;
       viewState.filter = filter;
-      setState({ log: state.log, viewState });
-      hideAll();
+      setState({ viewState });
     },
     [state]
   );
@@ -330,7 +212,7 @@ export const WorkSpace = (props) => {
     (epoch) => {
       const viewState = state.viewState;
       viewState.epoch = epoch;
-      setState({ log: state.log, viewState });
+      setState({ viewState });
     },
     [state]
   );
@@ -339,7 +221,7 @@ export const WorkSpace = (props) => {
     (sort) => {
       const viewState = state.viewState;
       viewState.sort = sort;
-      setState({ log: state.log, viewState });
+      setState({ viewState });
     },
     [state]
   );
@@ -365,65 +247,16 @@ export const WorkSpace = (props) => {
     [state]
   );
 
-
-  /**
-   *
-   * @param {import('../../log.d.ts').EvalLog} log
-   */
-  const showLog = (log) => {
-    if (log.contents) {
-
-      const defaultTab = log.contents?.status === "success" ? kEvalTabId : kInfoTabId;
-      setSelectedTab(state, defaultTab);
-
-      divRef.current.scrollTop = 0;
-      if (log.contents.samples?.length <= 200) {
-        codeRef.current.innerHTML = Prism.highlight(
-          JSON.stringify(log.contents, null, 2),
-          Prism.languages.javascript,
-          "javacript"
-        );
-      } else {
-        codeRef.current.innerHTML = JSON.stringify(log.contents, null, 2);
-      }
-    }
-  };
-
-  useEffect(async () => {
-    const viewState = state.viewState;
-    if (props.logs.files.length > 0) {
-      const log = props.logs.files[props.selected];
-      if (state.log.path !== log.name) {
-        setState({...state, status: "loading"});
-        try {
-          const logContents = await api.eval_log(log?.name, false);
-          if (logContents) {
-            viewState.openSamples = [];
-            viewState.sort = kDefaultSort;
-            viewState.filter = {};
-            viewState.epoch = "all";
-
-            setState({
-              log: { contents: logContents, path: log.name },
-              viewState,
-            });
-          }
-        } catch (e) {
-          // Show an error
-          console.log(e);
-          setState({ log: state.log, viewState, status: "error", error: e });
-        }
-      }
-    } else {
-      setState({ log: { contents: undefined, path: undefined }, viewState });
-    }
-  }, [props.logs, props.selected]);
-
-
   // Display the log
-  useEffect(() => {    
-    showLog(state.log);
-  }, [state.log]);
+  useEffect(() => {
+    if (workspaceLog.contents) {
+      const defaultTab = workspaceLog.contents?.status === "success" ? kEvalTabId : kInfoTabId;
+      setSelectedTab(state, defaultTab);  
+      if (divRef.current) {
+        divRef.current.scrollTop = 0;
+      }
+    }
+  }, [workspaceLog, divRef]);
 
   // Compute the tools for this tab
   const tabTools = Object.keys(tabs)
@@ -443,16 +276,17 @@ export const WorkSpace = (props) => {
       }
     });
 
-    const selectTab = (event) => {
-      const id = event.currentTarget.id;
-      setSelectedTab(state, id);
-    };
-    
+  const selectTab = (event) => {
+    const id = event.currentTarget.id;
+    setSelectedTab(state, id);
+  };
+
   return html`<${WorkspaceDisplay}
     divRef=${divRef}
     tabs=${tabs}
     tabTools=${tabTools}
-    state=${state}
+    log=${workspaceLog}
+    selectedTab=${state.viewState.selectedTab}
     fullScreen=${props.fullScreen}
     offcanvas=${props.offcanvas}
     context=${context}
@@ -462,7 +296,8 @@ export const WorkSpace = (props) => {
 };
 
 const WorkspaceDisplay = ({
-  state,
+  log,
+  selectedTab,
   tabs,
   tabTools,
   selectTab,
@@ -470,85 +305,63 @@ const WorkspaceDisplay = ({
   offcanvas,
   divRef,
   context,
-  afterBodyElements
+  afterBodyElements,
 }) => {
-  if (state.status === "loading") {
-    return html`<${LoadingScreen} />`;
-  } else if (state.status === "error") {    
-    return html`<${ErrorPanel}
-      title="An error occurred while loading this task."
-      error=${state.error}
-    />`;
-  } else if (state.log.contents === undefined) {
+  if (log.contents === undefined) {
     return html`<${EmptyPanel} />`;
   } else {
-    const totalDuration = duration(state.log.contents?.stats);
-    const tertiaryTitle = !totalDuration
-      ? new Date(state.log.contents?.eval.created).toLocaleString()
-      : html`
-          ${new Date(state.log.contents?.eval.created).toLocaleString()}
-          <span style=${{ color: "var(--bs-secondary)" }}>
-            — ${totalDuration}</span
-          >
-        `;
     const fullScreenClz = fullScreen ? " full-screen" : "";
     const offcanvasClz = offcanvas ? " off-canvas" : "";
 
-    return html`
-        <${AppErrorBoundary}>
-          <div ref=${divRef} class="workspace${fullScreenClz}${offcanvasClz}" style=${{
-      marginTop: "0.5rem",
+    return html`<div ref=${divRef} class="workspace${fullScreenClz}${offcanvasClz}" style=${{
+      paddingTop: "0.5rem",
     }}>
             <${TitleBlock}
-              title=${state.log.contents?.eval?.task}
-              subtitle=${state.log.contents?.eval?.model}
-              tertiaryTitle=${tertiaryTitle}
-              log=${state.log.contents}
-              metrics=${state.log.contents?.results?.metrics}
+              created=${log.contents?.eval.created}
+              stats=${log.contents?.stats}
+              log=${log.contents}
               context=${context}
             />
             <div
               class="log-detail"
               style=${{
                 borderTop: "solid 1px var(--bs-border-color)",
-                padding: "0.5em 1em 1em 1em",
+                padding: "0",
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                overflowY: "hidden",
               }}
             >
-            <${TabSet} id="log-details" tools="${tabTools}" type="pills" style=${{
-      fontSize: "0.8rem",
-      flexWrap: "nowrap",
-    }}>
+            <${TabSet} id="log-details" tools="${tabTools}" type="pills" styles=${{
+      tabSet: {
+        fontSize: "0.8rem",
+        flexWrap: "nowrap",
+        padding: "0.5em 1em 0.5em 1em",
+        borderBottom: "solid 1px var(--bs-border-color)",
+      },
+      tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
+      tabs: {
+        padding: ".3rem 0.3rem .3rem 0.3rem",
+        width: "5em",
+        fontSize: "0.7rem",
+      }
+    }} >
               ${Object.keys(tabs).map((key) => {
                 const tab = tabs[key];
-                return html`<${Tab} id=${tab.id} title="${
-                  tab.label
-                }" onSelected="${selectTab}" selected=${
-                  state.viewState.selectedTab === tab.id
-                } style=${{
-                  padding: ".3rem 0.3rem .3rem 0.3rem",
-                  width: "5em",
-                  fontSize: "0.7rem",
-                }}>
+                return html`<${TabPanel} 
+                id=${tab.id} 
+                title="${tab.label}" 
+                onSelected="${selectTab}" 
+                selected=${
+                  selectedTab === tab.id
+                }>
                   ${tab.content()}
-                </${Tab}>`;
+                </${TabPanel}>`;
               })}
             </${TabSet}>
             </div>
           </div>
-          
-          ${afterBodyElements}
-        </${AppErrorBoundary}>`;
-  }
-};
-
-const duration = (stats) => {
-  if (stats) {
-    const start = new Date(stats.started_at);
-    const end = new Date(stats.completed_at);
-    const durationMs = end.getTime() - start.getTime();
-    const durationSec = durationMs / 1000;
-    return formatTime(durationSec);
-  } else {
-    return undefined;
+          ${afterBodyElements}`;
   }
 };

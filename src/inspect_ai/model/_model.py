@@ -4,6 +4,7 @@ import functools
 import os
 from contextvars import ContextVar
 from copy import deepcopy
+from importlib.metadata import EntryPoints, entry_points
 from typing import Any, Callable, Literal, Type, Union, cast
 
 from pydantic import BaseModel, Field
@@ -17,12 +18,14 @@ from tenacity import (
 )
 from typing_extensions import TypedDict
 
-from inspect_ai._util.constants import (
-    DEFAULT_MAX_CONNECTIONS,
-    PKG_NAME,
-)
+from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.platform import platform_init
-from inspect_ai._util.registry import RegistryInfo, registry_find, registry_info
+from inspect_ai._util.registry import (
+    RegistryInfo,
+    registry_find,
+    registry_info,
+    registry_unqualified_name,
+)
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai.util import concurrency
 from inspect_ai.util._context.concurrency import using_concurrency
@@ -757,6 +760,13 @@ def get_model(
     if isinstance(model, Model):
         return model
 
+    # ensure that inspect model provider extensions are loaded if
+    # they haven't been already
+    global _inspect_ai_eps
+    if not _inspect_ai_eps:
+        _inspect_ai_eps = entry_points(group="inspect_ai")
+        [ep.load() for ep in _inspect_ai_eps]
+
     # split model into api name and model name if necessary
     api_name = None
     parts = model.split("/")
@@ -764,18 +774,11 @@ def get_model(
         api_name = parts[0]
         model = "/".join(parts[1:])
 
-    # predicate to match model
+    # check for api_name matching unqualified name (package prefix not
+    # required as modelapi providers are registred globally for ease of
+    # use from the command line and .env files)
     def match_modelapi_type(info: RegistryInfo) -> bool:
-        # strip package name (we use the 'api' as the namespace, we will
-        # introduce package scoping if it proves necessary)
-
-        # if there is an api_name explicitly specified that
-        # matches the registered api then trust the model name
-        # TODO: this is ugly, we need to clarify the relationship
-        # and registration semantics of pkg -> provider -> model
-        if info.type == "modelapi" and (
-            info.name == api_name or info.name.replace(f"{PKG_NAME}/", "") == api_name
-        ):
+        if info.type == "modelapi" and registry_unqualified_name(info) == api_name:
             return True
         else:
             return False
@@ -792,6 +795,10 @@ def get_model(
     else:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
+
+
+# insepct model provider extension entry points
+_inspect_ai_eps: EntryPoints | None = None
 
 
 def simple_input_messages(

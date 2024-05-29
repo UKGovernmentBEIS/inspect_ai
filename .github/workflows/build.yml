@@ -20,7 +20,26 @@ jobs:
       - name: Lint and format with Ruff
         uses: chartboost/ruff-action@v1
 
-  build:
+  mypy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[dev]
+      - name: Run mypy
+        run: |
+          mypy --exclude tests/test_package src tests
+
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -38,7 +57,7 @@ jobs:
           python -m pip install .[dev]
       - name: Test with pytest
         run: |
-          pytest -rA -x --doctest-modules --color=yes --cov=inspect_ai
+          pytest -rA --doctest-modules --color=yes --cov=inspect_ai
 
   package:
     name: Build & inspect the package.

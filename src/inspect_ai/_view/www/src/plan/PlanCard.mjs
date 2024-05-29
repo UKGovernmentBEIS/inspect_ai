@@ -124,6 +124,7 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
   const packages = evaluation?.packages;
   const model_args = evaluation?.model_args;
   const task_args = evaluation?.task_args;
+  const generate_config = plan?.config;
 
   const taskInformation = {
     ["Task ID"]: evaluation?.task_id,
@@ -171,12 +172,12 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
 
   };
 
-  const fullColumnStyle = {
-    flex: "1 1 100%",
+  const oneColumnStyle = {
+    flex: "0 0 100%"
   };
 
-  const halfColumnStyle = {
-    flex: "1 1 50%",
+  const twoColumnStyle = {
+    flex: "0 0 50%"
   };
 
   const planMetadataStyle = {
@@ -222,11 +223,11 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
     config,
     metadata
   );
-  const metadataColumnStyle = cols >= 2 ? halfColumnStyle : fullColumnStyle;
+  const configColumnStyle = cols.length === 1 ? oneColumnStyle : twoColumnStyle;
 
   metadataColumns.push({
     title: "Task Information",
-    style: floatingColumnStyle,
+    style: configColumnStyle,
     contents: html`
       <${MetaDataView}
         style=${planMetadataStyle}
@@ -238,10 +239,12 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
     `,
   });
 
+  
+
   if (task_args && Object.keys(task_args).length > 0) {
     metadataColumns.push({
       title: "Task Args",
-      style: metadataColumnStyle,
+      style: configColumnStyle,
       contents: html`
         <${MetaDataView}
           style=${planMetadataStyle}
@@ -256,7 +259,7 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
   if (model_args && Object.keys(model_args).length > 0) {
     metadataColumns.push({
       title: "Model Args",
-      style: metadataColumnStyle,
+      style: configColumnStyle,
       contents: html`
         <${MetaDataView}
           style=${planMetadataStyle}
@@ -272,7 +275,7 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
   if (config && Object.keys(config).length > 0) {
     metadataColumns.push({
       title: "Configuration",
-      style: metadataColumnStyle,
+      style: configColumnStyle,
       contents: html`
         <${MetaDataView}
           style=${planMetadataStyle}
@@ -285,10 +288,27 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
     });
   }
 
+  if (generate_config && Object.keys(generate_config).length > 0) {
+    metadataColumns.push({
+      title: "Generate Config",
+      style: configColumnStyle,
+      contents: html`
+        <${MetaDataView}
+          style=${planMetadataStyle}
+          classes="task-plan-generate-configuration"
+          entries="${generate_config}"
+          tableOptions="sm"
+          context=${context}
+        />
+      `,
+    });
+  }
+  
+
   if (metadata && Object.keys(metadata).length > 0) {
     metadataColumns.push({
       title: "Metadata",
-      style: metadataColumnStyle,
+      style: configColumnStyle,
       contents: html`
         <${MetaDataView}
           style=${planMetadataStyle}
@@ -303,7 +323,7 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
 
   return html`
     <div style=${{ paddingTop: "0", paddingBottom: "1em", marginLeft: "0" }}>
-      <div class="row" style=${{ justifyContent: "space-between", paddingBottom: "0.7rem", borderBottom: "solid 1px var(--bs-border-color)" }}>
+      <div class="row" style=${{ justifyContent: "space-between", flexWrap: "wrap", paddingBottom: "0.7rem", borderBottom: "solid 1px var(--bs-border-color)" }}>
         ${taskColumns.map((col) => {
           return html`<${PlanColumn} title="${col.title}" style=${col.style}>
         ${col.contents}
@@ -312,7 +332,7 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
         })}
       </div>
 
-      <div class="row" style=${{ justifyContent: "space-between" }}>
+      <div class="row" style=${{ justifyContent: "flex-start", flexWrap: "wrap" }}>
         ${metadataColumns.map((col) => {
           return html`<${PlanColumn} title="${col.title}" style=${col.style}>
             ${col.contents}

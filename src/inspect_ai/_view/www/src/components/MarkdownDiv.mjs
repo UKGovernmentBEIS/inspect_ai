@@ -12,7 +12,7 @@ export const MarkdownDiv = (props) => {
   const escaped = DOMPurify.sanitize(markdown, { ALLOWED_TAGS: []});
 
   // Pre-render any text that isn't handled by markdown
-  const preRendered = preRenderAlphaLists(escaped);
+  const preRendered = preRenderText(escaped);
   const renderedHtml = converter.makeHtml(preRendered);
 
   // Return the rendered markdown
@@ -21,9 +21,20 @@ export const MarkdownDiv = (props) => {
 };
 
 
-// Special handling for ordered lists that look like
-// multiple choice (e.g. a), b), c), d) etc..)
 const kLetterListPattern = /^([a-zA-Z][\)\.]\s.*?)$/gm;
-const preRenderAlphaLists = (txt) => {
-  return txt.replaceAll(kLetterListPattern, "<p style='margin-bottom: 0.2em;'>$1</p>");
-}
+const kCommonmarkReferenceLinkPattern = /\[(.*)\]\:( +.+)/g;
+
+
+const preRenderText = (txt) => {
+  // Special handling for ordered lists that look like
+  // multiple choice (e.g. a), b), c), d) etc..)
+  const rendered = txt.replaceAll(kLetterListPattern, "<p style='margin-bottom: 0.2em;'>$1</p>");
+
+  // Special handling for commonmark like reference links which might
+  // look like:
+  // [alias]: http://www.google.com
+  // but text like:
+  // [expert]: answer 
+  // Also fools this
+  return rendered.replaceAll(kCommonmarkReferenceLinkPattern, "\[$1\]:$2");
+};

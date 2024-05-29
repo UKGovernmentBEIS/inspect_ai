@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { isNumeric } from "../utils/Type.mjs";
+import { isNumeric } from "../../utils/Type.mjs";
 
 const kSampleAscVal = "sample-asc";
 const kSampleDescVal = "sample-desc";
@@ -69,7 +69,6 @@ export const bySample = (sort) => {
   return sort === kSampleAscVal || sort === kSampleDescVal;
 }
 
-
 export const sort = (sort, samples, sampleDescriptor) => {
   const sorted = samples.sort((a, b) => {
     switch (sort) {
@@ -97,6 +96,6 @@ export const sort = (sort, samples, sampleDescriptor) => {
   });
   return {
     sorted,
-    numbering: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
+    order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
   }
 };

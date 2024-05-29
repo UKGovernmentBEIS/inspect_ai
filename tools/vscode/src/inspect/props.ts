@@ -1,6 +1,3 @@
-
-
-
 import { SemVer, coerce } from "semver";
 
 import { log } from "../core/log";
@@ -10,14 +7,14 @@ import { Disposable } from "vscode";
 import { runProcess } from "../core/process";
 import { join } from "path";
 import { userRuntimeDir } from "../core/appdirs";
+import { kInspectChangeEvalSignalVersion } from "../providers/inspect/inspect-constants";
 
 const kPythonPackageName = "inspect_ai";
 
-// we cache the results of these functions so long as 
-// they (a) return success, and (b) the active python 
+// we cache the results of these functions so long as
+// they (a) return success, and (b) the active python
 // interpreter hasn't been changed
 class InspectPropsCache implements Disposable {
-
   private readonly eventHandle_: Disposable;
 
   constructor(
@@ -25,14 +22,12 @@ class InspectPropsCache implements Disposable {
     private version_: SemVer | null,
     private viewPath_: AbsolutePath | null
   ) {
-
     this.eventHandle_ = pythonInterpreter().onDidChange(() => {
       log.info("Resetting Inspect props to null");
       this.binPath_ = null;
       this.version_ = null;
       this.viewPath_ = null;
     });
-
   }
 
   get binPath(): AbsolutePath | null {
@@ -65,7 +60,6 @@ class InspectPropsCache implements Disposable {
   dispose() {
     this.eventHandle_.dispose();
   }
-
 }
 
 export function initInspectProps(): Disposable {
@@ -75,7 +69,6 @@ export function initInspectProps(): Disposable {
 
 let inspectPropsCache_: InspectPropsCache;
 
-
 export function inspectVersion(): SemVer | null {
   if (inspectPropsCache_.version) {
     return inspectPropsCache_.version;
@@ -83,8 +76,15 @@ export function inspectVersion(): SemVer | null {
     const inspectBin = inspectBinPath();
     if (inspectBin) {
       try {
-        const versionJson = runProcess(inspectBin, ["info", "version", "--json"]);
-        const version = JSON.parse(versionJson) as { version: string, path: string };
+        const versionJson = runProcess(inspectBin, [
+          "info",
+          "version",
+          "--json",
+        ]);
+        const version = JSON.parse(versionJson) as {
+          version: string;
+          path: string;
+        };
         const parsedVersion = coerce(version.version);
         if (parsedVersion) {
           inspectPropsCache_.setVersion(parsedVersion);
@@ -109,9 +109,18 @@ export function inspectViewPath(): AbsolutePath | null {
     const inspectBin = inspectBinPath();
     if (inspectBin) {
       try {
-        const versionJson = runProcess(inspectBin, ["info", "version", "--json"]);
-        const version = JSON.parse(versionJson) as { version: string, path: string };
-        const viewPath = toAbsolutePath(version.path).child("_view").child("www");
+        const versionJson = runProcess(inspectBin, [
+          "info",
+          "version",
+          "--json",
+        ]);
+        const version = JSON.parse(versionJson) as {
+          version: string;
+          path: string;
+        };
+        const viewPath = toAbsolutePath(version.path)
+          .child("_view")
+          .child("www");
         if (viewPath) {
           inspectPropsCache_.setViewPath(viewPath);
         }
@@ -151,7 +160,16 @@ export function inspectBinPath(): AbsolutePath | null {
 }
 
 export function inspectLastEvalPath(): AbsolutePath | null {
-  const lastEvalFile = join(userRuntimeDir(kPythonPackageName), "view", "last-eval");
+  const version = inspectVersion();
+  const fileName =
+    version && version.compare(kInspectChangeEvalSignalVersion) < 0
+      ? "last-eval"
+      : "last-eval-result";
+  const lastEvalFile = join(
+    userRuntimeDir(kPythonPackageName),
+    "view",
+    fileName
+  );
   return toAbsolutePath(lastEvalFile);
 }
 

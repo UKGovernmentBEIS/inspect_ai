@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from .._dataset import Dataset, FieldSpec, MemoryDataset, RecordToSample
 from .csv import csv_dataset
@@ -8,7 +9,7 @@ EXAMPLES_PATH = Path(__file__).parent.parent / "_examples"
 
 
 def example_dataset(
-    name: str,
+    name: Literal["security_guide", "theory_of_mind", "popularity", "biology_qa"],
     sample_fields: FieldSpec | RecordToSample | None = None,
 ) -> Dataset:
     """Read a dataset from inspect_ai package examples.
@@ -17,7 +18,8 @@ def example_dataset(
     snippets that don't need to read an external dataset.
 
     Args:
-      name (str): Example dataset name. One of 'security_guide', 'theory_of_mind',
+      name (Literal["security_guide", "theory_of_mind", "popularity", "biology_qa"]):
+         Example dataset name. One of 'security_guide', 'theory_of_mind',
         'popularity', or 'biology_qa'
       sample_fields (SampleFieldSpec | RecordToSample): Method of mapping underlying
         fields in the data source to `Sample` objects. Pass `None` if the data is already

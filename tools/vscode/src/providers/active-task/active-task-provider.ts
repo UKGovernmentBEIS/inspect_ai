@@ -96,12 +96,13 @@ export class ActiveTaskManager {
     if (activeTaskInfo) {
       this.setActiveTaskInfo(activeTaskInfo);
       taskActive = activeTaskInfo !== undefined;
+      await commands.executeCommand(
+        "setContext",
+        "inspect_ai.activeTask",
+        taskActive
+      );
+
     }
-    await commands.executeCommand(
-      "setContext",
-      "inspect_ai.activeTask",
-      taskActive
-    );
   }
 
   async updateActiveTaskWithDocument(document?: TextDocument, selection?: Selection) {

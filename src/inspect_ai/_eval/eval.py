@@ -46,6 +46,7 @@ def eval(
     limit: int | tuple[int, int] | None = None,
     epochs: int | None = None,
     max_messages: int | None = None,
+    max_samples: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -76,6 +77,8 @@ def eval(
             samples (defaults to 1)
         max_messages (int | None): Maximum number of messages to allow
            in a task conversation.
+        max_samples (int | None): Maximum number of samples to run in parallel
+           (default is running all samples in parallel)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -103,6 +106,7 @@ def eval(
             limit=limit,
             epochs=epochs,
             max_messages=max_messages,
+            max_samples=max_samples,
             max_subprocesses=max_subprocesses,
             log_samples=log_samples,
             log_images=log_images,
@@ -124,6 +128,7 @@ async def eval_async(
     limit: int | tuple[int, int] | None = None,
     epochs: int | None = None,
     max_messages: int | None = None,
+    max_samples: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -154,6 +159,8 @@ async def eval_async(
             samples (defaults to 1)
         max_messages (int | None): Maximum number of messages to allow
             in a task conversation.
+        max_samples (int | None): Maximum number of samples to run in parallel
+           (default is running all samples in parallel)
         max_subprocesses (int | None): Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -211,6 +218,7 @@ async def eval_async(
         limit=limit,
         epochs=epochs,
         max_messages=max_messages,
+        max_samples=max_samples,
         max_subprocesses=max_subprocesses,
         log_samples=log_samples,
         log_images=log_images,
@@ -274,6 +282,7 @@ def eval_retry(
     tasks: EvalLogInfo | EvalLog | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
     log_dir: str | None = None,
+    max_samples: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -291,6 +300,8 @@ def eval_retry(
            or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
+        max_samples (int | None): Maximum number of samples to run in parallel
+           (default is running all samples in parallel)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -314,6 +325,7 @@ def eval_retry(
             tasks=tasks,
             log_level=log_level,
             log_dir=log_dir,
+            max_samples=max_samples,
             max_subprocesses=max_subprocesses,
             log_samples=log_samples,
             log_images=log_images,
@@ -329,6 +341,7 @@ async def eval_retry_async(
     tasks: EvalLogInfo | EvalLog | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
     log_dir: str | None = None,
+    max_samples: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -346,6 +359,8 @@ async def eval_retry_async(
            or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
+        max_samples (int | None): Maximum number of samples to run in parallel
+           (default is running all samples in parallel)
         max_subprocesses (int): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -399,6 +414,7 @@ async def eval_retry_async(
         limit = eval_log.eval.config.limit
         epochs = eval_log.eval.config.epochs
         max_messages = eval_log.eval.config.max_messages
+        max_samples = max_samples
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
         log_samples = eval_log.eval.config.log_samples
         log_images = eval_log.eval.config.log_images
@@ -420,6 +436,7 @@ async def eval_retry_async(
                 limit=limit,
                 epochs=epochs,
                 max_messages=max_messages,
+                max_samples=max_samples,
                 max_subprocesses=max_subprocesses,
                 log_samples=log_samples,
                 log_images=log_images,

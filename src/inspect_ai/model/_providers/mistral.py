@@ -41,6 +41,7 @@ from .._model import (
 )
 from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
+from .util import parse_tool_call
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -154,6 +155,8 @@ def mistral_chat_tool_choice(tool_choice: ToolChoice) -> MistralToolChoice:
         # mistral doesn't support specifically named tools to use
         # (rather just 'any' which says use at least one tool)
         return MistralToolChoice.any
+    elif tool_choice == "any":
+        return MistralToolChoice.any
     elif tool_choice == "auto":
         return MistralToolChoice.auto
     else:
@@ -196,12 +199,7 @@ def mistral_function_call(tool_call: ToolCall) -> FunctionCall:
 def chat_tool_calls(message: MistralChatMessage) -> list[ToolCall] | None:
     if message.tool_calls:
         return [
-            ToolCall(
-                id=call.id,
-                function=call.function.name,
-                arguments=json.loads(call.function.arguments),
-                type="function",
-            )
+            parse_tool_call(call.id, call.function.name, call.function.arguments)
             for call in message.tool_calls
         ]
     else:

@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.3.10 (29 May 2024)
+
+- **BREAKING:** The `pattern` scorer has been modified to match against any (or all) regex match groups. This replaces the previous behaviour when there was more than one group, which would only match the second group.
+- Improved performance for Inspect View on very large datasets (virtualized sample list).
+- ToolChoice `any` option to indicate the model should use at least one tool (supported by Anthropic and Mistral, mapped to `auto` for OpenAI).
+- Tool calls can now return a simple scalar or `list[ContentText | ContentImage]`
+- Support for updated Anthropic tools beta (tool_choice and image tool results)
+- Report tool_error back to model if it provides invalid JSON for tool calls arguments (formerly this halted the entire eval with an error).
+- New `max_samples` option to control how many samples are run in parallel (still defaults to running all samples in parallel).
+- Add `boolq.py` benchmark.
+- Add `piqa.py` benchmark.
+- View: Improved markdown rendering (properly escape reference links)
+- Improved typing for example_dataset function.
+- Setuptools entry point for loading custom model extensions.
+- Break optional `tuple` return out of `ToolResult` type.
+- Bugfix: always read original sample message(s) for `TaskState.input_text`.
+- Bugfix: remove write counter from log (could have resulted in incomplete/invalid logs propagating to the viewer)
+- Bugfix: handle task names that include spaces in log viewer.
+
 ## v0.3.9 (14 May 2024)
 
 - Add `ollama` local model provider.
@@ -49,7 +68,7 @@
 - `Score` now has an optional `answer` field, which denotes the answer text extracted from model output.
 - Accuracy metrics now take an optional `ValueToFloat` function for customizing how textual values mapped to float.
 - Made `model_graded_qa` more flexible with separate `instruction` template and `grade_pattern`, as well providing `partial_credit` as an option.
-- Modify the default templates for `chain_of_thought()` and `self_critique()` to instruct the model to reply with `ANSWER: $ANSWER` at the end on its own line. 
+- Modify the default templates for `chain_of_thought()` and `self_critique()` to instruct the model to reply with `ANSWER: $ANSWER` at the end on its own line.
 - Improved numeric extraction for `match(numeric=True)` (better currency and decimal handling).
 - Improve `answer()` patterns so that they detect letter and word answers both within and at the end of model output.
 - `Plan` now has an optional `cleanup` function which can be used to free per-sample resources (e.g. Docker containers) even in the case of an evaluation error.

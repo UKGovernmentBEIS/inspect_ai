@@ -16,7 +16,7 @@ Of course, many real-world datasets won't be so trivial to read. Below we'll dis
 
 ## Dataset Samples
 
-The core data type underlying the use of datasets with Inspect is the `Sample`. A sample has an `input`, a `target`, an optional `id`, and an optional collection of `metadata`.
+The core data type underlying the use of datasets with Inspect is the `Sample`, which consists of a required `input` field and several other optional fields:
 
 **Class** `inspect_ai.dataset.Sample`
 
@@ -43,9 +43,9 @@ Can be read directly with:
 dataset = csv_dataset("security_guide.csv")
 ```
 
-Note that samples from datasets without and `id` field will automatically be assigned ids based on an auto-incrementing integer starting with 1.
+Note that samples from datasets without an `id` field will automatically be assigned ids based on an auto-incrementing integer starting with 1.
 
-If your samples include `choices`, then the label should be a numeric index into the available `choices` rather a letter (this is an implicit assumption of the `multiple_choice()` solver).
+If your samples include `choices`, then the `target` should be a numeric index into the available `choices` rather than a letter (this is an implicit assumption of the `multiple_choice()` solver).
 
 ## Field Mapping
 
@@ -65,7 +65,7 @@ dataset = json_dataset(
 )
 ```
 
-If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes an `index` and `record` (represented as a `dict`) from the underlying file and returns a `Sample`. For example:
+If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes a `record` (represented as a `dict`) from the underlying file and returns a `Sample`. For example:
 
 ``` python
 from inspect_ai.dataset import Sample, json_dataset
@@ -154,7 +154,7 @@ Using S3 is mostly a matter of substituting S3 URLs (e.g. `s3://my-bucket-name`)
 json_dataset("s3://my-bucket/dataset.jsonl")
 ```
 
-S3 buckets are normally access controlled so require authentication to read from. There are a wide variety of ways to configure your client for AWS authentication, all of which work with Inspect. See the article on [Configuring the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) for additional details
+S3 buckets are normally access controlled so require authentication to read from. There are a wide variety of ways to configure your client for AWS authentication, all of which work with Inspect. See the article on [Configuring the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) for additional details.
 
 ## Chat Messages
 

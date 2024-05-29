@@ -2,14 +2,20 @@ on:
   push:
     tags:
       - "v[0-9]*"
+    paths:
+      - "tools/vscode/**"
+      - ".github/workflows/vscode.yml"
     branches:
       - "main"
   pull_request:
     branches:
       - "main"
+    paths:
+      - "tools/vscode/**"
+      - ".github/workflows/vscode.yml"
   workflow_dispatch:
 
-name: Deploy Extension
+name: Build VS Code Ext
 jobs:
   deploy:
     runs-on: ubuntu-latest

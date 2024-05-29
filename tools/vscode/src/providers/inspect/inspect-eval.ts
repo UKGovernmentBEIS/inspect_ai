@@ -108,21 +108,22 @@ export class InspectEvalManager {
       await runDebugger(inspectBinPath()?.path || "inspect", args, workspaceDir.path, debugPort);
     } else {
       // Run the command
-      runEvalCmd(args, workspaceDir.path);
+      runEvalCmd(args, workspaceDir.path, this.stateManager_);
     }
   }
 }
 
-const runEvalCmd = (args: string[], cwd: string) => {
+const runEvalCmd = (args: string[], cwd: string, stateManager: WorkspaceStateManager) => {
   // See if there a non-busy terminal that we can re-use
   const name = "Inspect Eval";
   let terminal = window.terminals.find((t) => {
     return t.name === name;
   });
   if (!terminal) {
-    terminal = window.createTerminal({ name, cwd });
+    terminal = window.createTerminal({ name, cwd, env: { ["INSPECT_WORKSPACE_ID"]: stateManager.getWorkspaceInstance() } });
   }
   terminal.show();
+  terminal.sendText(`cd ${cwd}`);
   terminal.sendText(["inspect", ...args].join(" "));
 };
 
@@ -136,7 +137,8 @@ const runDebugger = async (program: string, args: string[], cwd: string, port: n
     args,
     console: "internalConsole",
     cwd,
-    port
+    port,
+    "justMyCode": false
   };
   await debug.startDebugging(activeWorkspaceFolder(), debugConfiguration);
 };

@@ -184,7 +184,7 @@ async def content_dict(
                     "content": (
                         message.tool_error
                         if message.tool_error is not None
-                        else message.content
+                        else message.text
                     )
                 },
                 message=Struct(),

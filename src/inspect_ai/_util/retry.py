@@ -64,12 +64,4 @@ def log_retry_attempt(context: str) -> Callable[[RetryCallState], None]:
 
 
 def is_httpx_connection_error(ex: BaseException) -> bool:
-    if (
-        isinstance(ex, ConnectTimeout)
-        or isinstance(ex, ConnectError)
-        or isinstance(ex, ConnectionError)
-        or isinstance(ex, ReadTimeout)
-    ):
-        return True
-    else:
-        return False
+    return isinstance(ex, ConnectTimeout | ConnectError | ConnectionError | ReadTimeout)

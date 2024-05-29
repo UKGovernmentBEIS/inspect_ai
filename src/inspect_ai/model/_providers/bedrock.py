@@ -244,9 +244,7 @@ class MistralChatHandler(BedrockChatHandler):
         )
 
     def chat_message_str(self, message: ChatMessage) -> str:
-        if isinstance(message, ChatMessageUser) or isinstance(
-            message, ChatMessageSystem
-        ):
+        if isinstance(message, ChatMessageUser | ChatMessageSystem):
             return f"[INST] {message.text} [/INST] "
         elif isinstance(message, ChatMessageAssistant):
             return f"{message.text}</s>"
@@ -298,9 +296,7 @@ class Llama2ChatHandler(BedrockChatHandler):
             return None
 
     def chat_message_str(self, message: ChatMessage) -> str:
-        if isinstance(message, ChatMessageUser) or isinstance(
-            message, ChatMessageSystem
-        ):
+        if isinstance(message, ChatMessageUser | ChatMessageSystem):
             return f"<s>[INST] {message.text} [/INST] "
         elif isinstance(message, ChatMessageAssistant):
             return f"{message.text} </s>"

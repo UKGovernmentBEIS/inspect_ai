@@ -7,8 +7,6 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
 export const LoggingPanel = ({ logging, context }) => {
   if (!logging || logging.length === 0) {
     return html`<${EmptyPanel} style=${{
-      border: "solid 1px var(--bs-border-color)",
-      borderRadius: "var(--bs-border-radius)",
       fontSize: "0.8rem",
     }}>No Messages</${EmptyPanel}>`;
   }
@@ -16,8 +14,6 @@ export const LoggingPanel = ({ logging, context }) => {
   return html`
     <div
       style=${{
-        border: "solid 1px var(--bs-border-color)",
-        borderRadius: "var(--bs-border-radius)",
         overflow: "hidden",
       }}
     >

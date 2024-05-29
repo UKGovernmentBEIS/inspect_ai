@@ -1,5 +1,6 @@
 import { ExtensionContext } from "vscode";
 import { Command } from "../../core/command";
+import { randomInt } from "../../core/random";
 
 export function activateWorkspaceState(
   context: ExtensionContext
@@ -24,6 +25,12 @@ export interface ModelState {
 
 export class WorkspaceStateManager {
   constructor(private readonly context_: ExtensionContext) {
+    this.instanceId = `${Date.now()}-${randomInt(0, 100000)}`;
+  }
+  private instanceId: string;
+
+  public getWorkspaceInstance() {
+    return this.instanceId;
   }
 
   public getState(key: string) {

@@ -151,7 +151,7 @@ const MessageContents = ({ message, toolMessages }) => {
           return undefined;
         }
 
-        const content = toolMessage.content;
+        const content = toolMessage.tool_error || toolMessage.content;
         if (typeof content === "string") {
           return [
             {

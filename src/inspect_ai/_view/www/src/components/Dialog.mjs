@@ -25,7 +25,7 @@ export const DialogAfterBody = ({
     <div
       class="modal fade ${classes}"
       id="${id}"
-      tabindex="-1"
+      tabindex="0"
       aria-hidden="true"
       styles=${{ ...styles }}
     >

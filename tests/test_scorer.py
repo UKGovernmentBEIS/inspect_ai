@@ -1,5 +1,5 @@
 import pytest
-from utils import run_example, skip_if_no_openai
+from test_helpers.utils import run_example, skip_if_no_openai
 
 from inspect_ai import Task, eval, score
 from inspect_ai.dataset import Sample

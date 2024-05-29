@@ -29,6 +29,7 @@ from anthropic.types.beta.tools import (
     ToolsBetaMessageParam,
     ToolUseBlock,
     ToolUseBlockParam,
+    message_create_params,
 )
 from anthropic.types.beta.tools.tool_param import (
     InputSchema,
@@ -48,7 +49,6 @@ from .._model import (
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
-    ChatMessageUser,
     Content,
     ContentText,
     GenerateConfig,
@@ -116,7 +116,7 @@ class AnthropicAPI(ModelAPI):
         # generate
         try:
             # use tools beta endpoint if we have tools and haven't opted out (note that
-            # bedrock is an implicit opt-out as it doesn't yet support the tools api
+            # bedrock is an implicit opt-out as it doesn't yet support the tools api)
             if (
                 len(tools) > 0
                 and self.tools_beta
@@ -126,9 +126,7 @@ class AnthropicAPI(ModelAPI):
                     system_message,
                     beta_tools,
                     beta_messages,
-                ) = await resolve_tools_beta_chat_input(
-                    input, tools, tool_choice, config
-                )
+                ) = await resolve_tools_beta_chat_input(input, tools, config)
 
                 message = await self.client.beta.tools.messages.create(
                     stream=False,
@@ -138,6 +136,7 @@ class AnthropicAPI(ModelAPI):
                         config.stop_seqs if config.stop_seqs is not None else NOT_GIVEN
                     ),
                     tools=beta_tools,
+                    tool_choice=tools_beta_tool_choice(tool_choice),
                     **self.completion_params(config),
                 )
 
@@ -198,9 +197,7 @@ class AnthropicAPI(ModelAPI):
         # result in retrying too many times, but much more often will avert a failed
         # eval that just needed to survive a transient error
         return (
-            isinstance(ex, RateLimitError)
-            or isinstance(ex, InternalServerError)
-            or isinstance(ex, APIConnectionError)
+            isinstance(ex, RateLimitError | InternalServerError | APIConnectionError)
         )
 
     @override
@@ -222,7 +219,6 @@ class AnthropicAPI(ModelAPI):
 async def resolve_tools_beta_chat_input(
     input: list[ChatMessage],
     tools: list[ToolInfo],
-    tool_choice: ToolChoice,
     config: GenerateConfig,
 ) -> Tuple[str | None, list[BetaToolParam], list[ToolsBetaMessageParam]]:
     # extract system message
@@ -233,23 +229,6 @@ async def resolve_tools_beta_chat_input(
         # encourage claude to show its thinking, see
         # https://docs.anthropic.com/claude/docs/tool-use#chain-of-thought-tool-use
         system_message = f"{system_message}\n\nBefore answering, explain your reasoning step-by-step."
-
-        # implement tool_choice by appending to the last user message, see
-        # https://docs.anthropic.com/claude/docs/tool-use#forcing-tool-use
-        if isinstance(tool_choice, ToolFunction):
-            messages = deepcopy(messages)
-            message = next(
-                (
-                    message
-                    for message in reversed(messages)
-                    if isinstance(message, ChatMessageUser)
-                ),
-                None,
-            )
-            if message:
-                message.text = (
-                    f"{message.text} Use the {tool_choice.name} tool in your response."
-                )
 
     # messages
     beta_messages = [(await tools_beta_message_param(message)) for message in messages]
@@ -268,6 +247,15 @@ async def resolve_tools_beta_chat_input(
     return system_message, beta_tools, beta_messages
 
 
+def tools_beta_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolChoice:
+    if isinstance(tool_choice, ToolFunction):
+        return {"type": "tool", "name": tool_choice.name}
+    elif tool_choice == "any":
+        return {"type": "any"}
+    else:
+        return {"type": "auto"}
+
+
 async def tools_beta_message_param(message: ChatMessage) -> ToolsBetaMessageParam:
     # no system role for anthropic (this is more like an assertion,
     # as these should have already been filtered out)
@@ -277,14 +265,12 @@ async def tools_beta_message_param(message: ChatMessage) -> ToolsBetaMessagePara
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
         if message.tool_error is not None:
-            content: str | list[TextBlockParam] = message.tool_error
+            content: str | list[TextBlockParam | ImageBlockParam] = message.tool_error
         if isinstance(message.content, str):
             content = [TextBlockParam(type="text", text=message.content)]
         else:
             content = [
-                TextBlockParam(type="text", text=content.text)
-                for content in message.content
-                if isinstance(content, ContentText)
+                await message_param_content(content) for content in message.content
             ]
 
         return ToolsBetaMessageParam(

@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup, NavigableString
 from inspect_ai.model import Model, get_model
 from inspect_ai.util import concurrency
 
-from .tool import Tool, tool
+from .tool import Tool, ToolResult, tool
 
 DEFAULT_RELEVANCE_PROMPT = """I am trying to answer the following question and need to find the most relevant information on the web. Please let me know if the following content is relevant to the question or not. You should just respond with "yes" or "no".
 
@@ -59,7 +59,7 @@ def web_search(
     # resolve model
     relevance_model = get_model(model)
 
-    async def execute(query: str) -> tuple[str, dict[str, Any]]:
+    async def execute(query: str) -> tuple[ToolResult, dict[str, Any]]:
         """
         Tool for searching the web.
 
@@ -94,7 +94,9 @@ def web_search(
 
         all_page_contents = "\n\n".join(page_contents)
         if all_page_contents == "":
-            response = "I'm sorry, I couldn't find any relevant information on the web."
+            response: ToolResult = (
+                "I'm sorry, I couldn't find any relevant information on the web."
+            )
         else:
             response = (
                 "Here are your web search results. Please read them carefully as they may be useful later! "

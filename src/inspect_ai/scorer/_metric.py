@@ -91,12 +91,7 @@ class Score(BaseModel):
         return bool(self._as_scalar())
 
     def _as_scalar(self) -> str | int | float | bool:
-        if (
-            isinstance(self.value, str)
-            or isinstance(self.value, int)
-            or isinstance(self.value, float)
-            or isinstance(self.value, bool)
-        ):
+        if isinstance(self.value, str | int | float | bool):
             return self.value
         else:
             raise ValueError("This score is not a scalar")
@@ -132,7 +127,7 @@ def value_to_float(
     """
 
     def to_float(value: Value) -> float:
-        if isinstance(value, (int, float, bool)):
+        if isinstance(value, int | float | bool):
             return float(value)
         elif value == correct:
             return 1.0

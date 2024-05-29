@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.17
+
+- Improve `inspect view` title bar treatment
+
+## 0.3.16
+
+- Fix an issue that prevented the extension from loading when the `Pylance` extension was disabled or uninstalled.
+- Don't send task params that have been removed from tasks
+- Ensure that debugger breakpoints are available outside of user code
+- Ensure that evaluations are run from the workspace directory
+- Only show the logview in VS Code window that started an eval
+
+## 0.3.14
+
+- Fix issue where the run/debug task option would be disabled for the task configuration pane if a file containing no tasks was being editted.
+- Improve Inspect binary detection on Linux platforms
+
 ## 0.3.13
 
 -   Ensure that inspect CLI is in the path for terminals using a global Python environment

@@ -30,6 +30,8 @@ export const icons = {
   model: "bi bi-cpu",
   "toggle-right": "bi bi-chevron-right",
   more: "bi bi-zoom-in",
+  next: "bi bi-chevron-right",
+  previous: "bi bi-chevron-left",
   role: {
     user: "bi bi-person",
     system: "bi bi-cpu",
@@ -68,21 +70,6 @@ export const sharedStyles = {
     padding: "0 0.2em 0 0.2em",
     color: "var(--bs-secondary)",
   },
-  scoreGrid: {
-    titleCol: {
-      flexBasis: "45%",
-      flexGrow: "1",
-    },
-    targetCol: {
-      flexGrow: "2",
-    },
-    answerCol: {
-      flexGrow: "2",
-    },
-    scoreCol: {
-      flexGrow: "0",
-    },
-  },
   threeLineClamp: {
     display: "-webkit-box",
     "-webkit-line-clamp": "3",
@@ -96,6 +83,13 @@ export const sharedStyles = {
       "-webkit-box-orient": "vertical",
       overflow: "hidden",
     };
+  },
+  wrapText: () => {
+    return {
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden"
+    }
   },
   scoreFills: {
     green: {

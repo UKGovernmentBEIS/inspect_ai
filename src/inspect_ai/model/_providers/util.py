@@ -1,6 +1,12 @@
+import json
 import os
+from logging import getLogger
+from typing import Any
 
 from .._model import StopReason
+from .._tool import ToolCall
+
+logger = getLogger(__name__)
 
 
 def as_stop_reason(reason: str | None) -> StopReason:
@@ -31,3 +37,23 @@ def model_base_url(base_url: str | None, env_vars: str | list[str]) -> str | Non
             return base_url
 
     return os.getenv("INSPECT_EVAL_MODEL_BASE_URL", None)
+
+
+def parse_tool_call(id: str, function: str, arguments: str) -> ToolCall:
+    error: str | None = None
+    arguments_dict: dict[str, Any] = {}
+    try:
+        arguments_dict = json.loads(arguments)
+    except json.JSONDecodeError as ex:
+        # define and log error
+        error = f"Error parsing the following tool call arguments:\n{arguments}\nError details: {ex}"
+        logger.warning(error)
+
+    # return ToolCall with error payload
+    return ToolCall(
+        id=id,
+        function=function,
+        arguments=arguments_dict,
+        type="function",
+        parse_error=error,
+    )

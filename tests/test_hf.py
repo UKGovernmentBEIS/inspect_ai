@@ -1,6 +1,6 @@
 import pytest
+from test_helpers.utils import skip_if_github_action
 from transformers import PreTrainedModel  # type: ignore
-from utils import skip_if_github_action
 
 from inspect_ai.model import (
     ChatMessageUser,

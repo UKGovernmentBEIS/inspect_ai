@@ -10,3 +10,5 @@ export const kInspectEnvValues = {
 };
 
 export const kLogLevelEnv = "INSPECT_EVAL_MODEL";
+
+export const kInspectChangeEvalSignalVersion = "0.3.10";

@@ -34,6 +34,9 @@ class EvalConfig(BaseModel):
     max_messages: int | None = Field(default=None)
     """Maximum messages to allow in a chat conversation."""
 
+    max_samples: int | None = Field(default=None)
+    """Maximum number of samples to run in parallel."""
+
     max_subprocesses: int | None = Field(default=None)
     """Maximum number of subprocesses to run concurrently."""
 

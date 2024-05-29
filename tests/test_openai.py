@@ -1,5 +1,5 @@
 import pytest
-from utils import skip_if_no_openai
+from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai.model import (
     ChatMessageUser,

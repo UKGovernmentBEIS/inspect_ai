@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { arrayToString, shortenCompletion, answerForSample, userPromptForSample } from "../utils/Format.mjs";
+import { arrayToString, shortenCompletion, answerForSample, inputString } from "../utils/Format.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 
 
@@ -90,18 +90,3 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
     </div>
   `;
 };
-
-const inputString = (input) => {
-  if (typeof input === "string") {
-    return input;
-  } else {
-    return input.map((inp) => {
-      if (typeof inp === "string") {
-        return inp;
-      } else {
-        return inp.content;
-      }
-    })
-  }
-}
-

@@ -1,6 +1,6 @@
 from random import random
 
-from utils import skip_if_no_openai
+from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai.dataset import Sample

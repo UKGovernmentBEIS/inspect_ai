@@ -1,5 +1,5 @@
 import pytest
-from utils import skip_if_no_openai, skip_if_no_together
+from test_helpers.utils import skip_if_no_openai, skip_if_no_together
 
 from inspect_ai.model import GenerateConfig, get_model
 

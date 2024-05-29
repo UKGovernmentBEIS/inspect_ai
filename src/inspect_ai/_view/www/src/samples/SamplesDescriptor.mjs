@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 import { sharedStyles } from "../Constants.mjs";
-import { formatPrettyDecimal,formatDecimalNoTrailingZeroes } from "../utils/Format.mjs";
+import { formatPrettyDecimal,formatDecimalNoTrailingZeroes, inputString, arrayToString, answerForSample } from "../utils/Format.mjs";
 import { RenderedContent } from "../components/RenderedContent.mjs";
 import { isNumeric } from "../utils/Type.mjs";
 
@@ -46,7 +46,22 @@ export const samplesDescriptor = (samples, epochs, context) => {
     }
   }
 
-  return { scoreDescriptor, epochs };
+  // Find the total length of the value so we can compute an average
+  const sizes = samples.reduce((previous, current) => {
+    previous[0] = Math.max(previous[0], inputString(current.input).length);
+    previous[1] = Math.max(previous[1], arrayToString(current.target).length);
+    previous[2] = Math.max(previous[2], answerForSample(current)?.length || 0);
+    return previous;
+  }, [0,0,0])
+
+  // normalize to base 1
+  const base = (sizes[0] + sizes[1] + sizes[2]) || 1;
+  const messageShape = {
+    input: sizes[0] / base,
+    target: sizes[1]/ base,
+    answer: sizes[2]/ base,
+  };
+  return { scoreDescriptor, epochs, messageShape };
 };
 
 const scoreCategorizers = [
@@ -149,6 +164,7 @@ const scoreCategorizers = [
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
+                marginLeft: "0.5rem"
               };
               if (index + 1 < keys.length) {
                 style["paddingBottom"] = "1em";

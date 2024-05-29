@@ -5,7 +5,7 @@ from typing import Any, Callable, cast
 from urllib.parse import urlparse
 
 import json_stream  # type: ignore
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic_core import from_json, to_json
 
 from inspect_ai._util.file import FileInfo, file, filesystem
@@ -268,14 +268,10 @@ class JSONRecorder(FileRecorder):
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
-        events: int = Field(default=0)
 
-    def __init__(self, log_dir: str, write_freq: int = 100):
+    def __init__(self, log_dir: str):
         # call super
         super().__init__(log_dir, ".json")
-
-        # flush to file every write_freq events
-        self.write_freq = write_freq
 
         # each eval has a unique key (created from run_id and task name/version)
         # which we use to track the output path, accumulated data, and event counter
@@ -285,9 +281,7 @@ class JSONRecorder(FileRecorder):
         # initialize file log for this eval
         file = self._log_file_path(eval)
         self.data[self._log_file_key(eval)] = JSONRecorder.JSONLogFile(
-            file=file,
-            data=EvalLog(eval=eval),
-            events=0,
+            file=file, data=EvalLog(eval=eval)
         )
         return file
 
@@ -310,11 +304,6 @@ class JSONRecorder(FileRecorder):
             log.data.results = cast(EvalResults, data)
         else:
             raise ValueError(f"Unknown event {type}")
-        # check if we need to flush
-        if log.events >= self.write_freq:
-            self.write_log(log.file, log.data)
-            log.events = 0
-        log.events += 1
 
     def log_success(
         self,

@@ -1,0 +1,21 @@
+[project]
+name = "inspect_package"
+version = "0.1"
+description = "Inspect Extension Package"
+requires-python = ">=3.10"
+authors = [{name = "UK AISI"}]
+license = {text = "MIT"}
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "inspect_ai"
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.entry-points.inspect_ai]
+inspect_package = "inspect_package.inspect_ai"
+

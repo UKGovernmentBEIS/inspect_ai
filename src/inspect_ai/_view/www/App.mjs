@@ -1,96 +1,162 @@
 import { html } from "htm/preact";
-import { useCallback, useState, useEffect } from "preact/hooks";
+import { useCallback, useState, useEffect, useRef } from "preact/hooks";
 
-import { formatPrettyDecimal } from "./src/utils/Format.mjs";
-
-
+// Registration component
 import "./src/Register.mjs";
 
-import { icons } from "./src/Constants.mjs";
-import { WorkSpace } from "./src/workspace/WorkSpace.mjs";
+// The api for loading evals
 import api from "./src/api/index.mjs";
-import { CopyButton } from "./src/components/CopyButton.mjs";
 
-const logFileName = (path) => {
-  return path.replace("\\", "/").split('/').pop();
-};
+import { filename } from "./src/utils/Path.mjs"
+import { sleep } from "./src/utils/sleep.mjs"
+
+import { AppErrorBoundary } from "./src/components/AppErrorBoundary.mjs"
+import { ErrorPanel } from "./src/components/ErrorPanel.mjs";
+import { LoadingScreen } from "./src/components/LoadingScreen.mjs";
+
+import { Navbar } from "./src/navbar/Navbar.mjs"
+import { Sidebar } from "./src/sidebar/Sidebar.mjs";
+import { WorkSpace } from "./src/workspace/WorkSpace.mjs";
 
 export function App() {
-  const [selected, setSelected] = useState(0);
+  const [selected, setSelected] = useState(-1);
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
   const [logHeaders, setLogHeaders] = useState({});
   const [offcanvas, setOffcanvas] = useState(false);
+  const [currentLog, setCurrentLog] = useState({
+    contents: undefined,
+    name: undefined,
+    raw: undefined
+  });
+  const [status, setStatus] = useState({
+    loading: true,
+    error: undefined
+  });
 
-  // reset selection when logs are refreshed
-  useEffect(() => {
-    // Default select the first item
-    let index = 0;
-    setSelected(index);
-  }, [logs]);
 
+  // Read header information for the logs
+  // and then update
   useEffect(async () => {
-    // Read header information for the logs
-    // and then update
-
     // Group into chunks
-    const chunkSize = 5;
+    const chunkSize = 12;
     const fileLists = [];
     for (let i = 0; i < logs.files.length; i += chunkSize) {
-      let chunk = logs.files.slice(i, i + chunkSize).map((log) => { return log.name; });
+      let chunk = logs.files.slice(i, i + chunkSize).map((log) => {
+        return log.name;
+      });
       fileLists.push(chunk);
     }
 
+    // Chunk by chunk, read the header information
     for (const fileList of fileLists) {
       const headers = await api.eval_log_headers(fileList);
       const updatedHeaders = logHeaders;
       headers.forEach((header, index) => {
         const logFile = fileList[index];
         updatedHeaders[logFile] = header;
-      })
-      setLogHeaders({ ...updatedHeaders });  
+      });
+      setLogHeaders({ ...updatedHeaders });
+      await sleep(2000);
     }
   }, [logs]);
 
-  const updateLogs = useCallback(async (log) => {
-    // Set the list of logs
-    const logresult = await api.eval_logs();
-    if (logresult) {
-      setLogs(logresult);
-      if (log) {
-        const name = logFileName(log);
-        const index = logresult.files.findIndex((val) => {
-          return val.name.endsWith(name);
-        })
-        setSelected(index);
+  // Load a specific log file
+  useEffect(async () => {
+    if (logs.files.length > 0 && selected > -1) {
+      const targetLog = logs.files[selected];
+      
+      if (currentLog.name !== targetLog.name) {
+        try {
+          setStatus({loading: true, error: undefined});
+          const logContents = await api.eval_log(targetLog.name, false);
+          if (logContents) {
+            setCurrentLog({ contents: logContents, name: targetLog.name, raw: JSON.stringify(logContents, null, 2) });
+            setStatus({loading: false, error: undefined});
+          }
+        } catch (e) {
+          // Show an error
+          console.log(e);
+          setStatus({loading: false, error: e});
+        }
       }
     } else {
-      setLogs({ log_dir: "", files: [] });
+      setCurrentLog({ contents: undefined, name: undefined, raw: undefined });
     }
-  }, [setLogs, setSelected]);
+  }, [selected, logs]);  
 
+  // Keep a queue of loading operations that will be run
+  // as needed
+  const loadQueue = useRef(Promise.resolve());
+  const loadLogs = useCallback(async () => {
+
+    // Chain the new load operation onto the current queue
+    loadQueue.current = loadQueue.current
+      .then(async () => {
+
+        // first check whether the selected file has already
+        // been loaded, and if so, just selected it without
+        // reloading
+        if (logs.files.length > 0 && currentLog.name) {
+          const name = filename(currentLog.name);
+          if (logs.files.includes(name)) {
+            return;
+          }
+        }
+
+        // Since the log file isn't in the list, we'll need to 
+        // load or re-load logs files
+        const result = await api.eval_logs();
+
+        if (result) {
+          setLogs(result);
+        } else {
+          setLogs({ log_dir: "", files: [] });
+        }
+      })
+      .catch((err) => {
+        // Handle errors here if needed
+        console.error(err);
+      });
+
+    // Wait for the current operation to finish
+    await loadQueue.current;
+  }, [setLogs, currentLog]);
+
+
+  // Ensure that we have a selected index when there is are 
+  // new logs
+  useEffect(() => {
+    setSelected(0);
+  }, [logs])
+  
   // listen for updateState messages from vscode
   useEffect(() => {
-
     const onMessage = (e) => {
       switch (e.data.type || e.data.message) {
-
         case "updateState": {
           if (e.data.url) {
-            updateLogs(e.data.url);
+
+            const index = logs.files.findIndex((val) => {
+              return val.name.endsWith(e.data.url);
+            });
+            if (index > -1) {
+              // Select the correct index
+              setSelected(index);    
+            } else {
+              // TODO: Error
+            }
           }
         }
       }
-    }
-
+    };
     window.addEventListener("message", onMessage);
-
     return () => {
       window.removeEventListener("message", onMessage);
-    }
-
-  }, [updateLogs]);
+    };
+  }, [setCurrentLog]);
 
   useEffect(async () => {
+    // See whether a specific task_file has been passed.
     const urlParams = new URLSearchParams(window.location.search);
 
     // Note whether we should default off canvas the sidebar
@@ -98,17 +164,17 @@ export function App() {
 
     // If the URL provides a task file, load that
     const logPath = urlParams.get("task_file");
-    const loadLogs = logPath
+    const load = logPath
       ? async () => {
-        setLogs({
-          log_dir: "",
-          files: [{ name: logPath }],
-        });
-      }
-      : updateLogs;
+          setLogs({
+            log_dir: "",
+            files: [{ name: logPath }],
+          });
+        }
+      : loadLogs;
 
     // initial fetch of logs
-    await loadLogs();
+    await load();
 
     // poll every 1s for events
     setInterval(() => {
@@ -117,7 +183,7 @@ export function App() {
           window.location.reload(true);
         }
         if (events.includes("refresh-evals")) {
-          loadLogs();
+          load();
         }
       });
     }, 1000);
@@ -130,225 +196,55 @@ export function App() {
   const appEnvelope = fullScreen
     ? ""
     : html`
-        <${Header} logs=${logs} selected=${selected} offcanvas=${offcanvas} />
+        <${Navbar} 
+          file=${currentLog.name}
+          task=${currentLog.contents?.eval?.task}
+          model=${currentLog.contents?.eval?.model}
+          metrics=${currentLog.contents?.results?.metrics}
+          offcanvas=${offcanvas} />
         <${Sidebar}
           logs=${logs}
           logHeaders=${logHeaders}
           offcanvas=${offcanvas}
           selected=${selected}
           onSelected=${(index) => {
-        setSelected(index);
+            setSelected(index);
 
-        // hide the sidebar offcanvas
-        var myOffcanvas = document.getElementById("sidebarOffCanvas");
-        var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
-        if (bsOffcanvas) {
-          bsOffcanvas.hide();
-        }
-      }}
+            // hide the sidebar offcanvas
+            var myOffcanvas = document.getElementById("sidebarOffCanvas");
+            var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
+            if (bsOffcanvas) {
+              bsOffcanvas.hide();
+            }
+          }}
         />
       `;
-  return html`
-    <div>
-      ${appEnvelope}
+
+  const workspace = () => {
+    if (status.loading) {
+      return html`<${LoadingScreen} />`;
+    } else if (status.error) { 
+      return html`<${ErrorPanel}
+        title="An error occurred while loading this task."
+        error=${status.error}
+      />`;
+    } else {
+      return html`
       <${WorkSpace}
         logs=${logs}
+        log=${currentLog}
         selected=${selected}
         fullScreen=${fullScreen}
         offcanvas=${offcanvas}
-      />
+      />`      
+    }
+  }
+  return html`
+    <${AppErrorBoundary}>
+    <div>
+      ${appEnvelope}
+      ${workspace()}
     </div>
+    </${AppErrorBoundary}>
   `;
 }
-
-const Header = (props) => {
-  const toggleOffCanClass = props.offcanvas ? "" : " d-md-none";
-  const gearOffCanClass = props.offcanvas ? "" : " d-md-inline";
-
-  const logFiles = props.logs.files || [];
-  const logSelected = props.selected || 0;
-  const logUri = logFiles.length > logSelected ? logFiles[logSelected].name : "";
-  const logName = logFileName(logUri);
-
-  return html`
-    <nav class="navbar sticky-top shadow-sm" style=${{ flexWrap: "nowrap" }}>
-      <div class="container-fluid">
-        <span
-          class="navbar-brand mb-0"
-          style=${{ display: "flex", alignItems: "center" }}
-        >
-          <button
-            id="sidebarToggle"
-            class="btn${toggleOffCanClass}"
-            type="button"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#sidebarOffCanvas"
-            aria-controls="sidebarOffCanvas"
-            style=${{
-      padding: "0rem 0.1rem 0.1rem 0rem",
-      marginTop: ".1rem",
-      marginRight: "0.2rem",
-      lineHeight: "16px",
-    }}
-          >
-            <i class=${icons.menu}></i>
-          </button>
-          <i
-            class="${icons.inspect} d-none ${gearOffCanClass}"
-            style=${{ marginRight: "0.3rem" }}
-          ></i>
-          <span> Inspect View </span>
-        </span>
-        <div
-          class="navbar-text"
-          style=${{
-      paddingTop: "0.3rem",
-      paddingBottom: 0,
-      fontSize: "0.8rem",
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden",
-    }}
-        >
-          ${logName}<${CopyButton} value=${logUri}/>
-        </div>
-      </div>
-    </nav>
-  `;
-};
-
-const Sidebar = (props) => {
-  const btnOffCanClass = props.offcanvas ? "" : " d-md-none";
-  const sidebarOffCanClass = props.offcanvas ? " offcanvas" : " offcanvas-md";
-  const logHeaders = props.logHeaders;
-
-  return html`
-    <div
-      class="sidebar border-end offcanvas-start${sidebarOffCanClass}"
-      id="sidebarOffCanvas"
-    >
-      <div
-        style=${{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-    }}
-      >
-        <span
-          style=${{
-      paddingLeft: "0.5rem",
-      fontWeight: "500",
-      fontSize: "1.1rem",
-      opacity: "0.7",
-    }}
-          >${props.offcanvas ? "Log History" : ""}</span
-        >
-        <button
-          id="sidebarToggle"
-          class="btn d-inline${btnOffCanClass}"
-          type="button"
-          data-bs-toggle="offcanvas"
-          data-bs-target="#sidebarOffCanvas"
-          aria-controls="sidebarOffCanvas"
-          style=${{ padding: ".1rem", alignSelf: "end", width: "40px" }}
-        >
-          <i class=${icons.close}></i>
-        </button>
-      </div>
-      <ul class="list-group">
-        ${props.logs.files.map((file, index) => {
-      const active = index === props.selected ? " active" : "";
-      const time = new Date(file.mtime);
-      const logHeader = logHeaders[file.name];
-      const hyperparameters = logHeader ? {
-        ...logHeader.plan?.config,
-        ...logHeader.eval?.task_args,
-      } : undefined;
-
-      const model = logHeader?.eval?.model;
-      const dataset = logHeader?.eval?.dataset;
-      const scorer = logHeader?.results?.scorer?.name;
-
-      return html`
-            <li
-              class="list-group-item list-group-item-action${active}"
-              onclick=${() => props.onSelected(index)}
-              style=${{ fontSize: "0.8rem" }}
-            >
-              <div
-                style=${{
-          display: "flex",
-          flexDirection: "row",
-          justifyContent: "space-between",
-        }}
-              >
-                <div style=${{overflow: "hidden"}}>
-                  <div
-                    style=${{
-                      fontSize: "1.5em",
-                      fontWeight: "600",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis"
-                    }}
-                  >
-                    ${logHeader?.eval?.task || file.task}
-                  </div>
-                  <small class="mb-1 text-muted">
-                    ${time.toDateString()}
-                    ${time.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
-                  </small>
-
-                  ${model ? html` <div><small class="mb-1 text-muted">${model}</small></div>` : ""}
-                </div>
-                ${logHeader?.results?.metrics
-          ? html`<div style=${{ display: "flex", flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                          
-                      ${Object.keys(logHeader?.results.metrics).map(
-            (metric) => {
-              return html`
-                            <div
-                              style=${{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  marginLeft: "1em"
-                }}
-                            >
-                              <div
-                                style=${{ fontWeight: 300 }}
-                              >
-                                ${logHeader?.results.metrics[metric].name}
-                                </div>
-                              <div style=${{ fontWeight: 600, fontSize: "1.5em" }}>
-                                ${formatPrettyDecimal(
-                  logHeader?.results.metrics[metric].value
-                )}
-                              </div>
-                            </div>
-                          `;
-            }
-          )}
-                    </div>`
-          : logHeader?.status === "error" ? html`<div style=${{ color: "var(--bs-danger)" }}>Eval Error</div>` : ""}
-              </div>
-              <div style=${{ marginTop: "0.4em" }}>
-              <small class="mb-1 text-muted">
-              ${hyperparameters ? Object.keys((hyperparameters)).map((key) => {
-            return `${key}: ${hyperparameters[key]}`
-          }).join(", ") : ""
-        } 
-              </small>
-              </div>
-              ${dataset || scorer ? html`<div style=${{ display: "flex", justifyContent: "space-between", marginTop: "0.5em" }}><span>dataset: ${dataset.name || "(samples)"}</span><span>scorer: ${scorer}</span></div>` : ""}
-
-            </li>
-          `;
-    })}
-      </ul>
-    </div>
-  `;
-};

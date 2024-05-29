@@ -64,6 +64,11 @@ from .util import parse_cli_args
     help="Request timeout (in seconds).",
 )
 @click.option(
+    "--max-samples",
+    type=int,
+    help="Maximum number of samples to run in parallel (default is running all samples in parallel)",
+)
+@click.option(
     "--max-subprocesses",
     type=int,
     help="Maximum number of subprocesses to run in parallel (default is os.cpu_count())",
@@ -191,6 +196,7 @@ def eval_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     max_messages: int | None,
+    max_samples: int | None,
     max_subprocesses: int | None,
     no_log_samples: bool | None,
     no_log_images: bool | None,
@@ -238,6 +244,7 @@ def eval_command(
         limit=eval_limit,
         epochs=epochs,
         max_messages=max_messages,
+        max_samples=max_samples,
         max_subprocesses=max_subprocesses,
         log_samples=log_samples,
         log_images=log_images,

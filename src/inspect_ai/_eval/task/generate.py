@@ -55,7 +55,7 @@ async def task_generate(
                     result = await call_tool(tdefs, tool_call, state.metadata)
                 except Exception as ex:
                     result = ""
-                    tool_error = exception_message(ex)
+                    tool_error = str(ex)
 
                 if isinstance(result, tuple):
                     result, metadata = result
@@ -63,7 +63,7 @@ async def task_generate(
 
                 state.messages.append(
                     ChatMessageTool(
-                        content=str(result),
+                        content=result if isinstance(result, list) else str(result),
                         tool_error=tool_error,
                         tool_call_id=tool_call.id,
                     )
@@ -96,6 +96,10 @@ def tools_info(tools: list[Tool]) -> list[ToolInfo]:
 async def call_tool(
     tools: list[ToolDef], call: ToolCall, metadata: dict[str, Any]
 ) -> Any:
+    # if there was an error parsing the ToolCall, raise that
+    if call.parse_error:
+        raise ValueError(call.parse_error)
+
     # find the tool
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:

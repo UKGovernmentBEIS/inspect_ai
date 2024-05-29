@@ -1,5 +1,5 @@
 import pytest
-from utils import skip_if_no_cloudflare
+from test_helpers.utils import skip_if_no_cloudflare
 
 from inspect_ai.model import get_model
 

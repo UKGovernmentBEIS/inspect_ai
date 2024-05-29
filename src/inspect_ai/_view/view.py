@@ -9,7 +9,7 @@ from http.server import HTTPServer
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse, urlunparse
+from urllib.parse import parse_qs, unquote, urlparse, urlunparse
 
 import psutil
 from pydantic_core import to_jsonable_python
@@ -163,6 +163,7 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
                 parsed.fragment,
             )
         )
+        path = unquote(path)
 
         ctype = self.guess_type(path)
         try:
@@ -221,7 +222,18 @@ def view_notify_eval(location: str) -> None:
     with open(file, "w", encoding="utf-8") as f:
         if not urlparse(location).scheme:
             location = Path(location).absolute().as_posix()
-        f.write(location)
+
+        # Construct a payload with context for the last eval
+        payload = {
+            "location": location,
+        }
+        workspace_id = os.environ.get("INSPECT_WORKSPACE_ID")
+        if workspace_id:
+            payload["workspace_id"] = workspace_id
+
+        # Serialize the payload and write it to the signal file
+        payload_json = json.dumps(payload, indent=2)
+        f.write(payload_json)
 
 
 def view_last_eval_time() -> int:
@@ -237,7 +249,7 @@ def view_runtime_dir() -> Path:
 
 
 def view_last_eval_file() -> Path:
-    return view_runtime_dir() / "last-eval"
+    return view_runtime_dir() / "last-eval-result"
 
 
 def view_port_pid_file(port: int) -> Path:

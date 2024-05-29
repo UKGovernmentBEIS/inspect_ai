@@ -16,7 +16,7 @@ export function pythonBinaryPath(
   interpreter: PythonInterpreter,
   binary: string
 ): AbsolutePath | null {
-  // First trying using the interpreter's bin dir to find Inspect
+  // First look within the bin dir of the interpreter
   if (interpreter.pythonBinDir) {
     const binaryPath = toAbsolutePath(interpreter.pythonBinDir)
       .child(inspectBinDir())
@@ -42,20 +42,25 @@ export function pythonBinaryPath(
 // where the global interpreter is being used (and it doesn't install
 // scripts relative to the interpreter but instead in a global location)
 const platformPaths = (interpreter: PythonInterpreter, binary: string) => {
+  // find the folder that contained the python bin
+  const binDir =
+    interpreter.execCommand && interpreter.execCommand.length > 0
+      ? dirname(interpreter.execCommand[0])
+      : "";
+
+  // Check in the bin dir next to the python interpreter (on all platforms)
+  const paths = [join(binDir, binary)];
   switch (process.platform) {
-    case "darwin": {
-      // find the folder that contained the python bin
-      const binDir =
-        interpreter.execCommand && interpreter.execCommand.length > 0
-          ? dirname(interpreter.execCommand[0])
-          : "";
-      return [join(binDir, binary)];
-    }
+    case "darwin":
+      break;
     case "linux":
-      return [join(process.env.HOME || "", ".local", "bin", binary)];
+      // Also check .local/bin on linux
+      paths.unshift(join(process.env.HOME || "", ".local", "bin", binary));
+      break;
     default:
-      return [];
+      break;
   }
+  return paths;
 };
 
 export function runPython(args: string[], cwd?: AbsolutePath) {

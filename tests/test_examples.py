@@ -1,4 +1,4 @@
-from utils import run_example, skip_if_no_openai
+from test_helpers.utils import run_example, skip_if_no_openai
 
 
 @skip_if_no_openai

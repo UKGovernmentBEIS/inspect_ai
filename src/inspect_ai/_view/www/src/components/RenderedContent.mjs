@@ -1,13 +1,18 @@
 import { html } from "htm/preact";
 
-import { icons, sharedStyles } from "../Constants.mjs";
+import { icons } from "../Constants.mjs";
 
-import { iconForMsg, ChatView } from "./ChatView.mjs";
-import { DialogButton, DialogAfterBody } from "./Dialog.mjs";
 import { ANSIDisplay } from "./AnsiDisplay.mjs";
+import { MetaDataView } from "./MetaDataView.mjs";
+import { ChatView } from "./ChatView.mjs"
 
-
-export const RenderedContent = ({ id, entry, context, defaultRendering, options }) => {
+export const RenderedContent = ({
+  id,
+  entry,
+  context,
+  defaultRendering,
+  options,
+}) => {
   if (entry.value === null) {
     return "[null]";
   }
@@ -25,7 +30,13 @@ export const RenderedContent = ({ id, entry, context, defaultRendering, options 
 
   let value = entry.value;
   if (renderer) {
-    const { rendered, afterBody } = renderer.render(id, entry, defaultRendering, options);
+    const { rendered, afterBody } = renderer.render(
+      id,
+      entry,
+      defaultRendering,
+      options,
+      context
+    );
     if (rendered !== undefined) {
       value = rendered;
       if (afterBody !== undefined) {
@@ -77,7 +88,7 @@ const contentRenderers = {
       return contentRenderers.String.render(id, entry);
     },
   },
-  Number: { 
+  Number: {
     order: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "number";
@@ -93,7 +104,9 @@ const contentRenderers = {
       return typeof entry.value === "string";
     },
     render: (_id, entry, defaultRendering) => {
-      const rendered = defaultRendering ? defaultRendering(entry.value.trim()) : entry.value.trim();
+      const rendered = defaultRendering
+        ? defaultRendering(entry.value.trim())
+        : entry.value.trim();
       return {
         rendered,
       };
@@ -109,14 +122,30 @@ const contentRenderers = {
             return typeof entry;
           })
         );
-        return types.length === 1;
+        return types.size === 1;
       } else {
         return false;
       }
     },
-    render: (_id, entry) => {
-      entry.value = `[${entry.value.join(",")}]`
-      return contentRenderers.String.render(id, entry);
+    render: (id,
+      entry,
+      _defaultRendering,
+      _options,
+      context) => {
+
+      const arrayMap = {};
+      entry.value.forEach((entry, index) => { 
+        arrayMap[`[${index}]`] = entry;
+      });
+
+      const arrayRendered = html`<${MetaDataView}
+        id=${id}
+        style=${{fontSize: "0.8rem"}}
+        entries="${arrayMap}"
+        tableOptions="borderless,sm"
+        context=${context}
+        compact/>`;
+      return { rendered: arrayRendered};  
     },
   },
   ChatMessage: {
@@ -130,32 +159,10 @@ const contentRenderers = {
         val[0].content !== undefined
       );
     },
-    render: (id, entry, defaultRendering, options) => {
-      if (options.expanded) {
-        return { 
-          rendered: html`<${ChatView} messages=${entry.value}/>`
-        }
-      } else {
-        // Read the first chat message
-        const previewMsg = entry.value[0];
-        const preview = previewMsg.content;
-        const icon = iconForMsg(previewMsg);
-
-        return {
-          rendered: html`
-            <${ContentWithMoreButton} id=${id} icon=${icon} content=${preview} />
-          `,
-          afterBody: html`<${DialogAfterBody}
-            id=${id}
-            title=${entry.name}
-            centered=true
-            scrollable=true
-            classes="chat-modal"
-          >
-            <${ChatView} messages=${entry.value}/>
-          </${DialogAfterBody}>`,
-        };  
-      }
+    render: (_id, entry, _defaultRendering, _options) => {
+      return {
+        rendered: html`<${ChatView} messages=${entry.value} />`,
+      };
     },
   },
   web_search: {
@@ -163,7 +170,7 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "object" && entry.name === "web_search";
     },
-    render: (id, entry) => {
+    render: (_id, entry) => {
       const results = [];
       results.push(
         html`<div style=${{ marginBottom: "0.5rem", fontWeight: "500" }}>
@@ -203,7 +210,12 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (id, entry) => {
+    render: (
+      id,
+      entry,
+      _defaultRendering,
+      _options,
+      context) => {
       // Generate a json preview
       const summary = [];
       const keys = Object.keys(entry.value);
@@ -215,49 +227,14 @@ const contentRenderers = {
         summary.push(...keys);
       }
 
-      const preview = `{${summary.join(", ")}}`;
-      const highlightedHtml = Prism.highlight(
-        JSON.stringify(entry.value, null, 2),
-        Prism.languages.javascript,
-        "javacript"
-      );
-
       return {
-        rendered: html`<${ContentWithMoreButton}
-          id=${id}
-          icon=${icons.json}
-          content=${preview}
-        />`,
-        afterBody: html`<${DialogAfterBody}
-            id=${id}
-            title=${entry.name}
-            centered=true
-            scrollable=true
-            style=${{
-              fontSize: "0.8em",
-              maxWidth: "650px",
-            }}
-          >
-            <pre><code class="sourceCode" style=${{ whiteSpace: "pre-wrap" }} dangerouslySetInnerHTML="${{
-              __html: DOMPurify.sanitize(highlightedHtml),
-            }}">
-            </code></pre>
-          </${DialogAfterBody}>`,
+        rendered: html`<${MetaDataView}
+        id=${id}
+        style=${{fontSize: "0.8rem"}}
+        entries="${entry.value}"
+        tableOptions="borderless,sm"
+        context=${context}/>`,
       };
     },
   },
-};
-
-const ContentWithMoreButton = ({ id, icon, content }) => {
-  return html`<div><i class="${icon}"></i><span style=${{
-    fontSize: "0.7rem",
-    marginLeft: "0.5rem",
-    marginRight: "0.5rem",
-  }}>${content}</span>
-            <${DialogButton} id=${id} style=${
-    sharedStyles.moreButton
-  } btnType="btn">
-              <i class="${icons.more}"></i>
-            </${DialogButton}>
-        </div>`;
 };
