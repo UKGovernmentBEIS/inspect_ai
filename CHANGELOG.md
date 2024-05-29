@@ -1,5 +1,7 @@
 # Changelog
 
+test previous version
+
 ## v0.3.9 (14 May 2024)
 
 - Add `ollama` local model provider.
