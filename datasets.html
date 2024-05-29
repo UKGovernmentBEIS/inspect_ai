@@ -310,7 +310,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="dataset-samples" class="level2">
 <h2 class="anchored" data-anchor-id="dataset-samples">Dataset Samples</h2>
-<p>The core data type underlying the use of datasets with Inspect is the <code>Sample</code>. A sample has an <code>input</code>, a <code>target</code>, an optional <code>id</code>, and an optional collection of <code>metadata</code>.</p>
+<p>The core data type underlying the use of datasets with Inspect is the <code>Sample</code>, which consists of a required <code>input</code> field and several other optional fields:</p>
 <p><strong>Class</strong> <code>inspect_ai.dataset.Sample</code></p>
 <table class="table">
 <colgroup>
@@ -378,8 +378,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <p>Can be read directly with:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> csv_dataset(<span class="st">"security_guide.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that samples from datasets without and <code>id</code> field will automatically be assigned ids based on an auto-incrementing integer starting with 1.</p>
-<p>If your samples include <code>choices</code>, then the label should be a numeric index into the available <code>choices</code> rather a letter (this is an implicit assumption of the <code>multiple_choice()</code> solver).</p>
+<p>Note that samples from datasets without an <code>id</code> field will automatically be assigned ids based on an auto-incrementing integer starting with 1.</p>
+<p>If your samples include <code>choices</code>, then the <code>target</code> should be a numeric index into the available <code>choices</code> rather than a letter (this is an implicit assumption of the <code>multiple_choice()</code> solver).</p>
 </section>
 <section id="field-mapping" class="level2">
 <h2 class="anchored" data-anchor-id="field-mapping">Field Mapping</h2>
@@ -395,7 +395,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        metadata<span class="op">=</span>[<span class="st">"label_confidence"</span>],</span>
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    ),</span>
 <span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes an <code>index</code> and <code>record</code> (represented as a <code>dict</code>) from the underlying file and returns a <code>Sample</code>. For example:</p>
+<p>If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes a <code>record</code> (represented as a <code>dict</code>) from the underlying file and returns a <code>Sample</code>. For example:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample, json_dataset</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> record_to_sample(record):</span>
@@ -455,7 +455,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Inspect has integrated support for storing datasets on <a href="https://aws.amazon.com/pm/serv-s3/">Amazon S3</a>. Compared to storing data on the local file-system, using S3 can provide more flexible sharing and access control, and a more reliable long term store than local files.</p>
 <p>Using S3 is mostly a matter of substituting S3 URLs (e.g.&nbsp;<code>s3://my-bucket-name</code>) for local file-system paths. For example, here is how you load a dataset from S3:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>json_dataset(<span class="st">"s3://my-bucket/dataset.jsonl"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>S3 buckets are normally access controlled so require authentication to read from. There are a wide variety of ways to configure your client for AWS authentication, all of which work with Inspect. See the article on <a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html">Configuring the AWS CLI</a> for additional details</p>
+<p>S3 buckets are normally access controlled so require authentication to read from. There are a wide variety of ways to configure your client for AWS authentication, all of which work with Inspect. See the article on <a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html">Configuring the AWS CLI</a> for additional details.</p>
 </section>
 <section id="chat-messages" class="level2">
 <h2 class="anchored" data-anchor-id="chat-messages">Chat Messages</h2>

@@ -336,7 +336,7 @@ ul.task-list li input[type="checkbox"] {
 <p><a href="images/inspect-vscode-config.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/inspect-vscode-config.png" class="border img-fluid" alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments."></a></p>
 <p>The activity bar has three panels:</p>
 <ul>
-<li><p><strong>Configuration</strong> edits global configuration by reading and writing values from the workspace <code>.env</code> config file (see the documentation on <a href="#0">Configuration</a> for more details on <code>.env</code> files).</p></li>
+<li><p><strong>Configuration</strong> edits global configuration by reading and writing values from the workspace <code>.env</code> config file (see the documentation on <a href="./workflow.html#configuration">Configuration</a> for more details on <code>.env</code> files).</p></li>
 <li><p><strong>Task</strong> provides a way to tweak the CLI arguments passed to <code>inspect eval</code> when it is run from the user interface.</p></li>
 <li><p><strong>Tasks</strong> (not shown above) lists all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.</p></li>
 </ul>
@@ -878,7 +878,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom","openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","openEffect":"zoom","loop":false,"selector":".lightbox","descPosition":"bottom"});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;

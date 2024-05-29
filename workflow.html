@@ -414,6 +414,16 @@ VS Code Extension
 <h2 class="anchored" data-anchor-id="exploratory">Exploratory</h2>
 <p>Evaluation development is often highly exploratory and requires trying (and measuring) many combinations of components. You’ll often want to start in a notebook or REPL to facilitate this.</p>
 <p>For exploratory work, you’ll still write a <code>@task</code> function, but you’ll give it arguments that reflect the things you want to try out and vary. You’ll then call Inspect’s <code>eval()</code> function interactively rather than calling <code>inspect eval</code> from the shell.</p>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Note that the code below demonstrates exploratory workflows, but unlike the code above isn’t intended for direct execution but rather only for illustration. For example, we call the <code>plot_results()</code> function which isn’t directly defined but rather just an example of a function you might call after running some eval tasks.</p>
+</div>
+</div>
+</div>
 <section id="task-args" class="level3">
 <h3 class="anchored" data-anchor-id="task-args">Task Args</h3>
 <p>To illustrate, we’ll use a very simple example: an evaluation that checks whether a model can provide good computer security advice. The eval uses a model to score the results, and we want to explore how different system prompts, grader instructions, and grader models affect the quality of the eval.</p>
@@ -1090,7 +1100,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"openEffect":"zoom","descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","openEffect":"zoom","loop":false,"selector":".lightbox","descPosition":"bottom"});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;

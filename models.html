@@ -283,7 +283,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#helper-models" id="toc-helper-models" class="nav-link" data-scroll-target="#helper-models">Helper Models</a></li>
   <li><a href="#model-args" id="toc-model-args" class="nav-link" data-scroll-target="#model-args">Model Args</a></li>
-  <li><a href="#custom-models" id="toc-custom-models" class="nav-link" data-scroll-target="#custom-models">Custom Models</a></li>
+  <li><a href="#custom-models" id="toc-custom-models" class="nav-link" data-scroll-target="#custom-models">Custom Models</a>
+  <ul class="collapse">
+  <li><a href="#model-registration" id="toc-model-registration" class="nav-link" data-scroll-target="#model-registration">Model Registration</a></li>
+  <li><a href="#using-the-model" id="toc-using-the-model" class="nav-link" data-scroll-target="#using-the-model">Using the Model</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -784,15 +788,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>__init__()</code> method <em>must</em> call the <code>super().__init__()</code> method, and typically instantiates the model client library.</p>
 <p>The <code>generate()</code> method handles interacting with the model. In addition, there are some optional methods you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, etc.)</p>
-<p>Once you’ve created the class and decorated it with <code>@modelapi</code> as shown above, you can reference it as follows:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># get a model instance</span></span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"custom/name-of-model"</span>)</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="co"># run an eval with the model</span></span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(math, model <span class="op">=</span> <span class="st">"custom/name-of-model"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In this example, the <code>model_name</code> argument passed to <code>__init__()</code> will be “name-of-model”.</p>
+<section id="model-registration" class="level3">
+<h3 class="anchored" data-anchor-id="model-registration">Model Registration</h3>
+<p>If you are publishing a custom model within a Python package, you should register an <code>inspect_ai</code> <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect loads your extension before it attempts to resolve a model name that uses your provider.</p>
+<p>For example, if your package was named <code>custom_models</code> and your model provider was exported from a source file named <code>inspect_ai.py</code> at the root of your package, <code>pyproject.toml</code> that would look like this:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="dt">custom_models</span> <span class="op">=</span> <span class="st">"custom_models.inspect_ai"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="using-the-model" class="level3">
+<h3 class="anchored" data-anchor-id="using-the-model">Using the Model</h3>
+<p>Once you’ve created the class, decorated it with <code>@modelapi</code> as shown above, and registered it, then you can use it as follows:</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> custom/my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Where <code>my-model</code> is the name of some model supported by your provider (this will be passed to <code>__init()__</code> in the <code>model_name</code> argument).</p>
+<p>You can also reference it from within Python calls to <code>get_model()</code> or <code>eval()</code>:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># get a model instance</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"custom/my-model"</span>)</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="co"># run an eval with the model</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(math, model <span class="op">=</span> <span class="st">"custom/my-model"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
