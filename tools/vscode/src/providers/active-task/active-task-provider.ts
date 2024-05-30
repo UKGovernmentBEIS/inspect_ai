@@ -2,14 +2,15 @@ import {
   Event,
   EventEmitter,
   ExtensionContext,
+  NotebookEditor,
   Position,
   Selection,
   TextDocument,
+  TextEditorSelectionChangeEvent,
   Uri,
   commands,
   window,
   workspace,
-
 } from "vscode";
 import {
   DebugActiveTaskCommand,
@@ -19,6 +20,7 @@ import { InspectEvalManager } from "../inspect/inspect-eval";
 import { Command } from "../../core/command";
 import { DocumentTaskInfo, readTaskData } from "../../components/task";
 import { cellTasks, isNotebook } from "../../components/notebook";
+import { debounce } from "lodash";
 
 // Activates the provider which tracks the currently active task (document and task name)
 export function activateActiveTaskProvider(
@@ -45,39 +47,50 @@ export class ActiveTaskManager {
     // Listen for the editor changing and update task state
     // when there is a new selection
     context.subscriptions.push(
-      window.onDidChangeTextEditorSelection(async (event) => {
-        await this.updateActiveTaskWithDocument(
-          event.textEditor.document,
-          event.selections[0]
-        );
-      })
+      window.onDidChangeTextEditorSelection(
+        debounce(
+          async (event: TextEditorSelectionChangeEvent) => {
+            await this.updateActiveTaskWithDocument(
+              event.textEditor.document,
+              event.selections[0]
+            );
+          },
+          300,
+          { trailing: true }
+        )
+      )
     );
 
     context.subscriptions.push(
-      window.onDidChangeActiveNotebookEditor(async (event) => {
-        if (window.activeNotebookEditor?.selection.start) {
-          const cell = event?.notebook.cellAt(window.activeNotebookEditor.selection.start);
-          await this.updateActiveTaskWithDocument(
-            cell?.document,
-            new Selection(new Position(0, 0), new Position(0, 0))
-          );
+      window.onDidChangeActiveNotebookEditor(
+        debounce(async (event: NotebookEditor | undefined) => {
+          if (window.activeNotebookEditor?.selection.start) {
+            const cell = event?.notebook.cellAt(
+              window.activeNotebookEditor.selection.start
+            );
+            await this.updateActiveTaskWithDocument(
+              cell?.document,
+              new Selection(new Position(0, 0), new Position(0, 0))
+            );
+          }
+        }, 300, { trailing: true })
+      ));
+
+    context.subscriptions.push(
+      window.onDidChangeActiveTextEditor(async (event) => {
+        if (event) {
+          await this.updateActiveTaskWithDocument(event.document);
         }
       })
     );
-
-    context.subscriptions.push(window.onDidChangeActiveTextEditor(async (event) => {
-      if (event) {
-        await this.updateActiveTaskWithDocument(
-          event.document
-        );
-      }
-    }));
   }
   private activeTaskInfo_: DocumentTaskInfo | undefined;
-  private readonly onActiveTaskChanged_ = new EventEmitter<ActiveTaskChangedEvent>();
+  private readonly onActiveTaskChanged_ =
+    new EventEmitter<ActiveTaskChangedEvent>();
 
   // Event to be notified when task information changes
-  public readonly onActiveTaskChanged: Event<ActiveTaskChangedEvent> = this.onActiveTaskChanged_.event;
+  public readonly onActiveTaskChanged: Event<ActiveTaskChangedEvent> =
+    this.onActiveTaskChanged_.event;
 
   // Get the task information for the current selection
   public getActiveTaskInfo(): DocumentTaskInfo | undefined {
@@ -101,13 +114,18 @@ export class ActiveTaskManager {
         "inspect_ai.activeTask",
         taskActive
       );
-
     }
   }
 
-  async updateActiveTaskWithDocument(document?: TextDocument, selection?: Selection) {
+  async updateActiveTaskWithDocument(
+    document?: TextDocument,
+    selection?: Selection
+  ) {
     if (document && selection) {
-      const activeTaskInfo = document.languageId === "python" ? getTaskInfoFromDocument(document, selection) : undefined;
+      const activeTaskInfo =
+        document.languageId === "python"
+          ? getTaskInfoFromDocument(document, selection)
+          : undefined;
       await this.updateTask(activeTaskInfo);
     }
   }
@@ -115,10 +133,14 @@ export class ActiveTaskManager {
   async updateActiveTask(documentUri: Uri, task: string) {
     if (isNotebook(documentUri)) {
       // Compute the cell and position of the task
-      const notebookDocument = await workspace.openNotebookDocument(documentUri);
+      const notebookDocument = await workspace.openNotebookDocument(
+        documentUri
+      );
       const cells = cellTasks(notebookDocument);
       const cellTask = cells.find((c) => {
-        return c.tasks.find((t) => { return t.name === task; });
+        return c.tasks.find((t) => {
+          return t.name === task;
+        });
       });
       if (cellTask) {
         const cell = notebookDocument.cellAt(cellTask?.cellIndex);
@@ -156,7 +178,6 @@ function getTaskInfoFromDocument(
     return undefined;
   }
 
-
   const selectionLine = selection?.start.line || 0;
 
   // Find the first task that appears before the selection
@@ -168,7 +189,7 @@ function getTaskInfoFromDocument(
   return {
     document: document.uri,
     tasks,
-    activeTask: activeTask || (tasks.length > 0 ? tasks[0] : undefined)
+    activeTask: activeTask || (tasks.length > 0 ? tasks[0] : undefined),
   };
 }
 
@@ -191,6 +212,6 @@ function getTaskInfo(
   return {
     document: document.uri,
     tasks,
-    activeTask: activeTask || (tasks.length > 0 ? tasks[0] : undefined)
+    activeTask: activeTask || (tasks.length > 0 ? tasks[0] : undefined),
   };
 }

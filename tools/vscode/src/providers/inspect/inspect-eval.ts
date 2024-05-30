@@ -1,4 +1,4 @@
-import { DebugConfiguration, debug, window, workspace } from "vscode";
+import { DebugConfiguration, ExtensionContext, debug, window, workspace } from "vscode";
 import { inspectEvalCommands } from "./inspect-eval-commands";
 import { Command } from "../../core/command";
 import {
@@ -11,11 +11,30 @@ import { inspectVersion } from "../../inspect";
 import { inspectBinPath } from "../../inspect/props";
 import { activeWorkspaceFolder } from "../../core/workspace";
 import { findOpenPort } from "../../core/port";
+import { log } from "../../core/log";
 
-export function activateEvalManager(
-  stateManager: WorkspaceStateManager
-): [Command[], InspectEvalManager] {
+export async function activateEvalManager(
+  stateManager: WorkspaceStateManager,
+  context: ExtensionContext
+): Promise<[Command[], InspectEvalManager]> {
+  // Activate the manager
   const inspectEvalMgr = new InspectEvalManager(stateManager);
+
+
+  // Set up our terminal environment
+  // Update the workspace id used in our terminal environments
+  await stateManager.initializeWorkspaceId();
+
+  const workspaceId = stateManager.getWorkspaceInstance();
+  const env = context.environmentVariableCollection;
+  log.append(`Workspace: ${workspaceId}`);
+  log.append(`Resetting Terminal Workspace:`);
+
+  log.append(`new: ${workspaceId}`);
+
+  env.delete('INSPECT_WORKSPACE_ID');
+  env.append('INSPECT_WORKSPACE_ID', workspaceId);
+
   return [inspectEvalCommands(inspectEvalMgr), inspectEvalMgr];
 }
 
@@ -108,19 +127,19 @@ export class InspectEvalManager {
       await runDebugger(inspectBinPath()?.path || "inspect", args, workspaceDir.path, debugPort);
     } else {
       // Run the command
-      runEvalCmd(args, workspaceDir.path, this.stateManager_);
+      runEvalCmd(args, workspaceDir.path);
     }
   }
 }
 
-const runEvalCmd = (args: string[], cwd: string, stateManager: WorkspaceStateManager) => {
+const runEvalCmd = (args: string[], cwd: string) => {
   // See if there a non-busy terminal that we can re-use
   const name = "Inspect Eval";
   let terminal = window.terminals.find((t) => {
     return t.name === name;
   });
   if (!terminal) {
-    terminal = window.createTerminal({ name, cwd, env: { ["INSPECT_WORKSPACE_ID"]: stateManager.getWorkspaceInstance() } });
+    terminal = window.createTerminal({ name, cwd });
   }
   terminal.show();
   terminal.sendText(`cd ${cwd}`);

@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.11 (30 May 2024)
+
+- Update to non-beta version of Anthropic tool use (remove legacy xml tools implementation).
+
 ## v0.3.10 (29 May 2024)
 
 - **BREAKING:** The `pattern` scorer has been modified to match against any (or all) regex match groups. This replaces the previous behaviour when there was more than one group, which would only match the second group.

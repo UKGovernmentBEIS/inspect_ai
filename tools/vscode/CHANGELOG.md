@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.19
+
+- Fix an issue showing the log viewer when an evaluation completes (specific to Inspect 0.3.10 or later)
+
+## 0.3.18
+
+- Fix issues with task params when type hints are provided
+- Improve metric appearance in `inspect view`
+
 ## 0.3.17
 
 - Improve `inspect view` title bar treatment

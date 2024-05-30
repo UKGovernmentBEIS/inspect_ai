@@ -62,7 +62,7 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(inspectManager);
 
   // Eval Manager
-  const [inspectEvalCommands, inspectEvalMgr] = activateEvalManager(stateManager);
+  const [inspectEvalCommands, inspectEvalMgr] = await activateEvalManager(stateManager, context);
 
   // Activate a watcher which inspects the active document and determines
   // the active task (if any)

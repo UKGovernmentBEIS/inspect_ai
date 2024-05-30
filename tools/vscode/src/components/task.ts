@@ -28,8 +28,8 @@ export interface TaskData {
 const kTaskPattern = /@task/;
 const kFunctionNamePattern = /def\s+(.*)\((.*)$/;
 
-const kFunctionEndPattern = /\s*\):\s*/;
-const kParamsPattern = /^(.*?)(\):)?$/;
+const kFunctionEndPattern = /\s*\)\s*(->\s*\S+)?\s*:\s*/;
+const kParamsPattern = /^(.*?)\s*(?:\)\s*:\s*|$|\)\s*(->\s*\S+)?\s*:\s*)/;
 
 export function readTaskData(document: TextDocument): TaskData[] {
   const tasks: TaskData[] = [];
@@ -92,7 +92,9 @@ const readParams = (line: string, task: TaskData) => {
       const params = paramsStr.split(",");
       params.forEach((param) => {
         const name = param.split("=")[0].trim();
-        if (name) {
+        if (name && name.includes(':')) {
+          task.params.push(name.split(':')[0]);
+        } else if (name) {
           task.params.push(name);
         }
       });

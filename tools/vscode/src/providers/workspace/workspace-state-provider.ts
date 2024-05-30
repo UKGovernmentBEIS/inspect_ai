@@ -25,12 +25,18 @@ export interface ModelState {
 
 export class WorkspaceStateManager {
   constructor(private readonly context_: ExtensionContext) {
-    this.instanceId = `${Date.now()}-${randomInt(0, 100000)}`;
   }
-  private instanceId: string;
 
-  public getWorkspaceInstance() {
-    return this.instanceId;
+  public async initializeWorkspaceId() {
+    const existingKey = this.context_.workspaceState.get<string>('INSPECT_WORKSPACE_ID');
+    if (!existingKey) {
+      const key = `${Date.now()}-${randomInt(0, 100000)}`;
+      await this.context_.workspaceState.update('INSPECT_WORKSPACE_ID', key);
+    }
+  }
+
+  public getWorkspaceInstance(): string {
+    return this.context_.workspaceState.get<string>('INSPECT_WORKSPACE_ID')!;
   }
 
   public getState(key: string) {
