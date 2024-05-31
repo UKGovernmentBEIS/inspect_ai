@@ -17,9 +17,9 @@ from inspect_ai.model import ModelName
 from inspect_ai.scorer import Metric, Score, Scorer, Target
 from inspect_ai.solver import TaskState
 
+from .task import Task
 from .task.results import eval_results
 from .task.util import task_run_dir
-from .types import Task
 
 
 def score(log: EvalLog, scorer: Scorer) -> EvalLog:

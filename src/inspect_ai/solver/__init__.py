@@ -6,7 +6,8 @@ from ._prompt import (
     prompt_template,
     system_message,
 )
-from ._solver import Generate, Solver, TaskState, generate, solver
+from ._solver import Generate, Solver, generate, solver
+from ._task_state import TaskState
 from ._tool.tool import Tool, tool
 from ._tool.use_tools import use_tools
 from ._tool.web_search import web_search

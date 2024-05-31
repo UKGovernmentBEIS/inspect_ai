@@ -23,6 +23,7 @@ from inspect_ai.log import (
     EvalConfig,
     EvalError,
     EvalLog,
+    EvalResults,
     EvalStats,
 )
 from inspect_ai.log._log import eval_error
@@ -34,7 +35,7 @@ from inspect_ai.model import (
 from inspect_ai.scorer import Score, Scorer, Target
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 
-from ..types import Task
+from ..task import Task
 from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
 from .log import TaskLogger, collect_eval_data, log_output, log_plan
@@ -101,7 +102,9 @@ async def task_run(
         plan = (
             plan
             if isinstance(plan, Plan)
-            else Plan(plan) if plan is not None else task.plan
+            else Plan(plan)
+            if plan is not None
+            else task.plan
         )
         score = score and task.scorer is not None
         scorer: Scorer | None = task.scorer if (score and task.scorer) else None
@@ -132,7 +135,6 @@ async def task_run(
                     len(plan.steps) + (1 if plan.finish else 0) + (1)  # scorer
                 )
                 with td.progress(total=total_steps) as p:
-
                     # forward progress
                     def progress() -> None:
                         p.update(1)
@@ -195,6 +197,8 @@ async def task_run(
                         metrics=task.metrics,
                     )
                     logger.log_results(results)
+                else:
+                    results = EvalResults()
 
                 # collect eval data
                 collect_eval_data(stats, logger)
@@ -295,7 +299,6 @@ async def resolve_dataset(
     epochs: int,
     log_images: bool,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
-
     # apply limit to dataset
     dataset_limit = (
         slice(0, len(dataset))

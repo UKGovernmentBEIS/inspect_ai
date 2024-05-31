@@ -8,7 +8,7 @@ from typing import Any, Callable
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.file import file
 
-from .types import TaskInfo
+from .task import TaskInfo
 
 logger = getLogger(__name__)
 

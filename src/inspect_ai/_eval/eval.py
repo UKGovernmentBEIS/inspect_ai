@@ -26,10 +26,10 @@ from inspect_ai.solver import Solver
 from inspect_ai.util._context import init_async_context
 
 from .loader import resolve_tasks
+from .task import Tasks, TaskSpec
 from .task.log import TaskLogger
 from .task.run import task_run
 from .task.util import task_file, task_run_dir
-from .types import Tasks, TaskSpec
 
 log = logging.getLogger(__name__)
 

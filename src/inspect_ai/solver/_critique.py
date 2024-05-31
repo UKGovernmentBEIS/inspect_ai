@@ -5,7 +5,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.util import resource
 
-from ._solver import Generate, Solver, TaskState, solver
+from ._solver import Generate, Solver, solver
+from ._task_state import TaskState
 
 
 @solver

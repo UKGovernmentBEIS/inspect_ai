@@ -3,7 +3,8 @@ from inspect_ai.model import (
     ToolChoice,
 )
 
-from .._solver import Generate, Solver, TaskState, solver
+from .._solver import Generate, Solver, solver
+from .._task_state import TaskState
 from .._util import append_system_message
 from .tool import Tool
 from .tool_def import tool_defs

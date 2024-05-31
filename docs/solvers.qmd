@@ -1,3 +1,7 @@
+---
+tbl-colwidths: [20,25,45]
+---
+
 # Solvers {#sec-solvers}
 
 ## Overview
@@ -147,7 +151,7 @@ You will likely want to experiment with using a distinct `model` for generating 
 
 ## Custom Solvers
 
-Let's take a look at the source code for a couple of the built in solvers as a jumping off point for implementing your own solvers. A solver is an implementation of the `Solver` protocol (a function that transforms a `TaskState`):
+In this section we'll take a look at the source code for a couple of the built in solvers as a jumping off point for implementing your own solvers. A solver is an implementation of the `Solver` protocol (a function that transforms a `TaskState`):
 
 ``` python
 async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -158,9 +162,51 @@ async def solve(state: TaskState, generate: Generate) -> TaskState:
 
 Typically solvers can be customised with parameters (e.g. `template` for prompt engineering solvers). This means that a `Solver` is actually a function which returns the `solve()` function referenced above (this will become more clear in the examples below).
 
+### Task States
+
+Before presenting the examples we'll take a more in-depth look at the `TaskState` class. Task states consist of both lower level data members (e.g. `messages`, `output`) as well as a number of convenience properties. The core members of `TaskState` that are *modified* by solvers are `messages` / `user_prompt` and `output`:
+
+| Member        | Type                | Description                                                                                                                                                                               |
+|-----------|-----------|---------------------------------------------------|
+| `messages`    | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
+| `user_prompt` | ChatMessageUser     | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering).                                                                  |
+| `output`      | ModelOutput         | The 'final' model output once we've completed all solving. This field is automatically updated with the last "assistant" message by the `generate()` solver.                              |
+
 ::: {.callout-note appearance="simple"}
-When creating custom solvers, it's critical that you understand Inspect's concurrency model. More specifically, if your solver is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Eval Tuning](#sec-eval-tuning) before proceeding.
+Note that the `generate()` solver automatically updates both the `messages` and `output` fields. For very simple evaluations modifying the `user_prompt` and then calling `generate()` encompasses all of the required interaction with `TaskState`.
 :::
+
+There are two additional fields that solvers might modify (but they are typically for more advanced use cases):
+
+| Member      | Type | Description                                                                                                                                                                  |
+|---------|---------|------------------------------------------------------|
+| `metadata`  | dict | Original metadata from `Sample`, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging). |
+| `completed` | bool | Solvers can set `completed = True` to cause the task to exit the plan immediately.                                                                                           |
+
+Sometimes its import to have access to the *original* prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the `input` and `input_text` properties:
+
+| Member       | Type                       | Description                                                                         |
+|---------------|---------------|-------------------------------------------|
+| `input`      | str \| list\[ChatMessage\] | Original `Sample` input.                                                            |
+| `input_text` | str                        | Convenience function for accessing the initial input from the `Sample` as a string. |
+
+There are several other fields used to provide contextual data from either the task sample or evaluation:
+
+| Member      | Type                | Description                                               |
+|---------------|---------------|------------------------------------------|
+| `sample_id` | int \| str          | Unique ID for sample.                                     |
+| `epoch`     | int                 | Epoch for sample.                                         |
+| `choices`   | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
+| `model`     | ModelName           | Name of model currently being evaluated.                  |
+
+Finally, task states also include available tools as well as guidance for the model on which tools to use (if you haven't yet encountered the concept of tool use in language models, don't worry about understanding these fields, the [Tools](tools.qmd) article provides a more in-depth treatment):
+
+| Member        | Type         | Description                  |
+|---------------|--------------|------------------------------|
+| `tools`       | list\[Tool\] | Tools available to the model |
+| `tool_choice` | ToolChoice   | Tool choice directive.       |
+
+These fields are typically modified via the `use_tools()` solver, but they can also be modified directly for more advanced use cases.
 
 ### Example: Prompt Template
 
@@ -188,8 +234,11 @@ def prompt_template(template: str, **params: dict[str, Any]):
 A few things to note about this implementation:
 
 1.  The function applies the `@solver` decorator—this registers the `Solver` with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g. a YAML specification of an eval).
+
 2.  The `solve()` function is declared as `async`. This is so that it can participate in Inspect's optimised scheduling for expensive model generation calls (this solver doesn't call `generate()` but others will).
+
 3.  The `resource()` function is used to read the specified `template`. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.
+
 4.  We make use of the `user_prompt` property on the `TaskState`. This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property (so we are dealing with prompt as a string, recall that it can also be a list of messages).
 
 ### Example: Self Critique
@@ -278,6 +327,10 @@ def self_critique(
 
 Note that calls to `generate()` (for both the critique model and the model being evaluated) are called with `await`—this is critical to ensure that the solver participates correctly in the scheduling of generation work.
 
+### Concurrency
+
+When creating custom solvers, it's critical that you understand Inspect's concurrency model. More specifically, if your solver is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Eval Tuning](#sec-eval-tuning) for a more in depth discussion.
+
 ## Early Termination
 
 In some cases a solver has the context available to request an early termination of the plan (i.e. don't call the rest of the solvers). In this case, setting the `TaskState.completed` field will result in forgoing remaining solvers in the plan. For example, here's a simple solver that terminates the plan early:
@@ -318,7 +371,7 @@ In this example the `finish_up()` solver will always be called even if the plan 
 
 If your solvers allocate resources (for example, run a Docker container or mount a drive), you will want to make sure that these resources are cleaned up even in the case of an error occurring during the evaluation. To arrange for this, use a `Plan` object with a `cleanup` function:
 
-```python
+``` python
 
 async def cleanup(state):
     # cleanup resources

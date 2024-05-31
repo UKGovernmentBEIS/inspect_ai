@@ -7,7 +7,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ChatMessageUser
 from inspect_ai.solver import TaskState
 
-from ..types import Task
+from ..task import Task
 from .constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 
 

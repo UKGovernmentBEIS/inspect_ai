@@ -11,7 +11,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.common import CommonOptions, common_options, resolve_common_options
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._eval.list import list_tasks
-from inspect_ai._eval.types import TaskInfo
+from inspect_ai._eval.task import TaskInfo
 from inspect_ai.log import list_eval_logs
 
 

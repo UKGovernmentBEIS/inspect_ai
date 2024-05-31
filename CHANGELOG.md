@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.12 (31 May 2024)
+
+- Bugfix: `results` was not defined when no scorer was provided resulting in an error being thrown. Fixed by setting `results = EvalResults()` when no scorer is provided.
+- Bugfix: The viewer was not properly handling samples without scores.
+
 ## v0.3.11 (30 May 2024)
 
 - Update to non-beta version of Anthropic tool use (remove legacy xml tools implementation).

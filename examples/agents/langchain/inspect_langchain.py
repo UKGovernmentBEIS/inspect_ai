@@ -47,8 +47,7 @@ from inspect_ai.solver import Generate, Solver, TaskState
 class LangChainAgent(Protocol):
     async def __call__(
         self, llm: BaseChatModel, input: dict[str, Any]
-    ) -> str | list[str | dict[str, Any]]:
-        ...
+    ) -> str | list[str | dict[str, Any]]: ...
 
 
 def langchain_solver(agent: LangChainAgent) -> Solver:

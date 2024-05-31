@@ -4,7 +4,8 @@ from random import Random
 
 from inspect_ai.util import resource
 
-from ._solver import Generate, Solver, TaskState, solver
+from ._solver import Generate, Solver, solver
+from ._task_state import TaskState
 
 logger = logging.getLogger(__name__)
 

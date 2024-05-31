@@ -11,7 +11,8 @@ from inspect_ai._util.registry import (
     registry_tag,
 )
 
-from ._solver import Solver, TaskState
+from ._solver import Solver
+from ._task_state import TaskState
 
 
 class Plan:

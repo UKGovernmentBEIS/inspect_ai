@@ -18,8 +18,8 @@ from inspect_ai.model import Model, ModelName
 
 from .list import task_files
 from .registry import task_create
+from .task import Task, TaskInfo, Tasks
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
-from .types import Task, TaskInfo, Tasks
 
 
 def resolve_tasks(

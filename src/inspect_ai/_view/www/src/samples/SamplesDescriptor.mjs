@@ -24,6 +24,7 @@ export const samplesDescriptor = (samples, epochs, context) => {
   const uniqScoreValues = [
     ...new Set(
       samples
+        .filter(sample => !!sample.score)
         .map((sample) => sample.score.value)
         .filter((value) => {
           return value !== null;
