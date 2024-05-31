@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.13 (31 May 2024)
+
+- Bugfix: Inspect view was not reliably updating when new evaluation logs were written.
+
 ## v0.3.12 (31 May 2024)
 
 - Bugfix: `results` was not defined when no scorer was provided resulting in an error being thrown. Fixed by setting `results = EvalResults()` when no scorer is provided.

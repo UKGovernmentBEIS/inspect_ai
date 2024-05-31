@@ -92,7 +92,7 @@ export const SamplesTab = (props) => {
   // Focus the sample list
   useEffect(() => {
     const listEl = sampleListRef.current;
-    if (listEl) {
+    if (listEl && listEl.base) {
       listEl.base.focus();
     }
   }, [items]);

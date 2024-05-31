@@ -20,6 +20,7 @@ import { WorkSpace } from "./src/workspace/WorkSpace.mjs";
 
 export function App() {
   const [selected, setSelected] = useState(-1);
+  const [pendingLog, setPendingLog] = useState(undefined);
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
   const [logHeaders, setLogHeaders] = useState({});
   const [offcanvas, setOffcanvas] = useState(false);
@@ -126,24 +127,32 @@ export function App() {
   // Ensure that we have a selected index when there is are 
   // new logs
   useEffect(() => {
-    setSelected(0);
-  }, [logs])
+    if (logs && pendingLog) {
+      const index = logs.files.findIndex((val) => {
+        return pendingLog.endsWith(val.name);
+      });
+      if (index > -1) {
+        setSelected(index);    
+      }
+      setPendingLog(undefined);
+    }
+  }, [logs, pendingLog])
   
   // listen for updateState messages from vscode
   useEffect(() => {
-    const onMessage = (e) => {
+    const onMessage = async (e) => {
       switch (e.data.type || e.data.message) {
         case "updateState": {
           if (e.data.url) {
-
             const index = logs.files.findIndex((val) => {
-              return val.name.endsWith(e.data.url);
+              return e.data.url.endsWith(val.name);
             });
             if (index > -1) {
               // Select the correct index
               setSelected(index);    
             } else {
-              // TODO: Error
+              await loadLogs();
+              setPendingLog(e.data.url);
             }
           }
         }
@@ -153,7 +162,7 @@ export function App() {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [setCurrentLog]);
+  }, [logs, setCurrentLog, setPendingLog]);
 
   useEffect(async () => {
     // See whether a specific task_file has been passed.
@@ -175,6 +184,9 @@ export function App() {
 
     // initial fetch of logs
     await load();
+
+    // Select the first log
+    setSelected(0);
 
     // poll every 1s for events
     setInterval(() => {
