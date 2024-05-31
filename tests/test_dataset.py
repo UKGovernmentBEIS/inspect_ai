@@ -47,7 +47,7 @@ def test_dataset_fields_fn(type: Type[T_ds], file: str) -> None:
     )
     assert_sample(dataset[0])
 
-
+@pytest.mark.skip(reason="Dataset does not exist. TODO to fix")
 def test_dataset_read_id() -> None:
     dataset = example_dataset(
         "biology_qa",
