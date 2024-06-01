@@ -275,8 +275,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#custom-solvers" id="toc-custom-solvers" class="nav-link" data-scroll-target="#custom-solvers">Custom Solvers</a>
   <ul class="collapse">
+  <li><a href="#task-states-1" id="toc-task-states-1" class="nav-link" data-scroll-target="#task-states-1">Task States</a></li>
   <li><a href="#example-prompt-template" id="toc-example-prompt-template" class="nav-link" data-scroll-target="#example-prompt-template">Example: Prompt Template</a></li>
   <li><a href="#example-self-critique" id="toc-example-self-critique" class="nav-link" data-scroll-target="#example-self-critique">Example: Self Critique</a></li>
+  <li><a href="#concurrency" id="toc-concurrency" class="nav-link" data-scroll-target="#concurrency">Concurrency</a></li>
   </ul></li>
   <li><a href="#early-termination" id="toc-early-termination" class="nav-link" data-scroll-target="#early-termination">Early Termination</a></li>
   <li><a href="#plan-cleanup" id="toc-plan-cleanup" class="nav-link" data-scroll-target="#plan-cleanup">Plan Cleanup</a></li>
@@ -424,22 +426,176 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="custom-solvers" class="level2">
 <h2 class="anchored" data-anchor-id="custom-solvers">Custom Solvers</h2>
-<p>Let’s take a look at the source code for a couple of the built in solvers as a jumping off point for implementing your own solvers. A solver is an implementation of the <code>Solver</code> protocol (a function that transforms a <code>TaskState</code>):</p>
+<p>In this section we’ll take a look at the source code for a couple of the built in solvers as a jumping off point for implementing your own solvers. A solver is an implementation of the <code>Solver</code> protocol (a function that transforms a <code>TaskState</code>):</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># do something useful with state, possibly calling generate()</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># for more advanced solvers</span></span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Typically solvers can be customised with parameters (e.g.&nbsp;<code>template</code> for prompt engineering solvers). This means that a <code>Solver</code> is actually a function which returns the <code>solve()</code> function referenced above (this will become more clear in the examples below).</p>
+<section id="task-states-1" class="level3">
+<h3 class="anchored" data-anchor-id="task-states-1">Task States</h3>
+<p>Before presenting the examples we’ll take a more in-depth look at the <code>TaskState</code> class. Task states consist of both lower level data members (e.g.&nbsp;<code>messages</code>, <code>output</code>) as well as a number of convenience properties. The core members of <code>TaskState</code> that are <em>modified</em> by solvers are <code>messages</code> / <code>user_prompt</code> and <code>output</code>:</p>
+<table class="table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 25%">
+<col style="width: 45%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Member</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>messages</code></td>
+<td>list[ChatMessage]</td>
+<td>Chat conversation history for sample. It is automatically appended to by the <code>generate()</code> solver, and is often manipulated by other solvers (e.g.&nbsp;for prompt engineering or elicitation).</td>
+</tr>
+<tr class="even">
+<td><code>user_prompt</code></td>
+<td>ChatMessageUser</td>
+<td>Convenience property for accessing the first user message in the message history (commonly used for prompt engineering).</td>
+</tr>
+<tr class="odd">
+<td><code>output</code></td>
+<td>ModelOutput</td>
+<td>The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the <code>generate()</code> solver.</td>
+</tr>
+</tbody>
+</table>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>When creating custom solvers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your solver is doing non-trivial work (e.g.&nbsp;calling REST APIs, executing external processes, etc.) please review <a href="eval-tuning.html">Eval Tuning</a> before proceeding.</p>
+<p>Note that the <code>generate()</code> solver automatically updates both the <code>messages</code> and <code>output</code> fields. For very simple evaluations modifying the <code>user_prompt</code> and then calling <code>generate()</code> encompasses all of the required interaction with <code>TaskState</code>.</p>
 </div>
 </div>
 </div>
+<p>There are two additional fields that solvers might modify (but they are typically for more advanced use cases):</p>
+<table class="table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 25%">
+<col style="width: 45%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Member</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>metadata</code></td>
+<td>dict</td>
+<td>Original metadata from <code>Sample</code>, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging).</td>
+</tr>
+<tr class="even">
+<td><code>completed</code></td>
+<td>bool</td>
+<td>Solvers can set <code>completed = True</code> to cause the task to exit the plan immediately.</td>
+</tr>
+</tbody>
+</table>
+<p>Sometimes its import to have access to the <em>original</em> prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the <code>input</code> and <code>input_text</code> properties:</p>
+<table class="table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 25%">
+<col style="width: 45%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Member</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>input</code></td>
+<td>str | list[ChatMessage]</td>
+<td>Original <code>Sample</code> input.</td>
+</tr>
+<tr class="even">
+<td><code>input_text</code></td>
+<td>str</td>
+<td>Convenience function for accessing the initial input from the <code>Sample</code> as a string.</td>
+</tr>
+</tbody>
+</table>
+<p>There are several other fields used to provide contextual data from either the task sample or evaluation:</p>
+<table class="table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 25%">
+<col style="width: 45%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Member</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>sample_id</code></td>
+<td>int | str</td>
+<td>Unique ID for sample.</td>
+</tr>
+<tr class="even">
+<td><code>epoch</code></td>
+<td>int</td>
+<td>Epoch for sample.</td>
+</tr>
+<tr class="odd">
+<td><code>choices</code></td>
+<td>list[str] | None</td>
+<td>Choices from sample (used only in multiple-choice evals).</td>
+</tr>
+<tr class="even">
+<td><code>model</code></td>
+<td>ModelName</td>
+<td>Name of model currently being evaluated.</td>
+</tr>
+</tbody>
+</table>
+<p>Finally, task states also include available tools as well as guidance for the model on which tools to use (if you haven’t yet encountered the concept of tool use in language models, don’t worry about understanding these fields, the <a href="./tools.html">Tools</a> article provides a more in-depth treatment):</p>
+<table class="table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 25%">
+<col style="width: 45%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Member</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>tools</code></td>
+<td>list[Tool]</td>
+<td>Tools available to the model</td>
+</tr>
+<tr class="even">
+<td><code>tool_choice</code></td>
+<td>ToolChoice</td>
+<td>Tool choice directive.</td>
+</tr>
+</tbody>
+</table>
+<p>These fields are typically modified via the <code>use_tools()</code> solver, but they can also be modified directly for more advanced use cases.</p>
+</section>
 <section id="example-prompt-template" class="level3">
 <h3 class="anchored" data-anchor-id="example-prompt-template">Example: Prompt Template</h3>
 <p>Here’s the code for the <code>prompt_template()</code> solver:</p>
@@ -461,10 +617,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>A few things to note about this implementation:</p>
 <ol type="1">
-<li>The function applies the <code>@solver</code> decorator—this registers the <code>Solver</code> with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g.&nbsp;a YAML specification of an eval).</li>
-<li>The <code>solve()</code> function is declared as <code>async</code>. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this solver doesn’t call <code>generate()</code> but others will).</li>
-<li>The <code>resource()</code> function is used to read the specified <code>template</code>. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.</li>
-<li>We make use of the <code>user_prompt</code> property on the <code>TaskState</code>. This is a convenience property for locating the first <code>role="user"</code> message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the <code>state.user_prompt.text</code> property (so we are dealing with prompt as a string, recall that it can also be a list of messages).</li>
+<li><p>The function applies the <code>@solver</code> decorator—this registers the <code>Solver</code> with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g.&nbsp;a YAML specification of an eval).</p></li>
+<li><p>The <code>solve()</code> function is declared as <code>async</code>. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this solver doesn’t call <code>generate()</code> but others will).</p></li>
+<li><p>The <code>resource()</code> function is used to read the specified <code>template</code>. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.</p></li>
+<li><p>We make use of the <code>user_prompt</code> property on the <code>TaskState</code>. This is a convenience property for locating the first <code>role="user"</code> message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the <code>state.user_prompt.text</code> property (so we are dealing with prompt as a string, recall that it can also be a list of messages).</p></li>
 </ol>
 </section>
 <section id="example-self-critique" class="level3">
@@ -548,6 +704,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that calls to <code>generate()</code> (for both the critique model and the model being evaluated) are called with <code>await</code>—this is critical to ensure that the solver participates correctly in the scheduling of generation work.</p>
+</section>
+<section id="concurrency" class="level3">
+<h3 class="anchored" data-anchor-id="concurrency">Concurrency</h3>
+<p>When creating custom solvers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your solver is doing non-trivial work (e.g.&nbsp;calling REST APIs, executing external processes, etc.) please review <a href="eval-tuning.html">Eval Tuning</a> for a more in depth discussion.</p>
 </section>
 </section>
 <section id="early-termination" class="level2">

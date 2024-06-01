@@ -2,11 +2,11 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/index.html</loc>
-    <lastmod>2024-05-14T19:12:36.470Z</lastmod>
+    <lastmod>2024-05-29T13:38:47.737Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/workflow.html</loc>
-    <lastmod>2024-05-19T20:03:31.680Z</lastmod>
+    <lastmod>2024-05-29T08:52:19.272Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/log-viewer.html</loc>
@@ -14,15 +14,15 @@
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/vscode.html</loc>
-    <lastmod>2024-05-24T10:36:42.719Z</lastmod>
+    <lastmod>2024-05-29T08:52:19.272Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/examples.html</loc>
-    <lastmod>2024-05-29T07:31:53.318Z</lastmod>
+    <lastmod>2024-06-01T10:50:44.806Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/solvers.html</loc>
-    <lastmod>2024-05-09T20:52:37.655Z</lastmod>
+    <lastmod>2024-05-31T14:31:15.989Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/tools.html</loc>
@@ -30,23 +30,23 @@
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/scorers.html</loc>
-    <lastmod>2024-05-29T07:20:55.578Z</lastmod>
+    <lastmod>2024-05-29T12:50:39.127Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/datasets.html</loc>
-    <lastmod>2024-05-26T20:35:27.593Z</lastmod>
+    <lastmod>2024-05-29T08:52:19.268Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/models.html</loc>
-    <lastmod>2024-05-24T10:36:31.247Z</lastmod>
+    <lastmod>2024-05-29T08:52:19.268Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/eval-logs.html</loc>
-    <lastmod>2024-05-09T20:52:37.643Z</lastmod>
+    <lastmod>2024-05-30T19:38:07.012Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/eval-suites.html</loc>
-    <lastmod>2024-05-10T21:24:54.246Z</lastmod>
+    <lastmod>2024-05-30T19:38:07.012Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/eval-tuning.html</loc>
