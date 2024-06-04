@@ -35,6 +35,7 @@ class Theme:
     light: str = "bright_black"
     metric: str = "green"
     link: str = "blue"
+    error: str = "red"
 
 
 class RichDisplay(Display):
@@ -130,6 +131,18 @@ class RichTaskDisplay(TaskDisplay):
         yield RichProgress(total, self.progress_ui, self.on_update)
 
     @override
+    def cancelled(self, samples_logged: int, stats: EvalStats) -> None:
+        panel = self.task_panel(
+            body=task_stats(self.profile, stats, self.theme),
+            config=None,
+            footer=task_interrupted(
+                self.profile.log_location, samples_logged, self.theme
+            ),
+            log_location=self.profile.log_location,
+        )
+        self.render(panel)
+
+    @override
     def summary(self, results: EvalResults, stats: EvalStats) -> None:
         panel = self.task_panel(
             body=task_stats(self.profile, stats, self.theme),
@@ -142,6 +155,7 @@ class RichTaskDisplay(TaskDisplay):
     @override
     def error(
         self,
+        samples_logged: int,
         error: EvalError,
         exc_type: Type[Any],
         exc_value: BaseException,
@@ -150,7 +164,9 @@ class RichTaskDisplay(TaskDisplay):
         panel = self.task_panel(
             body=rich_traceback(exc_type, exc_value, traceback),
             config=None,
-            footer=None,
+            footer=task_interrupted(
+                self.profile.log_location, samples_logged, self.theme
+            ),
             log_location=self.profile.log_location,
         )
         self.render(panel)
@@ -299,6 +315,18 @@ def live_task_footer(theme: Theme) -> tuple[RenderableType, RenderableType]:
     return (
         f"[{theme.light}]{task_resources()}[/{theme.light}]",
         Text(task_http_rate_limits(), style=theme.light),
+    )
+
+
+def task_interrupted(
+    log_location: str, samples_logged: int, theme: Theme
+) -> tuple[RenderableType, RenderableType]:
+    return (
+        f"[bold][{theme.error}]Task interrupted ({samples_logged} "
+        + "completed samples logged before interruption). "
+        + f"Resume task with:[/{theme.error}][/bold]\n\n"
+        + f"[bold][{theme.light}]inspect eval-retry {log_location}[/{theme.light}][/bold]",
+        "",
     )
 
 

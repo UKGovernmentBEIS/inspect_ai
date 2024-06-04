@@ -35,7 +35,7 @@ export const UsageCard = ({ stats, context }) => {
           display: "flex",
         }}>
 
-          <div style=${{ flex: "1 1 33%" }}>
+          <div style=${{ flex: "1 1 40%", marginRight: "1em" }}>
           <div class="card-subheading">Duration</div>
           <${MetaDataView}
             entries="${{
@@ -49,7 +49,7 @@ export const UsageCard = ({ stats, context }) => {
           />
           </div>
 
-          <div style=${{ flex: "1 1 67%" }}>
+          <div style=${{ flex: "1 1 60%" }}>
             <${ModelTokenTable} model_usage=${stats.model_usage}/>
           </div>
         </div>

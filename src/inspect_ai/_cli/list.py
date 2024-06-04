@@ -12,7 +12,7 @@ from inspect_ai._cli.common import CommonOptions, common_options, resolve_common
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._eval.list import list_tasks
 from inspect_ai._eval.task import TaskInfo
-from inspect_ai.log import list_eval_logs
+from inspect_ai.log import list_eval_logs, retryable_eval_logs
 
 
 @click.group("list")
@@ -88,6 +88,13 @@ def tasks(
     help="List only log files with the indicated status.",
 )
 @click.option(
+    "--retryable",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="List only retryable logs (logs with status 'error' or 'cancelled' that do not have a corresponding log with status 'success')",
+)
+@click.option(
     "--absolute",
     type=bool,
     is_flag=True,
@@ -111,6 +118,7 @@ def tasks(
 @common_options
 def logs(
     status: Literal["started", "success", "error"] | None,
+    retryable: bool,
     absolute: bool,
     recursive: bool,
     json: bool,
@@ -125,6 +133,10 @@ def logs(
         filter=(lambda log: log.status == status) if status else None,
         recursive=recursive,
     )
+
+    # filter by retryable if requested
+    if retryable:
+        logs = retryable_eval_logs(logs)
 
     # convert file names
     for log in logs:

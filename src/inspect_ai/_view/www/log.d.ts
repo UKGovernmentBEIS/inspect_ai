@@ -6,7 +6,7 @@
  */
 
 export type Version = number;
-export type Status = "started" | "success" | "error";
+export type Status = "started" | "success" | "cancelled" | "error";
 export type Task = string;
 export type TaskVersion = number;
 export type TaskFile = string | null;
@@ -15,6 +15,8 @@ export type RunId = string;
 export type Created = string;
 export type Name = string | null;
 export type Location = string | null;
+export type Samples = number | null;
+export type Shuffled = boolean | null;
 export type Model = string;
 export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
@@ -24,6 +26,7 @@ export type MaxSamples = number | null;
 export type MaxSubprocesses = number | null;
 export type LogSamples = boolean | null;
 export type LogImages = boolean | null;
+export type LogBuffer = number | null;
 export type Type = "git";
 export type Origin = string;
 export type Commit = string;
@@ -65,7 +68,8 @@ export type TotalTokens = number;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
-export type Samples = EvalSample[] | null;
+export type Samples1 = EvalSample[] | null;
+export type Index = number;
 export type Id = number | string;
 export type Epoch = number;
 export type Input = string | (ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool)[];
@@ -134,7 +138,7 @@ export interface EvalLog {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
-  samples?: Samples;
+  samples?: Samples1;
   logging?: Logging;
 }
 export interface EvalSpec {
@@ -158,6 +162,8 @@ export interface EvalSpec {
 export interface EvalDataset {
   name: Name;
   location: Location;
+  samples: Samples;
+  shuffled: Shuffled;
 }
 export interface TaskAttribs {}
 export interface TaskArgs {}
@@ -170,6 +176,7 @@ export interface EvalConfig {
   max_subprocesses: MaxSubprocesses;
   log_samples: LogSamples;
   log_images: LogImages;
+  log_buffer: LogBuffer;
 }
 export interface EvalRevision {
   type: Type;
@@ -253,6 +260,7 @@ export interface EvalError {
   traceback_ansi: TracebackAnsi;
 }
 export interface EvalSample {
+  index: Index;
   id: Id;
   epoch: Epoch;
   input: Input;

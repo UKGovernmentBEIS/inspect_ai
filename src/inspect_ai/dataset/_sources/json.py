@@ -81,7 +81,7 @@ def json_dataset(
 
         # limit if requested
         if limit:
-            dataset = MemoryDataset(list(dataset[0:limit]))
+            return dataset[0:limit]
 
     return dataset
 

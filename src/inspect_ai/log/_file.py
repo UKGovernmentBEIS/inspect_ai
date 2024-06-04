@@ -1,14 +1,18 @@
 import os
 import re
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Callable, Literal, cast
 from urllib.parse import urlparse
 
 import json_stream  # type: ignore
 from pydantic import BaseModel
 from pydantic_core import from_json, to_json
 
-from inspect_ai._util.file import FileInfo, file, filesystem
+from inspect_ai._util.constants import (
+    DEFAULT_LOG_BUFFER_LOCAL,
+    DEFAULT_LOG_BUFFER_REMOTE,
+)
+from inspect_ai._util.file import FileInfo, absolute_file_path, file, filesystem
 
 from ._log import (
     EvalError,
@@ -39,7 +43,6 @@ def list_eval_logs(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     filter: Callable[[EvalLog], bool] | None = None,
     recursive: bool = True,
-    extensions: list[str] = [".json", ".jsonl"],
     descending: bool = True,
     fs_options: dict[str, Any] = {},
 ) -> list[EvalLogInfo]:
@@ -51,8 +54,6 @@ def list_eval_logs(
          Note that the EvalLog instance passed to the filter has only
          the EvalLog header (i.e. does not have the samples or logging output).
       recursive (bool): List log files recursively (defaults to True).
-
-      extensions (list[str]): File extension to scan for logs
       descending (bool): List in descending order.
       fs_options (dict[str, Any]): Optional. Additional arguments to pass through
           to the filesystem provider (e.g. `S3FileSystem`).
@@ -65,7 +66,7 @@ def list_eval_logs(
     fs = filesystem(log_dir, fs_options)
     if fs.exists(log_dir):
         eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), extensions, descending
+            fs.ls(log_dir, recursive=recursive), [".json"], descending
         )
     else:
         return []
@@ -87,7 +88,6 @@ def write_eval_log(log: EvalLog, log_file: str | FileInfo) -> None:
     Args:
        log (EvalLog): Evaluation log to write.
        log_file (str | FileInfo): Location to write log to.
-
     """
     log_file = log_file if isinstance(log_file, str) else log_file.name
     with file(log_file, "w") as f:
@@ -180,7 +180,9 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
         return log
 
 
-def read_eval_log_headers(log_files: list[str] | list[FileInfo]) -> list[EvalLog]:
+def read_eval_log_headers(
+    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
+) -> list[EvalLog]:
     return [read_eval_log(log_file, header_only=True) for log_file in log_files]
 
 
@@ -222,7 +224,7 @@ class FileRecorder(Recorder):
 
 def log_files_from_ls(
     ls: list[FileInfo],
-    extensions: list[str] = [".json", ".jsonl"],
+    extensions: list[str] = [".json"],
     descending: bool = True,
 ) -> list[EvalLogInfo]:
     return [
@@ -269,7 +271,7 @@ class JSONRecorder(FileRecorder):
         file: str
         data: EvalLog
 
-    def __init__(self, log_dir: str):
+    def __init__(self, log_dir: str, log_buffer: int | None = None):
         # call super
         super().__init__(log_dir, ".json")
 
@@ -277,11 +279,25 @@ class JSONRecorder(FileRecorder):
         # which we use to track the output path, accumulated data, and event counter
         self.data: dict[str, JSONRecorder.JSONLogFile] = {}
 
+        # size of flush buffer (how many flushes must occur before we force a write)
+        if log_buffer is None:
+            log_buffer = (
+                DEFAULT_LOG_BUFFER_LOCAL
+                if filesystem(log_dir).is_local()
+                else DEFAULT_LOG_BUFFER_REMOTE
+            )
+        self.flush_buffer = log_buffer
+        self.flush_pending = 0
+
     def log_start(self, eval: EvalSpec) -> str:
         # initialize file log for this eval
         file = self._log_file_path(eval)
+
+        # compute an absolute path if it's a relative ref
+        # (so that the writes go to the correct place even
+        # if the working directory is switched for a task)
         self.data[self._log_file_key(eval)] = JSONRecorder.JSONLogFile(
-            file=file, data=EvalLog(eval=eval)
+            file=absolute_file_path(file), data=EvalLog(eval=eval)
         )
         return file
 
@@ -290,6 +306,7 @@ class JSONRecorder(FileRecorder):
         spec: EvalSpec,
         type: LogEvent,
         data: EvalPlan | EvalSample | EvalResults | LoggingMessage,
+        flush: bool = False,
     ) -> None:
         log = self.data[self._log_file_key(spec)]
         if type == "plan":
@@ -304,36 +321,69 @@ class JSONRecorder(FileRecorder):
             log.data.results = cast(EvalResults, data)
         else:
             raise ValueError(f"Unknown event {type}")
+        if flush:
+            self.flush_log(log.file, log.data)
+
+    def log_cancelled(
+        self,
+        spec: EvalSpec,
+        stats: EvalStats,
+    ) -> EvalLog:
+        return self._log_finish(spec, "cancelled", stats)
 
     def log_success(
         self,
         spec: EvalSpec,
         stats: EvalStats,
     ) -> EvalLog:
-        log = self.data[self._log_file_key(spec)]
-        log.data.status = "success"
-        log.data.stats = stats
-        return self._log_finish(spec, log)
+        return self._log_finish(spec, "success", stats)
 
     def log_failure(
         self, spec: EvalSpec, stats: EvalStats, error: EvalError
     ) -> EvalLog:
-        log = self.data[self._log_file_key(spec)]
-        log.data.status = "error"
-        log.data.stats = stats
-        log.data.error = error
-        return self._log_finish(spec, log)
+        return self._log_finish(spec, "error", stats, error)
 
     def read_log(self, location: str) -> EvalLog:
         return read_eval_log(location)
 
+    def flush_log(self, location: str, log: EvalLog) -> None:
+        self.flush_pending += 1
+        if self.flush_pending >= self.flush_buffer:
+            self.write_log(location, log)
+
     def write_log(self, location: str, log: EvalLog) -> None:
+        # sort samples before writing as they can come in out of order
+        # (convert into string zfilled so order is preserved)
+        if log.samples:
+            log.samples.sort(
+                key=lambda sample: (
+                    sample.epoch,
+                    (
+                        sample.id
+                        if isinstance(sample.id, str)
+                        else str(sample.id).zfill(20)
+                    ),
+                )
+            )
+
         write_eval_log(log, location)
+        self.flush_pending = 0
 
     def read_latest_log(self) -> EvalLog:
         return self.read_log(self.latest_log_file_path())
 
-    def _log_finish(self, spec: EvalSpec, log: JSONLogFile) -> EvalLog:
+    def _log_finish(
+        self,
+        spec: EvalSpec,
+        status: Literal["started", "success", "cancelled", "error"],
+        stats: EvalStats,
+        error: EvalError | None = None,
+    ) -> EvalLog:
+        log = self.data[self._log_file_key(spec)]
+        log.data.status = status
+        log.data.stats = stats
+        if error:
+            log.data.error = error
         self.write_log(log.file, log.data)
         del self.data[self._log_file_key(spec)]
         return log.data

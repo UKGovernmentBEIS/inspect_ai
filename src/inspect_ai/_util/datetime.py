@@ -7,4 +7,4 @@ def iso_now(
         "auto", "hours", "minutes", "seconds", "milliseconds" "microseconds"
     ] = "seconds",
 ) -> str:
-    return datetime.now().isoformat(timespec=timespec)
+    return datetime.now().astimezone().isoformat(timespec=timespec)

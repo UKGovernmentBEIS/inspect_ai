@@ -1,9 +1,11 @@
+import tempfile
 from random import random
 
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai.dataset import Sample
+from inspect_ai.log import list_eval_logs, retryable_eval_logs
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, generate, solver
 
@@ -41,3 +43,22 @@ def test_eval_retry():
     while log.status != "success":
         log = eval_retry(log)[0]
         assert log.eval.task_id == task_id
+
+
+@skip_if_no_openai
+def test_eval_retryable():
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run eval with a solver that fails 2/3 of the time
+        failing_eval = f"{__file__}@failing_task"
+        log = eval(failing_eval, limit=1, log_dir=log_dir)[0]
+
+        # note the task id so we can be certain it remains the same
+        task_id = log.eval.task_id
+
+        # retry until we succeed (confirming the task_id is stable)
+        retryable = retryable_eval_logs(list_eval_logs(log_dir))
+        while len(retryable) > 0:
+            assert len(retryable) == 1
+            assert retryable[0].task_id == task_id
+            eval_retry(retryable, log_dir=log_dir)
+            retryable = retryable_eval_logs(list_eval_logs(log_dir))

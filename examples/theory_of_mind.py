@@ -5,8 +5,7 @@ from inspect_ai.solver import chain_of_thought, generate, self_critique
 
 
 @task
-def theory_of_mind(critique = False):
-
+def theory_of_mind(critique=False):
     # use self_critique if requested
     plan = [chain_of_thought(), generate()]
     if critique:
@@ -17,4 +16,3 @@ def theory_of_mind(critique = False):
         plan=plan,
         scorer=model_graded_fact(),
     )
-

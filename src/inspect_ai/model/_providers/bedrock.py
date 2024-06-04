@@ -188,12 +188,10 @@ class BedrockChatHandler(abc.ABC):
         self,
         input: list[ChatMessage],
         config: GenerateConfig,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
     @abc.abstractmethod
-    def completion_choice(self, response: dict[str, Any]) -> ChatCompletionChoice:
-        ...
+    def completion_choice(self, response: dict[str, Any]) -> ChatCompletionChoice: ...
 
     # optional hook to provide a system message folding template
     def fold_system_message(self, user: str, system: str) -> str:

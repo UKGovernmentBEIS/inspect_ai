@@ -4,11 +4,6 @@ body[class^="vscode-"] .workspace {
   margin-top: 0 !important;
 }
 
-body[class^="vscode-"] .workspace > div:first-of-type {
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-}
-
 body[class^="vscode-"] .font-title {
   font-size: 0.9em;
 }

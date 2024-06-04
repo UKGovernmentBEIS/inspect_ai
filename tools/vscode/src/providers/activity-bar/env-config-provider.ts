@@ -266,7 +266,7 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
 
                     <div class="group rows full-width" >
                       <div class="dropdown-container full-width">
-                        <label id="provider-label" for="provider">Model</label>
+                        <div id="provider-label-container"><label id="provider-label" for="provider">Model</label></div>
                         <div class="cols full-width no-wrap">
                           <fast-combobox autocomplete="both" id="provider" placeholder="Provider">
                             <fast-option value="">None</fast-option>

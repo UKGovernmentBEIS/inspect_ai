@@ -44,6 +44,17 @@ export function App() {
     for (let i = 0; i < logs.files.length; i += chunkSize) {
       let chunk = logs.files.slice(i, i + chunkSize).map((log) => {
         return log.name;
+      }).filter((chunk) => {
+        // Don't reload headers that we already have status for
+        // TODO: We should re-compute the next chunk as needed
+        // TODO: If we stream or refresh logs, we need to be smarter
+        // about refreshing this
+        const currentHeader = logHeaders[chunk];
+        if (currentHeader) {
+          return false;
+        } else {
+          return true;
+        }
       });
       fileLists.push(chunk);
     }
@@ -56,7 +67,7 @@ export function App() {
         const logFile = fileList[index];
         updatedHeaders[logFile] = header;
       });
-      setLogHeaders({ ...updatedHeaders });
+      setLogHeaders({ ...logHeaders, ...updatedHeaders });
       await sleep(2000);
     }
   }, [logs]);
@@ -65,25 +76,44 @@ export function App() {
   useEffect(async () => {
     if (logs.files.length > 0 && selected > -1) {
       const targetLog = logs.files[selected];
-      
-      if (currentLog.name !== targetLog.name) {
+      const header = logHeaders[targetLog.name];
+      // Only show the log once we have at least one log which isn't currently running.
+      // This prevents a 'flash', for example, the most recent log is running and would be selected
+      if (currentLog.name !== targetLog.name && header && header.status !== "started") {
         try {
-          setStatus({loading: true, error: undefined});
+          setStatus({ loading: true, error: undefined });
           const logContents = await api.eval_log(targetLog.name, false);
           if (logContents) {
             setCurrentLog({ contents: logContents, name: targetLog.name, raw: JSON.stringify(logContents, null, 2) });
-            setStatus({loading: false, error: undefined});
+            setStatus({ loading: false, error: undefined });
           }
         } catch (e) {
           // Show an error
           console.log(e);
-          setStatus({loading: false, error: e});
+          setStatus({ loading: false, error: e });
         }
       }
     } else {
       setCurrentLog({ contents: undefined, name: undefined, raw: undefined });
     }
-  }, [selected, logs]);  
+  }, [selected, logs, logHeaders]);
+
+  useEffect(() => {
+    // Filter out running tasks
+    const currentlogs = logs;
+    const runningEvals = Object.keys(logHeaders).filter((key) => {
+      return logHeaders[key].status === "started";
+    });
+
+    const nonRunningLogFiles = currentlogs.files.filter((file) => {
+      return !runningEvals.includes(file.name)
+    });
+
+    if (nonRunningLogFiles.length !== currentlogs.files.length) {
+      setLogs({ log_dir: currentlogs.log_dir, files: nonRunningLogFiles });
+    }
+
+  }, [logHeaders]);
 
   // Keep a queue of loading operations that will be run
   // as needed
@@ -137,7 +167,7 @@ export function App() {
       setPendingLog(undefined);
     }
   }, [logs, pendingLog])
-  
+
   // listen for updateState messages from vscode
   useEffect(() => {
     const onMessage = async (e) => {
@@ -149,7 +179,7 @@ export function App() {
             });
             if (index > -1) {
               // Select the correct index
-              setSelected(index);    
+              setSelected(index);
             } else {
               await loadLogs();
               setPendingLog(e.data.url);
@@ -175,18 +205,20 @@ export function App() {
     const logPath = urlParams.get("task_file");
     const load = logPath
       ? async () => {
-          setLogs({
-            log_dir: "",
-            files: [{ name: logPath }],
-          });
-        }
+        setLogs({
+          log_dir: "",
+          files: [{ name: logPath }],
+        });
+      }
       : loadLogs;
 
     // initial fetch of logs
     await load();
 
     // Select the first log
-    setSelected(0);
+    if (selected === -1) {
+      setSelected(0);
+    }
 
     // poll every 1s for events
     setInterval(() => {
@@ -213,6 +245,8 @@ export function App() {
           task=${currentLog.contents?.eval?.task}
           model=${currentLog.contents?.eval?.model}
           metrics=${currentLog.contents?.results?.metrics}
+          samples=${currentLog.contents?.samples}
+          status=${currentLog.contents?.status}
           offcanvas=${offcanvas} />
         <${Sidebar}
           logs=${logs}
@@ -220,22 +254,26 @@ export function App() {
           offcanvas=${offcanvas}
           selected=${selected}
           onSelected=${(index) => {
-            setSelected(index);
+        setSelected(index);
 
-            // hide the sidebar offcanvas
-            var myOffcanvas = document.getElementById("sidebarOffCanvas");
-            var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
-            if (bsOffcanvas) {
-              bsOffcanvas.hide();
-            }
-          }}
+        // hide the sidebar offcanvas
+        var myOffcanvas = document.getElementById("sidebarOffCanvas");
+        var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
+        if (bsOffcanvas) {
+          bsOffcanvas.hide();
+        }
+      }}
         />
       `;
 
-  const workspace = () => {
+  const progress = () => {
     if (status.loading) {
       return html`<${LoadingScreen} />`;
-    } else if (status.error) { 
+    }
+  }
+
+  const workspace = () => {
+    if (status.error) {
       return html`<${ErrorPanel}
         title="An error occurred while loading this task."
         error=${status.error}
@@ -248,13 +286,14 @@ export function App() {
         selected=${selected}
         fullScreen=${fullScreen}
         offcanvas=${offcanvas}
-      />`      
+      />`
     }
   }
   return html`
     <${AppErrorBoundary}>
     <div>
       ${appEnvelope}
+      ${progress()}
       ${workspace()}
     </div>
     </${AppErrorBoundary}>

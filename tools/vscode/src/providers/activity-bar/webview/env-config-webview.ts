@@ -104,8 +104,7 @@ function showProviderHelp() {
     modelHelpEl.remove();
   } else {
     if (providerEl.value) {
-      const modelHref = kModelInfo[getProviderText()];
-      if (modelHref) {
+      if (kModelInfo[getProviderText()]) {
         if (!modelHelpEl) {
           modelHelpEl = document.createElement("vscode-link");
           modelHelpEl.id = "model-help";
@@ -115,12 +114,12 @@ function showProviderHelp() {
           questionEl.classList.add("codicon-question");
           modelHelpEl.appendChild(questionEl);
 
-          const labelEl = providerEl.parentElement?.parentElement?.querySelector("label");
-          labelEl?.appendChild(modelHelpEl);
+          const labelContainerEl = document.getElementById("provider-label-container");
+          labelContainerEl?.appendChild(modelHelpEl);
+          modelHelpEl.addEventListener("click", () => {
+            openUrl(kModelInfo[getProviderText()]);
+          });
         }
-        modelHelpEl.addEventListener("click", () => {
-          openUrl(modelHref);
-        })
       } else {
         if (modelHelpEl) {
           modelHelpEl.remove();

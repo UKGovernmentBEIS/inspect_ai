@@ -44,7 +44,6 @@ export const Sidebar = (props) => {
       <ul class="list-group">
         ${props.logs.files.map((file, index) => {
           const active = index === props.selected ? " active" : "";
-          const time = new Date(file.mtime);
           const logHeader = logHeaders[file.name];
           const hyperparameters = logHeader
             ? {
@@ -56,6 +55,14 @@ export const Sidebar = (props) => {
           const model = logHeader?.eval?.model;
           const dataset = logHeader?.eval?.dataset;
           const scorer = logHeader?.results?.scorer?.name;
+
+          const completed = logHeader?.stats?.completed_at;
+          const time = completed ? new Date(completed) : undefined;
+          const timeStr = time ? `${time.toDateString()}
+          ${time.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}` : "";
 
           return html`
             <li
@@ -83,11 +90,7 @@ export const Sidebar = (props) => {
                     ${logHeader?.eval?.task || file.task}
                   </div>
                   <small class="mb-1 text-muted">
-                    ${time.toDateString()}
-                    ${time.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    ${timeStr}
                   </small>
 
                   ${model
@@ -135,7 +138,9 @@ export const Sidebar = (props) => {
                   ? html`<div style=${{ color: "var(--bs-danger)" }}>
                       Eval Error
                     </div>`
-                  : ""}
+                  : logHeader?.status === "cancelled" ? html`<div style=${{ color: "var(--bs-secondary)" }}>Cancelled</div>`
+                  : logHeader?.status === "started" ? html`<div class="spinner-border spinner-border-sm" role="status">
+<span class="visually-hidden">Loading...</span></div>` : ""}
               </div>
               <div style=${{ marginTop: "0.4em" }}>
                 <small class="mb-1 text-muted">
@@ -148,7 +153,7 @@ export const Sidebar = (props) => {
                     : ""}
                 </small>
               </div>
-              ${dataset || scorer
+              ${(dataset || scorer) && logHeader?.status === "success"
                 ? html`<div
                     style=${{
                       display: "flex",

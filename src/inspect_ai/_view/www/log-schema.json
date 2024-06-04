@@ -482,6 +482,18 @@
           ],
           "default": null,
           "title": "Log Images"
+        },
+        "log_buffer": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log Buffer"
         }
       },
       "title": "EvalConfig",
@@ -493,7 +505,8 @@
         "max_samples",
         "max_subprocesses",
         "log_samples",
-        "log_images"
+        "log_images",
+        "log_buffer"
       ],
       "additionalProperties": false
     },
@@ -522,13 +535,39 @@
           ],
           "default": null,
           "title": "Location"
+        },
+        "samples": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Samples"
+        },
+        "shuffled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shuffled"
         }
       },
       "title": "EvalDataset",
       "type": "object",
       "required": [
         "name",
-        "location"
+        "location",
+        "samples",
+        "shuffled"
       ],
       "additionalProperties": false
     },
@@ -758,6 +797,11 @@
     },
     "EvalSample": {
       "properties": {
+        "index": {
+          "default": 0,
+          "title": "Index",
+          "type": "integer"
+        },
         "id": {
           "anyOf": [
             {
@@ -869,6 +913,7 @@
         }
       },
       "required": [
+        "index",
         "id",
         "epoch",
         "input",
@@ -1684,6 +1729,7 @@
       "enum": [
         "started",
         "success",
+        "cancelled",
         "error"
       ],
       "title": "Status",

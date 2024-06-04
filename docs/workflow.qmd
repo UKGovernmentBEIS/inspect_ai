@@ -228,7 +228,7 @@ eval(tasks, model = "openai/gpt-4")
 If we enclose the exploratory code at the bottom in a `__name__ == "__main__"` conditional, then it will *only* be run when interactively executing the script or notebook cell that the code is contained in:
 
 ``` python
-if __name__ == "__main__"
+if __name__ == "__main__":
     # vary the system prompt
     tasks = [
         security_guide(system=prompt)

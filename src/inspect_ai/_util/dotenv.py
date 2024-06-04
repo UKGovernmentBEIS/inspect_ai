@@ -6,13 +6,13 @@ from urllib.parse import urlparse
 
 from dotenv import dotenv_values, find_dotenv, load_dotenv
 
+from .file import absolute_file_path
 from .platform import is_running_in_vscode
 
 INSPECT_LOG_DIR_VAR = "INSPECT_LOG_DIR"
 
 
 def init_dotenv() -> None:
-
     # if we are running in vscode, the vscode python extension is already reading in the
     # .env file. This means that editing the .env file within a given session does not
     # actually work! (since load_dotenv doesn't overwrite existing vars by default).
@@ -24,14 +24,10 @@ def init_dotenv() -> None:
 
     # we found one, process it
     if dotenv_file:
-
         # is there an INSPECT_LOG_DIR currently in the environment? (we will give it preference)
         environment_log_dir = os.environ.get(INSPECT_LOG_DIR_VAR, None)
         if environment_log_dir:
-            # check for a relative dir, if we find one then resolve to absolute
-            fs_scheme = urlparse(environment_log_dir).scheme
-            if not fs_scheme and not os.path.isabs(environment_log_dir):
-                environment_log_dir = Path(environment_log_dir).resolve().as_posix()
+            environment_log_dir = absolute_file_path(environment_log_dir)
 
         # is there an INSPECT_LOG_DIR in the .env? If so resolve path relative to .env
         dotenv_log_dir = dotenv_values(dotenv_file).get(INSPECT_LOG_DIR_VAR, None)

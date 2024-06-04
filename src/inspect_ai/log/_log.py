@@ -46,6 +46,9 @@ class EvalConfig(BaseModel):
     log_images: bool | None = Field(default=None)
     """Log base64 encoded versions of images."""
 
+    log_buffer: int | None = Field(default=None)
+    """Number of samples to buffer before writing log file."""
+
 
 class EvalSample(BaseModel):
     id: int | str
@@ -140,6 +143,12 @@ class EvalDataset(BaseModel):
 
     location: str | None = Field(default=None)
     """Dataset location (file path or remote URL)"""
+
+    samples: int | None = Field(default=None)
+    """Number of samples in the dataset."""
+
+    shuffled: bool | None = Field(default=None)
+    """Was the dataset shuffled after reading."""
 
 
 class EvalRevision(BaseModel):
@@ -305,7 +314,9 @@ class EvalLog(BaseModel):
     version: int = Field(default=1)
     """Eval log file format version."""
 
-    status: Literal["started", "success", "error"] = Field(default="started")
+    status: Literal["started", "success", "cancelled", "error"] = Field(
+        default="started"
+    )
     """Status of evaluation (did it succeed or fail)."""
 
     eval: EvalSpec
@@ -335,8 +346,7 @@ LogEvent = Literal["plan", "sample", "score", "results", "scorer", "logging"]
 
 class Recorder(abc.ABC):
     @abc.abstractmethod
-    def log_start(self, eval: EvalSpec) -> str:
-        pass
+    def log_start(self, eval: EvalSpec) -> str: ...
 
     @abc.abstractmethod
     def log_event(
@@ -344,27 +354,26 @@ class Recorder(abc.ABC):
         spec: EvalSpec,
         type: LogEvent,
         data: EvalSample | EvalPlan | EvalResults | LoggingMessage,
+        flush: bool = False,
     ) -> None:
         pass
 
     @abc.abstractmethod
-    def log_success(self, eval: EvalSpec, stats: EvalStats) -> EvalLog:
-        pass
+    def log_cancelled(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
+
+    @abc.abstractmethod
+    def log_success(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
 
     @abc.abstractmethod
     def log_failure(
         self, eval: EvalSpec, stats: EvalStats, error: EvalError
-    ) -> EvalLog:
-        pass
+    ) -> EvalLog: ...
 
     @abc.abstractmethod
-    def read_log(self, location: str) -> EvalLog:
-        pass
+    def read_log(self, location: str) -> EvalLog: ...
 
     @abc.abstractmethod
-    def write_log(self, location: str, log: EvalLog) -> None:
-        pass
+    def write_log(self, location: str, log: EvalLog) -> None: ...
 
     @abc.abstractmethod
-    def read_latest_log(self) -> EvalLog:
-        pass
+    def read_latest_log(self) -> EvalLog: ...

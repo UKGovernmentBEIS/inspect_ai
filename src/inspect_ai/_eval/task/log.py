@@ -76,7 +76,10 @@ class TaskLogger:
             model=str(ModelName(model)),
             model_base_url=model.api.base_url,
             dataset=EvalDataset(
-                name=dataset.name, location=cwd_relative_path(dataset.location)
+                name=dataset.name,
+                location=cwd_relative_path(dataset.location),
+                samples=len(dataset),
+                shuffled=dataset.shuffled,
             ),
             task_attribs=task_attribs,
             task_args=task_args,
@@ -90,16 +93,28 @@ class TaskLogger:
         self.recorder = recorder
         self._location = self.recorder.log_start(self.eval)
 
+        # number of samples logged
+        self._samples_logged = 0
+
     @property
     def location(self) -> str:
         return self._location
+
+    @property
+    def samples_logged(self) -> int:
+        return self._samples_logged
 
     def log_event(
         self,
         type: LogEvent,
         data: EvalSample | EvalPlan | EvalResults | LoggingMessage,
+        flush: bool = False,
     ) -> None:
-        self.recorder.log_event(self.eval, type, data)
+        self.recorder.log_event(self.eval, type, data, flush)
+
+        # track samples logged
+        if type == "sample":
+            self._samples_logged += 1
 
     def log_sample(
         self,
@@ -107,6 +122,7 @@ class TaskLogger:
         sample: Sample,
         state: TaskState,
         score: Score | None,
+        flush: bool = False,
     ) -> None:
         # log
         self.log_event(
@@ -122,6 +138,7 @@ class TaskLogger:
                 output=state.output,
                 score=score,
             ),
+            flush,
         )
 
     def log_plan(self, plan: EvalPlan) -> None:
@@ -130,22 +147,14 @@ class TaskLogger:
     def log_results(self, results: EvalResults) -> None:
         self.log_event("results", results)
 
+    def log_cancelled(self, stats: EvalStats) -> EvalLog:
+        return self.recorder.log_cancelled(self.eval, stats)
+
     def log_success(self, stats: EvalStats) -> EvalLog:
         return self.recorder.log_success(self.eval, stats)
 
     def log_failure(self, stats: EvalStats, error: EvalError) -> EvalLog:
         return self.recorder.log_failure(self.eval, stats, error)
-
-
-def log_output(
-    logger: TaskLogger,
-    epoch: int,
-    samples: list[Sample],
-    states: list[TaskState],
-    scores: list[Score | None],
-) -> None:
-    for i in range(len(samples)):
-        logger.log_sample(epoch, samples[i], states[i], scores[i])
 
 
 def log_plan(

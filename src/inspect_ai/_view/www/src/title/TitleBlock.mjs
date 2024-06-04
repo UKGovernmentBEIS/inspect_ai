@@ -4,8 +4,12 @@ import { LabeledValue } from "../components/LabeledValue.mjs";
 import { formatDataset } from "../utils/Format.mjs";
 
 
-export const TitleBlock = ({  log }) => {
+export const TitleBlock = ({ log, status }) => {
   if (!log) {
+    return "";
+  }
+
+  if (status !== "success") {
     return "";
   }
 
@@ -56,6 +60,7 @@ export const TitleBlock = ({  log }) => {
         padding: "0.2em 1em 0.2em 1em",
         display: "grid",
         gridColumnGap: "1em",
+        paddingTop: "0.5em",
         gridTemplateColumns: `${values.map((val) => { return val.size; }).join(" ")}`,
       }}
     >

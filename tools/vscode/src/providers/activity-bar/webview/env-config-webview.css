@@ -39,8 +39,10 @@
   flex-grow: 1;
 }
 
-#provider-label {
+#provider-label-container {
   width: 100%;
+  display: flex;
+  justify-content: space-between;
 }
 
 #show-base-url-container {

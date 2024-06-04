@@ -185,38 +185,84 @@ def jeopardy():
   ...
 
 # this is NOT valid for filtering expressions
-@task(light=True and light_enabled("ctf"))
+@task(light=light_enabled("ctf"))
 def jeopardy():
   ...
 ```
 :::
 
-## Errors and Retries
+## Errors and Retries {#sec-errors-and-retries}
 
-If a runtime error occurs during an evaluation, it is caught, logged, and reported, and then the `eval()` function returns as normal. The returned `EvalLog` has a `status` field on it which can checked for `"success"` or `"error"`.
-
-This status can be used to see which tasks need to be retried, and the failed log file can be passed directly to `eval()`, for example:
+If a runtime error occurs during an evaluation, it is caught, logged, and reported, and then the `eval()` function returns as normal. The returned `EvalLog` has a `status` field which can be used to see which tasks need to be retried, and the failed log file can be passed directly to `eval_retry()`, for example:
 
 ``` python
 # list the security suite and run it
 task_suite = list_tasks("security")
 eval_logs = eval(task_suite)
 
-# check for failed evals and retry (likely 'later')
-error_logs = log in eval_logs if log.status == "error"]
+# check for failed evals and retry
+error_logs = [log in eval_logs if log.status != "success"]
 eval_retry(error_logs)
 ```
 
-Note that the code which checks for errors will often not be in the same script as that which kicks off the evals. You can handle this by using the log directory as the reference point rather than the logs returned from `eval()`. Returning to the example from the beginning of this article, we might do something like this:
+Note that `eval_retry()` does not overwrite previous log files, but rather creates a new one (preserving the `task_id` from the original file). In addition, completed samples from the original file are [preserved](#sec-sample-preservation) and copied to the new eval.
 
-``` python
-# setup log context
-os.environ["INSPECT_LOG_DIR"] = "./security-mistral_04-07-2024"
+### Retry Workflow
 
-# run the eval suite
-eval("security", model="mistral/mistral-large-latest")
+If you want to create a task suite supervisor that can robustly retry failed evaluations until all work is completed, we recommend the following approach:
 
-# ...later, in another process that also has access to INSPECT_LOG_DIR
-error_logs = list_eval_logs(filter = lambda log: log.status == "error")
-eval_retry(error_logs)
+1. For a given suite of tasks, provision a dedicated log directory where all work will be recorded (you might track this independently in a supervisor database so retries can happen "later" as opposed to immediately after the first run).
+
+2. Run the task suite.
+
+3. After the initial run (and perhaps after a delay), query the log directory for retryable tasks, and then execute those retries (possibly using a lower `max_connections` if rate limiting was the source of failures).
+
+4. Repeat (3) as required until there are no more retryable tasks.
+
+5. Collect up all of the successful task logs from the log directory for analysis.
+
+Here is a somewhat simplfied version of the code required to implement this workflow. We start by creating a log directory (imagine we have a `create_log_dir()` function that will provision a new `log_dir` with a unique name) and running our evals (contained in a directory named "suite"):
+
+```python
+from inspect_ai import eval
+
+# create a new log dir with a unique path/name
+log_dir = create_log_dir()
+
+# run the suite aginst two models (using the log_dir)
+for model in ["openai/gpt-4", "google/gemini-1.0"]:
+    eval("suite", model=model, log_dir=log_dir)
 ```
+
+After this first pass, all of the evals may have completed succesfully, or there could be some errors. We use the `retryable_eval_logs()` function to filter the list of logs in the directory to those which need a retry to complete. After the retries, there still could be failures, so we run in a loop until there are no more retryable logs:
+
+```python
+from inspect_ai.log import list_eval_logs, retryable_eval_logs
+
+retryable = retryable_eval_logs(list_eval_logs(log_dir))
+while (len(retryable) > 0):
+    eval_retry(retryable, log_dir = log_dir)
+    retryable = retryable_eval_logs(list_eval_logs(log_dir))
+```
+
+This is oversimplified because we'd likely also want to (a) Wait for some time between retries; (b) Have a maximum number of iterations before giving up; and (c) Analyse the errors and try to remedy (e.g. reduce `max_connections` for rate limit errors).
+
+The `retryable_eval_logs()` function takes a log listing and filters it as follows:
+
+1.  Finds all logs with status `"error"` or `"cancelled"`
+
+2.  Checks to see if another log with the same `task_id` has a status of `"success"` (in that case, discard the log from the retryable pool).
+
+3.  For each retryable log not found to have been subsequently completed, take the most recent one associated with the `task_id` (for handling multiple retries).
+
+When `retryable_eval_logs()` returns an empty list, it indicates that all of the tasks have run successfully. At this point, we'll likely want to collect up all of the successful logs (note that there will still be logs with errors in the `log_dir` as logs aren't overwritten on retry). We can do this with a `filter` as follows:
+
+```python
+logs = list_eval_logs(
+  log_dir=log_dir
+  filter=lambda log : log.status == "success")
+)
+```
+
+
+{{< include _sample-preservation.md >}}

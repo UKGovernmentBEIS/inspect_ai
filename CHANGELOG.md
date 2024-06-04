@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.14 (04 June 2024)
+
+- Stream samples to the evaluation log as they are completed (subject to the new `--log-buffer` option). Always write completed samples in the case of an error or cancelled task.
+- New `"cancelled"` status in eval log for tasks interrupted with SIGINT (e.g. Ctrl-C). Logs are now written for cancellations (previously they were not).
+- Default `--max-samples` (maximum concurrent samples) to `--max-connections`, which will result in samples being more frequently completed and written to the log file.
+- For `eval_retry()`, copy previously completed samples in the log file being retried so that work is not unnecessarily repeated.
+- New `inspect eval-retry` command to retry a log file from a task that ended in error or cancellation. 
+- New `retryable_eval_logs()` function and `--retryable` option for `inspect list logs` to query for tasks not yet completed within a log directory.
+- Add `shuffled` property to datasets to determine if they were shuffled.
+- Remove unused `extensions` argument from `list_eval_logs()`
+
 ## v0.3.13 (31 May 2024)
 
 - Bugfix: Inspect view was not reliably updating when new evaluation logs were written.

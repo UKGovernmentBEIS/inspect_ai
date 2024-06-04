@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.20
+
+- Improve appearance of log view secondary header
+- Fix issue where clicking model help could attempt to open more than one window
+
 ## 0.3.19
 
 - Fix an issue showing the log viewer when an evaluation completes (specific to Inspect 0.3.10 or later)

@@ -21,6 +21,7 @@ from ._log import (
     LoggingLevel,
     LoggingMessage,
 )
+from ._retry import retryable_eval_logs
 
 __all__ = [
     "EvalConfig",
@@ -42,4 +43,5 @@ __all__ = [
     "list_eval_logs",
     "read_eval_log",
     "write_eval_log",
+    "retryable_eval_logs",
 ]

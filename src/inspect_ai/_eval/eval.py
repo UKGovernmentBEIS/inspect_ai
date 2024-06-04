@@ -26,9 +26,9 @@ from inspect_ai.solver import Solver
 from inspect_ai.util._context import init_async_context
 
 from .loader import resolve_tasks
-from .task import Tasks, TaskSpec
+from .task import PreviousTask, Tasks
 from .task.log import TaskLogger
-from .task.run import task_run
+from .task.run import eval_log_sample_source, task_run
 from .task.util import task_file, task_run_dir
 
 log = logging.getLogger(__name__)
@@ -50,6 +50,7 @@ def eval(
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
+    log_buffer: int | None = None,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -84,6 +85,8 @@ def eval(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to True)
+        log_buffer: (int | None): Number of samples to buffer before writing log file
+            (defaults to 10 for local filesystems and 100 for remote filesystems)
         score (bool): Score output (defaults to True)
         **kwargs (GenerateConfigArgs): Model generation options.
 
@@ -110,6 +113,7 @@ def eval(
             max_subprocesses=max_subprocesses,
             log_samples=log_samples,
             log_images=log_images,
+            log_buffer=log_buffer,
             score=score,
             **kwargs,
         )
@@ -132,6 +136,7 @@ async def eval_async(
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
+    log_buffer: int | None = None,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -166,6 +171,8 @@ async def eval_async(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to True)
+        log_buffer: (int | None): Number of samples to buffer before writing log file
+            (defaults to 10 for local filesystems and 100 for remote filesystems)
         score (bool): Score output (defaults to True)
         **kwargs (GenerateConfigArgs): Model generation options.
 
@@ -189,15 +196,20 @@ async def eval_async(
     init_async_context(max_subprocesses)
     init_async_context_model(model)
 
-    # if this is a TaskSpec then we are being spotted our id
-    if isinstance(tasks, TaskSpec):
+    # if this is a PreviousTask then we are being spotted our id and log
+    if isinstance(tasks, PreviousTask):
         task_id = tasks.id
+        eval_log = tasks.log
         tasks = tasks.task
     else:
         task_id = None
+        eval_log = None
 
     # resolve tasks
     eval_tasks = resolve_tasks(tasks, model, task_args)
+
+    # if we have an eval_log, see if we can re-use its logged samples
+    sample_source = eval_log_sample_source(eval_log, eval_tasks[0].dataset)
 
     # warn and return empty string if we resolved no tasks
     if len(eval_tasks) == 0:
@@ -207,7 +219,7 @@ async def eval_async(
     # resolve recorder
     log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
     log_dir = cwd_relative_path(log_dir)
-    recorder = JSONRecorder(log_dir)
+    recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
 
     # build task names and versions (include version if > 0)
     task_names: list[str] = [task.name for task in eval_tasks]
@@ -222,6 +234,7 @@ async def eval_async(
         max_subprocesses=max_subprocesses,
         log_samples=log_samples,
         log_images=log_images,
+        log_buffer=log_buffer,
     )
 
     run_id = uuid()
@@ -264,6 +277,7 @@ async def eval_async(
             config=task_eval_config,
             plan=plan,
             score=score,
+            sample_source=sample_source,
             **kwargs,
         )
 
@@ -279,13 +293,14 @@ async def eval_async(
 
 
 def eval_retry(
-    tasks: EvalLogInfo | EvalLog | list[EvalLogInfo] | list[EvalLog],
+    tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
     log_dir: str | None = None,
     max_samples: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
+    log_buffer: int | None = None,
     score: bool = True,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -294,7 +309,7 @@ def eval_retry(
     """Retry a previously failed evaluation task.
 
     Args:
-        tasks: (EvalLogInfo | EvalLog | list[EvalLogInfo] | list[EvalLog]):
+        tasks: (str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog]):
             Log files for task(s) to retry.
         log_level (str | None): "debug", "http", "info", "warning", "error",
            or "critical" (defaults to "info")
@@ -307,6 +322,8 @@ def eval_retry(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to True)
+        log_buffer: (int | None): Number of samples to buffer before writing log file
+            (defaults to 10 for local filesystems and 100 for remote filesystems)
         score (bool): Score output (defaults to True)
         max_retries (int | None):
            Maximum number of times to retry request.
@@ -329,6 +346,7 @@ def eval_retry(
             max_subprocesses=max_subprocesses,
             log_samples=log_samples,
             log_images=log_images,
+            log_buffer=log_buffer,
             score=score,
             max_retries=max_retries,
             timeout=timeout,
@@ -338,13 +356,14 @@ def eval_retry(
 
 
 async def eval_retry_async(
-    tasks: EvalLogInfo | EvalLog | list[EvalLogInfo] | list[EvalLog],
+    tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
     log_dir: str | None = None,
     max_samples: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
+    log_buffer: int | None = None,
     score: bool = True,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -353,7 +372,7 @@ async def eval_retry_async(
     """Retry a previously failed evaluation task.
 
     Args:
-        tasks: (EvalLogInfo | EvalLog | list[EvalLogInfo] | list[EvalLog]):
+        tasks: (str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog]):
             Log files for task(s) to retry.
         log_level (str | None): "debug", "http", "info", "warning", "error",
            or "critical" (defaults to "info")
@@ -366,6 +385,8 @@ async def eval_retry_async(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to True)
+        log_buffer: (int | None): Number of samples to buffer before writing log file
+            (defaults to 10 for local filesystems and 100 for remote filesystems)
         score (bool): Score output (defaults to True)
         max_retries (int | None):
            Maximum number of times to retry request.
@@ -382,8 +403,18 @@ async def eval_retry_async(
         tasks = [tasks]
     elif isinstance(tasks, EvalLog):
         tasks = [tasks]
+    elif isinstance(tasks, str):
+        tasks = [tasks]
     retry_eval_logs = [
-        task if isinstance(task, EvalLog) else read_eval_log(task.name)
+        (
+            task
+            if isinstance(task, EvalLog)
+            else (
+                read_eval_log(task.name)
+                if isinstance(task, EvalLogInfo)
+                else read_eval_log(task)
+            )
+        )
         for task in tasks
     ]
 
@@ -416,8 +447,16 @@ async def eval_retry_async(
         max_messages = eval_log.eval.config.max_messages
         max_samples = max_samples
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
-        log_samples = eval_log.eval.config.log_samples
-        log_images = eval_log.eval.config.log_images
+        log_samples = (
+            log_samples if log_samples is not None else eval_log.eval.config.log_samples
+        )
+        log_images = (
+            log_images if log_images is not None else eval_log.eval.config.log_images
+        )
+        log_buffer = (
+            log_buffer if log_buffer is not None else eval_log.eval.config.log_buffer
+        )
+
         config = eval_log.plan.config
         config.max_retries = max_retries or config.max_retries
         config.timeout = timeout or config.timeout
@@ -426,7 +465,7 @@ async def eval_retry_async(
         # run the eval
         log = (
             await eval_async(
-                tasks=TaskSpec(task=task, id=task_id),
+                tasks=PreviousTask(task=task, id=task_id, log=eval_log),
                 model=model,
                 model_base_url=model_base_url,
                 model_args=model_args,
@@ -440,6 +479,7 @@ async def eval_retry_async(
                 max_subprocesses=max_subprocesses,
                 log_samples=log_samples,
                 log_images=log_images,
+                log_buffer=log_buffer,
                 score=score,
                 **dict(config),
             )

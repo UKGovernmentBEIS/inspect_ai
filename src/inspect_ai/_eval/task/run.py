@@ -24,12 +24,15 @@ from inspect_ai.log import (
     EvalError,
     EvalLog,
     EvalResults,
+    EvalSample,
     EvalStats,
 )
 from inspect_ai.log._log import eval_error
 from inspect_ai.model import (
+    GenerateConfig,
     GenerateConfigArgs,
     Model,
+    ModelAPI,
     ModelName,
 )
 from inspect_ai.scorer import Score, Scorer, Target
@@ -38,11 +41,14 @@ from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from ..task import Task
 from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
-from .log import TaskLogger, collect_eval_data, log_output, log_plan
+from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
 from .util import has_max_messages, sample_messages, task_run_dir
 
-logger = getLogger(__name__)
+py_logger = getLogger(__name__)
+
+
+EvalSampleSource = Callable[[int | str, int], EvalSample | None]
 
 
 async def task_run(
@@ -53,6 +59,7 @@ async def task_run(
     config: EvalConfig = EvalConfig(),
     plan: Plan | Solver | list[Solver] | None = None,
     score: bool = True,
+    sample_source: EvalSampleSource | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> EvalLog:
     r"""Run the task.
@@ -71,6 +78,8 @@ async def task_run(
         score (bool | None): Score model output. If not specified
           is determined automatically based on whether the task
           has a solver and metrics defined.
+        sample_source (EvalSampleSource | None): Source from which
+          previously executed samples can be found/returned
         **kwargs (GenerateConfigArgs): Generation config options
 
     Returns:
@@ -81,6 +90,7 @@ async def task_run(
         # track stats and error
         stats = EvalStats(started_at=iso_now())
         error: EvalError | None = None
+        cancelled = False
 
         # resolve some config
         model_name = ModelName(model)
@@ -90,7 +100,7 @@ async def task_run(
         generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
         # resolve dataset
-        dataset, samples, states = await resolve_dataset(
+        _, samples, states = await resolve_dataset(
             dataset=task.dataset,
             model_name=model_name,
             limit=config.limit,
@@ -150,11 +160,9 @@ async def task_run(
                             max_messages=config.max_messages,
                         )
 
-                    # optional semaphore to limit concurrency
-                    task_semaphore = (
-                        asyncio.Semaphore(config.max_samples)
-                        if config.max_samples
-                        else None
+                    # semaphore to limit concurrency
+                    task_semaphore = create_task_semaphone(
+                        config, generate_config, model.api
                     )
 
                     # create tasks
@@ -168,6 +176,9 @@ async def task_run(
                             scorer=scorer,
                             generate=generate,
                             progress=progress,
+                            logger=logger if log_samples else None,
+                            log_images=log_images,
+                            sample_source=sample_source,
                             semaphore=task_semaphore,
                         )
                         for (sample, state) in zip(samples, states)
@@ -175,16 +186,6 @@ async def task_run(
 
                     # run them in parallel (subject to config.max_samples)
                     scores = await asyncio.gather(*tasks)
-
-                # log output by epoch
-                if log_samples is not False:
-                    # if we are logging images then be sure to base64 images injected by solvers
-                    if log_images:
-                        states = await states_with_base64_images(states)
-
-                    for e in range(0, epochs):
-                        sl = slice(e * len(dataset), (e + 1) * (len(dataset)))
-                        log_output(logger, e + 1, samples[sl], states[sl], scores[sl])
 
                 # compute and record metrics if we have scores
                 completed_scores = [
@@ -206,13 +207,17 @@ async def task_run(
                 # display task summary
                 td.summary(results, stats)
 
-            except asyncio.CancelledError as ex:
-                raise ex
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                # flag as cancelled
+                cancelled = True
+
+                # collect eval data
+                collect_eval_data(stats, logger)
+
+                # display task cancelled
+                td.cancelled(logger.samples_logged, stats)
 
             except BaseException as ex:
-                # mark completed
-                stats.completed_at = iso_now()
-
                 # get exception info
                 type, value, traceback = sys.exc_info()
                 type = type if type else BaseException
@@ -225,10 +230,12 @@ async def task_run(
                 collect_eval_data(stats, logger)
 
                 # display it
-                td.error(error, type, value, traceback)
+                td.error(logger.samples_logged, error, type, value, traceback)
 
     # log as appropriate
-    if error:
+    if cancelled:
+        return logger.log_cancelled(stats)
+    elif error:
         return logger.log_failure(stats, error)
     else:
         return logger.log_success(stats)
@@ -243,8 +250,24 @@ async def task_run_sample(
     scorer: Scorer | None,
     generate: Generate,
     progress: Callable[..., None],
+    logger: TaskLogger | None,
+    log_images: bool,
+    sample_source: EvalSampleSource | None,
     semaphore: asyncio.Semaphore | None,
 ) -> Score | None:
+    # if there is an existing sample then tick off its progress, log it, and return it
+    if sample_source and sample.id is not None:
+        previous_sample = sample_source(sample.id, state.epoch)
+        if previous_sample:
+            # tick off progress
+            for _ in range(0, len(plan.steps) + 1 + (1 if plan.finish else 0)):
+                progress()
+            # log if requested
+            if logger:
+                logger.log_event("sample", previous_sample, False)
+
+            # return score
+            return previous_sample.score
 
     # use semaphore if provided
     cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
@@ -278,7 +301,7 @@ async def task_run_sample(
                 try:
                     await plan.cleanup(state)
                 except Exception as ex:
-                    logger.warning(
+                    py_logger.warning(
                         f"Exception occurred during plan cleanup for task {task_name}: "
                         + f"{exception_message(ex)}"
                     )
@@ -287,6 +310,15 @@ async def task_run_sample(
         # score it
         result = await scorer(state, Target(sample.target)) if scorer else None
         progress()
+
+        # log it
+        if logger is not None:
+            # if we are logging images then be sure to base64 images injected by solvers
+            if log_images:
+                state = (await states_with_base64_images([state]))[0]
+
+            # log the sample
+            logger.log_sample(state.epoch, sample, state, result, True)
 
         # return
         return result
@@ -342,3 +374,72 @@ async def resolve_dataset(
     ]
 
     return (dataset, samples, states)
+
+
+# we can reuse samples from a previous eval_log if and only if:
+#   - The datasets have not been shuffled OR the samples in the dataset have unique ids
+#   - The datasets have the exact same length
+def eval_log_sample_source(
+    eval_log: EvalLog | None, dataset: Dataset
+) -> EvalSampleSource:
+    # return dummy function for no sample source
+    def no_sample_source(id: int | str, epoch: int) -> None:
+        return None
+
+    # take care of no log or no samples in log
+    if not eval_log:
+        return no_sample_source
+    elif not eval_log.samples or len(eval_log.samples) == 0:
+        return no_sample_source
+
+    # determine whether all samples in the dataset have ids (if not, then we can't
+    # provide a sample source in the case where either dataset is shuffled, as the ids
+    # will be auto-assigned based on position, and therefore not stable)
+    samples_have_ids = (
+        next((sample for sample in dataset if sample.id is None), None) is None
+    )
+
+    if (eval_log.eval.dataset.shuffled or dataset.shuffled) and not samples_have_ids:
+        py_logger.warning(
+            "Unable to re-use samples from retry log file because the dataset was shuffled "
+            + "and some samples in the dataset do not have an 'id' field."
+        )
+        return no_sample_source
+
+    elif eval_log.eval.dataset.samples != len(dataset):
+        py_logger.warning(
+            "Unable to re-use samples from retry log file because the dataset size changed"
+        )
+        return no_sample_source
+    else:
+
+        def previous(id: int | str, epoch: int) -> EvalSample | None:
+            return next(
+                (
+                    sample
+                    for sample in (eval_log.samples or [])
+                    if sample.id == id and sample.epoch == epoch
+                ),
+                None,
+            )
+
+        return previous
+
+
+# semaphore to limit concurrency. default max_samples to
+# max_connections + 1 if not explicitly specified (this is
+# to make sure it always saturates the connection pool)
+def create_task_semaphone(
+    config: EvalConfig, generate_config: GenerateConfig, modelapi: ModelAPI
+) -> asyncio.Semaphore:
+    max_samples = (
+        config.max_samples
+        if config.max_samples is not None
+        else (
+            generate_config.max_connections
+            if generate_config.max_connections is not None
+            else modelapi.max_connections()
+        )
+        + 1
+    )
+    return asyncio.Semaphore(max_samples)

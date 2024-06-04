@@ -17,7 +17,6 @@ inspect eval gpqa.py --epochs 1
 inspect eval gpqa.py -T cot=false
 """
 
-
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, csv_dataset
 from inspect_ai.model import GenerateConfig

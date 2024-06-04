@@ -82,6 +82,9 @@ class Dataset(Sequence[Sample], abc.ABC):
     @abc.abstractproperty
     def location(self) -> str | None: ...
 
+    @abc.abstractproperty
+    def shuffled(self) -> bool: ...
+
     @overload
     def __getitem__(self, index: int) -> Sample: ...
 
@@ -173,6 +176,7 @@ class MemoryDataset(Dataset):
         samples: list[Sample],
         name: str | None = None,
         location: str | None = None,
+        shuffled: bool = False,
     ) -> None:
         r"""A dataset of samples held in an in-memory list.
 
@@ -184,10 +188,12 @@ class MemoryDataset(Dataset):
             samples (list[Sample]): The list of sample objects.
             name (str | None): Optional name for dataset.
             location (str | None): Optional location for dataset.
+            shuffled (bool): Was the dataset shuffled after reading.
         """
         self.samples = samples
         self._name = name
         self._location = location
+        self._shuffled = shuffled
 
     @override
     @property
@@ -201,6 +207,12 @@ class MemoryDataset(Dataset):
         """Dataset location."""
         return self._location
 
+    @override
+    @property
+    def shuffled(self) -> bool:
+        """Was the dataset shuffled."""
+        return self._shuffled
+
     @overload
     def __getitem__(self, index: int) -> Sample: ...
 
@@ -213,7 +225,10 @@ class MemoryDataset(Dataset):
             return self.samples[index]
         else:
             return MemoryDataset(
-                samples=self.samples[index], name=self.name, location=self.location
+                samples=self.samples[index],
+                name=self.name,
+                location=self.location,
+                shuffled=self.shuffled,
             )
 
     @override
@@ -226,6 +241,7 @@ class MemoryDataset(Dataset):
             random.Random(seed).shuffle(self.samples)
         else:
             random.shuffle(self.samples)
+        self._shuffled = True
 
     @override
     def sort(
@@ -243,4 +259,5 @@ class MemoryDataset(Dataset):
             name=name or self.name,
             location=self.location,
             samples=[sample for sample in self if predicate(sample)],
+            shuffled=self.shuffled,
         )

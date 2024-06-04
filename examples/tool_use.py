@@ -5,7 +5,8 @@ from inspect_ai.solver import generate, system_message, tool, use_tools
 from inspect_ai.util import subprocess
 
 
-@tool(prompt="""
+@tool(
+    prompt="""
     If you are given a math problem of any kind,
     please use the add tool to compute the result.
     """
@@ -26,16 +27,15 @@ def add():
 
     return execute
 
+
 @task
 def addition_problem():
     return Task(
-        dataset=[Sample(
-            input="What is 1 + 1?",
-            target=["2", "2.0"]
-        )],
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0"])],
         plan=[use_tools(add()), generate()],
         scorer=match(numeric=True),
     )
+
 
 @tool(
     prompt="""
@@ -61,20 +61,23 @@ def list_files():
 
     return execute
 
+
 SYSTEM_MESSAGE = """
 Please answer exactly Yes or No with no additional words.
 """
 
+
 @task
 def bash():
-
-    dataset = [Sample(
-        input=(
-            "Please list the files in the /usr/bin directory. "
-            + "Is there a file named 'python3' in the directory?"
-        ),
-        target=["Yes"],
-    )]
+    dataset = [
+        Sample(
+            input=(
+                "Please list the files in the /usr/bin directory. "
+                + "Is there a file named 'python3' in the directory?"
+            ),
+            target=["Yes"],
+        )
+    ]
 
     return Task(
         dataset=dataset,
@@ -85,4 +88,3 @@ def bash():
         ],
         scorer=includes(),
     )
-

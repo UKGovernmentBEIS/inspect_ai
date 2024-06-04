@@ -36,8 +36,7 @@ async def subprocess(
     cwd: str | Path | None = None,
     env: dict[str, str] = {},
     timeout: int | None = None,
-) -> ProcessResult[str]:
-    ...
+) -> ProcessResult[str]: ...
 
 
 @overload
@@ -48,8 +47,7 @@ async def subprocess(
     cwd: str | Path | None = None,
     env: dict[str, str] = {},
     timeout: int | None = None,
-) -> ProcessResult[bytes]:
-    ...
+) -> ProcessResult[bytes]: ...
 
 
 async def subprocess(

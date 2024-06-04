@@ -1,13 +1,37 @@
 import click
 from typing_extensions import Unpack
 
-from inspect_ai import eval
-from inspect_ai._util.constants import DEFAULT_EPOCHS, DEFAULT_MAX_RETRIES
+from inspect_ai import eval, eval_retry
+from inspect_ai._util.constants import (
+    DEFAULT_EPOCHS,
+    DEFAULT_LOG_BUFFER_LOCAL,
+    DEFAULT_LOG_BUFFER_REMOTE,
+    DEFAULT_MAX_CONNECTIONS,
+    DEFAULT_MAX_RETRIES,
+)
+from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_samples_limit
+from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
 
 from .common import CommonOptions, common_options, resolve_common_options
 from .util import parse_cli_args
+
+MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
+MAX_SUBPROCESSES_HELP = (
+    "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
+)
+NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
+NO_LOG_IMAGES_HELP = "Do not include base64 encoded versions of filename or URL based images in the log file."
+LOG_BUFFER_HELP = f"Number of samples to buffer before writing log file (defaults to {DEFAULT_LOG_BUFFER_LOCAL} for local filesystems, and {DEFAULT_LOG_BUFFER_REMOTE} for remote filesystems)."
+NO_SCORE_HELP = (
+    "Do not score model output (use the inspect score command to score output later)"
+)
+MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (defaults to {DEFAULT_MAX_CONNECTIONS})"
+MAX_RETRIES_HELP = (
+    f"Maximum number of times to retry request (defaults to {DEFAULT_MAX_RETRIES})"
+)
+TIMEOUT_HELP = "Request timeout (in seconds)."
 
 
 @click.command("eval")
@@ -48,53 +72,24 @@ from .util import parse_cli_args
     type=int,
     help=f"Number of times to repeat dataset (defaults to {DEFAULT_EPOCHS}) ",
 )
-@click.option(
-    "--max-connections",
-    type=int,
-    help="Maximum number of concurrent connections to Model API (default is per Model API)",
-)
-@click.option(
-    "--max-retries",
-    type=int,
-    help=f"Maximum number of times to retry request (defaults to {DEFAULT_MAX_RETRIES})",
-)
-@click.option(
-    "--timeout",
-    type=int,
-    help="Request timeout (in seconds).",
-)
-@click.option(
-    "--max-samples",
-    type=int,
-    help="Maximum number of samples to run in parallel (default is running all samples in parallel)",
-)
-@click.option(
-    "--max-subprocesses",
-    type=int,
-    help="Maximum number of subprocesses to run in parallel (default is os.cpu_count())",
-)
+@click.option("--max-connections", type=int, help=MAX_CONNECTIONS_HELP)
+@click.option("--max-retries", type=int, help=MAX_RETRIES_HELP)
+@click.option("--timeout", type=int, help=TIMEOUT_HELP)
+@click.option("--max-samples", type=int, help=MAX_SAMPLES_HELP)
+@click.option("--max-subprocesses", type=int, help=MAX_SUBPROCESSES_HELP)
 @click.option(
     "--max-messages",
     type=int,
     help="Maximum number of messages to allow in a task conversation.",
 )
-@click.option(
-    "--no-log-samples",
-    type=bool,
-    is_flag=True,
-    help="Do not include samples in the log file.",
-)
-@click.option(
-    "--no-log-images",
-    type=bool,
-    is_flag=True,
-    help="Do not include base64 encoded versions of filename or URL based images in the log file.",
-)
+@click.option("--no-log-samples", type=bool, is_flag=True, help=NO_LOG_SAMPLES_HELP)
+@click.option("--no-log-images", type=bool, is_flag=True, help=NO_LOG_IMAGES_HELP)
+@click.option("--log-buffer", type=int, help=LOG_BUFFER_HELP)
 @click.option(
     "--no-score",
     type=bool,
     is_flag=True,
-    help="Do not score model output (use the inspect score command to score output later)",
+    help=NO_SCORE_HELP,
 )
 @click.option(
     "--max-tokens",
@@ -200,6 +195,7 @@ def eval_command(
     max_subprocesses: int | None,
     no_log_samples: bool | None,
     no_log_images: bool | None,
+    log_buffer: int | None,
     no_score: bool | None,
     **kwargs: Unpack[CommonOptions],
 ) -> None:
@@ -248,6 +244,7 @@ def eval_command(
         max_subprocesses=max_subprocesses,
         log_samples=log_samples,
         log_images=log_images,
+        log_buffer=log_buffer,
         score=score,
         **config,
     )
@@ -261,3 +258,92 @@ def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
         )
     else:
         return None
+
+
+@click.command("eval-retry")
+@click.argument("log_files", nargs=-1, required=True)
+@click.option(
+    "--max-samples", type=int, help=MAX_SAMPLES_HELP, envvar="INSPECT_EVAL_MAX_SAMPLES"
+)
+@click.option(
+    "--max-subprocesses",
+    type=int,
+    help=MAX_SUBPROCESSES_HELP,
+    envvar="INSPECT_EVAL_MAX_SUBPROCESSES",
+)
+@click.option(
+    "--no-log-samples",
+    type=bool,
+    is_flag=True,
+    help=NO_LOG_SAMPLES_HELP,
+    envvar="INSPECT_EVAL_LOG_SAMPLES",
+)
+@click.option(
+    "--no-log-images",
+    type=bool,
+    is_flag=True,
+    help=NO_LOG_IMAGES_HELP,
+    envvar="INSPECT_EVAL_LOG_IMAGES",
+)
+@click.option(
+    "--log-buffer", type=int, help=LOG_BUFFER_HELP, envvar="INSPECT_EVAL_LOG_BUFFER"
+)
+@click.option(
+    "--no-score",
+    type=bool,
+    is_flag=True,
+    help=NO_SCORE_HELP,
+    envvar="INSPECT_EVAL_SCORE",
+)
+@click.option(
+    "--max-connections",
+    type=int,
+    help=MAX_CONNECTIONS_HELP,
+    envvar="INSPECT_EVAL_MAX_CONNECTIONS",
+)
+@click.option(
+    "--max-retries", type=int, help=MAX_RETRIES_HELP, envvar="INSPECT_EVAL_MAX_RETRIES"
+)
+@click.option("--timeout", type=int, help=TIMEOUT_HELP, envvar="INSPECT_EVAL_TIMEOUT")
+@common_options
+def eval_retry_command(
+    log_files: tuple[str],
+    max_samples: int | None,
+    max_subprocesses: int | None,
+    no_log_samples: bool | None,
+    no_log_images: bool | None,
+    log_buffer: int | None,
+    no_score: bool | None,
+    max_connections: int | None,
+    max_retries: int | None,
+    timeout: int | None,
+    **kwargs: Unpack[CommonOptions],
+) -> None:
+    # resolve common options
+    (log_dir, log_level) = resolve_common_options(kwargs)
+
+    # resolve negating options
+    log_samples = False if no_log_samples else None
+    log_images = False if no_log_images else None
+    score = False if no_score else True
+
+    # resolve log file
+    retry_log_files = [
+        log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
+    ]
+
+    # retry
+    eval_retry(
+        retry_log_files,
+        log_level=log_level,
+        log_dir=log_dir,
+        max_samples=max_samples,
+        max_subprocesses=max_subprocesses,
+        log_samples=log_samples,
+        log_images=log_images,
+        log_buffer=log_buffer,
+        score=score,
+        max_retries=max_retries,
+        timeout=timeout,
+        max_connections=max_connections,
+    )

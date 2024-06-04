@@ -19,11 +19,15 @@ class TaskDisplay(abc.ABC):
     def progress(self, total: int) -> Iterator[Progress]: ...
 
     @abc.abstractmethod
+    def cancelled(self, samples_logged: int, stats: EvalStats) -> None: ...
+
+    @abc.abstractmethod
     def summary(self, results: EvalResults, stats: EvalStats) -> None: ...
 
     @abc.abstractmethod
     def error(
         self,
+        samples_logged: int,
         error: EvalError,
         exc_type: Type[Any],
         exc_value: BaseException,

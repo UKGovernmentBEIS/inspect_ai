@@ -1,7 +1,9 @@
 import datetime
 import io
+import os
 from contextlib import contextmanager
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
@@ -24,8 +26,7 @@ def file(
     compression: str | None = "infer",
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
-) -> Iterator[io.TextIOWrapper]:
-    ...
+) -> Iterator[io.TextIOWrapper]: ...
 
 
 @overload
@@ -36,8 +37,7 @@ def file(
     compression: str | None = "infer",
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
-) -> Iterator[BinaryIO]:
-    ...
+) -> Iterator[BinaryIO]: ...
 
 
 @contextmanager
@@ -113,6 +113,9 @@ class FileSystem:
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
         self.fs.makedirs(path, exist_ok=exist_ok)
 
+    def info(self, path: str, **kwargs: dict[str, Any]) -> FileInfo:
+        return self._file_info(self.fs.info(path, **kwargs))
+
     def ls(
         self, path: str, recursive: bool = False, **kwargs: dict[str, Any]
     ) -> list[FileInfo]:
@@ -130,31 +133,33 @@ class FileSystem:
                 self.fs.ls(path, detail=True, **kwargs),
             )
 
-        # fixup name and discover mtime
-        for info in files:
-            # name needs the protocol prepended
-            info["name"] = self.fs.unstrip_protocol(info["name"])
+        # return FileInfo
+        return [self._file_info(file) for file in files]
 
-            # S3 filesystems use "LastModified"
-            if "LastModified" in info.keys():
-                info["mtime"] = cast(
-                    datetime.datetime, cast(Any, info)["LastModified"]
-                ).timestamp()
-            # if we don't yet have an mtime key then fetch created explicitly
-            if "mtime" not in info.keys():
-                info["mtime"] = self.fs.created(file).timestamp()
-            info["mtime"] = info["mtime"] * 1000
+    def is_local(self) -> bool:
+        return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
-        # convert to FileInfo
-        return [
-            FileInfo(
-                name=file["name"],
-                type=file["type"],
-                size=file["size"],
-                mtime=file["mtime"],
-            )
-            for file in files
-        ]
+    def _file_info(self, info: dict[str, Any]) -> FileInfo:
+        # name needs the protocol prepended
+        file = info.copy()
+        file["name"] = self.fs.unstrip_protocol(file["name"])
+
+        # S3 filesystems use "LastModified"
+        if "LastModified" in file.keys():
+            file["mtime"] = cast(
+                datetime.datetime, cast(Any, file)["LastModified"]
+            ).timestamp()
+        # if we don't yet have an mtime key then fetch created explicitly
+        if "mtime" not in file.keys():
+            file["mtime"] = self.fs.created(file).timestamp()
+        file["mtime"] = file["mtime"] * 1000
+
+        return FileInfo(
+            name=file["name"],
+            type=file["type"],
+            size=file["size"],
+            mtime=file["mtime"],
+        )
 
 
 def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
@@ -178,6 +183,14 @@ def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
     # create filesystem
     fs, path = fsspec.core.url_to_fs(path)
     return FileSystem(fs)
+
+
+def absolute_file_path(file: str) -> str:
+    # check for a relative dir, if we find one then resolve to absolute
+    fs_scheme = urlparse(file).scheme
+    if not fs_scheme and not os.path.isabs(file):
+        file = Path(file).resolve().as_posix()
+    return file
 
 
 def default_fs_options(file: str) -> dict[str, Any]:

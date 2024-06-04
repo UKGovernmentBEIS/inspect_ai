@@ -16,9 +16,7 @@ import { PlanCard } from "../plan/PlanCard.mjs";
 import { samplesDescriptor } from "../samples/SamplesDescriptor.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
-import {
-  kDefaultSort,
-} from "../samples/tools/SortFilter.mjs";
+import { kDefaultSort } from "../samples/tools/SortFilter.mjs";
 import { TitleBlock } from "../title/TitleBlock.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
 
@@ -34,6 +32,8 @@ export const WorkSpace = (props) => {
   const codeRef = useRef();
 
   const workspaceLog = props.log;
+
+  const [currentTaskId, setCurrentTaskId] = useState(workspaceLog?.contents?.eval?.run_id);
 
   // State tracking for the view
   const [state, setState] = useState({
@@ -64,7 +64,6 @@ export const WorkSpace = (props) => {
     );
   }, [workspaceLog]);
 
-
   // Tabs that are available within the app
   // Include the tab contents as well as any tools that the tab provides
   // when it is displayed
@@ -73,13 +72,14 @@ export const WorkSpace = (props) => {
 
     // The samples tab
     // Currently only appears when the result is successful
-    if (workspaceLog.contents?.status === "success") {
+    if (workspaceLog.contents?.status !== "error") {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        label: workspaceLog.contents?.samples?.length >  1 ? "Samples" : "Sample",
+        scrollable: false,
+        label:
+          workspaceLog.contents?.samples?.length > 1 ? "Samples" : "Sample",
         content: () => {
-          return html`
-          <${SamplesTab}
+          return html` <${SamplesTab}
             task=${workspaceLog.contents?.eval?.task}
             model=${workspaceLog.contents?.eval?.model}
             samples=${workspaceLog.contents?.samples}
@@ -88,18 +88,18 @@ export const WorkSpace = (props) => {
             sort=${state.viewState.sort}
             epoch=${state.viewState.epoch}
             context=${context}
-           />`
+          />`;
         },
         tools: (state) => {
           return html`<${SampleTools}
-              epoch=${state.viewState.epoch}
-              epochs=${workspaceLog.contents?.eval?.config?.epochs}
-              setEpoch=${setEpoch}
-              filter=${state.viewState.filter}
-              filterChanged=${filterChanged}
-              sort=${state.viewState.sort}
-              setSort=${setSort}
-              sampleDescriptor=${sampleDescriptor}
+            epoch=${state.viewState.epoch}
+            epochs=${workspaceLog.contents?.eval?.config?.epochs}
+            setEpoch=${setEpoch}
+            filter=${state.viewState.filter}
+            filterChanged=${filterChanged}
+            sort=${state.viewState.sort}
+            setSort=${setSort}
+            sampleDescriptor=${sampleDescriptor}
           />`;
         },
       };
@@ -109,23 +109,26 @@ export const WorkSpace = (props) => {
     resolvedTabs.config = {
       id: kInfoTabId,
       label: "Info",
+      scrollable: true,
       content: () => {
         const infoCards = [
-          html`<${PlanCard} log="${workspaceLog.contents}" context=${context} />`,
-          html`<${UsageCard}
-            stats=${workspaceLog.contents?.stats}
+          html`<${PlanCard}
+            log="${workspaceLog.contents}"
             context=${context}
           />`,
         ];
+
+        if (workspaceLog.contents?.status !== "started") {
+          infoCards.push(html`<${UsageCard}
+            stats=${workspaceLog.contents?.stats}
+            context=${context}
+          />`);
+        }
 
         // If there is error or progress, includes those within info
         if (workspaceLog.contents?.status === "error") {
           infoCards.unshift(
             html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`
-          );
-        } else if (workspaceLog.contents?.status === "started") {
-          infoCards.unshift(
-            html`<${EmptyPanel}>The task is currently running.</${EmptyPanel}>`
           );
         }
         return html`<div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
@@ -138,6 +141,7 @@ export const WorkSpace = (props) => {
     resolvedTabs.logging = {
       id: kLoggingTabId,
       label: "Logging",
+      scrollable: true,
       content: () => {
         return html`<${LoggingPanel}
           logging=${workspaceLog.contents?.logging}
@@ -151,6 +155,7 @@ export const WorkSpace = (props) => {
     resolvedTabs.json = {
       id: kJsonTabId,
       label: "JSON",
+      scrollable: true,
       content: () => {
         if (codeRef.current) {
           if (workspaceLog.contents.samples?.length <= 200) {
@@ -163,7 +168,7 @@ export const WorkSpace = (props) => {
             const textNode = document.createTextNode(workspaceLog.raw);
             codeRef.current.innerText = "";
             codeRef.current.appendChild(textNode);
-          }  
+          }
         }
         return html`<div
           style=${{
@@ -197,7 +202,6 @@ export const WorkSpace = (props) => {
     viewState.selectedTab = selectedTab;
     setState({ viewState });
   };
-
 
   const filterChanged = useCallback(
     (filter) => {
@@ -249,14 +253,18 @@ export const WorkSpace = (props) => {
 
   // Display the log
   useEffect(() => {
-    if (workspaceLog.contents) {
-      const defaultTab = workspaceLog.contents?.status === "success" ? kEvalTabId : kInfoTabId;
-      setSelectedTab(state, defaultTab);  
+if (workspaceLog.contents && workspaceLog.eval?.run_id !== currentTaskId) {
+      const defaultTab =
+        workspaceLog.contents?.status !== "error" ? kEvalTabId : kInfoTabId;
+      setSelectedTab(state, defaultTab);
       if (divRef.current) {
         divRef.current.scrollTop = 0;
       }
+      setCurrentTaskId(workspaceLog.contents.eval?.run_id);
+    } else if (currentTaskId === undefined) {
+      setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
     }
-  }, [workspaceLog, divRef]);
+  }, [workspaceLog, divRef, currentTaskId]);
 
   // Compute the tools for this tab
   const tabTools = Object.keys(tabs)
@@ -314,13 +322,14 @@ const WorkspaceDisplay = ({
     const offcanvasClz = offcanvas ? " off-canvas" : "";
 
     return html`<div ref=${divRef} class="workspace${fullScreenClz}${offcanvasClz}" style=${{
-      paddingTop: "0.5rem",
+      paddingTop: "0rem",
     }}>
             <${TitleBlock}
               created=${log.contents?.eval.created}
               stats=${log.contents?.stats}
               log=${log.contents}
               context=${context}
+              status=${log.contents?.status}
             />
             <div
               class="log-detail"
@@ -345,7 +354,7 @@ const WorkspaceDisplay = ({
         padding: ".3rem 0.3rem .3rem 0.3rem",
         width: "5em",
         fontSize: "0.7rem",
-      }
+      },
     }} >
               ${Object.keys(tabs).map((key) => {
                 const tab = tabs[key];
@@ -353,9 +362,8 @@ const WorkspaceDisplay = ({
                 id=${tab.id} 
                 title="${tab.label}" 
                 onSelected="${selectTab}" 
-                selected=${
-                  selectedTab === tab.id
-                }>
+                selected=${selectedTab === tab.id}
+                scrollable=${!!tab.scrollable}>
                   ${tab.content()}
                 </${TabPanel}>`;
               })}

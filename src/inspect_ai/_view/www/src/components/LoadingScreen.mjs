@@ -19,9 +19,12 @@ export const LoadingScreen = ({ id, classes, message }) => {
     flex: "0 0 content",
     alignItems: "center",
     justifyContent: "center",
+    border: "solid var(--bs-border-color) 1px",
+    padding: "1em",
+    background: "var(--bs-body-bg)"
   };
   return html`
-    <div ...${{ id, class: classes, style: fullScreenStyle}}>
+    <div ...${{ id, class: classes, style: fullScreenStyle}} class="float-center">
       <div style=${emptyStyle} class="empty-message">
           <div
             class="spinner-border"

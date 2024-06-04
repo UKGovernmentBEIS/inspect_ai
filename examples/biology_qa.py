@@ -9,12 +9,8 @@ def biology_qa() -> Task:
     return Task(
         dataset=example_dataset(
             name="biology_qa",
-            sample_fields=FieldSpec(
-                input="question",
-                target="answer"
-            ),
+            sample_fields=FieldSpec(input="question", target="answer"),
         ),
         plan=[use_tools(web_search()), generate()],
         scorer=model_graded_qa(),
     )
-

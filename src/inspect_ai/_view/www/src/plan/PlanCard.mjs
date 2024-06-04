@@ -206,13 +206,15 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
     `,
   });
 
-  taskColumns.push({
-    title: "Scorer",
-    style: floatingColumnStyle,
-    contents: html`
-      <${ScorerDetailVew} context=${context} scorer=${scorer} />
-    `,
-  });
+  if (scorer) {
+    taskColumns.push({
+      title: "Scorer",
+      style: floatingColumnStyle,
+      contents: html`
+        <${ScorerDetailVew} context=${context} scorer=${scorer} />
+      `,
+    });  
+  }
 
   // Compute the column style for the remaining (either 1 or 2 columns wide)
   const metadataColumns = [];
