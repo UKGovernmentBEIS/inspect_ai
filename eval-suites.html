@@ -282,7 +282,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#recursive-listings" id="toc-recursive-listings" class="nav-link" data-scroll-target="#recursive-listings">Recursive Listings</a></li>
   <li><a href="#attributes-and-filters" id="toc-attributes-and-filters" class="nav-link" data-scroll-target="#attributes-and-filters">Attributes and Filters</a></li>
   </ul></li>
-  <li><a href="#errors-and-retries" id="toc-errors-and-retries" class="nav-link" data-scroll-target="#errors-and-retries">Errors and Retries</a></li>
+  <li><a href="#sec-errors-and-retries" id="toc-sec-errors-and-retries" class="nav-link" data-scroll-target="#sec-errors-and-retries">Errors and Retries</a>
+  <ul class="collapse">
+  <li><a href="#retry-workflow" id="toc-retry-workflow" class="nav-link" data-scroll-target="#retry-workflow">Retry Workflow</a></li>
+  <li><a href="#sec-sample-preservation" id="toc-sec-sample-preservation" class="nav-link" data-scroll-target="#sec-sample-preservation">Sample Preservation</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -443,7 +447,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  ...</span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="co"># this is NOT valid for filtering expressions</span></span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span> <span class="kw">and</span> light_enabled(<span class="st">"ctf"</span>))</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span>light_enabled(<span class="st">"ctf"</span>))</span>
 <span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
 <span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>  ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
@@ -451,29 +455,76 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </section>
 </section>
-<section id="errors-and-retries" class="level2">
-<h2 class="anchored" data-anchor-id="errors-and-retries">Errors and Retries</h2>
-<p>If a runtime error occurs during an evaluation, it is caught, logged, and reported, and then the <code>eval()</code> function returns as normal. The returned <code>EvalLog</code> has a <code>status</code> field on it which can checked for <code>"success"</code> or <code>"error"</code>.</p>
-<p>This status can be used to see which tasks need to be retried, and the failed log file can be passed directly to <code>eval()</code>, for example:</p>
+<section id="sec-errors-and-retries" class="level2">
+<h2 class="anchored" data-anchor-id="sec-errors-and-retries">Errors and Retries</h2>
+<p>If a runtime error occurs during an evaluation, it is caught, logged, and reported, and then the <code>eval()</code> function returns as normal. The returned <code>EvalLog</code> has a <code>status</code> field which can be used to see which tasks need to be retried, and the failed log file can be passed directly to <code>eval_retry()</code>, for example:</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># list the security suite and run it</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>task_suite <span class="op">=</span> list_tasks(<span class="st">"security"</span>)</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>eval_logs <span class="op">=</span> <span class="bu">eval</span>(task_suite)</span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co"># check for failed evals and retry (likely 'later')</span></span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>error_logs <span class="op">=</span> log <span class="kw">in</span> eval_logs <span class="cf">if</span> log.status <span class="op">==</span> <span class="st">"error"</span>]</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co"># check for failed evals and retry</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>error_logs <span class="op">=</span> [log <span class="kw">in</span> eval_logs <span class="cf">if</span> log.status <span class="op">!=</span> <span class="st">"success"</span>]</span>
 <span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>eval_retry(error_logs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that the code which checks for errors will often not be in the same script as that which kicks off the evals. You can handle this by using the log directory as the reference point rather than the logs returned from <code>eval()</code>. Returning to the example from the beginning of this article, we might do something like this:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># setup log context</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>os.environ[<span class="st">"INSPECT_LOG_DIR"</span>] <span class="op">=</span> <span class="st">"./security-mistral_04-07-2024"</span></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co"># run the eval suite</span></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"security"</span>, model<span class="op">=</span><span class="st">"mistral/mistral-large-latest"</span>)</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ...later, in another process that also has access to INSPECT_LOG_DIR</span></span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>error_logs <span class="op">=</span> list_eval_logs(<span class="bu">filter</span> <span class="op">=</span> <span class="kw">lambda</span> log: log.status <span class="op">==</span> <span class="st">"error"</span>)</span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>eval_retry(error_logs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that <code>eval_retry()</code> does not overwrite previous log files, but rather creates a new one (preserving the <code>task_id</code> from the original file). In addition, completed samples from the original file are <a href="#sec-sample-preservation">preserved</a> and copied to the new eval.</p>
+<section id="retry-workflow" class="level3">
+<h3 class="anchored" data-anchor-id="retry-workflow">Retry Workflow</h3>
+<p>If you want to create a task suite supervisor that can robustly retry failed evaluations until all work is completed, we recommend the following approach:</p>
+<ol type="1">
+<li><p>For a given suite of tasks, provision a dedicated log directory where all work will be recorded (you might track this independently in a supervisor database so retries can happen “later” as opposed to immediately after the first run).</p></li>
+<li><p>Run the task suite.</p></li>
+<li><p>After the initial run (and perhaps after a delay), query the log directory for retryable tasks, and then execute those retries (possibly using a lower <code>max_connections</code> if rate limiting was the source of failures).</p></li>
+<li><p>Repeat (3) as required until there are no more retryable tasks.</p></li>
+<li><p>Collect up all of the successful task logs from the log directory for analysis.</p></li>
+</ol>
+<p>Here is a somewhat simplfied version of the code required to implement this workflow. We start by creating a log directory (imagine we have a <code>create_log_dir()</code> function that will provision a new <code>log_dir</code> with a unique name) and running our evals (contained in a directory named “suite”):</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="co"># create a new log dir with a unique path/name</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>log_dir <span class="op">=</span> create_log_dir()</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="co"># run the suite aginst two models (using the log_dir)</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> model <span class="kw">in</span> [<span class="st">"openai/gpt-4"</span>, <span class="st">"google/gemini-1.0"</span>]:</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="bu">eval</span>(<span class="st">"suite"</span>, model<span class="op">=</span>model, log_dir<span class="op">=</span>log_dir)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>After this first pass, all of the evals may have completed succesfully, or there could be some errors. We use the <code>retryable_eval_logs()</code> function to filter the list of logs in the directory to those which need a retry to complete. After the retries, there still could be failures, so we run in a loop until there are no more retryable logs:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> list_eval_logs, retryable_eval_logs</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>retryable <span class="op">=</span> retryable_eval_logs(list_eval_logs(log_dir))</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> (<span class="bu">len</span>(retryable) <span class="op">&gt;</span> <span class="dv">0</span>):</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    eval_retry(retryable, log_dir <span class="op">=</span> log_dir)</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    retryable <span class="op">=</span> retryable_eval_logs(list_eval_logs(log_dir))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This is oversimplified because we’d likely also want to (a) Wait for some time between retries; (b) Have a maximum number of iterations before giving up; and (c) Analyse the errors and try to remedy (e.g.&nbsp;reduce <code>max_connections</code> for rate limit errors).</p>
+<p>The <code>retryable_eval_logs()</code> function takes a log listing and filters it as follows:</p>
+<ol type="1">
+<li><p>Finds all logs with status <code>"error"</code> or <code>"cancelled"</code></p></li>
+<li><p>Checks to see if another log with the same <code>task_id</code> has a status of <code>"success"</code> (in that case, discard the log from the retryable pool).</p></li>
+<li><p>For each retryable log not found to have been subsequently completed, take the most recent one associated with the <code>task_id</code> (for handling multiple retries).</p></li>
+</ol>
+<p>When <code>retryable_eval_logs()</code> returns an empty list, it indicates that all of the tasks have run successfully. At this point, we’ll likely want to collect up all of the successful logs (note that there will still be logs with errors in the <code>log_dir</code> as logs aren’t overwritten on retry). We can do this with a <code>filter</code> as follows:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> list_eval_logs(</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  log_dir<span class="op">=</span>log_dir</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="bu">filter</span><span class="op">=</span><span class="kw">lambda</span> log : log.status <span class="op">==</span> <span class="st">"success"</span>)</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="sec-sample-preservation" class="level3">
+<h3 class="anchored" data-anchor-id="sec-sample-preservation">Sample Preservation</h3>
+<p>When retrying a log file, Inspect will attempt to re-use completed samples from the original task. This can result in substantial time and cost savings compared to starting over from the beginning.</p>
+<section id="ids-and-shuffling" class="level4">
+<h4 class="anchored" data-anchor-id="ids-and-shuffling">IDs and Shuffling</h4>
+<p>An important constraint on the ability to re-use completed samples is matching them up correctly with samples in the new task. To do this, Inspect requires stable unique identifiers for each sample. This can be achieved in 1 of 2 ways:</p>
+<ol type="1">
+<li><p>Samples can have an explicit <code>id</code> field which contains the unique identifier; or</p></li>
+<li><p>You can rely on Inspect’s assignment of an auto-incrementing <code>id</code> for samples, however this <em>will not work correctly</em> if your dataset is shuffled. Inspect will log a warning and not re-use samples if it detects that the <code>dataset.shuffle()</code> method was called, however if you are shuffling by some other means this automatic safeguard won’t be applied.</p></li>
+</ol>
+<p>If dataset shuffling is important to your evaluation and you want to preserve samples for retried tasks, then you should include an explicit <code>id</code> field in your dataset.</p>
+</section>
+<section id="max-samples" class="level4">
+<h4 class="anchored" data-anchor-id="max-samples">Max Samples</h4>
+<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
+<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code>, ensuring that the model API is always fully saturated (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
 
 
+</section>
+</section>
 </section>
 
 </main> <!-- /main -->
