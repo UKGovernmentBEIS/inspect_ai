@@ -403,8 +403,7 @@ Important
 </div>
 <div class="callout-body-container callout-body">
 <p>The Tool Environments feature described in this section is not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the develoment version:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/UKGovernmentBEIS/inspect_ai.git</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> pip install inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 <p>The examples shown above execute tool code within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:</p>
