@@ -1,8 +1,13 @@
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes, match
-from inspect_ai.solver import generate, system_message, tool, use_tools
-from inspect_ai.util import subprocess
+from inspect_ai.solver import (
+    generate,
+    system_message,
+    tool,
+    tool_environment,
+    use_tools,
+)
 
 
 @tool(
@@ -53,7 +58,7 @@ def list_files():
         Returns:
             File listing of the directory
         """
-        result = await subprocess(["ls", dir])
+        result = await tool_environment().exec(["ls", dir])
         if result.success:
             return result.stdout
         else:

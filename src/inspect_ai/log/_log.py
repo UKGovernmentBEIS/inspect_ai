@@ -184,6 +184,9 @@ class EvalSpec(BaseModel):
     dataset: EvalDataset
     """Dataset used for eval."""
 
+    tool_environment: tuple[str, str | None] | None = Field(default=None)
+    """Tool environment type and optional config file."""
+
     model: str
     """Model used for eval."""
 
@@ -278,7 +281,7 @@ class EvalStats(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-LoggingLevel = Literal["debug", "http", "info", "warning", "error", "critical"]
+LoggingLevel = Literal["debug", "http", "tools", "info", "warning", "error", "critical"]
 """Logging level."""
 
 

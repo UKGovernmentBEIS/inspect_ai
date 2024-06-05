@@ -22,7 +22,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._model import init_async_context_model
-from inspect_ai.solver import Solver
+from inspect_ai.solver import Solver, ToolEnvironmentSpec
 from inspect_ai.util._context import init_async_context
 
 from .loader import resolve_tasks
@@ -40,6 +40,7 @@ def eval(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
+    tool_environment: ToolEnvironmentSpec | None = None,
     plan: Solver | list[Solver] | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
@@ -66,6 +67,8 @@ def eval(
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
         task_args (dict[str,Any]): Task arguments
+        tool_environment (ToolEnvironmentSpec | None): Tool
+           environment type (or optionally a tuple with type and config file)
         plan (Solver | list[Solver] | None): Alternative plan
            for evaluating task(s). Optional (uses task plan by default).
         log_level (str | None): "debug", "http", "info", "warning", "error",
@@ -103,6 +106,7 @@ def eval(
             model_base_url=model_base_url,
             model_args=model_args,
             task_args=task_args,
+            tool_environment=tool_environment,
             plan=plan,
             log_level=log_level,
             log_dir=log_dir,
@@ -126,6 +130,7 @@ async def eval_async(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
+    tool_environment: ToolEnvironmentSpec | None = None,
     plan: Solver | list[Solver] | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
@@ -152,6 +157,8 @@ async def eval_async(
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
         task_args (dict[str,Any]): Task arguments
+        tool_environment (ToolEnvironentSpec | None): Tool
+           environment type (or optionally a tuple with type and config file)
         plan (Solver | list[Solver] | None): Alternative plan
             for evaluating task(s). Optional (uses task plan by default).
         log_level (str | None): "debug", "http", "info", "warning", "error",
@@ -260,6 +267,7 @@ async def eval_async(
             run_id=run_id,
             model=model,
             dataset=task.dataset,
+            tool_environment=tool_environment,
             task_attribs=task.attribs,
             task_args=task_args,
             model_args=model_args,
@@ -470,6 +478,7 @@ async def eval_retry_async(
                 model_base_url=model_base_url,
                 model_args=model_args,
                 task_args=task_args,
+                tool_environment=eval_log.eval.tool_environment,
                 log_level=log_level,
                 log_dir=log_dir,
                 limit=limit,

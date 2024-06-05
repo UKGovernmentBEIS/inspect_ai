@@ -17,6 +17,7 @@ export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
 export type Shuffled = boolean | null;
+export type ToolEnvironment = [unknown, unknown] | null;
 export type Model = string;
 export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
@@ -69,7 +70,6 @@ export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
 export type Samples1 = EvalSample[] | null;
-export type Index = number;
 export type Id = number | string;
 export type Epoch = number;
 export type Input = string | (ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool)[];
@@ -125,7 +125,7 @@ export type Value1 =
 export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata4 = {} | null;
-export type Level = "debug" | "http" | "info" | "warning" | "error" | "critical";
+export type Level = "debug" | "http" | "tools" | "info" | "warning" | "error" | "critical";
 export type Message1 = string;
 export type Created1 = number;
 export type Logging = LoggingMessage[];
@@ -149,6 +149,7 @@ export interface EvalSpec {
   run_id: RunId;
   created: Created;
   dataset: EvalDataset;
+  tool_environment: ToolEnvironment;
   model: Model;
   model_base_url: ModelBaseUrl;
   task_attribs: TaskAttribs;
@@ -260,7 +261,6 @@ export interface EvalError {
   traceback_ansi: TracebackAnsi;
 }
 export interface EvalSample {
-  index: Index;
   id: Id;
   epoch: Epoch;
   input: Input;

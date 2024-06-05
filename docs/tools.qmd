@@ -6,7 +6,7 @@ Many models now have the ability to interact with client-side Python functions i
 
 Inspect natively supports registering Python functions as tools and providing these tools to models that support them (currently OpenAI, Claude 3, Google Gemini, and Mistral). Inspect also includes one built-in tool (web search).
 
-::: {.callout-note}
+::: callout-note
 ### Tools and Agents
 
 One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. We'll cover how to use agent scaffolds in [Agent Solvers](#agent-solvers) below.
@@ -56,70 +56,6 @@ Note that this tool doesn't make network requests or do heavy computation, so is
 Note that when using tools with models, the models do not call the Python function directly. Rather, the model generates a structured request which includes function parameters, and then Inspect calls the function and returns the result to the model.
 :::
 
-## Subprocesses
-
-It's possible that your tool will need to launch a subprocess to do its work. When working with subprocesses its important to make sure that they don't block the rest of the work in the system (so they should be invoked with `async`) and that you don't run too many of them in parallel (which could overwhelm local compute resources).
-
-To assist with this, Inspect provides the `subprocess()` function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout (or stderr in the case of an error). The `subprocess()` function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`). Here's an example of using the `subprocess()` function to create a `list_files()` tool:
-
-``` python
-from inspect_ai.model import tool
-from inspect_ai.util import subprocess
-
-# define tool
-@tool(prompt=(
-    "If you are asked to list the files in a directory you should "
-    + "call the list_files function to access the listing."
-))
-def list_files():
-    async def execute(dir: str):
-        """List the files in a directory.
-
-        Args:
-            dir (str): Directory
-
-        Returns:
-            File listing of the directory
-        """
-        result = await subprocess(["ls", dir])
-        if result.success:
-            return result.stdout
-        else:
-            return f"Error: {result.stderr}"
-
-    return execute
-```
-
-Here's how we might use this tool in an evaluation:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes
-from inspect_ai.solver import generate, system_message, use_tools
-
-dataset = [
-  Sample(
-    input=(
-      "Please list the files in the /usr/local/bin directory. "
-      + "Is there a file named 'python3' in the directory?"
-    ),
-    target=["Yes"],
-  )
-]
-
-@task
-def bash():
-    return Task(
-        dataset=dataset,
-        plan=[
-            use_tools(list_files()),
-            generate(),
-        ],
-        scorer=includes(),
-    )
-```
-
 ## Tool Choice
 
 By default models will use a tool if they think it's appropriate for the given task. You can override this behavior using the `tool_choice` parameter of the `use_tools()` Solver. For example:
@@ -146,6 +82,250 @@ plan = [
   generate()
 ]
 ```
+
+## Tool Environments
+
+::: {.callout-important}
+The Tool Environments feature described in this section is not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the develoment version:
+
+```bash
+$ git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
+$ pip install inspect_ai
+```
+
+:::
+
+The examples shown above execute tool code within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:
+
+-   You are creating tools that enable execution of arbitrary code (e.g. a tool that executes shell commands or Python code).
+
+-   You need to provision per-sample filesystem resources.
+
+-   You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
+
+### Example: File Listing
+
+Let's take a look at a simple example to illustrate. First, we'll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the `tool_environment()` function to get access to the `ToolEnvironment` instance for the currently executing `Sample`:
+
+``` python
+from inspect_ai.solver import tool, tool_environment
+
+@tool(prompt="Use the list_files function to enumerate files.")
+def list_files():
+    async def execute(dir: str):
+        """List the files in a directory.
+
+        Args:
+            dir (str): Directory
+
+        Returns:
+            File listing of the directory
+        """
+        result = await tool_environment().exec(["ls", dir])
+        if result.success:
+            return result.stdout
+        else:
+            return f"Error: {result.stderr}"
+
+    return execute
+```
+
+The `exec()` function is used to list the directory contents. Note that its not immediately clear where or how `exec()` is implemented (that will be described shortly!).
+
+Here's an evaluation that makes use of this tool:
+
+``` python
+from inspect_ai import task, Task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, use_tools
+
+dataset = [
+    Sample(
+        input='Is there a file named "bar.txt" ' 
+               + 'in the current directory?',
+        target="Yes",
+        files={"bar.txt": "hello"},
+    )
+]
+
+@task
+def file_probe()
+    return Task(
+        dataset=dataset,
+        plan=[
+            use_tools([list_files()]), 
+            generate()
+        ],
+        scorer=includes(),
+    )
+)
+```
+
+Note that `files` are specified as part of the `Sample`. Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g. S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.
+
+### Environment Interface
+
+The following methods are available for all tool environments:
+
+``` python
+class ToolEnvironment:
+   
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        env: dict[str, str] = {},
+        timeout: int | None = None,
+    ) -> ExecResult[str]:
+        ...
+
+    async def write_file(
+        self, file: str, contents: str | bytes
+    ) -> None:
+        ...
+
+    async def read_file(
+        self, file: str, text: bool = True
+    ) -> Union[str | bytes]:
+        ...
+```
+
+There are also `setup()` and `cleanup()` methods that are called automatically by Inspect at the appropriate times.
+
+### Environment Binding
+
+The previous example used the default `LocalToolEnvironment`, which executes all tool code within the main process. Often though you'll want to sandbox tool execution using another environment type (e.g. the "docker" type implemented by `DockerToolEnvironment`).
+
+Tool environments can be bound at the `Task` level or at the `eval()` level (where `eval()` takes precedence). To bind a tool environment to a `Task`, use the `tool_environment` option:
+
+``` python
+Task(
+    dataset=dataset,
+    plan([
+        use_tools([read_file(), list_files()])), 
+        generate()
+    ]),
+    scorer=match(),
+    tool_environment="docker"
+)
+```
+
+For this example, if there is a `compose.yaml` file in the task directory it will be used to provision Docker services (if there is no `compose.yaml` then the Docker's default Python 3.12 image will be used). You can specify an alternate config file using a tuple:
+
+``` python
+tool_environment=("docker", "my-compose.yaml")
+```
+
+Similar conventions exist for `eval()` and the CLI:
+
+``` python
+eval(task, tool_environment="docker")
+eval(task, tool_environment=("docker","my-compose.yaml"))
+```
+
+``` bash
+$ inspect eval --tool-environment docker
+$ inspect eval --tool-environment docker:my-compose.yaml
+```
+
+### Docker Configuration
+
+While `--tool-environment` can be a default un-configured environment (e.g. “docker”), more commonly you’ll provide explicit configuration in either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
+
+Here is how Docker tool environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
+
+| Config Files   | Behavior                                                                                                        |
+|------------------|------------------------------------------------------|
+| None           | Creates a tool environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
+| `Dockerfile`   | Creates a tool environment by building the image.                                                               |
+| `compose.yaml` | Creates tool environment(s) based on `compose.yaml`.                                                            |
+
+Here is what a simple `compose.yaml` would look like for a single tool environment that uses the `ctf-agent-environment` Docker image:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default: 
+    image: ctf-agent-environment
+    cpus: 1.0
+    mem_limit: 0.5gb
+```
+
+Note that we've also chosen to limit the CPU and memory usage of the container (see the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on these and other container options).
+
+#### Multiple Environments
+
+In some cases you may want to create multiple tool environments (e.g. if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: ctf-agent-environment
+    cpus: 1.0
+    mem_limit: 0.5gb
+  ghidra:
+    image: ctf-ghidra-environment
+    cpus: 1.0
+    mem_limit: 1gb
+```
+
+The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to `tool_environment()`. Other environments would be accessed by name, for example:
+
+``` python
+tool_environment()          # default tool environment
+tool_environment("ghidra")  # named tool environment
+```
+
+::: {.callout-note apperance="simple"}
+If you define multiple tool environments you are *required* to name one of them "default" so that Inspect knows which environment to copy samples files to and resolve for calls to `tool_environment()` without an argument.
+:::
+
+#### Infrastructure
+
+Note that in many cases you’ll want to provision additional infrastructure (e.g. other hosts or volumes). For example, here we define an additional container (“writer”) as well as a volume shared between the default container and the writer container:
+
+``` yaml
+services:
+  default: 
+    image: ctf-agent-environment
+    volumes:
+      - ctf-challenge-volume:/shared-data
+    
+  writer:
+    image: ctf-challenge-writer
+    volumes:
+      - ctf-challenge-volume:/shared-data
+volumes:
+  ctf-challenge-volume:
+```
+
+See the documentation on [Docker Compose](https://docs.docker.com/compose/compose-file/) files for information on their full schema and feature set.
+
+### Resource Management
+
+Creating and executing code within Docker containers can be expensive both in terms of memory and CPU utilization. Inspect provides some automatic resource management to keep usage reasonable in the default case. This section describes that behavior as well as how you can tune it for your use-cases.
+
+#### Running Containers
+
+As descibed above, each `Sample` is provisioned its own container. The number of running containers for an evaluation is therefore determined by the `max_samples` option (which is by default set to `max_connections`, typically 10 unless overridden).
+
+Use `max_samples` to dial up or down the number of containers running at any given time. Note that a running container does not necessarily use CPU resources unless it has active background processes.
+
+#### Concurrent Execution
+
+The `ToolEnvironment.exec()` method runs a command within a tool environment, typically consuming CPU resources. To protect against overwhelming the system's CPUs, the implementation of `exec()` uses Inspect's `subprocess()` function, which automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`).
+
+You can change the number of permitted concurrent subprocess executions using the `max_subprocesses` option. You might do this for example if you know that your `exec()` commands tend to use *multiple* CPU cores and thus should be executed with less concurrency.
+
+### Troubleshooting
+
+You can view more detailed logging around the creation and use of tool environments by using the `tools` log level. For example:
+
+```bash
+$ inspect eval ctf.py --log-level tools
+```
+
+The tools log level is just above `warning` (so it will not show `http` or `debug` level messages).
 
 ## Web Search
 
@@ -191,7 +371,7 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
 
-## Agent Solvers
+## Agent Solvers {#agent-solvers}
 
 Agent solvers typically have multiple interactions with a model, generating completions, orchestrating the use of tools, and using the model to plan their next action. Agents are an area of active research, and many schemes for implementing them have been developed, including [AutoGPT](https://arxiv.org/abs/2306.02224), [ReAct](https://arxiv.org/pdf/2303.11366.pdf), and [Reflexion](https://arxiv.org/pdf/2303.11366.pdf). There are also Python libraries such [LangChain](https://python.langchain.com/docs/modules/agents/) and [Langroid](https://langroid.github.io/langroid/) which facilitate using these techniques with various LLMs.
 
@@ -332,29 +512,3 @@ def wikipedia() -> Task:
 ```
 
 See the [working version](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain) of this example if you want to run and experiment with it.
-
-
-## Tool Params
-
-In some cases you may want to forward information from task metadata to a tool. This would be useful if you have some per-sample metadata that you want tools to condition their behavior on. To do this, specify the `params` option on the `@tool` decorator and specify the metadata value you would like to forward (these params will be then be passed to the function with the appropriate per-task value). For example:
-
-``` python
-@tool(
-   prompt = "Use the run_command function to run commands.",
-   params = dict(container_name="metadata.container_name")
-)
-def run_command():
-    """Run a command in a container.
-
-   Args:
-       container_name (str): Name of container to run within.
-       command (str): Command to run.
-
-   Returns:
-       Result of executing the command.
-   """
-   async def execute(container_name: str, command: str):
-       ...
-
-   return execute
-```

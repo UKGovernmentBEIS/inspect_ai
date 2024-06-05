@@ -18,6 +18,8 @@ from inspect_ai._util.constants import (
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
+    TOOLS,
+    TOOLS_LOG_LEVEL,
 )
 from inspect_ai.util._context.logger import notify_logger_record
 
@@ -58,8 +60,9 @@ class LogHandler(RichHandler):
 # initialize logging -- this function can be called multiple times
 # in the lifetime of the process (the levelno will update globally)
 def init_logger(log_level: str | None = None) -> None:
-    # register http level
+    # register http and tools levels
     addLevelName(HTTP, HTTP_LOG_LEVEL)
+    addLevelName(TOOLS, TOOLS_LOG_LEVEL)
 
     # resolve default log level
     log_level = (

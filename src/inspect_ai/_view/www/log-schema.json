@@ -797,11 +797,6 @@
     },
     "EvalSample": {
       "properties": {
-        "index": {
-          "default": 0,
-          "title": "Index",
-          "type": "integer"
-        },
         "id": {
           "anyOf": [
             {
@@ -913,7 +908,6 @@
         }
       },
       "required": [
-        "index",
         "id",
         "epoch",
         "input",
@@ -1001,6 +995,35 @@
         "dataset": {
           "$ref": "#/$defs/EvalDataset"
         },
+        "tool_environment": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Environment"
+        },
         "model": {
           "title": "Model",
           "type": "string"
@@ -1075,6 +1098,7 @@
         "run_id",
         "created",
         "dataset",
+        "tool_environment",
         "model",
         "model_base_url",
         "task_attribs",
@@ -1375,6 +1399,7 @@
           "enum": [
             "debug",
             "http",
+            "tools",
             "info",
             "warning",
             "error",

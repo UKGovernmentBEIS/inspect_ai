@@ -4,7 +4,6 @@ import functools
 import os
 from contextvars import ContextVar
 from copy import deepcopy
-from importlib.metadata import EntryPoints, entry_points
 from typing import Any, Callable, Literal, Type, Union, cast
 
 from pydantic import BaseModel, Field
@@ -19,6 +18,7 @@ from tenacity import (
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
+from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -760,12 +760,8 @@ def get_model(
     if isinstance(model, Model):
         return model
 
-    # ensure that inspect model provider extensions are loaded if
-    # they haven't been already
-    global _inspect_ai_eps
-    if not _inspect_ai_eps:
-        _inspect_ai_eps = entry_points(group="inspect_ai")
-        [ep.load() for ep in _inspect_ai_eps]
+    # ensure that inspect model provider extensions are loaded
+    ensure_entry_points()
 
     # split model into api name and model name if necessary
     api_name = None
@@ -795,10 +791,6 @@ def get_model(
     else:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
-
-
-# insepct model provider extension entry points
-_inspect_ai_eps: EntryPoints | None = None
 
 
 def simple_input_messages(

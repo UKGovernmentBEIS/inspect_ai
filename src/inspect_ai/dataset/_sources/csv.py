@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from inspect_ai._util.file import file
+from inspect_ai.dataset._sources.util import resolve_sample_files
 
 from .._dataset import (
     Dataset,
@@ -68,6 +69,9 @@ def csv_dataset(
             name=name,
             location=csv_file,
         )
+
+        # resolve relative file paths
+        resolve_sample_files(dataset)
 
         # shuffle if requested
         if shuffle:

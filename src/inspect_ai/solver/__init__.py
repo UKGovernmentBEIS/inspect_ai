@@ -8,6 +8,13 @@ from ._prompt import (
 )
 from ._solver import Generate, Solver, generate, solver
 from ._task_state import TaskState
+from ._tool.environment import (
+    ToolEnvironment,
+    ToolEnvironments,
+    ToolEnvironmentSpec,
+    tool_environment,
+    toolenv,
+)
 from ._tool.tool import Tool, tool
 from ._tool.use_tools import use_tools
 from ._tool.web_search import web_search
@@ -20,6 +27,8 @@ __all__ = [
     "system_message",
     "self_critique",
     "tool",
+    "toolenv",
+    "tool_environment",
     "use_tools",
     "web_search",
     "plan",
@@ -29,4 +38,7 @@ __all__ = [
     "TaskState",
     "Tool",
     "Generate",
+    "ToolEnvironment",
+    "ToolEnvironments",
+    "ToolEnvironmentSpec",
 ]

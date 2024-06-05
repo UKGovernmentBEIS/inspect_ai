@@ -15,7 +15,7 @@ from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
 
 from .common import CommonOptions, common_options, resolve_common_options
-from .util import parse_cli_args
+from .util import parse_cli_args, parse_tool_env
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_SUBPROCESSES_HELP = (
@@ -61,6 +61,11 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     type=str,
     envvar="INSPECT_EVAL_TASK_ARGS",
     help="One or more task arguments (e.g. -T arg=value)",
+)
+@click.option(
+    "--tool-environment",
+    type=str,
+    help="Tool environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml'",
 )
 @click.option(
     "--limit",
@@ -170,6 +175,7 @@ def eval_command(
     model_base_url: str | None,
     m: tuple[str] | None,
     t: tuple[str] | None,
+    tool_environment: str | None,
     epochs: int | None,
     limit: str | None,
     max_retries: int | None,
@@ -235,6 +241,7 @@ def eval_command(
         model_base_url=model_base_url,
         model_args=model_args,
         task_args=task_args,
+        tool_environment=parse_tool_env(tool_environment),
         log_level=log_level,
         log_dir=log_dir,
         limit=eval_limit,

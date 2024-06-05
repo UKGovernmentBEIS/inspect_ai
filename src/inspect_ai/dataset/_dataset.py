@@ -30,7 +30,10 @@ class Sample(BaseModel):
         target (str | list[str] | None): Optional. Ideal target output. May be a literal value
             or narrative text to be used by a model grader.
         id (int | str | None): Optional. Unique identifier for sample.
-        metadata (dict | None): Optional. Arbitrary metadata associated with the sample.
+        metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
+        files (dict[str, str]): Optional. Files that go along with the sample (copied to
+          ToolEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
+
     """
 
     input: str | list[ChatMessage]
@@ -47,6 +50,9 @@ class Sample(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Arbitrary metadata associated with the sample."""
+
+    files: dict[str, str] | None = Field(default=None)
+    """Files that go along with the sample (copied to ToolEnvironment)"""
 
 
 def sample_input_len(sample: Sample) -> int:
@@ -146,6 +152,7 @@ class FieldSpec(BaseModel):
         choices (str): Optional. Name of field containing the list of answer choices.
         id (str): Optional. Unique identifier for the sample.
         metadata (list[str] | None): List of additional field names that should be read as metadata.
+        files (str): Optional. Files that go along with the sample.
     """
 
     input: str = Field(default="input")
@@ -162,6 +169,9 @@ class FieldSpec(BaseModel):
 
     metadata: list[str] | None = Field(default=None)
     """List of additional field names that should be read as metadata."""
+
+    files: str = Field(default="files")
+    """Files that go along wtih the sample."""
 
 
 RecordToSample = Callable[[DatasetRecord], Sample]

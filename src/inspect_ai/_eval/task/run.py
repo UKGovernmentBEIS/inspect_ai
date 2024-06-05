@@ -1,9 +1,10 @@
 import asyncio
+import base64
 import contextlib
 import sys
 from copy import deepcopy
 from logging import getLogger
-from typing import Callable
+from typing import AsyncGenerator, Callable
 
 from typing_extensions import Unpack
 
@@ -13,11 +14,13 @@ from inspect_ai._util.constants import DEFAULT_EPOCHS
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.error import exception_message
+from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
+from inspect_ai._util.url import data_uri_to_base64, is_data_uri
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
     EvalConfig,
@@ -37,6 +40,11 @@ from inspect_ai.model import (
 )
 from inspect_ai.scorer import Score, Scorer, Target
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
+from inspect_ai.solver._tool.environment.context import (
+    cleanup_tool_environments_context,
+    init_tool_environments_context,
+    startup_tool_environments,
+)
 
 from ..task import Task
 from .generate import task_generate
@@ -108,6 +116,15 @@ async def task_run(
             log_images=log_images,
         )
 
+        # resolve tool_environment
+        tool_environment = (
+            logger.eval.tool_environment
+            if logger.eval.tool_environment
+            else task.tool_environment
+            if task.tool_environment
+            else ("local", None)
+        )
+
         # resolve the plan and scorer
         plan = (
             plan
@@ -134,6 +151,9 @@ async def task_run(
             generate_config=generate_config,
             log_location=logger.location,
         )
+
+        # run startup pass for the tool_environment
+        await startup_tool_environments(task.name, tool_environment)
 
         with display().task(profile) as td:
             try:
@@ -171,6 +191,7 @@ async def task_run(
                             task_name=task.name,
                             sample=sample,
                             state=state,
+                            tool_environment=tool_environment,
                             plan=plan,
                             max_messages=config.max_messages,
                             scorer=scorer,
@@ -245,6 +266,7 @@ async def task_run_sample(
     task_name: str,
     sample: Sample,
     state: TaskState,
+    tool_environment: tuple[str, str | None],
     plan: Plan,
     max_messages: int | None,
     scorer: Scorer | None,
@@ -275,7 +297,7 @@ async def task_run_sample(
     )
 
     # solver loop
-    async with cm:
+    async with cm, toolenv_context(task_name, tool_environment, sample):
         try:
             # run plan steps (checking for early termination)
             for index, solver in enumerate(plan.steps):
@@ -305,7 +327,6 @@ async def task_run_sample(
                         f"Exception occurred during plan cleanup for task {task_name}: "
                         + f"{exception_message(ex)}"
                     )
-                    pass
 
         # score it
         result = await scorer(state, Target(sample.target)) if scorer else None
@@ -443,3 +464,48 @@ def create_task_semaphone(
         + 1
     )
     return asyncio.Semaphore(max_samples)
+
+
+@contextlib.asynccontextmanager
+async def toolenv_context(
+    task_name: str, tool_environment: tuple[str, str | None], sample: Sample
+) -> AsyncGenerator[None, None]:
+    # read files from sample
+    files: dict[str, bytes] = {}
+    if sample.files:
+        for path, contents in sample.files.items():
+            if is_data_uri(contents):
+                contents_base64 = data_uri_to_base64(contents)
+                file_bytes = base64.b64decode(contents_base64)
+            else:
+                # try to read as a file (if it doesn't exist or has a path not cool w/
+                # the fileystem then we fall back to contents)
+                try:
+                    fs = filesystem(contents)
+                    if fs.exists(contents):
+                        with file(contents, "rb") as f:
+                            file_bytes = f.read()
+                    else:
+                        file_bytes = contents.encode("utf-8")
+                except Exception:
+                    file_bytes = contents.encode("utf-8")
+
+            # record resolved bytes
+            files[path] = file_bytes
+
+    try:
+        # initialize tool environment,
+        await init_tool_environments_context(
+            type=tool_environment[0],
+            task_name=task_name,
+            config=tool_environment[1],
+            files=files,
+            metadata=sample.metadata if sample.metadata else {},
+        )
+
+        # run sample
+        yield
+
+    finally:
+        # cleanup tool environment
+        await cleanup_tool_environments_context()

@@ -39,7 +39,7 @@ Remember to put your answer on its own line at the end in the form "ANSWER: $ANS
 def math(shuffle=True):
     return Task(
         dataset=csv_dataset(
-            csv_file="datasets/math_test.csv",
+            csv_file="https://openaipublic.blob.core.windows.net/simple-evals/math_test.csv",
             sample_fields=FieldSpec(input="Question", target="Answer"),
             shuffle=shuffle,
         ),

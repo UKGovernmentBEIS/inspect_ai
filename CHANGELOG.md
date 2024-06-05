@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.15 (Unreleased)
+
+- [Tool Environments](https://ukgovernmentbeis.github.io/inspect_ai/tools.html#tool-environments) for executing tool code in sandboxed containers.
+
 ## v0.3.14 (04 June 2024)
 
 - Stream samples to the evaluation log as they are completed (subject to the new `--log-buffer` option). Always write completed samples in the case of an error or cancelled task.

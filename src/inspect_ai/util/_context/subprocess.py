@@ -13,7 +13,7 @@ T = TypeVar("T", str, bytes)
 
 
 @dataclass
-class ProcessResult(Generic[T]):
+class ExecResult(Generic[T]):
     success: bool
     """Did the process exit with success."""
 
@@ -35,8 +35,9 @@ async def subprocess(
     input: str | bytes | memoryview | None = None,
     cwd: str | Path | None = None,
     env: dict[str, str] = {},
+    capture_output: bool = True,
     timeout: int | None = None,
-) -> ProcessResult[str]: ...
+) -> ExecResult[str]: ...
 
 
 @overload
@@ -46,8 +47,9 @@ async def subprocess(
     input: str | bytes | memoryview | None = None,
     cwd: str | Path | None = None,
     env: dict[str, str] = {},
+    capture_output: bool = True,
     timeout: int | None = None,
-) -> ProcessResult[bytes]: ...
+) -> ExecResult[bytes]: ...
 
 
 async def subprocess(
@@ -56,8 +58,9 @@ async def subprocess(
     input: str | bytes | memoryview | None = None,
     cwd: str | Path | None = None,
     env: dict[str, str] = {},
+    capture_output: bool = True,
     timeout: int | None = None,
-) -> Union[ProcessResult[str], ProcessResult[bytes]]:
+) -> Union[ExecResult[str], ExecResult[bytes]]:
     """Execute and wait for a subprocess.
 
     Convenience method for solvers, scorers, and tools to launch
@@ -72,6 +75,8 @@ async def subprocess(
           for subprocess.
        cwd (str | Path | None): Switch to directory for execution.
        env (dict[str, str]): Additional environment variables.
+       capture_output (bool): Capture stderr and stdout into ExecResult
+         (if False, then output is redirected to parent stderr/stdout)
        timeout (int | None): Timeout
 
     Returns:
@@ -85,12 +90,12 @@ async def subprocess(
     command = " ".join([shlex.quote(arg) for arg in args])
 
     # function to run command (we may or may not run it w/ concurrency)
-    async def run_command() -> Union[ProcessResult[str], ProcessResult[bytes]]:
+    async def run_command() -> Union[ExecResult[str], ExecResult[bytes]]:
         proc = await asyncio.create_subprocess_shell(
             command,
             stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE if capture_output else None,
+            stderr=asyncio.subprocess.PIPE if capture_output else None,
             cwd=cwd,
             env={**os.environ, **env},
         )
@@ -100,22 +105,22 @@ async def subprocess(
         success = proc.returncode == 0
         returncode = proc.returncode if proc.returncode is not None else 1
         if text:
-            return ProcessResult[str](
+            return ExecResult[str](
                 success=success,
                 returncode=returncode,
-                stdout=stdout.decode(),
-                stderr=stderr.decode(),
+                stdout=stdout.decode() if capture_output else "",
+                stderr=stderr.decode() if capture_output else "",
             )
         else:
-            return ProcessResult[bytes](
+            return ExecResult[bytes](
                 success=success,
                 returncode=returncode,
-                stdout=stdout,
-                stderr=stderr,
+                stdout=stdout if capture_output else bytes(),
+                stderr=stderr if capture_output else bytes(),
             )
 
     # wrapper for run command that implements timeout
-    async def run_command_timeout() -> Union[ProcessResult[str], ProcessResult[bytes]]:
+    async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
         if timeout:
             try:
                 if sys.version_info >= (3, 11):
@@ -124,9 +129,7 @@ async def subprocess(
                 else:
                     return await asyncio.wait_for(run_command(), timeout=timeout)
             except asyncio.exceptions.TimeoutError:
-                return ProcessResult(
-                    False, 1, "", "Command timed out before completing"
-                )
+                return ExecResult(False, 1, "", "Command timed out before completing")
         else:
             return await run_command()
 

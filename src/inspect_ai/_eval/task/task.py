@@ -29,6 +29,8 @@ class Task:
         metrics (list[Metric]): Additional metrics to compute beyond
           the base metrics provided by the scorer.
         config (GenerateConfig): Model generation config.
+        tool_environment (str | tuple[str,str] | None): Tool
+           environment type (or optionally a tuple with type and config file)
         epochs (int): Default number of epochs to run for.
         max_messages (int | None): Limit on total messages in the conversation.
         name: (str | None): Task name. If not specified is automatically
@@ -46,6 +48,7 @@ class Task:
         scorer: Scorer | None = None,
         metrics: list[Metric] = [],
         config: GenerateConfig = GenerateConfig(),
+        tool_environment: str | tuple[str, str] | None = None,
         epochs: int | None = None,
         max_messages: int | None = None,
         name: str | None = None,
@@ -58,6 +61,11 @@ class Task:
         self.scorer = scorer
         self.metrics = metrics
         self.config = config
+        self.tool_environment = (
+            (tool_environment, None)
+            if isinstance(tool_environment, str)
+            else tool_environment
+        )
         self.epochs = epochs
         self.max_messages = max_messages
         self.version = version

@@ -16,3 +16,14 @@ def parse_cli_args(args: tuple[str] | list[str] | None) -> dict[str, Any]:
                     value = value if len(value) > 1 else value[0]
                 params[key] = value
     return params
+
+
+def parse_tool_env(tool_environment: str | None) -> str | tuple[str, str] | None:
+    if tool_environment is not None:
+        parts = tool_environment.split(":")
+        if len(parts) == 1:
+            return tool_environment
+        else:
+            return (parts[0], parts[1])
+    else:
+        return None

@@ -35,7 +35,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import collect_model_usage
 from inspect_ai.scorer import Score
-from inspect_ai.solver import Plan, Solver, TaskState
+from inspect_ai.solver import Plan, Solver, TaskState, ToolEnvironmentSpec
 from inspect_ai.util._context.logger import collect_logger_records
 
 
@@ -50,6 +50,7 @@ class TaskLogger:
         run_id: str,
         model: Model,
         dataset: Dataset,
+        tool_environment: ToolEnvironmentSpec | None,
         task_attribs: dict[str, Any],
         task_args: dict[str, Any],
         model_args: dict[str, Any],
@@ -80,6 +81,11 @@ class TaskLogger:
                 location=cwd_relative_path(dataset.location),
                 samples=len(dataset),
                 shuffled=dataset.shuffled,
+            ),
+            tool_environment=(
+                (tool_environment, None)
+                if isinstance(tool_environment, str)
+                else tool_environment
             ),
             task_attribs=task_attribs,
             task_args=task_args,

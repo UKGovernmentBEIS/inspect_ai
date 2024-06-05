@@ -15,6 +15,7 @@ from .._dataset import (
     RecordToSample,
 )
 from .._util import record_to_sample_fn
+from .util import resolve_sample_files
 
 
 def json_dataset(
@@ -74,6 +75,9 @@ def json_dataset(
             name=name,
             location=json_file,
         )
+
+        # resolve relative file paths
+        resolve_sample_files(dataset)
 
         # shuffle if requested
         if shuffle:

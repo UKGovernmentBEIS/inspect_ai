@@ -1,3 +1,4 @@
+aiofiles
 click
 debugpy
 fsspec

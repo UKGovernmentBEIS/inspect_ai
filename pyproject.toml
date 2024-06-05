@@ -111,6 +111,7 @@ dev = [
     "pytest-dotenv",
     "pytest-xdist",
     "pandas-stubs",
+    "types-aiofiles",
     "types-botocore",
     "types-boto3",
     "types-beautifulsoup4",
