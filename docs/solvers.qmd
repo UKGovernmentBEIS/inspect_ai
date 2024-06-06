@@ -60,7 +60,7 @@ We've covered the role of solvers in the system, but what exactly are solvers te
 
 ``` python
 async def solve(state: TaskState, generate: Generate):
-    # do something useful with state (possibly 
+    # do something useful with state (possibly
     # calling generate for more advanced solvers)
     # then return the state
     return state
@@ -119,19 +119,19 @@ Here is the declaration for the `multiple_choice()` solver:
 
 ``` python
 def multiple_choice(
-    cot: bool = False,
-    template: str | None = None,
-    max_tokens: int | None = None,
+    multiple_correct: bool = False,
     shuffle: bool | Random = False,
-    answer_pattern: str | None = None,
+    template: str | None = None,
 ) -> Solver:
 ```
 
-The `cot` parameter determines whether the default template employs chain of thought reasoning or not (defaults to `False`). Note that using chain of thought will be slower and use more tokens, so you should assess carefully whether your eval benefits from it or not. When `cot` is `False`, `max_tokens` defaults to 32; when `True`, it defaults to 1024.
+By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided.
 
 If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).
 
-Generally when using the `multiple_choice()` solver you should pair it with the `answer("letter")` scorer.
+Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required).
+
+When using the `multiple_choice()` solver you should always pair it with the `choice()` scorer.
 
 ### Self Critique
 
@@ -167,7 +167,7 @@ Typically solvers can be customised with parameters (e.g. `template` for prompt 
 Before presenting the examples we'll take a more in-depth look at the `TaskState` class. Task states consist of both lower level data members (e.g. `messages`, `output`) as well as a number of convenience properties. The core members of `TaskState` that are *modified* by solvers are `messages` / `user_prompt` and `output`:
 
 | Member        | Type                | Description                                                                                                                                                                               |
-|-----------|-----------|---------------------------------------------------|
+|-----------------|-----------------|--------------------------------------|
 | `messages`    | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
 | `user_prompt` | ChatMessageUser     | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering).                                                                  |
 | `output`      | ModelOutput         | The 'final' model output once we've completed all solving. This field is automatically updated with the last "assistant" message by the `generate()` solver.                              |
@@ -179,21 +179,21 @@ Note that the `generate()` solver automatically updates both the `messages` and 
 There are two additional fields that solvers might modify (but they are typically for more advanced use cases):
 
 | Member      | Type | Description                                                                                                                                                                  |
-|---------|---------|------------------------------------------------------|
+|-----------------|-----------------|---------------------------------------|
 | `metadata`  | dict | Original metadata from `Sample`, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging). |
 | `completed` | bool | Solvers can set `completed = True` to cause the task to exit the plan immediately.                                                                                           |
 
 Sometimes its import to have access to the *original* prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the `input` and `input_text` properties:
 
 | Member       | Type                       | Description                                                                         |
-|---------------|---------------|-------------------------------------------|
+|------------------|------------------|-------------------------------------|
 | `input`      | str \| list\[ChatMessage\] | Original `Sample` input.                                                            |
 | `input_text` | str                        | Convenience function for accessing the initial input from the `Sample` as a string. |
 
 There are several other fields used to provide contextual data from either the task sample or evaluation:
 
 | Member      | Type                | Description                                               |
-|---------------|---------------|------------------------------------------|
+|------------------|------------------|------------------------------------|
 | `sample_id` | int \| str          | Unique ID for sample.                                     |
 | `epoch`     | int                 | Epoch for sample.                                         |
 | `choices`   | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
@@ -276,8 +276,8 @@ generate an improved answer to the question:
 ***
 [END DATA]
 
-If the original answer is already correct, just repeat the 
-original answer exactly. You should just provide your answer to 
+If the original answer is already correct, just repeat the
+original answer exactly. You should just provide your answer to
 the question in exactly this format:
 
 Answer: <your answer> """
@@ -358,7 +358,7 @@ In cases of early termination, you might have one final Solver that you want to 
 Task(
     dataset=json_dataset("data.json"),
     plan = Plan(
-        steps = [...], 
+        steps = [...],
         finish = finish_up()
     ),
     scorer = model_graded_fact()
@@ -380,7 +380,7 @@ async def cleanup(state):
 Task(
     dataset=json_dataset("data.json"),
     plan = Plan(
-        steps = [...], 
+        steps = [...],
         cleanup = cleanup
     ),
     scorer = model_graded_fact()

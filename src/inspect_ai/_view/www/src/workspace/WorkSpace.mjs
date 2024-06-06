@@ -75,7 +75,7 @@ export const WorkSpace = (props) => {
     if (workspaceLog.contents?.status !== "error") {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        scrollable: false,
+        scrollable: workspaceLog.contents?.samples?.length === 1,
         label:
           workspaceLog.contents?.samples?.length > 1 ? "Samples" : "Sample",
         content: () => {

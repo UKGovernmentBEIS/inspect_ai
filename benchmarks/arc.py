@@ -14,7 +14,7 @@ inspect eval arc.py@arc_challenge
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
-from inspect_ai.scorer import answer
+from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
 
@@ -43,7 +43,7 @@ def arc_task(dataset_name):
             sample_fields=record_to_sample,
         ),
         plan=multiple_choice(),
-        scorer=answer("letter"),
+        scorer=choice(),
     )
 
 

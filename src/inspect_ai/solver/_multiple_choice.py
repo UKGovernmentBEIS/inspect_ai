@@ -1,18 +1,17 @@
-import logging
 import re
 from random import Random
+from typing import Match
 
 from inspect_ai.util import resource
 
 from ._solver import Generate, Solver, solver
-from ._task_state import TaskState
+from ._task_state import Choices, TaskState
 
-logger = logging.getLogger(__name__)
-
-# this template is based on the multiple choice template in openai simple evals:
-# https://github.com/openai/simple-evals/blob/main/mmlu_eval.py
-
-MULTIPLE_CHOICE_TEMPLATE = r"""
+# This is used by default to generate a multiple choice choice from generation.
+#
+# These templates are based on the multiple choice template in openai simple
+# evals: https://github.com/openai/simple-evals/blob/main/mmlu_eval.py
+SINGLE_ANSWER_TEMPLATE = r"""
 Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
 
 {question}
@@ -20,162 +19,243 @@ Answer the following multiple choice question. The entire content of your respon
 {choices}
 """.strip()
 
-
-MULTIPLE_CHOICE_TEMPLATE_COT = r"""
-Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}. Think step by step before answering.
+MULTIPLE_ANSWER_TEMPLATE = r"""
+Answer the following multiple choice question where multiple answers may be correct. The entire content of your response should be of the following format: 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}.
 
 {question}
 
 {choices}
-"""
+""".strip()
 
 
-# Default regex for matching out the answer, note the three capture groups which
-# is required to handle shuffling
-MULTIPLE_CHOICE_ANSWER = r"(?i)(ANSWER\s*:\s*)([A-Za-z])([^\w]|\n|$)"
+def unshuffle_choices(choices: Choices) -> Choices:
+    # `sorted` returns `list[Choice]`, but for consistency we wrap this back
+    # into a `Choices` object
+    return Choices(sorted(choices, key=lambda choice: choice.original_position))
 
 
-# max tokens for different variations
-MULTIPLE_CHOICE_MAX_TOKENS = 32
-MULTIPLE_CHOICE_MAX_TOKENS_COT = 1024
+def answer_options(choices: Choices) -> str:
+    r"""
+    Returns the `choices` formatted as a multiple choice question, e.g.:
+
+    ["choice 1", "choice 2", "choice 3"] ->
+        "A) choice 1\nB) choice 2\nC) choice 3"
+    """
+    indexes = list(range(len(choices)))
+
+    return "\n".join(
+        [f"{chr(65 + i)}) {choices[j].value}" for i, j in enumerate(indexes)]
+    )
+
+
+def answer_character(index: int) -> str:
+    r"""
+    Helper to go from array index to char, for example:
+
+        0 -> 'A', 1 -> 'B', etc
+    """
+    return chr(ord("A") + index)
+
+
+def answer_index(char: str) -> int:
+    r"""
+    Helper to go from char to array index, for example:
+
+        'A' -> 0, 'B' -> 1, etc
+    """
+    return ord(char.upper()) - ord("A")
+
+
+def prompt(question: str, choices: Choices, template: str) -> str:
+    choices_text = answer_options(choices)
+    letters = ",".join(chr(65 + i) for i in range(len(choices)))
+
+    return template.format(
+        choices=choices_text,
+        letters=letters,
+        question=question,
+    )
+
+
+def parse_answers(state: TaskState) -> Match[str] | None:
+    """
+    Convenience function for extracting answers from the state output.
+
+    The generated response must be in the format 'ANSWER: <answers>',
+    otherwise we can't extract what the model thinks is "true". We can be a
+    bit flexible whether these are "AB" vs "A,B" vs "A B".
+
+    However, if the answer isn't in the expected format the model has
+    failed in the task so we'll ultimately just mark it as incorrect
+    """
+    return re.search(
+        r"(?i)ANSWER\s*:\s*([A-Za-z ,]+)(?:[^\w]|\n|$)", state.output.completion
+    )
+
+
+def set_choices_based_on_generated_response(state: TaskState, answers: str) -> None:
+    true_answers = [answer_index(letter) for letter in answers]
+
+    for i in range(len(state.choices)):
+        if i in true_answers:
+            state.choices.mark_choice(i, True)
+        else:
+            state.choices.mark_choice(i, False)
+
+
+def pretend_we_didnt_shuffle(
+    state: TaskState, original_question: str, template: str
+) -> None:
+    """
+    If we shuffled the choices, revert them to their unshuffled versions in the message history
+
+    This is essentially just for usability. Without doing this, matching up the
+    sample choices to the target value(s) can be misleading:
+
+        * You may be expecting a particular result from your dataset which
+          doesn't show up in the logs, for example you're expecting all correct
+          answers to be "A" but they're not.
+        * The Log Viewer knows nothing about the `TaskState` or shuffling, it's
+          just looking at the messages and the Score. This leads to
+          inconsistencies between the raw `Target` and the answers we're getting
+          back from the models.
+
+    By pretending we didn't shuffle in the message history, these
+    inconsistencies are easily resolved as the output is what's expected for a
+    given `Sample` and `Target`.
+
+    Note that this just rewrites message history. The `TaskState.choices` are
+    left shuffled, to allow us to be transparent about this elsewhere (e.g. in
+    the scoring explanation).
+    """
+    # First, change the prompt to the unshuffled version
+    pretend_prompt = prompt(
+        question=original_question,
+        choices=unshuffle_choices(state.choices),
+        template=template,
+    )
+    state.user_prompt.text = pretend_prompt
+
+    # Then, change the last message to appear as though we received unshuffled
+    # answers
+    answer_text = ", ".join(
+        sorted(
+            [
+                answer_character(choice.original_position)
+                for choice in state.choices
+                if choice.correct is True
+            ]
+        )
+    )
+    pretend_answer = f"ANSWER: {answer_text}"
+
+    state.output.completion = pretend_answer
+    state.messages[-1].content = pretend_answer
+
+
+def valid_template(template: str) -> bool:
+    """Check if a template has the required capture groups for a multiple choice question"""
+    return bool(
+        re.search(r"\{question\}", template) and re.search(r"\{choices\}", template)
+    )
 
 
 @solver
 def multiple_choice(
     *,
-    cot: bool = False,
-    template: str | None = None,
-    max_tokens: int | None = None,
+    multiple_correct: bool = False,
     shuffle: bool | Random = False,
-    answer_pattern: str | None = None,
+    template: str | None = None,
 ) -> Solver:
     """Multiple choice question solver.
 
     Formats a multiple choice question prompt, then calls `generate()`
-    (so you don't need to call `generate()` separately after this solver runs).
 
-    The `template` and `max_tokens` parameters have defaults that vary based
-    on whether `cot` is `True`. When NOT using chain of thought,
-    `max_tokens` is set to 32 (otherwise it is set to 1024). If you provide your
-    own template, you will also need to determine an appropriate value for
-    `max_tokens` (as well as `answer_pattern` if `shuffle` is `True`).
+    ### Usage
 
-    If shuffling is requested, then the choices will be presented in random order,
-    and the model output mapped back to the correct choices from the dataset.
-    When shuffling is enabled, you must also provide an `answer_pattern` that
-    allows this substitution to find the answer in the model output.
+    Note that due to the way this solver works, it has some constraints:
+
+        1. The `Sample` must have the `choices` attribute set.
+        2. The only built-in compatible scorer is the `choice` scorer.
+        3. It calls `generate()` internally, so you don't need to call it again
+
+    ### Shuffling
+
+    If the choices are shuffled, we will unshuffle them in the message history
+    after the model has been called, essentially rewriting history. It is
+    something to be aware of if writing custom scorers or solvers that interact
+    with this scorer.
 
     Args:
-        cot (bool): `True` to use chain of thought prompting (defaults to `False`).
-          Note that using chain of thought will be slower and use more tokens,
-          so you should assess carefully whether your eval benefits from it or not.
-        template (str | None): Alternate prompt template for questions/answers.
-          Templates have 3 variables: `letters`, `question`, and `choices
-          (where letters is e.g. 'ABCD').
-        max_tokens (int | None): Maximum number of tokens to output.
-        shuffle (Random | None): Present answers in a shuffled order (defaults to
-          `False`, pass `True` or an instance of `Random` to shuffle)
-        answer_pattern (str | None): Regex used to find the answer letter. This is
-          only used when `shuffle` is enabled. The regex should have 3 capture groups
-          (before the answer, the answer, and after the answer). If the answer is
-          expected at the beginning or end then you can use explicit capture groups
-          for beginning or end of string, for example (^.*) or (.*$).
+      multiple_correct (bool): Default `False`. Whether to allow multiple
+        answers to the multiple choice question. For example, "What numbers are
+        squares? A) 3, B) 4, C) 9" has multiple correct answers, B and C. Leave
+        as `False` if there's exactly one correct answer from the choices
+        available. NOTE: this does nothing if you supply your own template.
+      shuffle (bool | Random): Default `False`. Whether to shuffle the choices
+        in the multiple.  Passing a `Random` instance will use that for shuffling,
+        if `True` a new `Random` instance will be created.
+      template (str | None): Template to use for the multiple choice question.
+        The default is `SINGLE_ANSWER_TEMPLATE` in this file.
+        The template will have questions and possible answers substituted into
+        it before being sent to the model. Consequently it requires three
+        specific capture groups:
+        - `{question}`: The question to be asked.
+        - `{choices}`: The choices available, which will be formatted as a
+            list of A) ... B) ... etc. before sending to the model.
+        - `{letters}`: (optional) A string of letters representing the choices, e.g.
+            "A,B,C". Used to be explicit to the model about the possible answers.
     """
-    # resolve parameters
-    if template is None:
-        if cot:
-            template = MULTIPLE_CHOICE_TEMPLATE_COT
+    if template and not valid_template(template):
+        raise ValueError(
+            "The template must contain '{question}' and '{choices}' placeholders for string substitution."
+        )
+
+    if not template:
+        if multiple_correct:
+            template = MULTIPLE_ANSWER_TEMPLATE
         else:
-            template = MULTIPLE_CHOICE_TEMPLATE
+            template = SINGLE_ANSWER_TEMPLATE
 
     template = resource(template)
-
-    if max_tokens is None:
-        if cot:
-            max_tokens = MULTIPLE_CHOICE_MAX_TOKENS_COT
-        else:
-            max_tokens = MULTIPLE_CHOICE_MAX_TOKENS
-
-    if answer_pattern is None:
-        answer_pattern = MULTIPLE_CHOICE_ANSWER
 
     if shuffle is True:
         shuffle = Random()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # confirm we have choices
         if not state.choices:
-            raise ValueError("The multiple choice solver requires samples with choices")
+            raise ValueError("The multiple_choice solver requires samples with choices")
 
-        # resolve letters
-        letters = "".join(chr(65 + i) for i in range(len(state.choices)))
-
-        # build choices str, key, and prompt
-
-        # unshuffled version (this is what we'll write into history)
-        choices_str, _ = make_choices(choices=state.choices)
-        user_prompt_text = template.format(
-            letters=letters,
-            question=state.user_prompt.text,
-            choices=choices_str,
-        )
-
-        # shuffled version (this is what we'll present to the model)
-        choices_str_shuffled, choices_key = make_choices(
-            choices=state.choices, shuffle=shuffle if shuffle else None
-        )
-        state.user_prompt.text = template.format(
-            letters=letters,
-            question=state.user_prompt.text,
-            choices=choices_str_shuffled,
-        )
-
-        # generate
-        state = await generate(state, max_tokens=max_tokens)
-
-        # unshuffle if necessary
         if shuffle:
-            state.output.completion = re.sub(
-                answer_pattern,
-                lambda m: f"{m.group(1)}{choices_key.get(m.group(2), '')}{m.group(3)}",
-                state.output.completion,
+            state.choices.shuffle(shuffle)
+
+        # Memoise the current prompt (which is the raw "question" part of the
+        # sample). Required in case we unshuffle, because we then alter message
+        # history based on the multiple-choice template.
+        original_question = state.user_prompt.text
+
+        state.user_prompt.text = prompt(
+            question=state.user_prompt.text,
+            choices=state.choices,
+            template=template,
+        )
+
+        state = await generate(state)
+
+        answers = parse_answers(state)
+        if answers and answers.group(1):
+            # If we've found answers, update the state appropriately
+            set_choices_based_on_generated_response(
+                state=state, answers=answers.group(1)
             )
 
-        # update last message and restore user prompt
-        state.messages[-1].content = state.output.completion
-        state.user_prompt.text = user_prompt_text
+            if shuffle:
+                pretend_we_didnt_shuffle(
+                    state=state,
+                    original_question=original_question,
+                    template=template,
+                )
 
-        # return state
         return state
 
     return solve
-
-
-def make_choices(
-    choices: list[str],
-    shuffle: Random | None = None,
-) -> tuple[str, dict[str, str]]:
-    # helper to go from index to char
-    def answer_char(index: int) -> str:
-        return chr(ord("A") + index)
-
-    # shuffle if requested
-    indexes = list(range(len(choices)))
-    if shuffle:
-        shuffle.shuffle(indexes)
-
-    # build choices
-    choices_str = "\n".join(
-        [f"{answer_char(i)}) {choices[j]}" for i, j in enumerate(indexes)]
-    )
-
-    # build key for going from randomized letter to actual label
-    choices_key = dict(
-        zip(
-            [answer_char(i) for i in range(0, len(indexes))],
-            [answer_char(i) for i in indexes],
-        )
-    )
-
-    # return
-    return choices_str, choices_key

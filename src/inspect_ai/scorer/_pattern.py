@@ -5,7 +5,8 @@ from inspect_ai.solver import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
 from ._metrics import accuracy, bootstrap_std
-from ._scorer import Scorer, Target, scorer
+from ._scorer import Scorer, scorer
+from ._target import Target
 
 
 def match_first(

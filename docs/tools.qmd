@@ -172,7 +172,7 @@ class ToolEnvironment:
    
     async def exec(
         self,
-        cmd: list[str],
+        cmd: str | list[str],
         input: str | bytes | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,

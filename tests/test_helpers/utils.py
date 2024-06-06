@@ -3,7 +3,7 @@ import os
 import pytest
 
 from inspect_ai import eval
-from inspect_ai.model import ContentText, ModelName, ModelOutput
+from inspect_ai.model import ChatMessage, ContentText, ModelName, ModelOutput
 from inspect_ai.solver import TaskState, tool
 
 
@@ -81,13 +81,17 @@ def addition():
 # boiler plate of creating a task for use in solver checks where we just need
 # "some" state. Over time this will likely expand and need to be extracted into
 # its own helper file with multiple options.
-def simple_task_state(content: str) -> TaskState:
+def simple_task_state(
+    choices: list[str] = [],
+    messages: list[ChatMessage] = [],
+    model_output: str = "",
+) -> TaskState:
     return TaskState(
-        model=ModelName(model="fake/model"),
-        sample_id=0,
+        choices=choices,
         epoch=0,
         input=[],
-        choices=None,
-        messages=[],
-        output=ModelOutput.from_content(model="model", content=content),
+        messages=messages,
+        model=ModelName(model="fake/model"),
+        output=ModelOutput.from_content(model="model", content=model_output),
+        sample_id=0,
     )

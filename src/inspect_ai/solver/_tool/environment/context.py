@@ -56,16 +56,21 @@ async def init_tool_environments_context(
     context: ToolEnvironments = await toolenv_setup(task_name, config, metadata)
 
     # copy files into default environment if not starting up
-    default_environment = (
-        list(context.environments.values())[0]
-        if len(context.environments) == 1
-        else context.environments["default"]
-    )
-    for file, contents in files.items():
-        await default_environment.write_file(file, contents)
+    try:
+        default_environment = (
+            list(context.environments.values())[0]
+            if len(context.environments) == 1
+            else context.environments["default"]
+        )
+        for file, contents in files.items():
+            await default_environment.write_file(file, contents)
 
-    # set context
-    tool_environments_context_var.set(context)
+        # set context
+        tool_environments_context_var.set(context)
+    except Exception as ex:
+        if context.cleanup:
+            await context.cleanup()
+        raise ex
 
 
 async def cleanup_tool_environments_context() -> None:

@@ -4,7 +4,8 @@ from inspect_ai._util.text import strip_numeric_punctuation, strip_punctuation
 from inspect_ai.solver import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
-from ._scorer import Scorer, Target
+from ._scorer import Scorer
+from ._target import Target
 
 
 def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:

@@ -142,15 +142,15 @@ const inputString = (input) => {
 
 const SampleSummary = ({ id, sample, sampleDescriptor }) => {
   const input =
-    sampleDescriptor.messageShape.input > 0
+    sampleDescriptor?.messageShape.input > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.input)
       : 0;
   const target =
-    sampleDescriptor.messageShape.target > 0
+    sampleDescriptor?.messageShape.target > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.target)
       : 0;
   const answer =
-    sampleDescriptor.messageShape.answer > 0
+    sampleDescriptor?.messageShape.answer > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.answer)
       : 0;
 
@@ -201,7 +201,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
 
   columns.push({
     label: "Score",
-    value: sampleDescriptor.scoreDescriptor.render
+    value: sampleDescriptor?.scoreDescriptor.render
       ? sampleDescriptor.scoreDescriptor.render(sample?.score?.value)
       : sample?.score?.value === null
       ? "null"

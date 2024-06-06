@@ -11,7 +11,7 @@ inspect eval piq.py
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
-from inspect_ai.scorer import answer
+from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
 
@@ -51,5 +51,5 @@ def piqa():
     return Task(
         dataset=dataset,
         plan=[multiple_choice(template=TEMPLATE)],
-        scorer=answer("letter"),
+        scorer=choice(),
     )

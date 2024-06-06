@@ -514,7 +514,7 @@ class Model:
         Args:
           input (str | list[ChatMessage]): Chat message
             input (if a `str` is passed it is converted
-            to a `ChatUserMessage`).
+            to a `ChatMessageUser`).
           tools (list[ToolInfo]): Tools available for the
             model to call.
           tool_choice (ToolChoice): Directives to the model
@@ -538,7 +538,7 @@ class Model:
 
         # insert any system message provided in config
         if config.system_message:
-            input.insert(0, ChatMessageSystem(content=config.system_message))
+            input = [ChatMessageSystem(content=config.system_message)] + input
 
         # see if we have a connection semaphore (we won't if we
         # are running outside of an eval()). this is how we enforce

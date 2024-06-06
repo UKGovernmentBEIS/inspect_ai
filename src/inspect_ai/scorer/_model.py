@@ -8,7 +8,8 @@ from inspect_ai.util import resource
 from ._metric import INCORRECT, Score
 from ._metrics import accuracy, bootstrap_std
 from ._multi import majority_vote, multi_scorer
-from ._scorer import Scorer, Target, scorer
+from ._scorer import Scorer, scorer
+from ._target import Target
 
 
 @scorer(metrics=[accuracy(), bootstrap_std()])

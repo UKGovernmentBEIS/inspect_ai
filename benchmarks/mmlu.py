@@ -22,7 +22,7 @@ inspect eval mmlu.py -T subjects=anatomy,astronomy
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, csv_dataset
 from inspect_ai.model import GenerateConfig
-from inspect_ai.scorer import answer
+from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
 
@@ -49,6 +49,14 @@ dataset = csv_dataset(
     shuffle=True,
 )
 
+MULTIPLE_CHOICE_TEMPLATE_COT = r"""
+Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}. Think step by step before answering.
+
+{question}
+
+{choices}
+""".strip()
+
 
 @task
 def mmlu(subjects=[], cot=False):
@@ -62,10 +70,14 @@ def mmlu(subjects=[], cot=False):
     else:
         task_dataset = dataset
 
-    # return task
+    if cot:
+        plan = multiple_choice(template=MULTIPLE_CHOICE_TEMPLATE_COT)
+    else:
+        plan = multiple_choice()
+
     return Task(
         dataset=task_dataset,
-        plan=multiple_choice(cot=cot),
-        scorer=answer("letter"),
+        plan=plan,
+        scorer=choice(),
         config=GenerateConfig(temperature=0.5),
     )

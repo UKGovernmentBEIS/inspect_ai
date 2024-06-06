@@ -20,7 +20,7 @@ inspect eval gpqa.py -T cot=false
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, csv_dataset
 from inspect_ai.model import GenerateConfig
-from inspect_ai.scorer import answer
+from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
 # default epochs to run eval for
@@ -53,7 +53,7 @@ def gpqa_diamond(cot=True):
         plan=[
             multiple_choice(cot=cot, shuffle=True),
         ],
-        scorer=answer("letter"),
+        scorer=choice(),
         config=GenerateConfig(temperature=0.5),
         epochs=DEFAULT_EPOCHS,
     )

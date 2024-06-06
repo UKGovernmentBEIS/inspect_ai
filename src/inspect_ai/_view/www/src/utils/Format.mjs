@@ -46,7 +46,7 @@ export const answerForSample = (sample) => {
         return content;
       } else {
         // TODO: Support image completions.
-        return content[0].text; 
+        return content.length > 0 ? content[0].text : "";  
       }  
     }
   } else {

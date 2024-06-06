@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 import tempfile
 from logging import getLogger
 from pathlib import Path
@@ -19,9 +20,11 @@ from inspect_ai.util._context.subprocess import ExecResult, subprocess
 
 logger = getLogger(__name__)
 
-# How long to wait for compose environment
-# to pass a health check
+# How long to wait for compose environment to pass a health check
 _COMPOSE_WAIT = "120"
+
+# directory where copy sample specific files to
+_SAMPLE_DIR = "/tmp/sample"
 
 
 @toolenv(name="docker")
@@ -114,6 +117,19 @@ class DockerToolEnvironment(ToolEnvironment):
             else:
                 raise RuntimeError("No services started")
 
+        # create working dir in environments
+        for env in environments.values():
+            docker_env = cast(DockerToolEnvironment, env)
+            result = await _compose_command(
+                ["exec"]
+                + [docker_env._service, "bash", "-c", f"mkdir -p {_SAMPLE_DIR}"],
+                file=docker_env._config,
+                project=docker_env._project,
+            )
+            if not result.success:
+                msg = f"Failed to create working directory {result.stderr}"
+                raise RuntimeError(msg)
+
         async def cleanup() -> None:
             await _compose_down_command(project=project, config=config)
 
@@ -131,17 +147,24 @@ class DockerToolEnvironment(ToolEnvironment):
     @override
     async def exec(
         self,
-        cmd: list[str],
+        cmd: str | list[str],
         input: str | bytes | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
     ) -> ExecResult[str]:
         # Forward environment commands to docker compose exec so they
         # will be available to the bash command
-        env_args = [f"--env {key}={value}" for key, value in env.items()]
+        env_args = []
+        if len(env.items()) > 0:
+            env_args = [f"--env {key}={value}" for key, value in env.items()]
+
+        if isinstance(cmd, list):
+            cmd = " ".join([shlex.quote(arg) for arg in cmd])
 
         result = await _compose_command(
-            ["exec"] + env_args + [self._service] + cmd,
+            ["exec", "--workdir", _SAMPLE_DIR]
+            + env_args
+            + [self._service, "bash", "-c", cmd],
             file=self._config,
             project=self._project,
             timeout=timeout,
@@ -162,12 +185,16 @@ class DockerToolEnvironment(ToolEnvironment):
                 async with aiofiles.open(temp_file.name, "wb") as f:
                     await f.write(contents)
 
+            # resolve relative file paths to sample dir
+            file = _container_file(file)
+
             # ensure that the directory exists
             parent = Path(file).parent.as_posix()
-            result = await self.exec(["mkdir", "-p", parent])
-            if not result.success:
-                msg = f"Failed to create container directory {parent}"
-                raise RuntimeError(msg)
+            if parent != ".":
+                result = await self.exec(["mkdir", "-p", parent])
+                if not result.success:
+                    msg = f"Failed to create container directory {parent}: {result.stderr}"
+                    raise RuntimeError(msg)
 
             # use the cp command to copy the file
             result = await _compose_command(
@@ -191,6 +218,9 @@ class DockerToolEnvironment(ToolEnvironment):
 
         # Write the contents to a temp file
         with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+            # resolve relative file paths to sample dir
+            file = _container_file(file)
+
             result = await _compose_command(
                 ["cp", f"{self._service}:{file}", temp_file.name],
                 file=self._config,
@@ -217,13 +247,20 @@ async def _auto_config(temp_dir: str) -> str | None:
     if _has_compose_file():
         return None
 
-    # dockerfile just needs a compose.yaml synthehsized
+    # dockerfile just needs a compose.yaml synthesized
     elif _has_dockerfile():
         return await _dockerfile_compose(Path(), temp_dir)
 
     # otherwise provide a generic python container
     else:
         return await _generic_container_compose(temp_dir)
+
+
+def _container_file(file: str) -> str:
+    path = Path(file)
+    if not path.is_absolute():
+        path = Path(_SAMPLE_DIR) / path
+    return path.as_posix()
 
 
 async def _remove_images(

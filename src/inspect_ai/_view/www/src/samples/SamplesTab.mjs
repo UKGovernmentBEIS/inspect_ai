@@ -171,7 +171,7 @@ export const SamplesTab = (props) => {
 // Perform any grouping of the samples
 const getSampleProcessor = (samples, sort, epoch, order, sampleDescriptor) => {
   // Perform grouping if there are epochs
-  if (sampleDescriptor.epochs > 1) {
+  if (sampleDescriptor?.epochs > 1) {
     if (byEpoch(sort) || epoch !== "all") {
       return groupByEpoch(samples, sampleDescriptor, order);
     } else if (bySample(sort)) {

@@ -8,7 +8,8 @@ from typing import (
 from inspect_ai.solver import TaskState
 
 from ._metric import Score
-from ._scorer import Scorer, Target
+from ._scorer import Scorer
+from ._target import Target
 
 
 @runtime_checkable

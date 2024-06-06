@@ -42,7 +42,7 @@ class ToolEnvironment(abc.ABC):
     @abc.abstractmethod
     async def exec(
         self,
-        cmd: list[str],
+        cmd: str | list[str],
         input: str | bytes | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
@@ -53,7 +53,7 @@ class ToolEnvironment(abc.ABC):
         filesystem context.
 
         Args:
-          cmd (list[str]): Command (and arguments) to execute.
+          cmd (str | list[str]): Command or command and arguments to execute.
           input (str | bytes | None): Standard input (optional).
           env (dict[str,str]): Environment variables for execution.
           timeout (int | None): Optional execution timeout (seconds).

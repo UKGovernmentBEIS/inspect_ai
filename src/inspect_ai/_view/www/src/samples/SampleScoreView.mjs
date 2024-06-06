@@ -57,7 +57,7 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
               )} style=${{ paddingLeft: "0" }}/>
             </td>
             <td style=${{ paddingLeft: "2em" }}>
-              ${sampleDescriptor.scoreDescriptor.render
+              ${sampleDescriptor?.scoreDescriptor.render
                 ? sampleDescriptor.scoreDescriptor.render(sample?.score?.value)
                 : sample?.score?.value === null ? "null" : sample?.score?.value}
             </td>

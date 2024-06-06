@@ -22,7 +22,7 @@ export const Navbar = ({
   if (status === "success") {
     statusPanel = html`<${ResultsPanel} results="${metrics}" />`;
   } else if (status === "cancelled") {
-    statusPanel = html`<${CanceledPanel} sampleCount=${samples?.length} />`;
+    statusPanel = html`<${CanceledPanel} sampleCount=${samples?.length || 0} />`;
   } else if (status === "started") {
     statusPanel = html`<${RunningPanel} />`;
   }

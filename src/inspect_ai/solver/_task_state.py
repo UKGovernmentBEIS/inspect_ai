@@ -1,4 +1,7 @@
-from typing import Any
+from collections.abc import Sequence
+from dataclasses import dataclass
+from random import Random
+from typing import Any, Union, overload
 
 from inspect_ai.model import (
     ChatMessage,
@@ -9,6 +12,89 @@ from inspect_ai.model import (
 )
 
 from ._tool.tool import Tool
+
+
+@dataclass
+class Choice:
+    """
+    A `Choice` represents a single choice in a multiple choice question.
+
+    It is only relevant for the `multiple_choice` solver and corresponding `choice` scorer.
+    """
+
+    value: str
+    """The original value of the choice from the `Sample`."""
+
+    correct: bool | None
+    """Did the model think this choice satisfies the question? `None` indicates this has not been set yet"""
+
+    original_position: int
+    """Choices may be re-ordered during processing, this represents the original position in the sample's list of choices"""
+
+
+class Choices(Sequence[Choice]):
+    """
+    Wrapper class for a list of `Choice` objects.
+
+    Primarily simply to abstract away implementations of choice-specific
+    functionality from the already-big `TaskState` class.
+    """
+
+    def __init__(self, choices: list[str] | list[Choice]) -> None:
+        """
+        Setter for choices, intended to only be used with the `multiple_choice` scorer.
+
+        Choices come from a list of choices for the sample, specifically used by
+        the `multiple_choice` scorer.
+
+        For example, if the sample was a multiple choice question like "What is
+        the capital of France? A) Paris B) London C) Berlin", we would store the
+        possible answers here.
+        """
+        self._choices: list[Choice] = []
+
+        for i, choice in enumerate(choices):
+            if isinstance(choice, str):
+                self._choices.append(
+                    Choice(value=choice, correct=None, original_position=i)
+                )
+            elif isinstance(choice, Choice):
+                self._choices.append(choice)
+
+    @overload
+    def __getitem__(self, index: int) -> Choice: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> Sequence[Choice]: ...
+
+    def __getitem__(self, index: Union[int, slice]) -> Union[Choice, Sequence[Choice]]:
+        return self._choices[index]
+
+    def __len__(self) -> int:
+        return len(self._choices)
+
+    def mark_choice(self, index: int, correct: bool) -> None:
+        """Set the value of a specific choice"""
+        self._choices[index].correct = correct
+
+    def shuffle(self, rand: Random = Random()) -> None:
+        """
+        Shuffle the choice order, setting the `original_position` so they can be mapped back to their original order.
+
+        Some evals will shuffle the choices from the original sample to try to
+        avoid the model answering correctly due to fine-tuning (or similar) on
+        specific datasets.
+        """
+        shuffled_positions = list(range(len(self._choices)))
+        rand.shuffle(shuffled_positions)
+
+        shuffled_choices = [Choice("notachoice", None, -1)] * len(self._choices)
+
+        for i, shuffled_position in enumerate(shuffled_positions):
+            shuffled_choices[i] = self._choices[shuffled_position]
+            shuffled_choices[i].original_position = shuffled_position
+
+        self._choices = shuffled_choices
 
 
 class TaskState:
@@ -27,8 +113,8 @@ class TaskState:
         sample_id: int | str,
         epoch: int,
         input: str | list[ChatMessage],
-        choices: list[str] | None,
         messages: list[ChatMessage],
+        choices: list[str] | None = [],
         tools: list[Tool] = [],
         tool_choice: ToolChoice | None = None,
         output: ModelOutput | None = None,
@@ -51,15 +137,6 @@ class TaskState:
         Should be treated as immutable and not changed during the run, so that
         it can be referenced or checked wherever needed. Access through `input`
         or `input_text` only
-        """
-
-        self.choices = choices
-        """
-        List of choices for the sample, specifically used by the `multiple_choice` scorer.
-
-        For example, if the sample was a multiple choice question like "What is
-        the capital of France? A) Paris B) London C) Berlin", we would store the
-        possible answers here.
         """
 
         self.messages = messages
@@ -91,6 +168,11 @@ class TaskState:
 
         self.metadata = metadata
         """Additional task state metadata."""
+
+        if choices:
+            self.choices = Choices(choices)
+        else:
+            self.choices = Choices([])
 
     @property
     def model(self) -> ModelName:

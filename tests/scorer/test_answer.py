@@ -7,7 +7,7 @@ from inspect_ai.scorer import CORRECT, INCORRECT, Target, answer
 @pytest.mark.asyncio
 async def test_letter_success():
     scorer = answer("letter")
-    state = simple_task_state("ANSWER: B")
+    state = simple_task_state(model_output="ANSWER: B")
     result = await scorer(state, Target(["B"]))
 
     assert result.text == CORRECT
@@ -16,7 +16,7 @@ async def test_letter_success():
 @pytest.mark.asyncio
 async def test_letter_failure():
     scorer = answer("letter")
-    state = simple_task_state("ANSWER: B")
+    state = simple_task_state(model_output="ANSWER: B")
     result = await scorer(state, Target(["C"]))
 
     assert result.text == INCORRECT
@@ -25,7 +25,7 @@ async def test_letter_failure():
 @pytest.mark.asyncio
 async def test_word_success():
     scorer = answer("word")
-    state = simple_task_state("ANSWER: Yes")
+    state = simple_task_state(model_output="ANSWER: Yes")
     result = await scorer(state, Target(["Yes"]))
 
     assert result.text == CORRECT
@@ -34,7 +34,7 @@ async def test_word_success():
 @pytest.mark.asyncio
 async def test_word_failure():
     scorer = answer("letter")
-    state = simple_task_state("ANSWER: Yes")
+    state = simple_task_state(model_output="ANSWER: Yes")
     result = await scorer(state, Target(["No"]))
 
     assert result.text == INCORRECT
@@ -43,7 +43,7 @@ async def test_word_failure():
 @pytest.mark.asyncio
 async def test_line_success():
     scorer = answer("line")
-    state = simple_task_state("ANSWER:\nThis is a whole new line")
+    state = simple_task_state(model_output="ANSWER:\nThis is a whole new line")
     result = await scorer(state, Target(["This is a whole new line"]))
 
     assert result.text == CORRECT
@@ -52,7 +52,7 @@ async def test_line_success():
 @pytest.mark.asyncio
 async def test_line_failure():
     scorer = answer("line")
-    state = simple_task_state("ANSWER:\nThis is a whole new line")
+    state = simple_task_state(model_output="ANSWER:\nThis is a whole new line")
     result = await scorer(state, Target(["This doesn't match does it?"]))
 
     assert result.text == INCORRECT

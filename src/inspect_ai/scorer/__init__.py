@@ -1,4 +1,5 @@
 from ._answer import AnswerPattern, answer
+from ._choice import choice
 from ._match import includes, match
 from ._metric import (
     CORRECT,
@@ -18,11 +19,8 @@ from ._metrics.std import bootstrap_std
 from ._model import model_graded_fact, model_graded_qa
 from ._multi import ScoreReducer, majority_vote, multi_scorer
 from ._pattern import pattern
-from ._scorer import (
-    Scorer,
-    Target,
-    scorer,
-)
+from ._scorer import Scorer, scorer
+from ._target import Target
 
 __all__ = [
     "includes",
@@ -30,6 +28,7 @@ __all__ = [
     "model_graded_qa",
     "model_graded_fact",
     "answer",
+    "choice",
     "pattern",
     "AnswerPattern",
     "Scorer",

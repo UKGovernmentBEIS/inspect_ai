@@ -2,11 +2,8 @@ from typing import (
     Any,
     Callable,
     Protocol,
-    Sequence,
     TypeVar,
-    Union,
     cast,
-    overload,
     runtime_checkable,
 )
 
@@ -22,33 +19,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.solver import TaskState
 
 from ._metric import Metric, Score
-
-
-class Target(Sequence[str]):
-    """Target for scoring.
-
-    Target is a sequence of one or more strings. Use the
-    `text` property to access the value as a single string.
-    """
-
-    def __init__(self, target: str | list[str]) -> None:
-        self.target = target if isinstance(target, list) else [target]
-
-    @overload
-    def __getitem__(self, index: int) -> str: ...
-
-    @overload
-    def __getitem__(self, index: slice) -> Sequence[str]: ...
-
-    def __getitem__(self, index: Union[int, slice]) -> Union[str, Sequence[str]]:
-        return self.target[index]
-
-    def __len__(self) -> int:
-        return len(self.target)
-
-    @property
-    def text(self) -> str:
-        return "".join(self.target)
+from ._target import Target
 
 
 @runtime_checkable
@@ -63,7 +34,11 @@ class Scorer(Protocol):
         target (Target): Ideal target for the output.
     """
 
-    async def __call__(self, state: TaskState, target: Target) -> Score: ...
+    async def __call__(
+        self,
+        state: TaskState,
+        target: Target,
+    ) -> Score: ...
 
 
 ScorerType = TypeVar("ScorerType", Callable[..., Scorer], type[Scorer])

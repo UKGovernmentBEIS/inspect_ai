@@ -7,7 +7,7 @@ from ._prompt import (
     system_message,
 )
 from ._solver import Generate, Solver, generate, solver
-from ._task_state import TaskState
+from ._task_state import Choice, Choices, TaskState
 from ._tool.environment import (
     ToolEnvironment,
     ToolEnvironments,
@@ -35,6 +35,8 @@ __all__ = [
     "Plan",
     "Solver",
     "solver",
+    "Choice",
+    "Choices",
     "TaskState",
     "Tool",
     "Generate",
