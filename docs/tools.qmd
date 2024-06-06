@@ -89,8 +89,7 @@ plan = [
 The Tool Environments feature described in this section is not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the develoment version:
 
 ```bash
-$ git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
-$ pip install inspect_ai
+$ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
 ```
 
 :::

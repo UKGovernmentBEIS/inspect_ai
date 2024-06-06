@@ -94,10 +94,6 @@ class ToolEnvironment(abc.ABC):
         """
         ...
 
-    async def cleanup(self) -> None:
-        """Optional cleanup function for environment."""
-        pass
-
 
 @dataclass
 class ToolEnvironments:

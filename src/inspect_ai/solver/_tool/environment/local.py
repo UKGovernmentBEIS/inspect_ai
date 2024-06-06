@@ -67,7 +67,6 @@ class LocalToolEnvironment(ToolEnvironment):
             async with aiofiles.open(file, "rb") as f:
                 return await f.read()
 
-    @override
     async def cleanup(self) -> None:
         self.directory.cleanup()
 
