@@ -1,6 +1,5 @@
 import json
 import os
-import shlex
 import tempfile
 from logging import getLogger
 from pathlib import Path
@@ -147,7 +146,7 @@ class DockerToolEnvironment(ToolEnvironment):
     @override
     async def exec(
         self,
-        cmd: str | list[str],
+        cmd: list[str],
         input: str | bytes | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
@@ -158,13 +157,8 @@ class DockerToolEnvironment(ToolEnvironment):
         if len(env.items()) > 0:
             env_args = [f"--env {key}={value}" for key, value in env.items()]
 
-        if isinstance(cmd, list):
-            cmd = " ".join([shlex.quote(arg) for arg in cmd])
-
         result = await _compose_command(
-            ["exec", "--workdir", _SAMPLE_DIR]
-            + env_args
-            + [self._service, "bash", "-c", cmd],
+            ["exec", "--workdir", _SAMPLE_DIR] + env_args + [self._service] + cmd,
             file=self._config,
             project=self._project,
             timeout=timeout,

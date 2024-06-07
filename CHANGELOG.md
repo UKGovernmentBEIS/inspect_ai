@@ -3,10 +3,11 @@
 ## v0.3.15 (Unreleased)
 
 - [Tool Environments](https://ukgovernmentbeis.github.io/inspect_ai/tools.html#tool-environments) for executing tool code in sandboxed containers.
-
 - The `multiple_choice()` solver now has support for questions with multiple correct answers.
-
 - Added `truthfulqa` benchmark.
+- More fine grained handling of Claude `BadRequestError` (400) errors (which were formerly all treated as content moderation errors).
+- Filter out empty TextBlockParam when playing messages back to Claude.
+- Revert to "auto" rather than "none" after forced tool call.
 
 ## v0.3.14 (04 June 2024)
 

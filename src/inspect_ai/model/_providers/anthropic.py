@@ -122,12 +122,11 @@ class AnthropicAPI(ModelAPI):
             return model_output_from_message(message, tools)
 
         except BadRequestError as ex:
-            return ModelOutput.from_content(
-                model=self.model_name,
-                content="Sorry, but I can't assist with that",
-                stop_reason="content_filter",
-                error=exception_message(ex),
-            )
+            output = self.handle_bad_request(ex)
+            if output:
+                return output
+            else:
+                raise ex
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
         return dict(
@@ -167,6 +166,26 @@ class AnthropicAPI(ModelAPI):
     @override
     def collapse_assistant_messages(self) -> bool:
         return True
+
+    # convert some common BadRequestError states into 'refusal' model output
+    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | None:
+        error = exception_message(ex)
+        content: str | None = None
+        stop_reason: StopReason | None = None
+
+        if "prompt is too long" in error:
+            content = "Sorry, but your prompt is too long."
+            stop_reason = "length"
+
+        if content and stop_reason:
+            return ModelOutput.from_content(
+                model=self.model_name,
+                content=content,
+                stop_reason=stop_reason,
+                error=error,
+            )
+        else:
+            return None
 
 
 async def resolve_chat_input(
@@ -248,6 +267,12 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 [(await message_param_content(content)) for content in message.content]
             )
         )
+
+        # filter out empty text content (sometimes claude passes empty text
+        # context back with tool calls but won't let us play them back)
+        tools_content = [
+            c for c in tools_content if not c["type"] == "text" or len(c["text"]) > 0
+        ]
 
         # now add tools
         for tool_call in message.tool_calls:

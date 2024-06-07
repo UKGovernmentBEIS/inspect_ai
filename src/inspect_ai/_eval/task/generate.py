@@ -25,7 +25,7 @@ async def task_generate(
     config: GenerateConfig,
     max_messages: int | None,
 ) -> TaskState:
-    # track tool_choice (revert to "none" after first forced call of a tool)
+    # track tool_choice (revert to "auto" after first forced call of a tool)
     tool_choice = state.tool_choice
 
     while True:
@@ -74,10 +74,10 @@ async def task_generate(
                     state.output = output
                     return state
 
-                # if a tool_call was forced set tool_choice to 'none'
+                # if a tool_call was forced set tool_choice to 'auto'
                 # (otherwise it will get forced over and over again)
                 if isinstance(tool_choice, ToolFunction):
-                    tool_choice = "none"
+                    tool_choice = "auto"
 
         # no tool calls, we are done!
         else:

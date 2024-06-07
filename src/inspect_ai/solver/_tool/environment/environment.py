@@ -42,7 +42,7 @@ class ToolEnvironment(abc.ABC):
     @abc.abstractmethod
     async def exec(
         self,
-        cmd: str | list[str],
+        cmd: list[str],
         input: str | bytes | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,

@@ -42,7 +42,7 @@ def bash():
         Returns:
           The output of the command.
         """
-        result = await tool_environment().exec(cmd)
+        result = await tool_environment().exec(["bash", "-c", cmd])
         if result.success:
             return result.stdout
         else:
