@@ -91,5 +91,6 @@ def bash():
             use_tools(list_files()),
             generate(),
         ],
+        tool_environment="local",
         scorer=includes(),
     )

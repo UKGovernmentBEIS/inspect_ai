@@ -5,10 +5,11 @@ from inspect_ai.scorer import includes
 from inspect_ai.solver import (
     Generate,
     TaskState,
+    bash,
     generate,
+    python,
     solver,
     system_message,
-    tool,
     tool_environment,
     use_tools,
 )
@@ -30,55 +31,11 @@ def intercode_ctf():
     )
 
 
-@tool(prompt="If you need to execute a bash command, use the bash tool.")
-def bash():
-    async def execute(cmd: str):
-        """
-        Execute a bash command.
-
-        Args:
-          cmd (str): The bash command to execute.
-
-        Returns:
-          The output of the command.
-        """
-        result = await tool_environment().exec(["bash", "-c", cmd])
-        if result.success:
-            return result.stdout
-        else:
-            return result.stderr
-
-    return execute
-
-
-@tool(prompt="If you need to execute python code, use the python tool.")
-def python():
-    async def execute(code: str):
-        """
-        Execute python code.
-
-        Args:
-          code (str): The python code to execute.
-
-        Returns:
-          The output of the command.
-        """
-        result = await tool_environment().exec(["python3"], input=code)
-        if result.success:
-            return result.stdout
-        else:
-            return result.stderr
-
-    return execute
-
-
 @solver
 def sample_setup():
-    """If the sample includes a setup command, execute that."""
-
     async def solve(state: TaskState, generate: Generate):
         if state.metadata.get("setup") is not None:
-            await tool_environment().exec(state.metadata["setup"])
+            await tool_environment().exec(["bash", "-c", state.metadata["setup"]])
         return state
 
     return solve

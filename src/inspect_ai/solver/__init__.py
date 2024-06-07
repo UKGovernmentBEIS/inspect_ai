@@ -15,6 +15,7 @@ from ._tool.environment import (
     tool_environment,
     toolenv,
 )
+from ._tool.execute import bash, python
 from ._tool.tool import Tool, tool
 from ._tool.use_tools import use_tools
 from ._tool.web_search import web_search
@@ -30,6 +31,8 @@ __all__ = [
     "toolenv",
     "tool_environment",
     "use_tools",
+    "bash",
+    "python",
     "web_search",
     "plan",
     "Plan",

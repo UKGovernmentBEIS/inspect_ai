@@ -83,22 +83,21 @@ plan = [
 ]
 ```
 
-## Tool Environments
+## Tool Environments {#sec-tool-environments}
 
-::: {.callout-important}
-The Tool Environments feature described in this section is not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the develoment version:
+::: callout-important
+The Tool Environments feature described in this section is not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the development version:
 
-```bash
+``` bash
 $ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
 ```
-
 :::
 
 The examples shown above execute tool code within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:
 
 -   You are creating tools that enable execution of arbitrary code (e.g. a tool that executes shell commands or Python code).
 
--   You need to provision per-sample filesystem resources.
+-   You need to provision per-sample file system resources.
 
 -   You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
@@ -156,10 +155,13 @@ def file_probe()
             use_tools([list_files()]), 
             generate()
         ],
+        tool_environment="docker",
         scorer=includes(),
     )
 )
 ```
+
+We've included `tool_environment = "docker"` to indicate that tool environment operations should be executed in a Docker container. Specifying a tool environment (either at the task or evaluation level) is required if your tools call the `tool_environment()` function.
 
 Note that `files` are specified as part of the `Sample`. Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g. S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.
 
@@ -190,11 +192,14 @@ class ToolEnvironment:
         ...
 ```
 
-There are also `setup()` and `cleanup()` methods that are called automatically by Inspect at the appropriate times.
-
 ### Environment Binding
 
-The previous example used the default `LocalToolEnvironment`, which executes all tool code within the main process. Often though you'll want to sandbox tool execution using another environment type (e.g. the "docker" type implemented by `DockerToolEnvironment`).
+There are two tool environments built in to Inspect:
+
+| Environment Type | Description                                                                                                                                                                                                      |
+|--------------------------|----------------------------------------------|
+| `local`          | Run `tool_environment()` methods in the same address space and file system as the running evaluation. The local environment should *only be used* if you are already running your evaluation in another sandbox. |
+| `docker`         | Run `tool_environment()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).                                                     |
 
 Tool environments can be bound at the `Task` level or at the `eval()` level (where `eval()` takes precedence). To bind a tool environment to a `Task`, use the `tool_environment` option:
 
@@ -228,14 +233,14 @@ $ inspect eval --tool-environment docker
 $ inspect eval --tool-environment docker:my-compose.yaml
 ```
 
-### Docker Configuration
+### Docker Configuration {#sec-docker-configuration}
 
 While `--tool-environment` can be a default un-configured environment (e.g. “docker”), more commonly you’ll provide explicit configuration in either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
 
 Here is how Docker tool environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
 | Config Files   | Behavior                                                                                                        |
-|------------------|------------------------------------------------------|
+|-------------------|-----------------------------------------------------|
 | None           | Creates a tool environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
 | `Dockerfile`   | Creates a tool environment by building the image.                                                               |
 | `compose.yaml` | Creates tool environment(s) based on `compose.yaml`.                                                            |
@@ -306,7 +311,7 @@ Creating and executing code within Docker containers can be expensive both in te
 
 #### Running Containers
 
-As descibed above, each `Sample` is provisioned its own container. The number of running containers for an evaluation is therefore determined by the `max_samples` option (which is by default set to `max_connections`, typically 10 unless overridden).
+As described above, each `Sample` is provisioned its own container. The number of running containers for an evaluation is therefore determined by the `max_samples` option (which is by default set to `max_connections`, typically 10 unless overridden).
 
 Use `max_samples` to dial up or down the number of containers running at any given time. Note that a running container does not necessarily use CPU resources unless it has active background processes.
 
@@ -320,15 +325,23 @@ You can change the number of permitted concurrent subprocess executions using th
 
 You can view more detailed logging around the creation and use of tool environments by using the `tools` log level. For example:
 
-```bash
+``` bash
 $ inspect eval ctf.py --log-level tools
 ```
 
 The tools log level is just above `warning` (so it will not show `http` or `debug` level messages).
 
-## Web Search
+## Built-In Tools
 
-Inspect has a built in `web_search()` tool that provides models with the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
+Inspect has several built-in tools, including:
+
+-   `web_search()`, which uses the Google Search API to execute and summarise web searches.
+
+-   `bash()` and `python()`, for executing arbitrary shell and Python code.
+
+### Web Search
+
+The `web_search()` tool provides models the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
 
 ``` python
 def web_search(
@@ -362,13 +375,39 @@ Web search options include:
 
 -   `model`---Model to use to determine if search results are relevant (defaults to the model currently being evaluated).
 
-### Google Provider
+#### Google Provider
 
 The `web_search()` tool uses [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
 
 -   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
+### Bash and Python
+
+The `bash()` and `python()` tools enable execution of arbitrary shell command lines and Python code, respectively. These tools require the use of a [Tool Environment](#sec-tool-environment), which can provide sandboxing for untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        plan=[
+            system_message("system.txt"),
+            use_tools([bash(), python()]),
+            generate(),
+        ],
+        scorer=includes(),
+        max_messages=30,
+        tool_environment="docker",
+    )
+```
+
+Note that the `bash()` and `python()` tools are not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the development version:
+
+``` bash
+$ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
+```
 
 ## Agent Solvers {#agent-solvers}
 

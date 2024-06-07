@@ -121,8 +121,6 @@ async def task_run(
             logger.eval.tool_environment
             if logger.eval.tool_environment
             else task.tool_environment
-            if task.tool_environment
-            else ("local", None)
         )
 
         # resolve the plan and scorer
@@ -153,7 +151,8 @@ async def task_run(
         )
 
         # run startup pass for the tool_environment
-        await startup_tool_environments(task.name, tool_environment)
+        if tool_environment:
+            await startup_tool_environments(task.name, tool_environment)
 
         with display().task(profile) as td:
             try:
@@ -266,7 +265,7 @@ async def task_run_sample(
     task_name: str,
     sample: Sample,
     state: TaskState,
-    tool_environment: tuple[str, str | None],
+    tool_environment: tuple[str, str | None] | None,
     plan: Plan,
     max_messages: int | None,
     scorer: Scorer | None,
@@ -292,12 +291,19 @@ async def task_run_sample(
             return previous_sample.score
 
     # use semaphore if provided
-    cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
+    semaphore_cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
         semaphore if semaphore else contextlib.nullcontext()
     )
 
+    # use toolenv if provided
+    toolenv_cm = (
+        toolenv_context(task_name, tool_environment, sample)
+        if tool_environment
+        else contextlib.nullcontext()
+    )
+
     # solver loop
-    async with cm, toolenv_context(task_name, tool_environment, sample):
+    async with semaphore_cm, toolenv_cm:
         try:
             # run plan steps (checking for early termination)
             for index, solver in enumerate(plan.steps):

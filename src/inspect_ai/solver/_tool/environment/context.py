@@ -20,7 +20,11 @@ def tool_environment(name: str = "default") -> ToolEnvironment:
     # verify we have a context
     context = tool_environments_context_var.get(None)
     if not context:
-        raise RuntimeError("ToolEnvironment is not available in the current context.")
+        raise RuntimeError(
+            "No tool environment has been provided for the current task. "
+            + "Please specify one using either the tool_environment task/eval "
+            + "option, or the --tool-environment CLI option."
+        )
 
     # short circuit for 1 environment (allows single environment to not sweat 'default')
     if len(context.environments) == 1:
