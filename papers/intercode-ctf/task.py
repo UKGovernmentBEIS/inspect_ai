@@ -1,18 +1,16 @@
-from dataset import read_dataset
+from dataset import read_dataset, sample_setup
 
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.solver import (
-    Generate,
-    TaskState,
-    bash,
-    generate,
-    python,
-    solver,
-    system_message,
-    tool_environment,
-    use_tools,
+    bash, generate, python, system_message, use_tools
 )
+
+# maximum chat messages before giving up
+MAX_MESSAGES = 30
+
+# maximum seconds to run bash/python cmds
+CMD_TIMEOUT = 180
 
 
 @task
@@ -21,21 +19,15 @@ def intercode_ctf():
         dataset=read_dataset(),
         plan=[
             system_message("system.txt"),
-            use_tools([bash(), python()]),
+            use_tools([
+                bash(timeout=CMD_TIMEOUT), 
+                python(timeout=CMD_TIMEOUT)
+            ]),
             sample_setup(),
             generate(),
         ],
         scorer=includes(),
-        max_messages=30,
+        max_messages=MAX_MESSAGES,
         tool_environment="docker",
     )
 
-
-@solver
-def sample_setup():
-    async def solve(state: TaskState, generate: Generate):
-        if state.metadata.get("setup") is not None:
-            await tool_environment().exec(["bash", "-c", state.metadata["setup"]])
-        return state
-
-    return solve

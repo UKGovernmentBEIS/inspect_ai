@@ -3,7 +3,18 @@ from .tool import Tool, tool
 
 
 @tool(prompt="If you need to execute a bash command, use the bash tool.")
-def bash() -> Tool:
+def bash(timeout: int | None = None) -> Tool:
+    """Bash shell command execution tool.
+
+    Execute bash shell commands using a tool environment (e.g. "docker").
+
+    Args:
+      timeout (int | None): Timeout (in seconds) for command.
+
+    Returns:
+      String with command output (stdout) or command error (stderr).
+    """
+
     async def execute(cmd: str) -> str:
         """
         Execute a bash command.
@@ -14,7 +25,7 @@ def bash() -> Tool:
         Returns:
           The output of the command.
         """
-        result = await tool_environment().exec(["bash", "-c", cmd])
+        result = await tool_environment().exec(cmd=["bash", "-c", cmd], timeout=timeout)
         if result.success:
             return result.stdout
         else:
@@ -24,7 +35,18 @@ def bash() -> Tool:
 
 
 @tool(prompt="If you need to execute python code, use the python tool.")
-def python() -> Tool:
+def python(timeout: int | None = None) -> Tool:
+    """Python code execution tool.
+
+    Execute Python code using a tool environment (e.g. "docker").
+
+    Args:
+      timeout (int | None): Timeout (in seconds) for command.
+
+    Returns:
+      String with command output (stdout) or command error (stderr).
+    """
+
     async def execute(code: str) -> str:
         """
         Execute python code.
@@ -35,7 +57,9 @@ def python() -> Tool:
         Returns:
           The output of the command.
         """
-        result = await tool_environment().exec(["python3"], input=code)
+        result = await tool_environment().exec(
+            cmd=["python3"], input=code, timeout=timeout
+        )
         if result.success:
             return result.stdout
         else:
