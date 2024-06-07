@@ -268,18 +268,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#tool-basics" id="toc-tool-basics" class="nav-link" data-scroll-target="#tool-basics">Tool Basics</a></li>
   <li><a href="#tool-choice" id="toc-tool-choice" class="nav-link" data-scroll-target="#tool-choice">Tool Choice</a></li>
-  <li><a href="#tool-environments" id="toc-tool-environments" class="nav-link" data-scroll-target="#tool-environments">Tool Environments</a>
+  <li><a href="#sec-tool-environments" id="toc-sec-tool-environments" class="nav-link" data-scroll-target="#sec-tool-environments">Tool Environments</a>
   <ul class="collapse">
   <li><a href="#example-file-listing" id="toc-example-file-listing" class="nav-link" data-scroll-target="#example-file-listing">Example: File Listing</a></li>
   <li><a href="#environment-interface" id="toc-environment-interface" class="nav-link" data-scroll-target="#environment-interface">Environment Interface</a></li>
   <li><a href="#environment-binding" id="toc-environment-binding" class="nav-link" data-scroll-target="#environment-binding">Environment Binding</a></li>
-  <li><a href="#docker-configuration" id="toc-docker-configuration" class="nav-link" data-scroll-target="#docker-configuration">Docker Configuration</a></li>
+  <li><a href="#sec-docker-configuration" id="toc-sec-docker-configuration" class="nav-link" data-scroll-target="#sec-docker-configuration">Docker Configuration</a></li>
   <li><a href="#resource-management" id="toc-resource-management" class="nav-link" data-scroll-target="#resource-management">Resource Management</a></li>
   <li><a href="#troubleshooting" id="toc-troubleshooting" class="nav-link" data-scroll-target="#troubleshooting">Troubleshooting</a></li>
   </ul></li>
-  <li><a href="#web-search" id="toc-web-search" class="nav-link" data-scroll-target="#web-search">Web Search</a>
+  <li><a href="#built-in-tools" id="toc-built-in-tools" class="nav-link" data-scroll-target="#built-in-tools">Built-In Tools</a>
   <ul class="collapse">
-  <li><a href="#google-provider" id="toc-google-provider" class="nav-link" data-scroll-target="#google-provider">Google Provider</a></li>
+  <li><a href="#web-search" id="toc-web-search" class="nav-link" data-scroll-target="#web-search">Web Search</a></li>
+  <li><a href="#bash-and-python" id="toc-bash-and-python" class="nav-link" data-scroll-target="#bash-and-python">Bash and Python</a></li>
   </ul></li>
   <li><a href="#agent-solvers" id="toc-agent-solvers" class="nav-link" data-scroll-target="#agent-solvers">Agent Solvers</a>
   <ul class="collapse">
@@ -390,8 +391,8 @@ Tools and Agents
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  generate()</span>
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="tool-environments" class="level2">
-<h2 class="anchored" data-anchor-id="tool-environments">Tool Environments</h2>
+<section id="sec-tool-environments" class="level2">
+<h2 class="anchored" data-anchor-id="sec-tool-environments">Tool Environments</h2>
 <div class="callout callout-style-default callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -402,14 +403,14 @@ Important
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The Tool Environments feature described in this section is not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the develoment version:</p>
+<p>The Tool Environments feature described in this section is not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the development version:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 <p>The examples shown above execute tool code within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:</p>
 <ul>
 <li><p>You are creating tools that enable execution of arbitrary code (e.g.&nbsp;a tool that executes shell commands or Python code).</p></li>
-<li><p>You need to provision per-sample filesystem resources.</p></li>
+<li><p>You need to provision per-sample file system resources.</p></li>
 <li><p>You want to provide access to a more sophisticated evaluation environment (e.g.&nbsp;creating network hosts for a cybersecurity eval).</p></li>
 </ul>
 <section id="example-file-listing" class="level3">
@@ -459,9 +460,11 @@ Important
 <span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>            use_tools([list_files()]), </span>
 <span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>            generate()</span>
 <span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        tool_environment<span class="op">=</span><span class="st">"docker"</span>,</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We’ve included <code>tool_environment = "docker"</code> to indicate that tool environment operations should be executed in a Docker container. Specifying a tool environment (either at the task or evaluation level) is required if your tools call the <code>tool_environment()</code> function.</p>
 <p>Note that <code>files</code> are specified as part of the <code>Sample</code>. Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g.&nbsp;S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.</p>
 </section>
 <section id="environment-interface" class="level3">
@@ -487,11 +490,28 @@ Important
 <span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
 <span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Union[<span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>]:</span>
 <span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>There are also <code>setup()</code> and <code>cleanup()</code> methods that are called automatically by Inspect at the appropriate times.</p>
 </section>
 <section id="environment-binding" class="level3">
 <h3 class="anchored" data-anchor-id="environment-binding">Environment Binding</h3>
-<p>The previous example used the default <code>LocalToolEnvironment</code>, which executes all tool code within the main process. Often though you’ll want to sandbox tool execution using another environment type (e.g.&nbsp;the “docker” type implemented by <code>DockerToolEnvironment</code>).</p>
+<p>There are two tool environments built in to Inspect:</p>
+<table class="table">
+<thead>
+<tr class="header">
+<th>Environment Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>local</code></td>
+<td>Run <code>tool_environment()</code> methods in the same address space and file system as the running evaluation. The local environment should <em>only be used</em> if you are already running your evaluation in another sandbox.</td>
+</tr>
+<tr class="even">
+<td><code>docker</code></td>
+<td>Run <code>tool_environment()</code> methods within a Docker container (see the <a href="#sec-docker-configuration">Docker Configuration</a> section below for additional details).</td>
+</tr>
+</tbody>
+</table>
 <p>Tool environments can be bound at the <code>Task</code> level or at the <code>eval()</code> level (where <code>eval()</code> takes precedence). To bind a tool environment to a <code>Task</code>, use the <code>tool_environment</code> option:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
@@ -510,8 +530,8 @@ Important
 <div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--tool-environment</span> docker</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--tool-environment</span> docker:my-compose.yaml</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="docker-configuration" class="level3">
-<h3 class="anchored" data-anchor-id="docker-configuration">Docker Configuration</h3>
+<section id="sec-docker-configuration" class="level3">
+<h3 class="anchored" data-anchor-id="sec-docker-configuration">Docker Configuration</h3>
 <p>While <code>--tool-environment</code> can be a default un-configured environment (e.g.&nbsp;“docker”), more commonly you’ll provide explicit configuration in either a <code>Dockerfile</code> or a <a href="https://docs.docker.com/compose/compose-file/">Docker Compose</a> configuration file (<code>compose.yaml</code>).</p>
 <p>Here is how Docker tool environments are created based on the presence of <code>Dockerfile</code> and/or <code>compose.yml</code> in the task directory:</p>
 <table class="table">
@@ -605,7 +625,7 @@ Note
 <p>Creating and executing code within Docker containers can be expensive both in terms of memory and CPU utilization. Inspect provides some automatic resource management to keep usage reasonable in the default case. This section describes that behavior as well as how you can tune it for your use-cases.</p>
 <section id="running-containers" class="level4">
 <h4 class="anchored" data-anchor-id="running-containers">Running Containers</h4>
-<p>As descibed above, each <code>Sample</code> is provisioned its own container. The number of running containers for an evaluation is therefore determined by the <code>max_samples</code> option (which is by default set to <code>max_connections</code>, typically 10 unless overridden).</p>
+<p>As described above, each <code>Sample</code> is provisioned its own container. The number of running containers for an evaluation is therefore determined by the <code>max_samples</code> option (which is by default set to <code>max_connections</code>, typically 10 unless overridden).</p>
 <p>Use <code>max_samples</code> to dial up or down the number of containers running at any given time. Note that a running container does not necessarily use CPU resources unless it has active background processes.</p>
 </section>
 <section id="concurrent-execution" class="level4">
@@ -621,9 +641,16 @@ Note
 <p>The tools log level is just above <code>warning</code> (so it will not show <code>http</code> or <code>debug</code> level messages).</p>
 </section>
 </section>
-<section id="web-search" class="level2">
-<h2 class="anchored" data-anchor-id="web-search">Web Search</h2>
-<p>Inspect has a built in <code>web_search()</code> tool that provides models with the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the <code>web_search()</code> function:</p>
+<section id="built-in-tools" class="level2">
+<h2 class="anchored" data-anchor-id="built-in-tools">Built-In Tools</h2>
+<p>Inspect has several built-in tools, including:</p>
+<ul>
+<li><p><code>web_search()</code>, which uses the Google Search API to execute and summarise web searches.</p></li>
+<li><p><code>bash()</code> and <code>python()</code>, for executing arbitrary shell and Python code.</p></li>
+</ul>
+<section id="web-search" class="level3">
+<h3 class="anchored" data-anchor-id="web-search">Web Search</h3>
+<p>The <code>web_search()</code> tool provides models the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the <code>web_search()</code> function:</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_search(</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    provider: Literal[<span class="st">"google"</span>] <span class="op">=</span> <span class="st">"google"</span>,</span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    num_results: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>,</span>
@@ -645,13 +672,33 @@ Note
 <li><p><code>max_connections</code>—Maximum number of concurrent connections to the search API provider (defaults to 10).</p></li>
 <li><p><code>model</code>—Model to use to determine if search results are relevant (defaults to the model currently being evaluated).</p></li>
 </ul>
-<section id="google-provider" class="level3">
-<h3 class="anchored" data-anchor-id="google-provider">Google Provider</h3>
+<section id="google-provider" class="level4">
+<h4 class="anchored" data-anchor-id="google-provider">Google Provider</h4>
 <p>The <code>web_search()</code> tool uses <a href="https://programmablesearchengine.google.com/about/">Google Programmable Search Engine</a>. To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the <a href="https://developers.google.com/custom-search/docs/paid_element">Programmable Search Element Paid API</a>. Then, ensure that the following environment variables are defined:</p>
 <ul>
 <li><p><code>GOOGLE_CSE_ID</code> — Google Custom Search Engine ID</p></li>
 <li><p><code>GOOGLE_CSE_API_KEY</code> — Google API key used to enable the Search API</p></li>
 </ul>
+</section>
+</section>
+<section id="bash-and-python" class="level3">
+<h3 class="anchored" data-anchor-id="bash-and-python">Bash and Python</h3>
+<p>The <code>bash()</code> and <code>python()</code> tools enable execution of arbitrary shell command lines and Python code, respectively. These tools require the use of a <a href="#sec-tool-environment">Tool Environment</a>, which can provide sandboxing for untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> intercode_ctf():</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>read_dataset(),</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>        plan<span class="op">=</span>[</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>            system_message(<span class="st">"system.txt"</span>),</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>            use_tools([bash(), python()]),</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>            generate(),</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>        max_messages<span class="op">=</span><span class="dv">30</span>,</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>        tool_environment<span class="op">=</span><span class="st">"docker"</span>,</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that the <code>bash()</code> and <code>python()</code> tools are not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the development version:</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="agent-solvers" class="level2">
@@ -674,49 +721,49 @@ Note
 <li><p>Bridging from the Inspect solver interface to the standard input and output types of the agent library. In this example this is provided by the <code>langchain_solver()</code> function, which takes a LangChain agent function and converts it to an Inspect solver.</p></li>
 </ol>
 <p>Here’s the implementation of <code>langchain_solver()</code> (imports excluded for brevity):</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Interface for LangChain agent function</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LangChainAgent(Protocol):</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(<span class="va">self</span>, llm: BaseChatModel, <span class="bu">input</span>: <span class="bu">dict</span>[<span class="bu">str</span>, Any]): ...</span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert a LangChain agent function into a Solver</span></span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> langchain_solver(agent: LangChainAgent) <span class="op">-&gt;</span> Solver:</span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
-<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>        <span class="co"># create the inspect model api bridge</span></span>
-<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>        llm <span class="op">=</span> InspectChatModel()</span>
-<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># call the agent</span></span>
-<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> agent(</span>
-<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>            llm <span class="op">=</span> llm,</span>
-<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>            <span class="bu">input</span> <span class="op">=</span> <span class="bu">dict</span>(</span>
-<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>                <span class="bu">input</span><span class="op">=</span>state.user_prompt.text,</span>
-<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>                chat_history<span class="op">=</span>as_langchain_chat_history(</span>
-<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>                    state.messages[<span class="dv">1</span>:]</span>
-<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>                ),</span>
-<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># collect output from llm interface</span></span>
-<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a>        state.messages <span class="op">=</span> llm.messages</span>
-<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>        state.output <span class="op">=</span> llm.output</span>
-<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a>        state.output.completion <span class="op">=</span> output</span>
-<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># return state</span></span>
-<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span>
-<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a><span class="co"># LangChain BaseChatModel for Inspect Model API</span></span>
-<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InspectChatModel(BaseChatModel):</span>
-<span id="cb20-36"><a href="#cb20-36" aria-hidden="true" tabindex="-1"></a>     <span class="cf">async</span> <span class="kw">def</span> _agenerate(</span>
-<span id="cb20-37"><a href="#cb20-37" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
-<span id="cb20-38"><a href="#cb20-38" aria-hidden="true" tabindex="-1"></a>        messages: <span class="bu">list</span>[BaseMessage],</span>
-<span id="cb20-39"><a href="#cb20-39" aria-hidden="true" tabindex="-1"></a>        stop: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb20-40"><a href="#cb20-40" aria-hidden="true" tabindex="-1"></a>        run_manager: AsyncCallbackManagerForLLMRun <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb20-41"><a href="#cb20-41" aria-hidden="true" tabindex="-1"></a>        <span class="op">**</span>kwargs: <span class="bu">dict</span>[<span class="bu">str</span>, Any],</span>
-<span id="cb20-42"><a href="#cb20-42" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ChatResult:</span>
-<span id="cb20-43"><a href="#cb20-43" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Interface for LangChain agent function</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LangChainAgent(Protocol):</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(<span class="va">self</span>, llm: BaseChatModel, <span class="bu">input</span>: <span class="bu">dict</span>[<span class="bu">str</span>, Any]): ...</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert a LangChain agent function into a Solver</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> langchain_solver(agent: LangChainAgent) <span class="op">-&gt;</span> Solver:</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>        <span class="co"># create the inspect model api bridge</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>        llm <span class="op">=</span> InspectChatModel()</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># call the agent</span></span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> agent(</span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>            llm <span class="op">=</span> llm,</span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>            <span class="bu">input</span> <span class="op">=</span> <span class="bu">dict</span>(</span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a>                <span class="bu">input</span><span class="op">=</span>state.user_prompt.text,</span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a>                chat_history<span class="op">=</span>as_langchain_chat_history(</span>
+<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a>                    state.messages[<span class="dv">1</span>:]</span>
+<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a>                ),</span>
+<span id="cb22-21"><a href="#cb22-21" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb22-22"><a href="#cb22-22" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb22-23"><a href="#cb22-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-24"><a href="#cb22-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># collect output from llm interface</span></span>
+<span id="cb22-25"><a href="#cb22-25" aria-hidden="true" tabindex="-1"></a>        state.messages <span class="op">=</span> llm.messages</span>
+<span id="cb22-26"><a href="#cb22-26" aria-hidden="true" tabindex="-1"></a>        state.output <span class="op">=</span> llm.output</span>
+<span id="cb22-27"><a href="#cb22-27" aria-hidden="true" tabindex="-1"></a>        state.output.completion <span class="op">=</span> output</span>
+<span id="cb22-28"><a href="#cb22-28" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb22-29"><a href="#cb22-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># return state</span></span>
+<span id="cb22-30"><a href="#cb22-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
+<span id="cb22-31"><a href="#cb22-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-32"><a href="#cb22-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span>
+<span id="cb22-33"><a href="#cb22-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-34"><a href="#cb22-34" aria-hidden="true" tabindex="-1"></a><span class="co"># LangChain BaseChatModel for Inspect Model API</span></span>
+<span id="cb22-35"><a href="#cb22-35" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InspectChatModel(BaseChatModel):</span>
+<span id="cb22-36"><a href="#cb22-36" aria-hidden="true" tabindex="-1"></a>     <span class="cf">async</span> <span class="kw">def</span> _agenerate(</span>
+<span id="cb22-37"><a href="#cb22-37" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb22-38"><a href="#cb22-38" aria-hidden="true" tabindex="-1"></a>        messages: <span class="bu">list</span>[BaseMessage],</span>
+<span id="cb22-39"><a href="#cb22-39" aria-hidden="true" tabindex="-1"></a>        stop: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb22-40"><a href="#cb22-40" aria-hidden="true" tabindex="-1"></a>        run_manager: AsyncCallbackManagerForLLMRun <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb22-41"><a href="#cb22-41" aria-hidden="true" tabindex="-1"></a>        <span class="op">**</span>kwargs: <span class="bu">dict</span>[<span class="bu">str</span>, Any],</span>
+<span id="cb22-42"><a href="#cb22-42" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ChatResult:</span>
+<span id="cb22-43"><a href="#cb22-43" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
@@ -728,71 +775,71 @@ Note
 </div>
 </div>
 <p>Now here’s the <code>wikipedia_search()</code> solver (imports again excluded for brevity):</p>
-<div class="sourceCode" id="annotated-cell-20"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-20-1"><a href="#annotated-cell-20-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="annotated-cell-20-2"><a href="#annotated-cell-20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> wikipedia_search(</span>
-<span id="annotated-cell-20-3"><a href="#annotated-cell-20-3" aria-hidden="true" tabindex="-1"></a>    max_iterations: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="dv">15</span>,</span>
-<span id="annotated-cell-20-4"><a href="#annotated-cell-20-4" aria-hidden="true" tabindex="-1"></a>    max_execution_time: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
-<span id="annotated-cell-20-5"><a href="#annotated-cell-20-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver:</span>
-<span id="annotated-cell-20-6"><a href="#annotated-cell-20-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># standard prompt for tools agent</span></span>
-<span id="annotated-cell-20-7"><a href="#annotated-cell-20-7" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> hub.pull(<span class="st">"hwchase17/openai-tools-agent"</span>)</span>
-<span id="annotated-cell-20-8"><a href="#annotated-cell-20-8" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-20" data-target-annotation="1">1</button><span id="annotated-cell-20-9" class="code-annotation-target"><a href="#annotated-cell-20-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># tavily and wikipedia tools</span></span>
-<span id="annotated-cell-20-10"><a href="#annotated-cell-20-10" aria-hidden="true" tabindex="-1"></a>    tavily_api <span class="op">=</span> TavilySearchAPIWrapper()  <span class="co"># type: ignore</span></span>
-<span id="annotated-cell-20-11"><a href="#annotated-cell-20-11" aria-hidden="true" tabindex="-1"></a>    tools <span class="op">=</span> (</span>
-<span id="annotated-cell-20-12"><a href="#annotated-cell-20-12" aria-hidden="true" tabindex="-1"></a>        [TavilySearchResults(api_wrapper<span class="op">=</span>tavily_api)] <span class="op">+</span> </span>
-<span id="annotated-cell-20-13"><a href="#annotated-cell-20-13" aria-hidden="true" tabindex="-1"></a>        load_tools([<span class="st">"wikipedia"</span>])</span>
-<span id="annotated-cell-20-14"><a href="#annotated-cell-20-14" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="annotated-cell-20-15"><a href="#annotated-cell-20-15" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-20" data-target-annotation="2">2</button><span id="annotated-cell-20-16" class="code-annotation-target"><a href="#annotated-cell-20-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># agent function</span></span>
-<span id="annotated-cell-20-17"><a href="#annotated-cell-20-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> agent(</span>
-<span id="annotated-cell-20-18"><a href="#annotated-cell-20-18" aria-hidden="true" tabindex="-1"></a>        llm: BaseChatModel, </span>
-<span id="annotated-cell-20-19"><a href="#annotated-cell-20-19" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span>: <span class="bu">dict</span>[<span class="bu">str</span>, Any]</span>
-<span id="annotated-cell-20-20"><a href="#annotated-cell-20-20" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>,Any]]:  </span>
-<span id="annotated-cell-20-21"><a href="#annotated-cell-20-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># create agent</span></span>
-<span id="annotated-cell-20-22"><a href="#annotated-cell-20-22" aria-hidden="true" tabindex="-1"></a>        tools_agent <span class="op">=</span> create_openai_tools_agent(</span>
-<span id="annotated-cell-20-23"><a href="#annotated-cell-20-23" aria-hidden="true" tabindex="-1"></a>          llm, tools, prompt</span>
-<span id="annotated-cell-20-24"><a href="#annotated-cell-20-24" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="annotated-cell-20-25"><a href="#annotated-cell-20-25" aria-hidden="true" tabindex="-1"></a>        executor <span class="op">=</span> AgentExecutor.from_agent_and_tools(</span>
-<span id="annotated-cell-20-26"><a href="#annotated-cell-20-26" aria-hidden="true" tabindex="-1"></a>            agent<span class="op">=</span>cast(BaseMultiActionAgent, tools_agent),</span>
-<span id="annotated-cell-20-27"><a href="#annotated-cell-20-27" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>tools,</span>
-<span id="annotated-cell-20-28"><a href="#annotated-cell-20-28" aria-hidden="true" tabindex="-1"></a>            name<span class="op">=</span><span class="st">"wikipedia_search"</span>,</span>
-<span id="annotated-cell-20-29"><a href="#annotated-cell-20-29" aria-hidden="true" tabindex="-1"></a>            max_iterations<span class="op">=</span>max_iterations,  </span>
-<span id="annotated-cell-20-30"><a href="#annotated-cell-20-30" aria-hidden="true" tabindex="-1"></a>            max_execution_time<span class="op">=</span>max_execution_time</span>
-<span id="annotated-cell-20-31"><a href="#annotated-cell-20-31" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="annotated-cell-20-32"><a href="#annotated-cell-20-32" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-20" data-target-annotation="3">3</button><span id="annotated-cell-20-33" class="code-annotation-target"><a href="#annotated-cell-20-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># execute the agent and return output</span></span>
-<span id="annotated-cell-20-34"><a href="#annotated-cell-20-34" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="cf">await</span> executor.ainvoke(<span class="bu">input</span>)  </span>
-<span id="annotated-cell-20-35"><a href="#annotated-cell-20-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> result[<span class="st">"output"</span>]</span>
-<span id="annotated-cell-20-36"><a href="#annotated-cell-20-36" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-20" data-target-annotation="4">4</button><span id="annotated-cell-20-37" class="code-annotation-target"><a href="#annotated-cell-20-37" aria-hidden="true" tabindex="-1"></a>    <span class="co"># return agent function as inspect solver</span></span>
-<span id="annotated-cell-20-38"><a href="#annotated-cell-20-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> langchain_solver(agent)</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="annotated-cell-22"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-22-1"><a href="#annotated-cell-22-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="annotated-cell-22-2"><a href="#annotated-cell-22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> wikipedia_search(</span>
+<span id="annotated-cell-22-3"><a href="#annotated-cell-22-3" aria-hidden="true" tabindex="-1"></a>    max_iterations: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="dv">15</span>,</span>
+<span id="annotated-cell-22-4"><a href="#annotated-cell-22-4" aria-hidden="true" tabindex="-1"></a>    max_execution_time: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
+<span id="annotated-cell-22-5"><a href="#annotated-cell-22-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver:</span>
+<span id="annotated-cell-22-6"><a href="#annotated-cell-22-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># standard prompt for tools agent</span></span>
+<span id="annotated-cell-22-7"><a href="#annotated-cell-22-7" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> hub.pull(<span class="st">"hwchase17/openai-tools-agent"</span>)</span>
+<span id="annotated-cell-22-8"><a href="#annotated-cell-22-8" aria-hidden="true" tabindex="-1"></a></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-22" data-target-annotation="1">1</button><span id="annotated-cell-22-9" class="code-annotation-target"><a href="#annotated-cell-22-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># tavily and wikipedia tools</span></span>
+<span id="annotated-cell-22-10"><a href="#annotated-cell-22-10" aria-hidden="true" tabindex="-1"></a>    tavily_api <span class="op">=</span> TavilySearchAPIWrapper()  <span class="co"># type: ignore</span></span>
+<span id="annotated-cell-22-11"><a href="#annotated-cell-22-11" aria-hidden="true" tabindex="-1"></a>    tools <span class="op">=</span> (</span>
+<span id="annotated-cell-22-12"><a href="#annotated-cell-22-12" aria-hidden="true" tabindex="-1"></a>        [TavilySearchResults(api_wrapper<span class="op">=</span>tavily_api)] <span class="op">+</span> </span>
+<span id="annotated-cell-22-13"><a href="#annotated-cell-22-13" aria-hidden="true" tabindex="-1"></a>        load_tools([<span class="st">"wikipedia"</span>])</span>
+<span id="annotated-cell-22-14"><a href="#annotated-cell-22-14" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="annotated-cell-22-15"><a href="#annotated-cell-22-15" aria-hidden="true" tabindex="-1"></a></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-22" data-target-annotation="2">2</button><span id="annotated-cell-22-16" class="code-annotation-target"><a href="#annotated-cell-22-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># agent function</span></span>
+<span id="annotated-cell-22-17"><a href="#annotated-cell-22-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> agent(</span>
+<span id="annotated-cell-22-18"><a href="#annotated-cell-22-18" aria-hidden="true" tabindex="-1"></a>        llm: BaseChatModel, </span>
+<span id="annotated-cell-22-19"><a href="#annotated-cell-22-19" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span>: <span class="bu">dict</span>[<span class="bu">str</span>, Any]</span>
+<span id="annotated-cell-22-20"><a href="#annotated-cell-22-20" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>,Any]]:  </span>
+<span id="annotated-cell-22-21"><a href="#annotated-cell-22-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># create agent</span></span>
+<span id="annotated-cell-22-22"><a href="#annotated-cell-22-22" aria-hidden="true" tabindex="-1"></a>        tools_agent <span class="op">=</span> create_openai_tools_agent(</span>
+<span id="annotated-cell-22-23"><a href="#annotated-cell-22-23" aria-hidden="true" tabindex="-1"></a>          llm, tools, prompt</span>
+<span id="annotated-cell-22-24"><a href="#annotated-cell-22-24" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="annotated-cell-22-25"><a href="#annotated-cell-22-25" aria-hidden="true" tabindex="-1"></a>        executor <span class="op">=</span> AgentExecutor.from_agent_and_tools(</span>
+<span id="annotated-cell-22-26"><a href="#annotated-cell-22-26" aria-hidden="true" tabindex="-1"></a>            agent<span class="op">=</span>cast(BaseMultiActionAgent, tools_agent),</span>
+<span id="annotated-cell-22-27"><a href="#annotated-cell-22-27" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>tools,</span>
+<span id="annotated-cell-22-28"><a href="#annotated-cell-22-28" aria-hidden="true" tabindex="-1"></a>            name<span class="op">=</span><span class="st">"wikipedia_search"</span>,</span>
+<span id="annotated-cell-22-29"><a href="#annotated-cell-22-29" aria-hidden="true" tabindex="-1"></a>            max_iterations<span class="op">=</span>max_iterations,  </span>
+<span id="annotated-cell-22-30"><a href="#annotated-cell-22-30" aria-hidden="true" tabindex="-1"></a>            max_execution_time<span class="op">=</span>max_execution_time</span>
+<span id="annotated-cell-22-31"><a href="#annotated-cell-22-31" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="annotated-cell-22-32"><a href="#annotated-cell-22-32" aria-hidden="true" tabindex="-1"></a></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-22" data-target-annotation="3">3</button><span id="annotated-cell-22-33" class="code-annotation-target"><a href="#annotated-cell-22-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># execute the agent and return output</span></span>
+<span id="annotated-cell-22-34"><a href="#annotated-cell-22-34" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="cf">await</span> executor.ainvoke(<span class="bu">input</span>)  </span>
+<span id="annotated-cell-22-35"><a href="#annotated-cell-22-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> result[<span class="st">"output"</span>]</span>
+<span id="annotated-cell-22-36"><a href="#annotated-cell-22-36" aria-hidden="true" tabindex="-1"></a></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-22" data-target-annotation="4">4</button><span id="annotated-cell-22-37" class="code-annotation-target"><a href="#annotated-cell-22-37" aria-hidden="true" tabindex="-1"></a>    <span class="co"># return agent function as inspect solver</span></span>
+<span id="annotated-cell-22-38"><a href="#annotated-cell-22-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> langchain_solver(agent)</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-20" data-target-annotation="1">1</dt>
+<dt data-target-cell="annotated-cell-22" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-20" data-code-lines="9" data-code-annotation="1">Note that we register native LangChain tools. These will be converted to the standard Inspect <code>ToolInfo</code> when generate is called.</span>
+<span data-code-cell="annotated-cell-22" data-code-lines="9" data-code-annotation="1">Note that we register native LangChain tools. These will be converted to the standard Inspect <code>ToolInfo</code> when generate is called.</span>
 </dd>
-<dt data-target-cell="annotated-cell-20" data-target-annotation="2">2</dt>
+<dt data-target-cell="annotated-cell-22" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-20" data-code-lines="16" data-code-annotation="2">This is the standard interface to LangChain agents. We take this function and automatically create a standard Inspect solver from it below when we pass it to <code>langchain_solver()</code>.</span>
+<span data-code-cell="annotated-cell-22" data-code-lines="16" data-code-annotation="2">This is the standard interface to LangChain agents. We take this function and automatically create a standard Inspect solver from it below when we pass it to <code>langchain_solver()</code>.</span>
 </dd>
-<dt data-target-cell="annotated-cell-20" data-target-annotation="3">3</dt>
+<dt data-target-cell="annotated-cell-22" data-target-annotation="3">3</dt>
 <dd>
-<span data-code-cell="annotated-cell-20" data-code-lines="33" data-code-annotation="3">Invoke the agent using the chat history passed in <code>input</code>. We call the async executor API to play well with Inspect’s concurrency.</span>
+<span data-code-cell="annotated-cell-22" data-code-lines="33" data-code-annotation="3">Invoke the agent using the chat history passed in <code>input</code>. We call the async executor API to play well with Inspect’s concurrency.</span>
 </dd>
-<dt data-target-cell="annotated-cell-20" data-target-annotation="4">4</dt>
+<dt data-target-cell="annotated-cell-22" data-target-annotation="4">4</dt>
 <dd>
-<span data-code-cell="annotated-cell-20" data-code-lines="37" data-code-annotation="4">The <code>langchain_solver()</code> function maps the simpler agent function semantics into the standard Inspect solver API.</span>
+<span data-code-cell="annotated-cell-22" data-code-lines="37" data-code-annotation="4">The <code>langchain_solver()</code> function maps the simpler agent function semantics into the standard Inspect solver API.</span>
 </dd>
 </dl>
 <p>If you reviewed the <a href="https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/">original article</a> that this example was based on, you’ll see that most of the code is unchanged (save for the fact that we have switched from a function agent to a tools agent). The main difference is that we compose the agent function into an Inspect solver by passing it to <code>langchain_solver()</code>.</p>
 <p>Finally, here’s a task that uses the <code>wikipedia_search()</code> solver:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> wikipedia() <span class="op">-&gt;</span> Task:</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>json_dataset(<span class="st">"wikipedia.jsonl"</span>),</span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>        plan<span class="op">=</span>wikipedia_search(),</span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> wikipedia() <span class="op">-&gt;</span> Task:</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>json_dataset(<span class="st">"wikipedia.jsonl"</span>),</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>        plan<span class="op">=</span>wikipedia_search(),</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>See the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain">working version</a> of this example if you want to run and experiment with it.</p>
 
 
