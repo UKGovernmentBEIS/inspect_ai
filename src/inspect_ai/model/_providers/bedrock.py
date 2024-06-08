@@ -60,7 +60,7 @@ class BedrockAPI(ModelAPI):
             self.handler: BedrockChatHandler = MistralChatHandler(
                 model_name, base_url, config
             )
-        elif is_llama2(model_name):
+        elif is_llama(model_name):
             self.handler = Llama2ChatHandler(model_name, base_url, config)
         else:
             raise ValueError(f"Unsupported Bedrock model: {model_name}")
@@ -310,8 +310,8 @@ def is_mistral(model_name: str) -> bool:
     return model_name.startswith("mistral.")
 
 
-def is_llama2(model_name: str) -> bool:
-    return model_name.startswith("meta.llama2")
+def is_llama(model_name: str) -> bool:
+    return model_name.startswith("meta.llama")
 
 
 def remove_end_token(prompt: str) -> str:

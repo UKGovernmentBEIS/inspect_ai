@@ -9,6 +9,7 @@
 - Filter out empty TextBlockParam when playing messages back to Claude.
 - Revert to "auto" rather than "none" after forced tool call.
 - Automatically combine Anthropic user messages that include tool content.
+- Support all Llama series models on Bedrock.
 
 ## v0.3.14 (04 June 2024)
 
