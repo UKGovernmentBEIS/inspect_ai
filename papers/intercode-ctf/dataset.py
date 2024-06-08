@@ -7,18 +7,11 @@ import requests
 
 from inspect_ai.dataset import Sample, json_dataset
 
-from inspect_ai.solver import (
-    Generate,
-    TaskState,
-    solver,
-    tool_environment,
-)
-
 
 DATA_DIR = ".data"
 
 
-def read_dataset(force_download=False):
+def read_dataset(shuffle = False, force_download=False):
     # ensure the data is downloaded
     _ensure_data(force_download)
 
@@ -44,8 +37,8 @@ def read_dataset(force_download=False):
             input=record["query"],
             target=record["gold"],
             metadata={
-                # used by sample_setup solver (see below)
                 "setup": record.get("setup", None),
+                "files": list(files.keys()),
                 "source": record["source"],
                 "tags": record["tags"],
                 "solution": solution,
@@ -53,22 +46,16 @@ def read_dataset(force_download=False):
             files=files,
         )
 
-    # read dataset (filter out samples with no files)
-    return json_dataset(f"{DATA_DIR}/ic_ctf.json", record_to_sample).filter(
-        lambda sample: len(sample.files)
-    )
+    # read dataset (filtering out selected samples)
+    excluded = [
+         43 # models often go over token limits
+    ]
+    return json_dataset(
+        json_file = f"{DATA_DIR}/ic_ctf.json", 
+        sample_fields = record_to_sample,
+        shuffle=shuffle
+    ).filter(lambda sample: not sample.id in excluded)
 
-
-@solver
-def sample_setup():
-    async def solve(state: TaskState, generate: Generate):
-        if state.metadata.get("setup") is not None:
-            await tool_environment().exec(
-                ["bash", "-c", state.metadata["setup"]]
-            )
-        return state
-
-    return solve
 
 
 

@@ -1613,6 +1613,9 @@
                   },
                   {
                     "type": "boolean"
+                  },
+                  {
+                    "type": "null"
                   }
                 ]
               },

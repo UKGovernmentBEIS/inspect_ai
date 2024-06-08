@@ -120,7 +120,7 @@ export type Value1 =
   | boolean
   | (string | number | number | boolean)[]
   | {
-      [k: string]: string | number | number | boolean;
+      [k: string]: string | number | number | boolean | null;
     };
 export type Answer = string | null;
 export type Explanation = string | null;

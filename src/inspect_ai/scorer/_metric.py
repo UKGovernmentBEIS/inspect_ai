@@ -38,7 +38,7 @@ NOANSWER = "N"
 Value = Union[
     str | int | float | bool,
     list[str | int | float | bool],
-    dict[str, str | int | float | bool],
+    dict[str, str | int | float | bool | None],
 ]
 """Value provided by a score.
 
