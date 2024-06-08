@@ -1,5 +1,6 @@
+import functools
 import os
-from typing import Any, Tuple, cast
+from typing import Any, Literal, Tuple, cast
 
 from anthropic import (
     APIConnectionError,
@@ -203,11 +204,16 @@ async def resolve_chat_input(
         system_message = f"{system_message}\n\nBefore answering, explain your reasoning step-by-step in tags."
 
     # messages
-    beta_messages = [(await message_param(message)) for message in messages]
+    message_params = [(await message_param(message)) for message in messages]
+
+    # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
+    message_params = functools.reduce(
+        consecutive_user_message_reducer, message_params, []
+    )
 
     # tools
     chat_functions = [chat_api_tool(tool)["function"] for tool in tools]
-    beta_tools = [
+    tools_param = [
         ToolParam(
             name=function["name"],
             description=function["description"],
@@ -216,7 +222,46 @@ async def resolve_chat_input(
         for function in chat_functions
     ]
 
-    return system_message, beta_tools, beta_messages
+    return system_message, tools_param, message_params
+
+
+def consecutive_user_message_reducer(
+    messages: list[MessageParam],
+    message: MessageParam,
+) -> list[MessageParam]:
+    return consective_message_reducer(messages, message, "user")
+
+
+def consective_message_reducer(
+    messages: list[MessageParam],
+    message: MessageParam,
+    role: Literal["user", "assistant"],
+) -> list[MessageParam]:
+    if message["role"] == role and len(messages) > 0 and messages[-1]["role"] == role:
+        messages[-1] = combine_messages(messages[-1], message)
+    else:
+        messages.append(message)
+    return messages
+
+
+def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
+    role = a["role"]
+    a_content = a["content"]
+    b_content = b["content"]
+    if isinstance(a_content, str) and isinstance(a_content, str):
+        return MessageParam(role=role, content=f"{a_content}\n{b_content}")
+    elif isinstance(a_content, list) and isinstance(b_content, list):
+        return MessageParam(role=role, content=a_content + b_content)
+    elif isinstance(a_content, str) and isinstance(b_content, list):
+        return MessageParam(
+            role=role, content=[TextBlockParam(type="text", text=a_content)] + b_content
+        )
+    elif isinstance(a_content, list) and isinstance(b_content, str):
+        return MessageParam(
+            role=role, content=a_content + [TextBlockParam(type="text", text=b_content)]
+        )
+    else:
+        raise ValueError(f"Unexpected content types for messages: {a}, {b}")
 
 
 def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolChoice:

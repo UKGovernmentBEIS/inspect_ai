@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.21
+
+- Properly reactivate log viewer when is has been activated but isn't visible (e.g another tab is visible in its column)
+
 ## 0.3.20
 
 - Improve appearance of log view secondary header

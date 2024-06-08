@@ -43,6 +43,7 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
       localResourceRoots.push(Uri.file(viewDir.path));
     }
     super(context, kLogViewId, "Inspect View", localResourceRoots, InspectLogviewWebview);
+    this.lastState_ = {};
   }
 
   public showLogFile(uri: Uri, onClose?: () => void) {
@@ -55,7 +56,8 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
     }
 
     this.setOnShow(() => {
-      this.updatePreview(state).catch(() => { });
+      this.updateViewState(state);
+      this.updateVisibleView().catch(() => { });
     });
     if (onClose) {
       this.setOnClose(onClose);
@@ -65,7 +67,7 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
     if (this.activeView_) {
       this.revealWebview();
     } else {
-      this.lastState_ = undefined;
+      this.updateViewState({});
       this.showWebview(state, {
         preserveFocus: true,
         viewColumn: ViewColumn.Beside,
@@ -77,29 +79,25 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
     return this.activeView_?.webviewPanel().viewColumn;
   }
 
-  protected override onViewStateChanged(): void {
-    this.updatePreview(this.lastState_).catch(() => { });
-  }
-
-  private async updatePreview(state?: LogviewState) {
-    if (this.isVisible()) {
-      // see if there is an explicit state update (otherwise inspect the active editor)
-      if (state) {
-        await this.updateViewState(state);
-      } else {
-        await this.updateViewState({});
-      }
+  protected override async onViewStateChanged(): Promise<void> {
+    if (this.isActive()) {
+      await this.updateVisibleView();
     }
   }
 
-  private async updateViewState(state: LogviewState) {
+  private async updateVisibleView() {
+    if (this.isVisible()) {
+      await this.activeView_?.update(this.lastState_);
+    }
+  }
+
+  private updateViewState(state: LogviewState) {
     if (this.lastState_ !== state) {
       this.lastState_ = state;
-      await this.activeView_?.update(state);
     }
   }
 
-  private lastState_: LogviewState | undefined;
+  private lastState_: LogviewState;
 }
 
 class InspectLogviewWebview extends InspectWebview<LogviewState> {

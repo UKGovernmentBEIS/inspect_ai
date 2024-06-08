@@ -1,10 +1,16 @@
 import pytest
+from test_helpers.utils import skip_if_no_anthropic
 
 from inspect_ai.model import (
     ChatMessageAssistant,
+    ChatMessageTool,
     ChatMessageUser,
     ContentImage,
     ContentText,
+    ToolCall,
+    ToolInfo,
+    ToolParam,
+    get_model,
 )
 from inspect_ai.model._model import collapse_consecutive_user_messages
 
@@ -58,3 +64,46 @@ def test_collapse_consecutive_user_messages_with_image_message(
     assert isinstance(
         collapse_consecutive_user_messages(messages)[0].content[0], ContentImage
     )
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_user_tool_messages():
+    # Anthropic converts 'tool' messages into 'user' messages with tool content.
+    # In the case where an additional user message is appended after the tool
+    # call response, this results in an error unless the user messages are
+    # correctly combined into a single one w/ tool and text content.
+    try:
+        model = get_model("anthropic/claude-3-haiku-20240307")
+        await model.generate(
+            input=[
+                ChatMessageUser(content="What is 1 + 1?"),
+                ChatMessageAssistant(
+                    content="I can proceed with calling the add tool to compute the result.",
+                    tool_calls=[
+                        ToolCall(
+                            id="toolu_01AhP9RozXEJSnuxMLcY8Xaf",
+                            type="funciton",
+                            function="add",
+                            arguments={"x": 1, "y": 1},
+                        )
+                    ],
+                ),
+                ChatMessageTool(
+                    content="2", tool_call_id="toolu_01AhP9RozXEJSnuxMLcY8Xaf"
+                ),
+                ChatMessageUser(content="Keep going!"),
+            ],
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers",
+                    params=[
+                        ToolParam("x", "number", "Number", False),
+                        ToolParam("y", "number", "Number", False),
+                    ],
+                )
+            ],
+        )
+    except Exception as ex:
+        pytest.fail(f"Exception raised: {ex}")

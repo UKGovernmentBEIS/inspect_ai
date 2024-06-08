@@ -81,6 +81,10 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     return !!this.activeView_ && this.activeView_.webviewPanel().visible;
   }
 
+  public isActive() {
+    return !!this.activeView_ && this.activeView_.webviewPanel().active;
+  }
+
   protected onViewStateChanged() { }
 
   private resolveOnShow() {

@@ -8,6 +8,7 @@
 - More fine grained handling of Claude `BadRequestError` (400) errors (which were formerly all treated as content moderation errors).
 - Filter out empty TextBlockParam when playing messages back to Claude.
 - Revert to "auto" rather than "none" after forced tool call.
+- Automatically combine Anthropic user messages that include tool content.
 
 ## v0.3.14 (04 June 2024)
 
