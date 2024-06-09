@@ -190,7 +190,7 @@ $ inspect eval --tool-environment podman:config.yaml
 
 ### Filesystems with fsspec
 
-Datasets, prompt templates, and evaluation logs are can be stored using either the local filesystem or a remote filesystem. Inspect uses the [fsspec](https://filesystem-spec.readthedocs.io/en/latest/) package to read and write files, which means that many filesystems and storage locations are supported, including:
+Datasets, prompt templates, and evaluation logs can be stored using either the local filesystem or a remote filesystem. Inspect uses the [fsspec](https://filesystem-spec.readthedocs.io/en/latest/) package to read and write files, which means that many filesystems and storage locations are supported, including:
 
 -   [Amazon S3]((#sec-amazon-s3))
 -   [Google Cloud Storage](https://gcsfs.readthedocs.io/en/latest/)
