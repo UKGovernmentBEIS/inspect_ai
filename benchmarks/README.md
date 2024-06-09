@@ -2,8 +2,8 @@
 
 This directory contains evals for several benchmarks. Datasets for evals are not embedded in the repository but are rather ether downloaded either directly from their source URL or via Hugging Face datasets. To use Hugging Face datasets please install the datasets package with `pip install datasets`.
 
-| Benchmark                                                              | Reference                          |                             Code | Dataset      |
-|-----------------------------|---------------|--------------:|---------------|
+| Benchmark                                                              | Reference                            |                             Code | Dataset      |
+|-------------------------|----------------|---------------:|----------------|
 | MMLU: Measuring Massive Multitask Language Understanding               | <https://arxiv.org/abs/2009.03300>   |               [mmlu.py](mmlu.py) | Download     |
 | MATH: Measuring Mathematical Problem Solving With the MATH Dataset     | <https://arxiv.org/abs/2103.03874>   | [mathematics.py](mathematics.py) | Download     |
 | GPQA: A Graduate-Level Google-Proof Q&A Benchmark                      | <https://arxiv.org/abs/2311.12022>   |               [gpqa.py](gpqa.py) | Download     |

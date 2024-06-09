@@ -113,6 +113,10 @@ Inspect has a number of built-in solvers, each of which can be customised in som
 
     Prompts the model to critique the results of a previous call to `generate()` (note that this need not be the same model as they one you are evaluating—use the `model` parameter to choose another model). Makes use of `{question}` and `{completion}` template variables.
 
+-   `use_tools()`
+
+     Define the set tools available for use by the model during `generate()`.
+
 ### Multiple Choice
 
 Here is the declaration for the `multiple_choice()` solver:

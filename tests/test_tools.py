@@ -1,3 +1,5 @@
+from random import randint
+
 from test_helpers.utils import (
     addition,
     skip_if_no_anthropic,
@@ -13,13 +15,21 @@ from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
+    ChatMessageUser,
     Model,
     ToolCall,
     ToolFunction,
     get_model,
 )
 from inspect_ai.scorer import match
-from inspect_ai.solver import generate, tool, use_tools
+from inspect_ai.solver import (
+    Generate,
+    TaskState,
+    generate,
+    solver,
+    tool,
+    use_tools,
+)
 
 # we define 3 versions of addition so we can test the ability to force the
 # the model to use a certain tool via tool_choice=ToolFunction()
@@ -29,7 +39,7 @@ from inspect_ai.solver import generate, tool, use_tools
 @tool(
     prompt="""
     If you are given a math problem of any kind,
-    please use the addition tool to compute the result.
+    please use the addition2 tool to compute the result.
 """
 )
 def addition2():
@@ -53,7 +63,7 @@ def addition2():
 @tool(
     prompt="""
     If you are given a math problem of any kind,
-    please use the addition tool to compute the result.
+    please use the addition3 tool to compute the result.
 """
 )
 def addition3():
@@ -170,6 +180,60 @@ def test_mistral_tools():
 @skip_if_no_google
 def test_google_tools():
     check_tools("google/gemini-1.0-pro")
+
+
+@skip_if_no_openai
+def test_dynamic_tools():
+    @tool(prompt="Use the color tool to pick a random color.")
+    def color():
+        async def execute():
+            """Pick a random color.
+
+            Returns:
+              Color
+            """
+            return ["green", "red", "blue"][randint(0, 2)]
+
+        return execute
+
+    @tool(prompt="Use the shape tool to pick a random shape.")
+    def shape():
+        async def execute():
+            """Pick a random shape.
+
+            Returns:
+               Shape
+            """
+            return ["triangle", "circle", "square"][randint(0, 2)]
+
+        return execute
+
+    @solver
+    def dynamic_tools():
+        async def solve(state: TaskState, generate: Generate):
+            state.tools = [color()]
+            state = await generate(state)
+
+            state.messages.append(ChatMessageUser(content="Pick a random shape."))
+            state.tools = [shape()]
+            return await generate(state)
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Pick a random color.")],
+        plan=dynamic_tools(),
+        scorer=match(),
+    )
+
+    log = eval(task, model="openai/gpt-4")[0]
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "color")
+    assert tool_call is not None and tool_call.function == "color"
+    messages.reverse()
+    tool_call = get_tool_call(messages, "shape")
+    assert tool_call is not None and tool_call.function == "shape"
 
 
 def get_tool_call(messages: list[ChatMessage], tool: str) -> ToolCall | None:

@@ -60,6 +60,7 @@ book:
         chapters: 
            - solvers.qmd
            - tools.qmd
+           - agents.qmd
            - scorers.qmd
            - datasets.qmd
            - models.qmd

@@ -71,11 +71,13 @@ def tool_docstring(tool: Tool) -> Docstring:
     assert (
         docstring.short_description is not None
     ), "Tool must have a short description in the docstring"
-    for param in list(inspect.signature(tool).parameters.keys()):
-        assert param in [
-            docstring_param.arg_name for docstring_param in docstring.params
-        ], f"Parameter {param} must be documented in the docstring"
-    assert [
-        docstring_param.description != "" for docstring_param in docstring.params
-    ], "All tool parameters must have a description"
+    params = list(inspect.signature(tool).parameters.keys())
+    if len(params) > 0:
+        for param in params:
+            assert param in [
+                docstring_param.arg_name for docstring_param in docstring.params
+            ], f"Parameter {param} must be documented in the docstring"
+        assert [
+            docstring_param.description != "" for docstring_param in docstring.params
+        ], "All tool parameters must have a description"
     return docstring

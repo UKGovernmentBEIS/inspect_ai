@@ -7,11 +7,10 @@ import requests
 
 from inspect_ai.dataset import Sample, json_dataset
 
-
 DATA_DIR = ".data"
 
 
-def read_dataset(shuffle = False, force_download=False):
+def read_dataset(shuffle=False, force_download=False):
     # ensure the data is downloaded
     _ensure_data(force_download)
 
@@ -48,15 +47,13 @@ def read_dataset(shuffle = False, force_download=False):
 
     # read dataset (filtering out selected samples)
     excluded = [
-         43 # models often go over token limits
+        43  # models often go over token limits
     ]
     return json_dataset(
-        json_file = f"{DATA_DIR}/ic_ctf.json", 
-        sample_fields = record_to_sample,
-        shuffle=shuffle
-    ).filter(lambda sample: not sample.id in excluded)
-
-
+        json_file=f"{DATA_DIR}/ic_ctf.json",
+        sample_fields=record_to_sample,
+        shuffle=shuffle,
+    ).filter(lambda sample: sample.id not in excluded)
 
 
 def _ensure_data(force_download):

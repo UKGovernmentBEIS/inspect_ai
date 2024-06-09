@@ -44,6 +44,7 @@ async def task_generate(
         # check for max messages
         if has_max_messages(state, max_messages):
             state.output = output
+            state.completed = True
             return state
 
         # resolve tool calls if necessary
@@ -72,6 +73,7 @@ async def task_generate(
                 # check for max messages
                 if has_max_messages(state, max_messages):
                     state.output = output
+                    state.completed = True
                     return state
 
                 # if a tool_call was forced set tool_choice to 'auto'

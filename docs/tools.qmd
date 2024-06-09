@@ -9,7 +9,7 @@ Inspect natively supports registering Python functions as tools and providing th
 ::: callout-note
 ### Tools and Agents
 
-One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. We'll cover how to use agent scaffolds in [Agent Solvers](#agent-solvers) below.
+One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. This is covered in more depth in the [Agents](#sec-agents) section.
 :::
 
 ## Tool Basics
@@ -45,7 +45,10 @@ We can use this tool in an evaluation by passing it to the `use_tools()` Solver:
 def addition_problem():
     return Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2"])],
-        plan=[use_tools(add()), generate()],
+        plan=[
+            use_tools(add()), 
+            generate()
+        ],
         scorer=match(numeric=True),
     )
 ```
@@ -82,254 +85,6 @@ plan = [
   generate()
 ]
 ```
-
-## Tool Environments {#sec-tool-environments}
-
-::: callout-important
-The Tool Environments feature described in this section is not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the development version:
-
-``` bash
-$ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-```
-:::
-
-The examples shown above execute tool code within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:
-
--   You are creating tools that enable execution of arbitrary code (e.g. a tool that executes shell commands or Python code).
-
--   You need to provision per-sample file system resources.
-
--   You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
-
-### Example: File Listing
-
-Let's take a look at a simple example to illustrate. First, we'll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the `tool_environment()` function to get access to the `ToolEnvironment` instance for the currently executing `Sample`:
-
-``` python
-from inspect_ai.solver import tool, tool_environment
-
-@tool(prompt="Use the list_files function to enumerate files.")
-def list_files():
-    async def execute(dir: str):
-        """List the files in a directory.
-
-        Args:
-            dir (str): Directory
-
-        Returns:
-            File listing of the directory
-        """
-        result = await tool_environment().exec(["ls", dir])
-        if result.success:
-            return result.stdout
-        else:
-            return f"Error: {result.stderr}"
-
-    return execute
-```
-
-The `exec()` function is used to list the directory contents. Note that its not immediately clear where or how `exec()` is implemented (that will be described shortly!).
-
-Here's an evaluation that makes use of this tool:
-
-``` python
-from inspect_ai import task, Task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes
-from inspect_ai.solver import generate, use_tools
-
-dataset = [
-    Sample(
-        input='Is there a file named "bar.txt" ' 
-               + 'in the current directory?',
-        target="Yes",
-        files={"bar.txt": "hello"},
-    )
-]
-
-@task
-def file_probe()
-    return Task(
-        dataset=dataset,
-        plan=[
-            use_tools([list_files()]), 
-            generate()
-        ],
-        tool_environment="docker",
-        scorer=includes(),
-    )
-)
-```
-
-We've included `tool_environment = "docker"` to indicate that tool environment operations should be executed in a Docker container. Specifying a tool environment (either at the task or evaluation level) is required if your tools call the `tool_environment()` function.
-
-Note that `files` are specified as part of the `Sample`. Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g. S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.
-
-### Environment Interface
-
-The following methods are available for all tool environments:
-
-``` python
-class ToolEnvironment:
-   
-    async def exec(
-        self,
-        cmd: list[str],
-        input: str | bytes | None = None,
-        env: dict[str, str] = {},
-        timeout: int | None = None,
-    ) -> ExecResult[str]:
-        ...
-
-    async def write_file(
-        self, file: str, contents: str | bytes
-    ) -> None:
-        ...
-
-    async def read_file(
-        self, file: str, text: bool = True
-    ) -> Union[str | bytes]:
-        ...
-```
-
-### Environment Binding
-
-There are two tool environments built in to Inspect:
-
-| Environment Type | Description                                                                                                                                                                                                      |
-|--------------------------|----------------------------------------------|
-| `local`          | Run `tool_environment()` methods in the same address space and file system as the running evaluation. The local environment should *only be used* if you are already running your evaluation in another sandbox. |
-| `docker`         | Run `tool_environment()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).                                                     |
-
-Tool environments can be bound at the `Task` level or at the `eval()` level (where `eval()` takes precedence). To bind a tool environment to a `Task`, use the `tool_environment` option:
-
-``` python
-Task(
-    dataset=dataset,
-    plan([
-        use_tools([read_file(), list_files()])), 
-        generate()
-    ]),
-    scorer=match(),
-    tool_environment="docker"
-)
-```
-
-For this example, if there is a `compose.yaml` file in the task directory it will be used to provision Docker services (if there is no `compose.yaml` then the Docker's default Python 3.12 image will be used). You can specify an alternate config file using a tuple:
-
-``` python
-tool_environment=("docker", "my-compose.yaml")
-```
-
-Similar conventions exist for `eval()` and the CLI:
-
-``` python
-eval(task, tool_environment="docker")
-eval(task, tool_environment=("docker","my-compose.yaml"))
-```
-
-``` bash
-$ inspect eval --tool-environment docker
-$ inspect eval --tool-environment docker:my-compose.yaml
-```
-
-### Docker Configuration {#sec-docker-configuration}
-
-While `--tool-environment` can be a default un-configured environment (e.g. “docker”), more commonly you’ll provide explicit configuration in either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
-
-Here is how Docker tool environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
-
-| Config Files   | Behavior                                                                                                        |
-|-------------------|-----------------------------------------------------|
-| None           | Creates a tool environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
-| `Dockerfile`   | Creates a tool environment by building the image.                                                               |
-| `compose.yaml` | Creates tool environment(s) based on `compose.yaml`.                                                            |
-
-Here is what a simple `compose.yaml` would look like for a single tool environment that uses the `ctf-agent-environment` Docker image:
-
-``` {.yaml filename="compose.yaml"}
-services:
-  default: 
-    image: ctf-agent-environment
-    cpus: 1.0
-    mem_limit: 0.5gb
-```
-
-Note that we've also chosen to limit the CPU and memory usage of the container (see the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on these and other container options).
-
-#### Multiple Environments
-
-In some cases you may want to create multiple tool environments (e.g. if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:
-
-``` {.yaml filename="compose.yaml"}
-services:
-  default:
-    image: ctf-agent-environment
-    cpus: 1.0
-    mem_limit: 0.5gb
-  ghidra:
-    image: ctf-ghidra-environment
-    cpus: 1.0
-    mem_limit: 1gb
-```
-
-The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to `tool_environment()`. Other environments would be accessed by name, for example:
-
-``` python
-tool_environment()          # default tool environment
-tool_environment("ghidra")  # named tool environment
-```
-
-::: {.callout-note apperance="simple"}
-If you define multiple tool environments you are *required* to name one of them "default" so that Inspect knows which environment to copy samples files to and resolve for calls to `tool_environment()` without an argument.
-:::
-
-#### Infrastructure
-
-Note that in many cases you’ll want to provision additional infrastructure (e.g. other hosts or volumes). For example, here we define an additional container (“writer”) as well as a volume shared between the default container and the writer container:
-
-``` yaml
-services:
-  default: 
-    image: ctf-agent-environment
-    volumes:
-      - ctf-challenge-volume:/shared-data
-    
-  writer:
-    image: ctf-challenge-writer
-    volumes:
-      - ctf-challenge-volume:/shared-data
-volumes:
-  ctf-challenge-volume:
-```
-
-See the documentation on [Docker Compose](https://docs.docker.com/compose/compose-file/) files for information on their full schema and feature set.
-
-### Resource Management
-
-Creating and executing code within Docker containers can be expensive both in terms of memory and CPU utilization. Inspect provides some automatic resource management to keep usage reasonable in the default case. This section describes that behavior as well as how you can tune it for your use-cases.
-
-#### Running Containers
-
-As described above, each `Sample` is provisioned its own container. The number of running containers for an evaluation is therefore determined by the `max_samples` option (which is by default set to `max_connections`, typically 10 unless overridden).
-
-Use `max_samples` to dial up or down the number of containers running at any given time. Note that a running container does not necessarily use CPU resources unless it has active background processes.
-
-#### Concurrent Execution
-
-The `ToolEnvironment.exec()` method runs a command within a tool environment, typically consuming CPU resources. To protect against overwhelming the system's CPUs, the implementation of `exec()` uses Inspect's `subprocess()` function, which automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`).
-
-You can change the number of permitted concurrent subprocess executions using the `max_subprocesses` option. You might do this for example if you know that your `exec()` commands tend to use *multiple* CPU cores and thus should be executed with less concurrency.
-
-### Troubleshooting
-
-You can view more detailed logging around the creation and use of tool environments by using the `tools` log level. For example:
-
-``` bash
-$ inspect eval ctf.py --log-level tools
-```
-
-The tools log level is just above `warning` (so it will not show `http` or `debug` level messages).
 
 ## Built-In Tools
 
@@ -385,16 +140,21 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 
 ### Bash and Python
 
-The `bash()` and `python()` tools enable execution of arbitrary shell command lines and Python code, respectively. These tools require the use of a [Tool Environment](#sec-tool-environment), which can provide sandboxing for untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
+The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Tool Environment](#sec-tool-environment), which can provide sandboxing for untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
 
 ``` python
+CMD_TIMEOUT = 180
+
 @task
 def intercode_ctf():
     return Task(
         dataset=read_dataset(),
         plan=[
             system_message("system.txt"),
-            use_tools([bash(), python()]),
+            use_tools([
+                bash(CMD_TIMEOUT), 
+                python(CMD_TIMEOUT)
+            ]),
             generate(),
         ],
         scorer=includes(),
@@ -403,150 +163,12 @@ def intercode_ctf():
     )
 ```
 
+We specify a 3-minute timeout for execution of the bash and python tools to ensure that they don't perform extremely long running operations.
+
+See the [Agents](#sec-agents) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.
+
 Note that the `bash()` and `python()` tools are not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the development version:
 
 ``` bash
 $ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
 ```
-
-## Agent Solvers {#agent-solvers}
-
-Agent solvers typically have multiple interactions with a model, generating completions, orchestrating the use of tools, and using the model to plan their next action. Agents are an area of active research, and many schemes for implementing them have been developed, including [AutoGPT](https://arxiv.org/abs/2306.02224), [ReAct](https://arxiv.org/pdf/2303.11366.pdf), and [Reflexion](https://arxiv.org/pdf/2303.11366.pdf). There are also Python libraries such [LangChain](https://python.langchain.com/docs/modules/agents/) and [Langroid](https://langroid.github.io/langroid/) which facilitate using these techniques with various LLMs.
-
-Inspect supports a wide variety of approaches to agents and agent libraries. Agent libraries generally take chat history as an input and produce a completion string as output—this interface can be easily adapted to solvers, with chat history coming from `TaskState` and completions being set as `ModelOutput`.
-
-There are several approaches to creating an Inspect solver that uses an agent scaffold:
-
-1.  Implement your own scaffolding (potentially implementing the ReAct algorithm or a derivative). This will involve repeated calls to `generate()` with various `tools` being made available in the `TaskState` for each call. It will also involve using the model to help determine what actions to take next.
-
-2.  Adapt another scaffolding scheme provided by a research paper or open source library.
-
-3.  Integrate a 3rd party agent library like [LangChain](https://python.langchain.com/docs/modules/agents/) and [Langroid](https://langroid.github.io/langroid/).
-
-If you are adapting research code or using a 3rd party library, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!) We'll describe how to do that for [LangChain](https://python.langchain.com/docs/modules/agents/) in the example below.
-
-### Example: Wikipedia Search
-
-In this example we'll demonstrate how to integrate a LangChain OpenAI tools agent with Inspect. This agent will use Wikipedia via the [Tavili Search API](https://tavily.com/) to perform question answering tasks. If you want to start by getting some grounding in the code *without* the Inspect integration, see [this article](https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/) upon which the example is based.
-
-The main thing that an integration with an agent framework needs to account for is:
-
-1.  Bridging Inspect's model API into the API of the agent framework. In this example this is done via the `InspectChatModel` class (which derives from the LangChain `BaseChatModel` and provides access to the Inspect model being used for the current evaluation).
-
-2.  Bridging from the Inspect solver interface to the standard input and output types of the agent library. In this example this is provided by the `langchain_solver()` function, which takes a LangChain agent function and converts it to an Inspect solver.
-
-Here's the implementation of `langchain_solver()` (imports excluded for brevity):
-
-``` python
-# Interface for LangChain agent function
-class LangChainAgent(Protocol):
-    async def __call__(self, llm: BaseChatModel, input: dict[str, Any]): ...
-
-# Convert a LangChain agent function into a Solver
-def langchain_solver(agent: LangChainAgent) -> Solver:
-
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-
-        # create the inspect model api bridge
-        llm = InspectChatModel()
-
-        # call the agent
-        await agent(
-            llm = llm,
-            input = dict(
-                input=state.user_prompt.text,
-                chat_history=as_langchain_chat_history(
-                    state.messages[1:]
-                ),
-            )
-        )
-
-        # collect output from llm interface
-        state.messages = llm.messages
-        state.output = llm.output
-        state.output.completion = output
-        
-        # return state
-        return state
-
-    return solve
-
-# LangChain BaseChatModel for Inspect Model API
-class InspectChatModel(BaseChatModel):
-     async def _agenerate(
-        self,
-        messages: list[BaseMessage],
-        stop: list[str] | None = None,
-        run_manager: AsyncCallbackManagerForLLMRun | None = None,
-        **kwargs: dict[str, Any],
-    ) -> ChatResult:
-        ...
-```
-
-::: {.callout-note appearance="simple"}
-Note that the the `inspect_langchain` module imported here is not a built in feature of Inspect. Rather, you can find its [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/langchain/inspect_langchain.py) as part of the example. You can use this to create your own LangChain agents or as the basis for creating similar integrations with other agent frameworks.
-:::
-
-Now here's the `wikipedia_search()` solver (imports again excluded for brevity):
-
-``` python
-@solver
-def wikipedia_search(
-    max_iterations: int | None = 15,
-    max_execution_time: float | None = None
-) -> Solver:
-    # standard prompt for tools agent
-    prompt = hub.pull("hwchase17/openai-tools-agent")
-
-    # tavily and wikipedia tools                # <1>
-    tavily_api = TavilySearchAPIWrapper()  # type: ignore
-    tools = (
-        [TavilySearchResults(api_wrapper=tavily_api)] + 
-        load_tools(["wikipedia"])
-    )
-
-    # agent function                            # <2>
-    async def agent(
-        llm: BaseChatModel, 
-        input: dict[str, Any]
-    ) -> str | list[str | dict[str,Any]]:  
-        # create agent
-        tools_agent = create_openai_tools_agent(
-          llm, tools, prompt
-        )
-        executor = AgentExecutor.from_agent_and_tools(
-            agent=cast(BaseMultiActionAgent, tools_agent),
-            tools=tools,
-            name="wikipedia_search",
-            max_iterations=max_iterations,  
-            max_execution_time=max_execution_time
-        )
-
-        # execute the agent and return output   # <3>
-        result = await executor.ainvoke(input)  
-        return result["output"]
-
-    # return agent function as inspect solver   # <4>
-    return langchain_solver(agent)
-```
-
-1.  Note that we register native LangChain tools. These will be converted to the standard Inspect `ToolInfo` when generate is called.
-2.  This is the standard interface to LangChain agents. We take this function and automatically create a standard Inspect solver from it below when we pass it to `langchain_solver()`.
-3.  Invoke the agent using the chat history passed in `input`. We call the async executor API to play well with Inspect's concurrency.
-4.  The `langchain_solver()` function maps the simpler agent function semantics into the standard Inspect solver API.
-
-If you reviewed the [original article](https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/) that this example was based on, you'll see that most of the code is unchanged (save for the fact that we have switched from a function agent to a tools agent). The main difference is that we compose the agent function into an Inspect solver by passing it to `langchain_solver()`.
-
-Finally, here's a task that uses the `wikipedia_search()` solver:
-
-``` python
-@task
-def wikipedia() -> Task:
-    return Task(
-        dataset=json_dataset("wikipedia.jsonl"),
-        plan=wikipedia_search(),
-        scorer=model_graded_fact(),
-    )
-```
-
-See the [working version](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain) of this example if you want to run and experiment with it.

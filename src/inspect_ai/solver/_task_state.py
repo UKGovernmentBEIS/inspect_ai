@@ -5,13 +5,16 @@ from typing import Any, Union, overload
 
 from inspect_ai.model import (
     ChatMessage,
+    ChatMessageSystem,
     ChatMessageUser,
     ModelName,
     ModelOutput,
     ToolChoice,
 )
+from inspect_ai.solver._tool.tool_def import tool_defs
 
 from ._tool.tool import Tool
+from ._util import append_system_message
 
 
 @dataclass
@@ -225,3 +228,27 @@ class TaskState:
             return prompt
         else:
             raise ValueError("user_prompt requested from TaskState but none available")
+
+    @property
+    def tools(self) -> list[Tool]:
+        return self._tools
+
+    @tools.setter
+    def tools(self, tools: list[Tool]) -> None:
+        # clear out any tool-derivied system messages
+        self.messages = [
+            message
+            for message in self.messages
+            if not isinstance(message, ChatMessageSystem) or message.tool is None
+        ]
+
+        # add system messages for the new set of tools
+        for tool in tool_defs(tools):
+            if tool.prompt:
+                append_system_message(
+                    self.messages,
+                    ChatMessageSystem(content=tool.prompt, tool=tool.name),
+                )
+
+        # set the tools
+        self._tools = tools
