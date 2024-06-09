@@ -214,6 +214,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./agents.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Agents</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Scorers</span></a>
   </div>
 </li>
@@ -397,6 +402,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A solver which presents A,B,C,D style <code>choices</code> from input samples (in a random order), calls <code>generate()</code> to yield model output, then maps the answer back to the correct index for scoring. Note that you don’t need to call <code>generate()</code> separately when using this solver.</p></li>
 <li><p><code>self_critique()</code></p>
 <p>Prompts the model to critique the results of a previous call to <code>generate()</code> (note that this need not be the same model as they one you are evaluating—use the <code>model</code> parameter to choose another model). Makes use of <code>{question}</code> and <code>{completion}</code> template variables.</p></li>
+<li><p><code>use_tools()</code></p>
+<p>Define the set tools available for use by the model during <code>generate()</code>.</p></li>
 </ul>
 <section id="multiple-choice" class="level3">
 <h3 class="anchored" data-anchor-id="multiple-choice">Multiple Choice</h3>

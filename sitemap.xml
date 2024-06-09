@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/index.html</loc>
-    <lastmod>2024-05-29T13:38:47.737Z</lastmod>
+    <lastmod>2024-06-09T16:30:10.928Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/workflow.html</loc>
@@ -18,15 +18,19 @@
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/examples.html</loc>
-    <lastmod>2024-06-07T15:22:10.708Z</lastmod>
+    <lastmod>2024-06-09T16:32:58.505Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/solvers.html</loc>
-    <lastmod>2024-06-06T14:39:44.506Z</lastmod>
+    <lastmod>2024-06-09T16:30:10.928Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/tools.html</loc>
-    <lastmod>2024-06-07T13:37:22.173Z</lastmod>
+    <lastmod>2024-06-09T16:30:10.928Z</lastmod>
+  </url>
+  <url>
+    <loc>https://UKGovernmentBEIS.github.io/inspect_ai/agents.html</loc>
+    <lastmod>2024-06-09T16:30:10.928Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/scorers.html</loc>

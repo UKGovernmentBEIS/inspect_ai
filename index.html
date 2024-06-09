@@ -216,6 +216,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./agents.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Agents</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Scorers</span></a>
   </div>
 </li>
@@ -443,7 +448,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.</p>
 <ul>
 <li><p><a href="solvers.html">Solvers</a> are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the <code>plan</code> in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.</p></li>
-<li><p><a href="tools.html">Tools</a> provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools as well as how to run tools within an agent scaffold.</p></li>
+<li><p><a href="tools.html">Tools</a> provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.</p></li>
+<li><p><a href="agents.html">Agents</a> combine planning, memory, and tool usage to pursue more complex, longer horizon tasks. This section describes how to build agent evaluations with Inspect.</p></li>
 <li><p><a href="scorers.html">Scorers</a> evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.</p></li>
 <li><p><a href="datasets.html">Datasets</a> provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.</p></li>
 <li><p><a href="models.html">Models</a> provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g.&nbsp;for critique or grading).</p></li>
@@ -983,7 +989,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","openEffect":"zoom","loop":false,"descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","closeEffect":"zoom","loop":false,"selector":".lightbox","openEffect":"zoom"});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;
