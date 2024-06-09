@@ -70,6 +70,7 @@ book:
            - eval-logs.qmd
            - eval-suites.qmd
            - eval-tuning.qmd
+           - extensions.qmd
 
 toc-depth: 2
 number-sections: true

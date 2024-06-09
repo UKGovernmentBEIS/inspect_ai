@@ -1,0 +1,250 @@
+# Extensions {#sec-extensions}
+
+## Overview
+
+There are several ways to extend Inspect to integrate with systems not directly supported by the core package. These include:
+
+1.  Model APIs (model hosting services, local inference engines, etc.)
+
+2.  Tool Environments (local or cloud container runtimes)
+
+3.  Storage Systems (for datasets, prompts, and evaluation logs)
+
+For each of these, you can create an extension within a Python package, and then use it without any special registration with Inspect (this is done via [setuptools entry points](https://setuptools.pypa.io/en/latest/userguide/entry_point.html)).
+
+## Model APIs {#sec-model-api-extensions}
+
+You can add a model provider by deriving a new class from `ModelAPI` and adding the `@modelapi` decorator to it. For example:
+
+``` python
+@modelapi(name="custom")
+class CustomModelAPI(ModelAPI):
+    def __init__(
+        self, 
+        model_name: str,
+        base_url: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
+        **model_args: dict[str,Any]
+    ) -> None:
+        super().__init__(model_name, base_url, config)
+  
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        ...
+```
+
+The `__init__()` method *must* call the `super().__init__()` method, and typically instantiates the model client library.
+
+The `generate()` method handles interacting with the model. In addition, there are some optional methods you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, etc.)
+
+### Model Registration
+
+If you are publishing a custom model within a Python package, you should register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads your extension before it attempts to resolve a model name that uses your provider.
+
+For example, if your package was named `inspect_package` and your model provider was exported from a source file named `custom_model.py` at the root of your package, you would register it like this in `pyproject.toml`:
+
+``` toml
+[project.entry-points.inspect_ai]
+inspect_package = "inspect_package.custom_model"
+```
+
+### Using the Model
+
+Once you've created the class, decorated it with `@modelapi` as shown above, and registered it, then you can use it as follows:
+
+``` bash
+inspect eval ctf.py --model custom/my-model
+```
+
+Where `my-model` is the name of some model supported by your provider (this will be passed to `__init()__` in the `model_name` argument).
+
+You can also reference it from within Python calls to `get_model()` or `eval()`:
+
+``` python
+# get a model instance
+model = get_model("custom/my-model")
+
+# run an eval with the model
+eval(math, model = "custom/my-model")
+```
+
+## Tool Environments {#sec-tool-environment-extensions}
+
+### Overview
+
+[Tool Environments](#sec-tool-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval).
+
+Inspect comes with two tool environments built in:
+
+| Environment Type | Description                                                                                           |
+|--------------------------|----------------------------------------------|
+| `local`          | Run `tool_environment()` methods in the same address space and file system as the running evaluation. |
+| `docker`         | Run `tool_environment()` methods within a Docker container                                            |
+
+::: {.callout-note appearance="minimal"}
+If you aren't already familiar with Inspect tool environments, you should read the [Tool Environment](#sec-tool-environments) documentation before reading further about creating custom environments.
+:::
+
+### Custom Environments
+
+You can also provide custom tool environments (e.g. for other local or cloud based container runtimes). To create a custom tool environment, derive a class from `ToolEnvironment`, implement the required static and instance methods, and add the `@toolenv` decorator to it. For example:
+
+``` python
+@toolenv(name="podman")
+class PodmanToolEnvironment(ToolEnvironment):
+
+    @classmethod
+    async def startup(cls, task_name: str, config: str | None) -> None:
+        ...
+    
+    @classmethod
+    async def setup(
+        cls, task_name: str, config: str | None, metadata: dict[str, str]
+    ) -> ToolEnvironments:
+        ...
+
+    def __init__(self) -> None:
+        ...
+
+    @override
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        env: dict[str, str] = {},
+        timeout: int | None = None,
+    ) -> ExecResult[str]:
+        ...
+
+    @override
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        ...
+
+    @overload
+    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    @overload
+    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    @override
+    async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
+        ...
+```
+
+The two class methods take care of various stages of initialisation:
+
+-   `startup()` is called once at the beginning of the evaluation task. This is the place to do expensive operations that have console output/progress (e.g. pulling or building containers).
+
+-   `setup()` is called for each sample to create one or more `ToolEnvironment` instances (in a complex cybersecurity eval you might have a main container and a network host that is being attacked). The setup returns these instances along with a `cleanup()` function for tearing them down.
+
+The `ToolEnvironment` instance methods provide access to process execution and file input/output within the environment.
+
+The best way to learn about writing tool environments is to look at the source code for the built in environments, [LocalToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/local.py) and [DockerToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/docker.py).
+
+### Environment Registration
+
+You should build your custom tool environment within a Python package, and then register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads your extension before it attempts to resolve any tool environments by name.
+
+For example, if your package was named `inspect_package` and your tool environment provider was exported from a source file named `podman_environment.py` at the root of your package, you would register it like this in `pyproject.toml`:
+
+``` toml
+[project.entry-points.inspect_ai]
+inspect_package = "inspect_package.podman_environment"
+```
+
+### Environment Usage
+
+Once the package is installed, you can refer to the custom tool environment the same way you'd refer to a built in tool environment. For example, in a `Task` defintion:
+
+``` python
+Task(
+    ...,
+    tool_environment="podman"
+)
+```
+
+Or when calling `eval()` or using `inspect eval` from the CLI:
+
+``` python
+eval(task, tool_environment="podman")
+```
+
+``` bash
+$ inspect eval --tool-environment podman
+```
+
+Note that tool environments can be invoked with an optional configuration file, which is passed as the `config` argument to the `setup()` method. In Python this is done with a tuple and on the CLI by adding a `:` delimiter. For example:
+
+``` python
+eval(task, tool_environment=("podman", "config.yaml"))
+```
+
+``` bash
+$ inspect eval --tool-environment podman:config.yaml
+```
+
+## Storage
+
+### Filesystems with fsspec
+
+Datasets, prompt templates, and evaluation logs are can be stored using either the local filesystem or a remote filesystem. Inspect uses the [fsspec](https://filesystem-spec.readthedocs.io/en/latest/) package to read and write files, which means that many filesystems and storage locations are supported, including:
+
+-   [Amazon S3]((#sec-amazon-s3))
+-   [Google Cloud Storage](https://gcsfs.readthedocs.io/en/latest/)
+-   [Azure Blob Storage](https://github.com/fsspec/adlfs)
+-   [Azure Data Lake Storage](https://github.com/fsspec/adlfs)
+-   [DVC](https://dvc.org/doc/api-reference/dvcfilesystem)
+
+Support for [Amazon S3]((#sec-amazon-s3)) is built in to Inspect via the [s3fs](https://pypi.org/project/s3fs/) package. Other filesystems may require installation of additional packages. See the list of [built in filesystems](https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations) and [other known implementations](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported storage back ends.
+
+See [Custom Filesystems](#sec-custom-filesystems) below for details on implementing your own fsspec compatible filesystem as a storage back-end.
+
+### Filesystem Functions
+
+The following Inspect API functions use **fsspec**:
+
+-   `resource()` for reading prompt templates and other supporting files.
+
+-   `csv_dataset()` and `json_dataset()` for reading datasets (note that `files` referenced within samples can also use fsspec filesystem references).
+
+-   `list_eval_logs()` , `read_eval_log()`, `write_eval_log()`, and `retryable_eval_logs()`.
+
+For example, to use S3 you would prefix your paths with `s3://`:
+
+``` python
+# read a prompt template from s3
+prompt_template("s3://inspect-prompts/ctf.txt")
+
+# read a dataset from S3
+csv_dataset("s3://inspect-datasets/ctf-12.csv")
+
+# read eval logs from S3
+list_eval_logs("s3://my-s3-inspect-log-bucket")
+```
+
+### Custom Filesystems
+
+See the fsspec [developer documentation](https://filesystem-spec.readthedocs.io/en/latest/developer.html) for details on implementing a custom filesystem. Note that if your implementation is *only* for use with Inspect, you need to implement only the subset of methods used by Inspect. The properties and methods used by Inspect include:
+
+-   `sep`
+-   `open()`
+-   `makedirs()`
+-   `info()`
+-   `created()`
+-   `exists()`
+-   `ls()`
+-   `walk()`
+-   `unstrip_protocol()`
+-   `invalidate_cache()`
+
+As with Model APIs and Tool Environments, fsspec filesystems should be registered using a [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). For example, if your package is named `inspect_package` and you have implemented a `myfs://` filesystem using the `MyFs` class exported from the root of the package, you would register it like this in `pyproject.toml`:
+
+``` python
+[project.entry-points."fsspec.specs"]
+myfs = "inspect_package:MyFs"
+```
+
+Once this package is installed, you'll be able to use `myfs://` with Inspect without any further registration.
