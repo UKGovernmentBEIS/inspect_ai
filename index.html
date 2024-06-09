@@ -260,6 +260,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <a href="./eval-tuning.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Tuning</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./extensions.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Extensions</span></a>
+  </div>
+</li>
       </ul>
   </li>
     </ul>
@@ -456,9 +461,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ul>
 <p>These sections discuss more advanced features and workflow. You don’t need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.</p>
 <ul>
-<li><p><a href="eval-logs.html">Eval Logs</a> describes how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.</p></li>
+<li><p><a href="eval-logs.html">Eval Logs</a> explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.</p></li>
 <li><p><a href="eval-tuning.html">Eval Tuning</a> delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture—here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.</p></li>
-<li><p><a href="eval-suites.html">Eval Suites</a> cover Inspect’s features for describing, running, and analysing larger sets of evaluation tasks.</p></li>
+<li><p><a href="eval-suites.html">Eval Suites</a> covers Inspect’s features for describing, running, and analysing larger sets of evaluation tasks.</p></li>
+<li><p><a href="extensions.html">Extensions</a> describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).</p></li>
 </ul>
 
 
@@ -989,7 +995,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","closeEffect":"zoom","loop":false,"selector":".lightbox","openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","closeEffect":"zoom","openEffect":"zoom","descPosition":"bottom","loop":false});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;
