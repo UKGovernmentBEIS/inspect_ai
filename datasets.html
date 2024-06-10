@@ -364,7 +364,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="even">
 <td><code>files</code></td>
 <td><code>dict[str | str] | None</code></td>
-<td>Optional. Files that go along with the sample (copied to default ToolEnvironment).</td>
+<td>Optional. Files that go along with the sample (copied to tool environments).</td>
 </tr>
 </tbody>
 </table>
@@ -395,6 +395,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> csv_dataset(<span class="st">"security_guide.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that samples from datasets without an <code>id</code> field will automatically be assigned ids based on an auto-incrementing integer starting with 1.</p>
 <p>If your samples include <code>choices</code>, then the <code>target</code> should be a numeric index into the available <code>choices</code> rather than a letter (this is an implicit assumption of the <code>multiple_choice()</code> solver).</p>
+<p>If your samples include <code>files</code>, they will be copied into the default tool environment unless their name contains a prefix mapping them into another environment (e.g.&nbsp;“<code>victim:flag.txt": "flag.txt"</code>).</p>
 </section>
 <section id="field-mapping" class="level2">
 <h2 class="anchored" data-anchor-id="field-mapping">Field Mapping</h2>
