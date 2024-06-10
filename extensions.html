@@ -278,12 +278,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sec-model-api-extensions" id="toc-sec-model-api-extensions" class="nav-link" data-scroll-target="#sec-model-api-extensions">Model APIs</a>
   <ul class="collapse">
   <li><a href="#model-registration" id="toc-model-registration" class="nav-link" data-scroll-target="#model-registration">Model Registration</a></li>
-  <li><a href="#using-the-model" id="toc-using-the-model" class="nav-link" data-scroll-target="#using-the-model">Using the Model</a></li>
+  <li><a href="#model-usage" id="toc-model-usage" class="nav-link" data-scroll-target="#model-usage">Model Usage</a></li>
   </ul></li>
   <li><a href="#sec-tool-environment-extensions" id="toc-sec-tool-environment-extensions" class="nav-link" data-scroll-target="#sec-tool-environment-extensions">Tool Environments</a>
   <ul class="collapse">
-  <li><a href="#overview-1" id="toc-overview-1" class="nav-link" data-scroll-target="#overview-1">Overview</a></li>
-  <li><a href="#custom-environments" id="toc-custom-environments" class="nav-link" data-scroll-target="#custom-environments">Custom Environments</a></li>
   <li><a href="#environment-registration" id="toc-environment-registration" class="nav-link" data-scroll-target="#environment-registration">Environment Registration</a></li>
   <li><a href="#environment-usage" id="toc-environment-usage" class="nav-link" data-scroll-target="#environment-usage">Environment Usage</a></li>
   </ul></li>
@@ -351,16 +349,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ModelOutput:</span>
 <span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>__init__()</code> method <em>must</em> call the <code>super().__init__()</code> method, and typically instantiates the model client library.</p>
-<p>The <code>generate()</code> method handles interacting with the model. In addition, there are some optional methods you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, etc.)</p>
+<p>The <code>generate()</code> method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. In addition, there are some optional properties you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, whether to collapse consecutive user and/or assistant messages, etc.).</p>
+<p>See the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_model.py">ModelAPI</a> source code for further documentation on these properties. See the implementation of the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_providers">built-in model providers</a> for additional insight on building a custom provider.</p>
 <section id="model-registration" class="level3">
 <h3 class="anchored" data-anchor-id="model-registration">Model Registration</h3>
-<p>If you are publishing a custom model within a Python package, you should register an <code>inspect_ai</code> <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect loads your extension before it attempts to resolve a model name that uses your provider.</p>
-<p>For example, if your package was named <code>inspect_package</code> and your model provider was exported from a source file named <code>custom_model.py</code> at the root of your package, you would register it like this in <code>pyproject.toml</code>:</p>
+<p>If you are publishing a custom model API within a Python package, you should register an <code>inspect_ai</code> <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect loads your extension before it attempts to resolve a model name that uses your provider.</p>
+<p>For example, if your package was named <code>inspect_package</code> and your model provider was exported from a source file named <code>inspect_extensions.py</code> at the root of your package, you would register it like this in <code>pyproject.toml</code>:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="dt">inspect_package</span> <span class="op">=</span> <span class="st">"inspect_package.custom_model"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="dt">inspect_package</span> <span class="op">=</span> <span class="st">"inspect_package.inspect_extensions"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="using-the-model" class="level3">
-<h3 class="anchored" data-anchor-id="using-the-model">Using the Model</h3>
+<section id="model-usage" class="level3">
+<h3 class="anchored" data-anchor-id="model-usage">Model Usage</h3>
 <p>Once you’ve created the class, decorated it with <code>@modelapi</code> as shown above, and registered it, then you can use it as follows:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> custom/my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Where <code>my-model</code> is the name of some model supported by your provider (this will be passed to <code>__init()__</code> in the <code>model_name</code> argument).</p>
@@ -374,14 +373,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sec-tool-environment-extensions" class="level2">
 <h2 class="anchored" data-anchor-id="sec-tool-environment-extensions">Tool Environments</h2>
-<section id="overview-1" class="level3">
-<h3 class="anchored" data-anchor-id="overview-1">Overview</h3>
-<p><a href="agents.html#sec-tool-environments">Tool Environments</a> provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g.&nbsp;creating network hosts for a cybersecurity eval).</p>
-<p>Inspect comes with two tool environments built in:</p>
+<p><a href="agents.html#sec-tool-environments">Tool Environments</a> provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g.&nbsp;creating network hosts for a cybersecurity eval). Inspect comes with two tool environments built in:</p>
 <table class="table">
 <colgroup>
-<col style="width: 36%">
-<col style="width: 63%">
+<col style="width: 37%">
+<col style="width: 62%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -392,7 +388,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>local</code></td>
-<td>Run <code>tool_environment()</code> methods in the same address space and file system as the running evaluation.</td>
+<td>Run <code>tool_environment()</code> methods in the same file system as the running evaluation (should <em>only be used</em> if you are already running your evaluation in another sandbox).</td>
 </tr>
 <tr class="even">
 <td><code>docker</code></td>
@@ -400,20 +396,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<div class="callout callout-style-simple callout-note no-icon">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon no-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>If you aren’t already familiar with Inspect tool environments, you should read the <a href="agents.html#sec-tool-environments">Tool Environment</a> documentation before reading further about creating custom environments.</p>
-</div>
-</div>
-</div>
-</section>
-<section id="custom-environments" class="level3">
-<h3 class="anchored" data-anchor-id="custom-environments">Custom Environments</h3>
-<p>You can also provide custom tool environments (e.g.&nbsp;for other local or cloud based container runtimes). To create a custom tool environment, derive a class from <code>ToolEnvironment</code>, implement the required static and instance methods, and add the <code>@toolenv</code> decorator to it. For example:</p>
+<p>To create a custom tool environment, derive a class from <code>ToolEnvironment</code>, implement the required static and instance methods, and add the <code>@toolenv</code> decorator to it. For example:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@toolenv</span>(name<span class="op">=</span><span class="st">"podman"</span>)</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PodmanToolEnvironment(ToolEnvironment):</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -453,18 +436,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The two class methods take care of various stages of initialisation:</p>
 <ul>
-<li><p><code>startup()</code> is called once at the beginning of the evaluation task. This is the place to do expensive operations that have console output/progress (e.g.&nbsp;pulling or building containers).</p></li>
-<li><p><code>setup()</code> is called for each sample to create one or more <code>ToolEnvironment</code> instances (in a complex cybersecurity eval you might have a main container and a network host that is being attacked). The setup returns these instances along with a <code>cleanup()</code> function for tearing them down.</p></li>
+<li><p><code>startup()</code> is called once at the beginning of the evaluation task. This is the place to do expensive operations that have console output/progress (e.g.&nbsp;pulling or building images).</p></li>
+<li><p><code>setup()</code> is called for each sample to create one or more <code>ToolEnvironment</code> instances. Often there will just a single environment, but in some cases (e.g.&nbsp;a cybersecurity eval) you might have a main container and a network host that is being attacked. Setup returns these instances along with a <code>cleanup()</code> function for tearing them down.</p></li>
 </ul>
 <p>The <code>ToolEnvironment</code> instance methods provide access to process execution and file input/output within the environment.</p>
 <p>The best way to learn about writing tool environments is to look at the source code for the built in environments, <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/local.py">LocalToolEnvironment</a> and <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/docker.py">DockerToolEnvironment</a>.</p>
-</section>
 <section id="environment-registration" class="level3">
 <h3 class="anchored" data-anchor-id="environment-registration">Environment Registration</h3>
-<p>You should build your custom tool environment within a Python package, and then register an <code>inspect_ai</code> <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect loads your extension before it attempts to resolve any tool environments by name.</p>
-<p>For example, if your package was named <code>inspect_package</code> and your tool environment provider was exported from a source file named <code>podman_environment.py</code> at the root of your package, you would register it like this in <code>pyproject.toml</code>:</p>
+<p>You should build your custom tool environment within a Python package, and then register an <code>inspect_ai</code> <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect loads your extension before it attempts to resolve a tool environment that uses your provider.</p>
+<p>For example, if your package was named <code>inspect_package</code> and your tool environment provider was exported from a source file named <code>inspect_extensions.py</code> at the root of your package, you would register it like this in <code>pyproject.toml</code>:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">inspect_package</span> <span class="op">=</span> <span class="st">"inspect_package.podman_environment"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">inspect_package</span> <span class="op">=</span> <span class="st">"inspect_package.inspect_extensions"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="environment-usage" class="level3">
 <h3 class="anchored" data-anchor-id="environment-usage">Environment Usage</h3>
@@ -476,7 +458,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Or when calling <code>eval()</code> or using <code>inspect eval</code> from the CLI:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(task, tool_environment<span class="op">=</span><span class="st">"podman"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--tool-environment</span> podman</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that tool environments can be invoked with an optional configuration file, which is passed as the <code>config</code> argument to the <code>setup()</code> method. In Python this is done with a tuple and on the CLI by adding a <code>:</code> delimiter. For example:</p>
+<p>Tool environments can be invoked with an optional configuration parameter, which is passed as the <code>config</code> argument to the <code>startup()</code> and <code>setup()</code> methods. In Python this is done with a tuple and on the CLI by adding a <code>:</code> delimiter. For example:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(task, tool_environment<span class="op">=</span>(<span class="st">"podman"</span>, <span class="st">"config.yaml"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--tool-environment</span> podman:config.yaml</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -485,7 +467,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="storage">Storage</h2>
 <section id="filesystems-with-fsspec" class="level3">
 <h3 class="anchored" data-anchor-id="filesystems-with-fsspec">Filesystems with fsspec</h3>
-<p>Datasets, prompt templates, and evaluation logs can be stored using either the local filesystem or a remote filesystem. Inspect uses the <a href="https://filesystem-spec.readthedocs.io/en/latest/">fsspec</a> package to read and write files, which means that many filesystems and storage locations are supported, including:</p>
+<p>Datasets, prompt templates, and evaluation logs can be stored using either the local filesystem or a remote filesystem. Inspect uses the <a href="https://filesystem-spec.readthedocs.io/en/latest/">fsspec</a> package to read and write files, which provides support for a wide variety of filesystems, including:</p>
 <ul>
 <li><a href="(#sec-amazon-s3)">Amazon S3</a></li>
 <li><a href="https://gcsfs.readthedocs.io/en/latest/">Google Cloud Storage</a></li>
@@ -516,7 +498,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="custom-filesystems" class="level3">
 <h3 class="anchored" data-anchor-id="custom-filesystems">Custom Filesystems</h3>
-<p>See the fsspec <a href="https://filesystem-spec.readthedocs.io/en/latest/developer.html">developer documentation</a> for details on implementing a custom filesystem. Note that if your implementation is <em>only</em> for use with Inspect, you need to implement only the subset of methods used by Inspect. The properties and methods used by Inspect include:</p>
+<p>See the fsspec <a href="https://filesystem-spec.readthedocs.io/en/latest/developer.html">developer documentation</a> for details on implementing a custom filesystem. Note that if your implementation is <em>only</em> for use with Inspect, you need to implement only the subset of the fsspec API used by Inspect. The properties and methods used by Inspect include:</p>
 <ul>
 <li><code>sep</code></li>
 <li><code>open()</code></li>
