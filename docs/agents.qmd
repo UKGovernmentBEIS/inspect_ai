@@ -475,7 +475,7 @@ While `--tool-environment` can be a default un-configured environment (e.g. “
 Here is how Docker tool environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
 | Config Files   | Behavior                                                                                                        |
-|--------------------|----------------------------------------------------|
+|---------------------|---------------------------------------------------|
 | None           | Creates a tool environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
 | `Dockerfile`   | Creates a tool environment by building the image.                                                               |
 | `compose.yaml` | Creates tool environment(s) based on `compose.yaml`.                                                            |
@@ -518,6 +518,8 @@ tool_environment("ghidra")  # named tool environment
 ::: {.callout-note apperance="simple"}
 If you define multiple tool environments you are *required* to name one of them "default" so that Inspect knows which environment to copy samples files to and resolve for calls to `tool_environment()` without an argument.
 :::
+
+Sample `files` will be copied into the default tool environment unless their name contains a prefix mapping them into another environment (e.g. `"victim:flag.txt": "flag.txt"`).
 
 #### Infrastructure
 

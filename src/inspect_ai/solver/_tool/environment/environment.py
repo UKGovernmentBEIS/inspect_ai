@@ -102,8 +102,11 @@ class ToolEnvironments:
     environments: dict[str, ToolEnvironment]
     """Tool environments by name."""
 
-    cleanup: Callable[[], Awaitable[None]] | None = field(default=None)
-    """Optional global cleanup function."""
+    cleanup: Callable[[bool], Awaitable[None]] | None = field(default=None)
+    """Optional global cleanup function.
+
+    Called with a boolean indicating whether the sample was cancelled.
+    """
 
 
 ToolEnvironmentSpec = str | tuple[str, str | None]

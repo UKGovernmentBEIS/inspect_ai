@@ -134,7 +134,7 @@ The two class methods take care of various stages of initialisation:
 
 The `ToolEnvironment` instance methods provide access to process execution and file input/output within the environment.
 
-The best way to learn about writing tool environments is to look at the source code for the built in environments, [LocalToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/local.py) and [DockerToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/docker.py).
+The best way to learn about writing tool environments is to look at the source code for the built in environments, [LocalToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/local.py) and [DockerToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/docker/docker.py).
 
 ### Environment Registration
 

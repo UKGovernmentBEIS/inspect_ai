@@ -23,7 +23,6 @@ OpenBinaryMode = Literal["rb", "ab", "wb"]
 def file(
     file: str,
     mode: OpenTextMode,
-    compression: str | None = "infer",
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
 ) -> Iterator[io.TextIOWrapper]: ...
@@ -34,7 +33,6 @@ def file(
 def file(
     file: str,
     mode: OpenBinaryMode,
-    compression: str | None = "infer",
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
 ) -> Iterator[BinaryIO]: ...
@@ -44,7 +42,6 @@ def file(
 def file(
     file: str,
     mode: OpenTextMode | OpenBinaryMode,
-    compression: str | None = "infer",
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
 ) -> Iterator[io.TextIOWrapper] | Iterator[BinaryIO]:
@@ -59,9 +56,6 @@ def file(
         file (str):
           Local file path or remove filesystem URL (e.g. 's3://')
         mode (str): Mode for accessing file ("r", "rb", "w", "wb", etc.).
-        compression (str | None): Compression used by file. See
-          `fsspec.available_compressions()`. Default to "infer",
-          which will infer the compression from the file extension.
         encoding: (str): Encoding for text files (defaults to "utf-8")
         fs_options (dict[str, Any]): Optional. Addional arguments to pass through
           to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
@@ -73,9 +67,7 @@ def file(
     options.update(fs_options)
 
     # open the file
-    open_file = fsspec.open(
-        file, mode=mode, compression=compression, encoding=encoding, **options
-    )
+    open_file = fsspec.open(file, mode=mode, encoding=encoding, **options)
 
     # yield the file and ensure it is closed when we exit the context
     with open_file as f:

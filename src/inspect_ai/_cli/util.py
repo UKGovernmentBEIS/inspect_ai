@@ -20,7 +20,7 @@ def parse_cli_args(args: tuple[str] | list[str] | None) -> dict[str, Any]:
 
 def parse_tool_env(tool_environment: str | None) -> str | tuple[str, str] | None:
     if tool_environment is not None:
-        parts = tool_environment.split(":")
+        parts = tool_environment.split(":", maxsplit=1)
         if len(parts) == 1:
             return tool_environment
         else:

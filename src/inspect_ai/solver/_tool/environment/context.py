@@ -59,29 +59,48 @@ async def init_tool_environments_context(
     toolenv_setup = getattr(toolenv_type, "setup")
     context: ToolEnvironments = await toolenv_setup(task_name, config, metadata)
 
-    # copy files into default environment if not starting up
     try:
-        default_environment = (
-            list(context.environments.values())[0]
-            if len(context.environments) == 1
-            else context.environments["default"]
-        )
-        for file, contents in files.items():
-            await default_environment.write_file(file, contents)
+        # copy files into environments
+        await copy_tool_environment_files(files, context.environments)
 
         # set context
         tool_environments_context_var.set(context)
     except Exception as ex:
         if context.cleanup:
-            await context.cleanup()
+            await context.cleanup(True)
         raise ex
 
 
-async def cleanup_tool_environments_context() -> None:
+async def copy_tool_environment_files(
+    files: dict[str, bytes], environments: dict[str, ToolEnvironment]
+) -> None:
+    default_environment = (
+        list(environments.values())[0]
+        if len(environments) == 1
+        else environments["default"]
+    )
+    for file, contents in files.items():
+        # does it have an environment prefix? if so target that env
+        parts = file.split(":", maxsplit=1)
+        if len(parts) > 1:
+            envname = parts[0]
+            file = parts[1]
+            target_env = environments.get(envname, None)
+            if not target_env:
+                raise RuntimeError(
+                    f"Environment referenced in sample file not found: '{envname}:{file}'"
+                )
+        else:
+            target_env = default_environment
+
+        await target_env.write_file(file, contents)
+
+
+async def cleanup_tool_environments_context(cancelled: bool) -> None:
     context = tool_environments_context_var.get(None)
     if context and context.cleanup:
         try:
-            await context.cleanup()
+            await context.cleanup(cancelled)
         except Exception:
             logger.warning("Error cleaning up tool environments", exc_info=True)
 

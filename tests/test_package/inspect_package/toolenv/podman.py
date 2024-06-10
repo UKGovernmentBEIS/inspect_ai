@@ -48,5 +48,5 @@ class PodmanToolEnvironment(ToolEnvironment):
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
         return ""
 
-    async def cleanup(self):
+    async def cleanup(self, cancelled: bool):
         pass

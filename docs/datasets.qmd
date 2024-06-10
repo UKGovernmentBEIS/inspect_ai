@@ -27,7 +27,7 @@ The core data type underlying the use of datasets with Inspect is the `Sample`, 
 | `target`   | `str | list[str] | None`  | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
 | `id`       | `str | None`              | Optional. Unique identifier for sample.                                                               |
 | `metadata` | `dict[str | Any] | None`  | Optional. Arbitrary metadata associated with the sample.                                              |
-| `files`    | `dict[str | str] | None`  | Optional. Files that go along with the sample (copied to default ToolEnvironment).                    |
+| `files`    | `dict[str | str] | None`  | Optional. Files that go along with the sample (copied to tool environments).                          |
 
 : {tbl-colwidths="\[20,40,40\]"}
 
@@ -47,6 +47,8 @@ dataset = csv_dataset("security_guide.csv")
 Note that samples from datasets without an `id` field will automatically be assigned ids based on an auto-incrementing integer starting with 1.
 
 If your samples include `choices`, then the `target` should be a numeric index into the available `choices` rather than a letter (this is an implicit assumption of the `multiple_choice()` solver).
+
+If your samples include `files`, they will be copied into the default tool environment unless their name contains a prefix mapping them into another environment (e.g. "`victim:flag.txt": "flag.txt"`).
 
 ## Field Mapping
 

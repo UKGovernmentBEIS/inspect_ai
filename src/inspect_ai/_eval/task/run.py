@@ -117,11 +117,14 @@ async def task_run(
         )
 
         # resolve tool_environment
-        tool_environment = (
-            logger.eval.tool_environment
-            if logger.eval.tool_environment
-            else task.tool_environment
-        )
+        if task.tool_environment:
+            tool_environment = (
+                logger.eval.tool_environment
+                if logger.eval.tool_environment
+                else task.tool_environment
+            )
+        else:
+            tool_environment = None
 
         # resolve the plan and scorer
         plan = (
@@ -502,6 +505,7 @@ async def toolenv_context(
             # record resolved bytes
             files[path] = file_bytes
 
+    cancelled = False
     try:
         # initialize tool environment,
         await init_tool_environments_context(
@@ -515,6 +519,10 @@ async def toolenv_context(
         # run sample
         yield
 
+    except (asyncio.CancelledError, KeyboardInterrupt) as ex:
+        cancelled = True
+        raise ex
+
     finally:
         # cleanup tool environment
-        await cleanup_tool_environments_context()
+        await cleanup_tool_environments_context(cancelled)
