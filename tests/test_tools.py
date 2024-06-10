@@ -1,7 +1,7 @@
 from random import randint
 
+from test_helpers.tools import addition
 from test_helpers.utils import (
-    addition,
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_mistral,

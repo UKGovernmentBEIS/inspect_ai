@@ -2,7 +2,7 @@
 
 ## Overview
 
-Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g. a [Capture the Flag](https://en.wikipedia.org/wiki/Capture_the_flag_(cybersecurity)) challenge). Agents are an area of active research, and many schemes for implementing them have been developed, including [AutoGPT](https://arxiv.org/abs/2306.02224), [ReAct](https://arxiv.org/pdf/2303.11366.pdf), and [Reflexion](https://arxiv.org/pdf/2303.11366.pdf). 
+Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g. a [Capture the Flag](https://en.wikipedia.org/wiki/Capture_the_flag_(cybersecurity)) challenge). Agents are an area of active research, and many schemes for implementing them have been developed, including [AutoGPT](https://arxiv.org/abs/2306.02224), [ReAct](https://arxiv.org/pdf/2303.11366.pdf), and [Reflexion](https://arxiv.org/pdf/2303.11366.pdf).
 
 Inspect supports a variety of approaches to agent evaluations, including:
 
@@ -14,7 +14,7 @@ Inspect supports a variety of approaches to agent evaluations, including:
 
 We'll cover the basics of all of these approaches below.
 
-An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Tool Environments](#sec-tool-environments) section goes into more depth on this. 
+An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Tool Environments](#sec-tool-environments) section goes into more depth on this.
 
 ::: callout-important
 The features described in this section are not yet available in the version of Inspect published to PyPI (rather they are only available in the development version of Inspect). To install the development version:
@@ -26,13 +26,11 @@ $ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
 If you are building agent evaluations based on the documentation here, you should install the development version before proceeding.
 :::
 
-
-
 ## Tool Use Loop
 
 A basic agent can be implemented by providing tools to the model with `use_tools()` and then calling `generate()`. Every time the model calls a tool, the approriate Python function is called and then the model is re-prompted to generate based on the output of the function. This is typically combined with a [ReAct](https://arxiv.org/pdf/2303.11366.pdf) prompt that urges the model to reason about each action it takes. For example:
 
-```python
+``` python
 prompt_template(template = """
     Each message may perform one function call. You will
     see the result of the function right after sending 
@@ -52,7 +50,7 @@ Note that this is merely an example! A production ReAct prompt would typically b
 
 This example implements the [CTF Benchmark](https://intercode-benchmark.github.io/#ctf) from the [InterCode](https://arxiv.org/abs/2306.14898) paper (click the numbers in the right margin for additional explanation of the code):
 
-```python
+``` python
 from dataset import read_dataset
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
@@ -105,13 +103,13 @@ def sample_init():
     return solve
 ```
 
-1. The `read_dataset()` function (imported from [dataset.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/dataset.py)) downloads the data from the InterCode GH repo and converts it into a native Inspect `Dataset`).
-2. The system prompt ([system.txt](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/system.txt)) describes the CTF challenge, provides a ReAct prompt, and includes several fewshot examples.
-3. Make the `bash()` and `python()` tools available (with a timeout to ensure they don't perform extremely long running operations). Note that using these tools requires a tool environment, which you can see is provided below).
-4. For each sample we run some initialization code that executes a custom setup command (if provided) as well as adds a list of files included with the sample to the prompt.
-5. Specify that Docker should be used as the tool environemnt (the container is built from the provided [Dockerfile](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/Dockerfile))
-6. InterCode samples can include a "setup" field that includes a command to run before executing the sample.
-7. Ammend the prompt with a list of files copied to the working directory for the sample.
+1.  The `read_dataset()` function (imported from [dataset.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/dataset.py)) downloads the data from the InterCode GH repo and converts it into a native Inspect `Dataset`).
+2.  The system prompt ([system.txt](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/system.txt)) describes the CTF challenge, provides a ReAct prompt, and includes several fewshot examples.
+3.  Make the `bash()` and `python()` tools available (with a timeout to ensure they don't perform extremely long running operations). Note that using these tools requires a tool environment, which you can see is provided below).
+4.  For each sample we run some initialization code that executes a custom setup command (if provided) as well as adds a list of files included with the sample to the prompt.
+5.  Specify that Docker should be used as the tool environemnt (the container is built from the provided [Dockerfile](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/Dockerfile))
+6.  InterCode samples can include a "setup" field that includes a command to run before executing the sample.
+7.  Ammend the prompt with a list of files copied to the working directory for the sample.
 
 The full source code for this example can be found in the Inspect GitHub repo at [examples/agents/intercode-ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/intercode-ctf).
 
@@ -119,12 +117,12 @@ The full source code for this example can be found in the Inspect GitHub repo at
 
 The default tool use loop above will work fine for some evaluations, but in other cases you may need to provide more custom logic. For example, you might want to:
 
-1. Urge the model to continue (or take a different path) if it gives up; or
-2. Have mutliple `generate()` passes each with a distinct set of tools.
+1.  Urge the model to continue (or take a different path) if it gives up; or
+2.  Have mutliple `generate()` passes each with a distinct set of tools.
 
 Here's a solver that prompts the model to keep going after a failure to come up with a valid submission. Note that you might implement this with a limited number of "retries" or (as illustrated below) you might rely on `max_messages` to terminate the evaulation:
 
-```python
+``` python
 @task
 def ctf()
     return Task(
@@ -154,16 +152,16 @@ def generate_until_submission():
     return solve
 ```
 
-1. Set a timeout of 3 minutes for tool execution.
-2. Custom solver that re-prompts the model after it gives up.
-3. The loop in `generate_until_submission()` will not always terminate unless a `max_messages` is supplied!
-4. When `max_messages` is exceeded, `state.completed` will be set to `False`.
-5. Run standard generate tool use loop and check to see if the model came up with a submission (or alternatively gave up).
-6. Provide user message that urges the model to continue.
+1.  Set a timeout of 3 minutes for tool execution.
+2.  Custom solver that re-prompts the model after it gives up.
+3.  The loop in `generate_until_submission()` will not always terminate unless a `max_messages` is supplied!
+4.  When `max_messages` is exceeded, `state.completed` will be set to `False`.
+5.  Run standard generate tool use loop and check to see if the model came up with a submission (or alternatively gave up).
+6.  Provide user message that urges the model to continue.
 
 Here's an example of a `Solver` that filters the available tools between calls to `generate()`:
 
-```python
+``` python
 @solver
 def generate_ctf():
     async def solve(state: TaskState, generate: Generate):
@@ -193,7 +191,6 @@ You can imagine many other variations on the examples above. The key thing to ta
 You can also adapt code from a research paper or 3rd party agent library to run within an Inspect solver. Below we'll provide an example of doing this for a [LangChain Agent](https://python.langchain.com/v0.2/docs/tutorials/agents/).
 
 When adapting 3rd party agent code, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). If the agent is executing arbitrary code, it's also beneficial to use Inspect [Tool Environments](#sec-tool-environments) for sandboxing.
-
 
 ### Example: LangChain {#sec-langchain}
 
@@ -321,7 +318,6 @@ def wikipedia() -> Task:
 
 The full source code for this example can be found in the Inspect GitHub repo at [examples/agents/langchain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain).
 
-
 ## Tool Environments {#sec-tool-environments}
 
 The examples shown above execute tool code within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:
@@ -332,8 +328,7 @@ The examples shown above execute tool code within the main process running the e
 
 -   You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-
-::: {.callout-important}
+::: callout-important
 Tool environments are not yet available in the version of Inspect published to PyPI (they are rather only available from the development version of Inspect). To install the development version:
 
 ``` bash
@@ -436,10 +431,10 @@ class ToolEnvironment:
 
 There are two tool environments built in to Inspect:
 
-| Environment Type | Description                                                                                                                                                                                                      |
+| Environment Type | Description                                                                                                                                                               |
 |--------------------------|----------------------------------------------|
-| `local`          | Run `tool_environment()` methods in the same address space and file system as the running evaluation. The local environment should *only be used* if you are already running your evaluation in another sandbox. |
-| `docker`         | Run `tool_environment()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).                                                     |
+| `local`          | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `tool_environment()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
 
 Tool environments can be bound at the `Task` level or at the `eval()` level (where `eval()` takes precedence). To bind a tool environment to a `Task`, use the `tool_environment` option:
 
@@ -480,7 +475,7 @@ While `--tool-environment` can be a default un-configured environment (e.g. “
 Here is how Docker tool environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
 | Config Files   | Behavior                                                                                                        |
-|-------------------|-----------------------------------------------------|
+|--------------------|----------------------------------------------------|
 | None           | Creates a tool environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
 | `Dockerfile`   | Creates a tool environment by building the image.                                                               |
 | `compose.yaml` | Creates tool environment(s) based on `compose.yaml`.                                                            |

@@ -3,8 +3,8 @@ import os
 import pytest
 
 from inspect_ai import eval
-from inspect_ai.model import ChatMessage, ContentText, ModelName, ModelOutput
-from inspect_ai.solver import TaskState, tool
+from inspect_ai.model import ChatMessage, ModelName, ModelOutput
+from inspect_ai.solver import TaskState
 
 
 def skip_if_env_var(var: str, exists=True):
@@ -50,31 +50,6 @@ def skip_if_github_action(func):
 def run_example(example: str, model: str):
     example_file = os.path.join("examples", example)
     return eval(example_file, model=model, limit=1)
-
-
-# define tool
-@tool(
-    prompt="""If you are given a math problem of any kind,
-    please use the addition tool to compute the result.""",
-    params={"color": "metadata.color"},
-)
-def addition():
-    async def add(color: str, x: int, y: int):
-        """
-        Tool for adding two numbers.
-
-        Args:
-            color (str): Color
-            x (int): First number to add.
-            y (int): Second number to add.
-
-        Returns:
-            The sum of the two numbers.
-        """
-        # return as list[Content] to confirm that codepath works
-        return [ContentText(text=str(x + y))]
-
-    return add
 
 
 # The intention of this `simple_task_state` helper is to remove some of the

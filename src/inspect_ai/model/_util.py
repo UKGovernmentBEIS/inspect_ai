@@ -13,10 +13,8 @@ from tenacity import (
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
 
-from ._model import (
-    ChatMessage,
-    GenerateConfig,
-)
+from ._chat_message import ChatMessage
+from ._generate_config import GenerateConfig
 from ._tool import ToolInfo
 
 

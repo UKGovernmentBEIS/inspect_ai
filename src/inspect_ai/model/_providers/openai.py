@@ -27,12 +27,11 @@ from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.images import image_as_data_uri
 from inspect_ai._util.url import is_data_uri, is_http_url
 
+from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._content import Content
+from .._generate_config import GenerateConfig
 from .._model import (
     ChatCompletionChoice,
-    ChatMessage,
-    ChatMessageAssistant,
-    Content,
-    GenerateConfig,
     Logprobs,
     ModelAPI,
     ModelOutput,

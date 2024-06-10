@@ -19,11 +19,10 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 
+from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._generate_config import GenerateConfig
 from .._model import (
     ChatCompletionChoice,
-    ChatMessage,
-    ChatMessageAssistant,
-    GenerateConfig,
     Logprob,
     Logprobs,
     ModelAPI,

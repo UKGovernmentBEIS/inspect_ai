@@ -1,10 +1,11 @@
 import abc
 import asyncio
 import functools
+import logging
 import os
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Any, Callable, Literal, Type, Union, cast
+from typing import Any, Callable, Literal, Type, cast
 
 from pydantic import BaseModel, Field
 from tenacity import (
@@ -15,7 +16,6 @@ from tenacity import (
     stop_never,
     wait_exponential_jitter,
 )
-from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.entrypoints import ensure_entry_points
@@ -30,265 +30,18 @@ from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai.util import concurrency
 from inspect_ai.util._context.concurrency import using_concurrency
 
-from ._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
-
-
-class GenerateConfigArgs(TypedDict, total=False):
-    """Type for kwargs that selectively override GenerateConfig."""
-
-    max_retries: int | None
-    """Maximum number of times to retry request (defaults to 5)."""
-
-    timeout: int | None
-    """Request timeout (in seconds)."""
-
-    max_connections: int | None
-    """Maximum number of concurrent connections to Model API (default is model specific)."""
-
-    system_message: str | None
-    """Override the default system message."""
-
-    max_tokens: int | None
-    """The maximum number of tokens that can be generated in the completion (default is model specific)."""
-
-    top_p: float | None
-    """An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass."""
-
-    temperature: float | None
-    """What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic."""
-
-    stop_seqs: list[str] | None
-    """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
-
-    best_of: int | None
-    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only."""
-
-    frequency_penalty: float | None
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI only."""
-
-    presence_penalty: float | None
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI only."""
-
-    logit_bias: dict[int, float] | None
-    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI only."""
-
-    seed: int | None
-    """Random seed. OpenAI only. OpenAI and Mistral only."""
-
-    suffix: str | None
-    """The suffix that comes after a completion of inserted text. OpenAI only."""
-
-    top_k: int | None
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
-
-    num_choices: int | None
-    """How many chat completion choices to generate for each input message. OpenAI, Google, and TogetherAI only."""
-
-    logprobs: bool | None
-    """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
-
-    top_logprobs: int | None
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only."""
-
-
-class GenerateConfig(BaseModel):
-    """Base class for model generation configs."""
-
-    max_retries: int | None = Field(default=None)
-    """Maximum number of times to retry request (defaults to 5)."""
-
-    timeout: int | None = Field(default=None)
-    """Request timeout (in seconds)."""
-
-    max_connections: int | None = Field(default=None)
-    """Maximum number of concurrent connections to Model API (default is model specific)."""
-
-    system_message: str | None = Field(default=None)
-    """Override the default system message."""
-
-    max_tokens: int | None = Field(default=None)
-    """The maximum number of tokens that can be generated in the completion (default is model specific)."""
-
-    top_p: float | None = Field(default=None)
-    """An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass."""
-
-    temperature: float | None = Field(default=None)
-    """What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic."""
-
-    stop_seqs: list[str] | None = Field(default=None)
-    """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
-
-    best_of: int | None = Field(default=None)
-    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only."""
-
-    frequency_penalty: float | None = Field(default=None)
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI only."""
-
-    presence_penalty: float | None = Field(default=None)
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI only."""
-
-    logit_bias: dict[int, float] | None = Field(default=None)
-    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI only."""
-
-    seed: int | None = Field(default=None)
-    """Random seed. OpenAI only. OpenAI and Mistral only."""
-
-    suffix: str | None = Field(default=None)
-    """The suffix that comes after a completion of inserted text. OpenAI only."""
-
-    top_k: int | None = Field(default=None)
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
-
-    num_choices: int | None = Field(default=None)
-    """How many chat completion choices to generate for each input message. OpenAI, Google, and TogetherAI only."""
-
-    logprobs: bool | None = Field(default=None)
-    """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
-
-    top_logprobs: int | None = Field(default=None)
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only."""
-
-    def merge(
-        self, other: Union["GenerateConfig", GenerateConfigArgs]
-    ) -> "GenerateConfig":
-        """Merge another model configuration into this one.
-
-        Args:
-           other (Union[GenerateConfig, GenerateConfigArgs]):
-              Configuration to merge.
-
-        Returns:
-           Merged configuration.
-        """
-        if not isinstance(other, GenerateConfig):
-            other = GenerateConfig(**other)
-        config_keys = list(GenerateConfigArgs.__mutable_keys__)  # type: ignore
-        config = deepcopy(self)
-        for key in config_keys:
-            value = getattr(other, key, None)
-            if value is not None:
-                setattr(config, key, value)
-        return config
-
-
-class ContentText(BaseModel):
-    type: Literal["text"] = Field(default="text")
-    """Type."""
-
-    text: str
-    """Text content."""
-
-
-class ContentImage(BaseModel):
-    type: Literal["image"] = Field(default="image")
-    """Type."""
-
-    image: str
-    """Either a URL of the image or the base64 encoded image data."""
-
-    detail: Literal["auto", "low", "high"] = Field(default="auto")
-    """Specifies the detail level of the image.
-
-    Currently only supported for OpenAI. Learn more in the
-    [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
-    """
-
-
-Content = Union[ContentText, ContentImage]
-"""Content sent to or received from a model."""
-
-
-class ChatMessageBase(BaseModel):
-    content: str | list[Content]
-    """Content (simple string or list of string|image content)"""
-
-    source: Literal["input", "generate"] | None = Field(default=None)
-    """Source of message."""
-
-    @property
-    def text(self) -> str:
-        """Get the text content of this message.
-
-        ChatMessage content is very general and can contain either
-        a simple text value or a list of content parts (each of which
-        can either be text or an image). Solvers (e.g. for prompt
-        engineering) often need to interact with chat messages with
-        the assumption that they are a simple string. The text
-        property returns either the plain str content, or if the
-        content is a list of text and images, the text items
-        concatenated together (separated by newline)
-
-        Returns: Text content of `ChatMessage` If this message does
-          not have text content then "" is returned.
-        """
-        if isinstance(self.content, str):
-            return self.content
-        else:
-            all_text = [
-                content.text for content in self.content if content.type == "text"
-            ]
-            return "\n".join(all_text)
-
-    @text.setter
-    def text(self, text: str) -> None:
-        """Set the primary text content for this message.
-
-        ChatMessage content is very general and can contain either
-        a simple text value or a list of content parts (each of which
-        can either be text or an image). Solvers (e.g. for prompt
-        engineering) often need to interact with chat messages with
-        the assumption that they are a simple string. The text property
-        sets text either to content directly (if it is a `str`) or to
-        the first text content item in the message (inserting one at
-        the beginning if necessary). If there are multiple text content
-        items in the message then after the set there will be only
-        one remaining (image content will remain).
-        """
-        if isinstance(self.content, str):
-            self.content = text
-        else:
-            all_images = [
-                content for content in self.content if content.type == "image"
-            ]
-            self.content = [ContentText(text=text)] + all_images
-
-
-class ChatMessageSystem(ChatMessageBase):
-    role: Literal["system"] = Field(default="system")
-    """Conversation role."""
-
-    tool: str | None = Field(default=None)
-    """Tool that injected this message."""
-
-
-class ChatMessageUser(ChatMessageBase):
-    role: Literal["user"] = Field(default="user")
-    """Conversation role."""
-
-
-class ChatMessageAssistant(ChatMessageBase):
-    role: Literal["assistant"] = Field(default="assistant")
-    """Conversation role."""
-
-    tool_calls: list[ToolCall] | None = Field(default=None)
-    """Tool calls made by the model."""
-
-
-class ChatMessageTool(ChatMessageBase):
-    role: Literal["tool"] = Field(default="tool")
-    """Conversation role."""
-
-    tool_call_id: str | None = Field(default=None)
-    """ID of tool call."""
-
-    tool_error: str | None = Field(default=None)
-    """Error calling tool."""
-
-
-ChatMessage = Union[
-    ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, ChatMessageTool
-]
-"""Message in a chat conversation"""
+from ._cache import cache_fetch, cache_store
+from ._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageUser,
+)
+from ._content import Content, ContentText
+from ._generate_config import GenerateConfig
+from ._tool import ToolChoice, ToolFunction, ToolInfo
+
+logger = logging.getLogger(__name__)
 
 
 class ModelUsage(BaseModel):
@@ -453,27 +206,27 @@ class ModelAPI(abc.ABC):
         ...
 
     def max_tokens(self) -> int | None:
-        """Default max_tokens for this Model API."""
+        """Default max_tokens."""
         return None
 
     def max_connections(self) -> int:
-        """Default max_connections for this Model API."""
+        """Default max_connections."""
         return DEFAULT_MAX_CONNECTIONS
 
     def connection_key(self) -> str:
-        """Key that defines the scope for enforcement of max_connections."""
+        """Scope for enforcement of max_connections."""
         return "default"
 
     def is_rate_limit(self, ex: BaseException) -> bool:
-        """Check whether an exception should be considered a rate limit error."""
+        """Is this exception a rate limit error."""
         return False
 
     def collapse_user_messages(self) -> bool:
-        """Should consecutive user messages be collapsed into a single message."""
+        """Collapse consecutive user messages into a single message."""
         return False
 
     def collapse_assistant_messages(self) -> bool:
-        """Should consecutive assistant messages be collapsed into a single message."""
+        """Collapse consecutive assistant messages into a single message."""
         return False
 
 
@@ -507,6 +260,7 @@ class Model:
         input: str | list[ChatMessage],
         tools: list[ToolInfo] = [],
         tool_choice: ToolChoice | None = None,
+        cache: bool = False,
         config: GenerateConfig = GenerateConfig(),
     ) -> ModelOutput:
         """Generate output from the model.
@@ -519,6 +273,7 @@ class Model:
             model to call.
           tool_choice (ToolChoice): Directives to the model
             as to which tools to prefer.
+          cache (bool): Cache model output.
           config (GenerateConfig): Model configuration.
 
         Returns:
@@ -545,17 +300,18 @@ class Model:
         # concurrency limits (max_connections) for the model
         if using_concurrency():
             async with self._connection_concurrency(config):
-                return await self._generate(input, tools, tool_choice, config)
+                return await self._generate(input, tools, tool_choice, cache, config)
 
         # no connection semaphore, just proceed straight to the call
         else:
-            return await self._generate(input, tools, tool_choice, config)
+            return await self._generate(input, tools, tool_choice, cache, config)
 
     async def _generate(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
         tool_choice: ToolChoice | None,
+        cache: bool,
         config: GenerateConfig,
     ) -> ModelOutput:
         # default to 'auto' for tool_choice (same as underlying model apis)
@@ -624,12 +380,37 @@ class Model:
             before_sleep=functools.partial(log_rate_limit_retry, self.api.model_name),
         )
         async def generate() -> ModelOutput:
-            return await self.api.generate(
+            if cache:
+                existing = cache_fetch(
+                    base_url=self.api.base_url,
+                    config=config,
+                    input=input,
+                    model=str(self),
+                    tool_choice=tool_choice,
+                    tools=tools,
+                )
+                if isinstance(existing, ModelOutput):
+                    return existing
+
+            output = await self.api.generate(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
             )
+
+            if cache:
+                cache_store(
+                    base_url=self.api.base_url,
+                    config=config,
+                    input=input,
+                    model=str(self),
+                    tool_choice=tool_choice,
+                    tools=tools,
+                    value=output,
+                )
+
+            return output
 
         # call the model
         model_output = await generate()

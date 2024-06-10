@@ -32,16 +32,12 @@ from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data_uri
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
-from inspect_ai.model._providers.util import model_base_url
 
+from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
+from .._content import Content, ContentText
+from .._generate_config import GenerateConfig
 from .._model import (
     ChatCompletionChoice,
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageSystem,
-    Content,
-    ContentText,
-    GenerateConfig,
     ModelAPI,
     ModelOutput,
     ModelUsage,
@@ -49,6 +45,7 @@ from .._model import (
 )
 from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
+from .util import model_base_url
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 

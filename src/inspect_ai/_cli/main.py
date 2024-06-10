@@ -3,6 +3,7 @@ import click
 from inspect_ai._util.dotenv import init_dotenv
 
 from .. import __version__
+from .cache import cache_command
 from .eval import eval_command, eval_retry_command
 from .info import info_command
 from .list import list_command
@@ -32,12 +33,13 @@ def inspect(ctx: click.Context, version: bool) -> None:
         ctx.exit()
 
 
+inspect.add_command(cache_command)
 inspect.add_command(eval_command)
 inspect.add_command(eval_retry_command)
+inspect.add_command(info_command)
+inspect.add_command(list_command)
 inspect.add_command(score_command)
 inspect.add_command(view_command)
-inspect.add_command(list_command)
-inspect.add_command(info_command)
 
 
 def main() -> None:

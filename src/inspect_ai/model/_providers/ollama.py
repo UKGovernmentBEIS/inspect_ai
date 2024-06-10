@@ -1,6 +1,6 @@
 from inspect_ai.model._providers.util import model_base_url
 
-from .._model import GenerateConfig
+from .._generate_config import GenerateConfig
 from .openai import OpenAIAPI
 
 

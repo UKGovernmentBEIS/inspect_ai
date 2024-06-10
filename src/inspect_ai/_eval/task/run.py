@@ -170,11 +170,14 @@ async def task_run(
 
                     # provide solvers a function that they can use to generate output
                     async def generate(
-                        state: TaskState, **kwargs: Unpack[GenerateConfigArgs]
+                        state: TaskState,
+                        cache: bool = False,
+                        **kwargs: Unpack[GenerateConfigArgs],
                     ) -> TaskState:
                         return await task_generate(
                             model=model,
                             state=state,
+                            cache=cache,
                             config=generate_config.merge(kwargs),
                             max_messages=config.max_messages,
                         )

@@ -1,0 +1,143 @@
+from copy import deepcopy
+from typing import Union
+
+from pydantic import BaseModel, Field
+from typing_extensions import TypedDict
+
+
+class GenerateConfigArgs(TypedDict, total=False):
+    """Type for kwargs that selectively override GenerateConfig."""
+
+    max_retries: int | None
+    """Maximum number of times to retry request (defaults to 5)."""
+
+    timeout: int | None
+    """Request timeout (in seconds)."""
+
+    max_connections: int | None
+    """Maximum number of concurrent connections to Model API (default is model specific)."""
+
+    system_message: str | None
+    """Override the default system message."""
+
+    max_tokens: int | None
+    """The maximum number of tokens that can be generated in the completion (default is model specific)."""
+
+    top_p: float | None
+    """An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass."""
+
+    temperature: float | None
+    """What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic."""
+
+    stop_seqs: list[str] | None
+    """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
+
+    best_of: int | None
+    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only."""
+
+    frequency_penalty: float | None
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI only."""
+
+    presence_penalty: float | None
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI only."""
+
+    logit_bias: dict[int, float] | None
+    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI only."""
+
+    seed: int | None
+    """Random seed. OpenAI only. OpenAI and Mistral only."""
+
+    suffix: str | None
+    """The suffix that comes after a completion of inserted text. OpenAI only."""
+
+    top_k: int | None
+    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
+
+    num_choices: int | None
+    """How many chat completion choices to generate for each input message. OpenAI, Google, and TogetherAI only."""
+
+    logprobs: bool | None
+    """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
+
+    top_logprobs: int | None
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only."""
+
+
+class GenerateConfig(BaseModel):
+    """Base class for model generation configs."""
+
+    max_retries: int | None = Field(default=None)
+    """Maximum number of times to retry request (defaults to 5)."""
+
+    timeout: int | None = Field(default=None)
+    """Request timeout (in seconds)."""
+
+    max_connections: int | None = Field(default=None)
+    """Maximum number of concurrent connections to Model API (default is model specific)."""
+
+    system_message: str | None = Field(default=None)
+    """Override the default system message."""
+
+    max_tokens: int | None = Field(default=None)
+    """The maximum number of tokens that can be generated in the completion (default is model specific)."""
+
+    top_p: float | None = Field(default=None)
+    """An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass."""
+
+    temperature: float | None = Field(default=None)
+    """What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic."""
+
+    stop_seqs: list[str] | None = Field(default=None)
+    """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
+
+    best_of: int | None = Field(default=None)
+    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only."""
+
+    frequency_penalty: float | None = Field(default=None)
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI only."""
+
+    presence_penalty: float | None = Field(default=None)
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI only."""
+
+    logit_bias: dict[int, float] | None = Field(default=None)
+    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI only."""
+
+    seed: int | None = Field(default=None)
+    """Random seed. OpenAI only. OpenAI and Mistral only."""
+
+    suffix: str | None = Field(default=None)
+    """The suffix that comes after a completion of inserted text. OpenAI only."""
+
+    top_k: int | None = Field(default=None)
+    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
+
+    num_choices: int | None = Field(default=None)
+    """How many chat completion choices to generate for each input message. OpenAI, Google, and TogetherAI only."""
+
+    logprobs: bool | None = Field(default=None)
+    """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
+
+    top_logprobs: int | None = Field(default=None)
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only."""
+
+    def merge(
+        self, other: Union["GenerateConfig", GenerateConfigArgs]
+    ) -> "GenerateConfig":
+        """Merge another model configuration into this one.
+
+        Args:
+           other (Union[GenerateConfig, GenerateConfigArgs]):
+              Configuration to merge.
+
+        Returns:
+           Merged configuration.
+        """
+        if not isinstance(other, GenerateConfig):
+            other = GenerateConfig(**other)
+        config_keys = list(GenerateConfigArgs.__mutable_keys__)  # type: ignore
+        config = deepcopy(self)
+        for key in config_keys:
+            value = getattr(other, key, None)
+            if value is not None:
+                setattr(config, key, value)
+        return config

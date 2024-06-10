@@ -13,14 +13,16 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
-from .._model import (
-    ChatCompletionChoice,
+from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
-    GenerateConfig,
+)
+from .._generate_config import GenerateConfig
+from .._model import (
+    ChatCompletionChoice,
     ModelAPI,
     ModelOutput,
     ModelUsage,

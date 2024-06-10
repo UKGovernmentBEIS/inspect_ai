@@ -22,6 +22,7 @@ from .util import has_max_messages
 async def task_generate(
     model: Model,
     state: TaskState,
+    cache: bool,
     config: GenerateConfig,
     max_messages: int | None,
 ) -> TaskState:
@@ -34,6 +35,7 @@ async def task_generate(
             state.messages,
             tools_info(state.tools),
             tool_choice,
+            cache,
             config,
         )
 

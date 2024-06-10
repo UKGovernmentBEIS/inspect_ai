@@ -36,7 +36,10 @@ class Generate(Protocol):
     """
 
     async def __call__(
-        self, state: TaskState, **kwargs: Unpack[GenerateConfigArgs]
+        self,
+        state: TaskState,
+        cache: bool = False,
+        **kwargs: Unpack[GenerateConfigArgs],
     ) -> TaskState: ...
 
 
@@ -190,7 +193,7 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
 
 
 @solver
-def generate() -> Solver:
+def generate(cache: bool = False) -> Solver:
     r"""Generate output from the model and append it to task message history.
 
     generate() is the default plan/solver if none is specified for a given task.
@@ -198,7 +201,7 @@ def generate() -> Solver:
 
     # call generate on the tasks
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        return await generate(state)
+        return await generate(state, cache=cache)
 
     # return solve
     return solve

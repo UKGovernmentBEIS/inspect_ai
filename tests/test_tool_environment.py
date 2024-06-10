@@ -1,51 +1,10 @@
+from test_helpers.tools import list_files, read_file
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
-from inspect_ai.solver import generate, tool, tool_environment, use_tools
-
-
-@tool(prompt="If you need to read a file, use the read_file tool.")
-def read_file():
-    async def execute(file: str):
-        """
-        Read a file from the filesystem.
-
-        Args:
-          file (str): File to read.
-
-        Returns:
-          File contents
-        """
-        return await tool_environment().read_file(file)
-
-    return execute
-
-
-@tool(
-    prompt="""
-    If you are asked to list the files in a directory you
-    should call the list_files function to list the files.
-    """
-)
-def list_files():
-    async def execute(dir: str):
-        """List the files in a directory.
-
-        Args:
-            dir (str): Directory
-
-        Returns:
-            File listing of the directory
-        """
-        result = await tool_environment().exec(["ls", dir])
-        if result.success:
-            return result.stdout
-        else:
-            return f"Error: {result.stderr}"
-
-    return execute
+from inspect_ai.solver import generate, use_tools
 
 
 @skip_if_no_openai

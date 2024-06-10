@@ -33,7 +33,7 @@ def use_tools(
             state.tools = tools
 
         # set tool choice if specified
-        if state.tool_choice is not None:
+        if tool_choice is not None:
             state.tool_choice = tool_choice
 
         # return state

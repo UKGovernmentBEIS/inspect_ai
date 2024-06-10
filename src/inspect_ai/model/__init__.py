@@ -1,17 +1,17 @@
 # ruff: noqa: F401 F403 F405
 
-from ._model import (
-    ChatCompletionChoice,
+from ._cache import cache_clear, cache_path
+from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
-    Content,
-    ContentImage,
-    ContentText,
-    GenerateConfig,
-    GenerateConfigArgs,
+)
+from ._content import Content, ContentImage, ContentText
+from ._generate_config import GenerateConfig, GenerateConfigArgs
+from ._model import (
+    ChatCompletionChoice,
     Logprob,
     Logprobs,
     Model,
@@ -54,6 +54,8 @@ __all__ = [
     "ToolInfo",
     "ToolParam",
     "ToolType",
+    "cache_clear",
+    "cache_path",
     "get_model",
     "modelapi",
 ]
