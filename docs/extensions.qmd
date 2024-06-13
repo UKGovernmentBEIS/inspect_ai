@@ -80,7 +80,7 @@ eval(math, model = "custom/my-model")
 [Tool Environments](#sec-tool-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two tool environments built in:
 
 | Environment Type | Description                                                                                                                                                               |
-|---------------------------|---------------------------------------------|
+|----------------------------|--------------------------------------------|
 | `local`          | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
 | `docker`         | Run `tool_environment()` methods within a Docker container                                                                                                                |
 
@@ -91,19 +91,36 @@ To create a custom tool environment, derive a class from `ToolEnvironment`, impl
 class PodmanToolEnvironment(ToolEnvironment):
 
     @classmethod
-    async def startup(cls, task_name: str, config: str | None) -> None:
+    async def task_init(
+        cls, task_name: str, config: str | None
+    ) -> None:
         ...
-    
+
     @classmethod
-    async def setup(
-        cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> ToolEnvironments:
+    async def task_cleanup(
+        cls, task_name: str, config: str | None
+    ) -> None:
+       ...
+
+    @classmethod
+    async def sample_init(
+        cls, 
+        task_name: str, 
+        config: str | None, 
+        metadata: dict[str, str]
+    ) -> dict[str, ToolEnvironment]:
         ...
 
-    def __init__(self) -> None:
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: str | None,
+        environments: dict[str, ToolEnvironment],
+        interrupted: bool,
+    ) -> None:
         ...
 
-    @override
     async def exec(
         self,
         cmd: list[str],
@@ -113,24 +130,45 @@ class PodmanToolEnvironment(ToolEnvironment):
     ) -> ExecResult[str]:
         ...
 
-    @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes
+    ) -> None:
         ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True
+    ) -> str: 
+        ...
+      
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
-    @override
-    async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
+    async def read_file(
+        self, file: str, text: Literal[False]
+    ) -> bytes: 
+        ...
+      
+    async def read_file(
+        self, file: str, text: bool = True
+    ) -> Union[str | bytes]:
         ...
 ```
 
-The two class methods take care of various stages of initialisation:
+The class methods take care of various stages of initialisation, setup, and teardown:
 
--   `startup()` is called once at the beginning of the evaluation task. This is the place to do expensive operations that have console output/progress (e.g. pulling or building images).
+| Method             | Lifecycle                                 | Purpose                                                                               |
+|------------------|------------------|-------------------------------------|
+| `task_init()`      | Called at the beginning of each `Task`.   | Expensive initialisation operations (e.g. pulling or building images)                 |
+| `task_cleanup()`   | Called at the end of each `Task`.         | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `sample_init()`    | Called at the beginning of each `Sample`. | Create `ToolEnvironment` instances for the sample.                                    |
+| `sample_cleanup()` | Called at the end of each `Sample`        | Cleanup `ToolEnvironment` instances for the sample.                                   |
 
--   `setup()` is called for each sample to create one or more `ToolEnvironment` instances. Often there will just a single environment, but in some cases (e.g. a cybersecurity eval) you might have a main container and a network host that is being attacked. Setup returns these instances along with a `cleanup()` function for tearing them down.
+While `task_cleanup()` may not seem necessary at first blush (since `sample_cleanup()` is always called), there are several important reasons for it:
+
+1.  There may be global resources that are not tied to samples that need to be cleaned up.
+2.  It's possible that `sample_cleanup()` will be interrupted (e.g. via a Ctrl+C) during execution. In that case its resources are still not cleaned up.
+3.  The `sample_cleanup()` function might be long running, and in the case of error or interruption you want to provide explicit user feedback on the cleanup in the console (which isn't possible when cleanup is run "inline" with samples). An `interrupted` flag is passed to `sample_cleanup()` which allows for varying behaviour for this scenario.
+
+To implement `task_cleanup()` properly, you'll likely need to track running environments using a per-coroutine `ContextVar`. The `DockerToolEnvironment` provides an example of this.
 
 The `ToolEnvironment` instance methods provide access to process execution and file input/output within the environment.
 

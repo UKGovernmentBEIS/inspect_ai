@@ -18,7 +18,7 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.model import CachePolicy, GenerateConfigArgs
 
 from ._task_state import TaskState
 
@@ -29,6 +29,8 @@ class Generate(Protocol):
 
     Args:
        state (TaskState): Beginning task state.
+       cache: (bool | CachePolicy):
+          Caching behaviour for generate responses (defaults to no caching).
        **kwargs: Optional generation config arguments.
 
     Returns:
@@ -38,7 +40,7 @@ class Generate(Protocol):
     async def __call__(
         self,
         state: TaskState,
-        cache: bool = False,
+        cache: bool | CachePolicy = False,
         **kwargs: Unpack[GenerateConfigArgs],
     ) -> TaskState: ...
 
@@ -193,10 +195,14 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
 
 
 @solver
-def generate(cache: bool = False) -> Solver:
+def generate(cache: bool | CachePolicy = False) -> Solver:
     r"""Generate output from the model and append it to task message history.
 
     generate() is the default plan/solver if none is specified for a given task.
+
+    Args:
+      cache: (bool | CachePolicy):
+        Caching behaviour for generate responses (defaults to no caching).
     """
 
     # call generate on the tasks

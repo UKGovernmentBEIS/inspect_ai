@@ -8,7 +8,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 
 from .._generate_config import GenerateConfig
-from .._model import ChatCompletionChoice, Logprob, Logprobs
+from .._model_output import ChatCompletionChoice, Logprob, Logprobs
 from .openai import (
     OpenAIAPI,
     chat_message_assistant,

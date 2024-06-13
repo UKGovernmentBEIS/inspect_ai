@@ -155,6 +155,13 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
     config["model_base_url"] = evaluation.model_base_url;
   }
 
+  if (evaluation?.tool_environment) {
+    config["tool_environment"] = evaluation.tool_environment[0];
+    if (evaluation.tool_environment[1]) {
+      config["tool_environment_config"] = evaluation.tool_environment[1]
+    }
+  }
+
   const floatingColumnStyle = {
     flex: "0 1 1",
     width: "unset",

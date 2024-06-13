@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useEffect, useMemo, useRef } from "preact/hooks";
+import { useEffect, useMemo } from "preact/hooks";
 
 import { sharedStyles } from "../Constants.mjs";
 
@@ -12,7 +12,7 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
 
 const kSampleHeight = 82;
-const kSeparatorHeight = 32;
+const kSeparatorHeight = 20;
 
 // Convert samples to a datastructure which contemplates grouping, etc...
 export const SampleList = (props) => {
@@ -26,8 +26,8 @@ export const SampleList = (props) => {
     nextSample,
     prevSample,
     showSample,
-  } = props;
-
+  
+    } = props;
   // If there are no samples, just display an empty state
   if (items.length === 0) {
     return html`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
@@ -52,7 +52,7 @@ export const SampleList = (props) => {
       });
       return values;
     }, []);
-  });
+  }, [items]);
 
   useEffect(() => {
     const listEl = listRef.current;
@@ -77,7 +77,7 @@ export const SampleList = (props) => {
       }
 
       if (itemBottom > scrollBottom) {
-        listEl.base.scrollTo({top: itemBottom - listEl.base.offsetHeight});
+        listEl.base.scrollTo({ top: itemBottom - listEl.base.offsetHeight });
         return;
       }
     }
@@ -100,7 +100,7 @@ export const SampleList = (props) => {
     } else if (item.type === "separator") {
       return html`
         <${SeparatorRow}
-          id=${`sample-group${item.id}`}
+          id=${`sample-group${item.number}`}
           class="cool"
           title=${item.data}
           height=${kSeparatorHeight}
@@ -131,16 +131,39 @@ export const SampleList = (props) => {
     }
   };
 
-  const listStyle = { ...style, flex: "1", overflowY: "auto" };
-  return html` <${VirtualList}
-    ref=${listRef}
-    data=${items}
-    tabIndex="0"
-    renderRow=${renderRow}
-    onkeydown=${onkeydown}
-    rowMap=${rowMap}
-    style=${listStyle}
-  />`;
+  const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
+
+  const headerRow = html`<div
+    style=${{
+      display: "grid",
+      ...gridColumnStyles(sampleDescriptor),
+      fontSize: "0.7rem",
+      paddingBottom: "0.3em",
+      paddingTop: "0.3em",
+      borderBottom: "solid var(--bs-light-border-subtle) 1px",
+    }}
+  >
+    <div>#</div>
+    <div>Input</div>
+    <div>Target</div>
+    <div>Answer</div>
+    <div>Score</div>
+  </div>`;
+
+  return html` <div
+    style=${{ display: "flex", flexDirection: "column", width: "100%" }}
+  >
+    ${headerRow}
+    <${VirtualList}
+      ref=${listRef}
+      data=${items}
+      tabIndex="0"
+      renderRow=${renderRow}
+      onkeydown=${onkeydown}
+      rowMap=${rowMap}
+      style=${listStyle}
+    />
+  </div>`;
 };
 
 const SeparatorRow = ({ id, title, height }) => {
@@ -148,10 +171,10 @@ const SeparatorRow = ({ id, title, height }) => {
     id=${id}
     style=${{
       backgroundColor: "var(--bs-secondary-bg)",
-      padding: ".45em 1em .25em 1em",
+      padding: ".25em 1em .25em 1em",
       textTransform: "uppercase",
       color: "var(--bs-secondary)",
-      fontSize: "0.8em",
+      fontSize: "0.6rem",
       fontWeight: 600,
       borderBottom: "solid 1px var(--bs-border-color)",
       height: `${height}px`,
@@ -177,19 +200,6 @@ const SampleRow = ({
       }
     : {};
 
-  const input =
-    sampleDescriptor?.messageShape.input > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.input)
-      : 0;
-  const target =
-    sampleDescriptor?.messageShape.target > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.target)
-      : 0;
-  const answer =
-    sampleDescriptor?.messageShape.answer > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.answer)
-      : 0;
-
   const cellStyle = {
     paddingLeft: "0em",
     paddingRight: "0em",
@@ -210,23 +220,18 @@ const SampleRow = ({
       style=${{
         height: `${height}px`,
         display: "grid",
-        gridTemplateColumns: `minmax(2em, auto) ${input}fr ${target}fr ${answer}fr minmax(2em, auto)`,
+        ...gridColumnStyles(sampleDescriptor),
+        paddingTop: "1em",
+        paddingBottom: "1em",
         gridTemplateRows: `${height - 28}px`,
-        gridGap: "0.5em",
         fontSize: "0.8em",
         borderBottom: "solid var(--bs-border-color) 1px",
-        padding: "1em",
         cursor: "pointer",
         ...selectedStyle,
-        overflowY: "hidden"
+        overflowY: "hidden",
       }}
     >
-      <div
-        class="sample-index"
-        style=${{ ...cellStyle }}
-      >
-        ${id}
-      </div>
+      <div class="sample-index" style=${{ ...cellStyle }}>${id}</div>
       <div
         class="sample-input"
         style=${{
@@ -260,7 +265,7 @@ const SampleRow = ({
         style=${{
           fontSize: "0.8rem",
           ...cellStyle,
-          display: "flex"
+          display: "flex",
         }}
       >
         ${sampleDescriptor?.scoreDescriptor.render
@@ -271,4 +276,31 @@ const SampleRow = ({
       </div>
     </div>
   `;
+};
+
+const gridColumnStyles = (sampleDescriptor) => {
+  const { input, target, answer } = gridColumns(sampleDescriptor);
+
+  return {
+    gridGap: "0.5em",
+    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr minmax(2rem, auto)`,
+    paddingLeft: "1em",
+    paddingRight: "1em"
+  };
+};
+
+const gridColumns = (sampleDescriptor) => {
+  const input =
+    sampleDescriptor?.messageShape.input > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.input)
+      : 0;
+  const target =
+    sampleDescriptor?.messageShape.target > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.target)
+      : 0;
+  const answer =
+    sampleDescriptor?.messageShape.answer > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.answer)
+      : 0;
+  return { input, target, answer };
 };

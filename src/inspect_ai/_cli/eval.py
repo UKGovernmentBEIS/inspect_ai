@@ -326,6 +326,7 @@ def eval_retry_command(
     timeout: int | None,
     **kwargs: Unpack[CommonOptions],
 ) -> None:
+    """Retry failed evaluation(s)"""
     # resolve common options
     (log_dir, log_level) = resolve_common_options(kwargs)
 

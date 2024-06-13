@@ -30,10 +30,10 @@ from inspect_ai._util.url import is_data_uri, is_http_url
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._content import Content
 from .._generate_config import GenerateConfig
-from .._model import (
+from .._model import ModelAPI
+from .._model_output import (
     ChatCompletionChoice,
     Logprobs,
-    ModelAPI,
     ModelOutput,
     ModelUsage,
 )

@@ -2,26 +2,26 @@ from typing import Literal, Union, overload
 
 from typing_extensions import override
 
-from inspect_ai.solver import ToolEnvironment, ToolEnvironments, toolenv
+from inspect_ai.solver import ToolEnvironment, toolenv
 from inspect_ai.util import ExecResult
 
 
 @toolenv(name="podman")
 class PodmanToolEnvironment(ToolEnvironment):
     @classmethod
-    async def startup(cls, task_name: str, config: str | None) -> None:
-        pass
+    async def sample_init(
+        cls, task_name: str, config: str | None, metadata: dict[str, str]
+    ) -> dict[str, ToolEnvironment]:
+        return {"default": PodmanToolEnvironment()}
 
     @classmethod
-    async def setup(
-        cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> ToolEnvironments:
-        environment = PodmanToolEnvironment()
-        return ToolEnvironments(
-            environments={"default": environment}, cleanup=environment.cleanup
-        )
-
-    def __init__(self) -> None:
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: str | None,
+        environments: dict[str, ToolEnvironment],
+        interrupted: bool,
+    ) -> None:
         pass
 
     @override
@@ -47,6 +47,3 @@ class PodmanToolEnvironment(ToolEnvironment):
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
         return ""
-
-    async def cleanup(self, cancelled: bool):
-        pass

@@ -3,7 +3,7 @@ import os
 from logging import getLogger
 from typing import Any
 
-from .._model import StopReason
+from .._model_output import StopReason
 from .._tool import ToolCall
 
 logger = getLogger(__name__)

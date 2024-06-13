@@ -69,7 +69,7 @@ export class VirtualList extends Component {
     const lastRow = rowMap[rowMap.length - 1];
     const totalHeight = lastRow.start + lastRow.height;
 
-    // Compute the visible rows (including oversane)
+    // Compute the visible rows (including overscan)
     let visibleRowCount = lastIndex - firstIndex;
     if (overscanCount) {
       visibleRowCount += overscanCount;
@@ -90,7 +90,13 @@ export class VirtualList extends Component {
           ref=${this.containerRef}
         >
           ${selection.map((item, index) => {
+
             const component = renderRow(item, start + index);
+
+            return html`
+              <div key=${`list-item-${start + index}`}>
+              ${component}
+              </div>`
             return component;
           })}
         </div>

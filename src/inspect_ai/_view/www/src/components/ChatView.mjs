@@ -1,12 +1,14 @@
 import { html } from "htm/preact";
+import { useMemo, useRef } from "preact/hooks";
 
 import { icons } from "../Constants.mjs";
 
 import { MessageContent } from "./MessageContent.mjs";
+import { ExpandablePanel } from "./ExpandablePanel.mjs";
 
 // role
 // content
-export const ChatView = ({ messages, style }) => {
+export const ChatView = ({ id, messages, style }) => {
   // Filter tool messages into a sidelist that the chat stream
   // can use to lookup the tool responses
   const toolMessages = {};
@@ -35,13 +37,16 @@ export const ChatView = ({ messages, style }) => {
     });
 
   // Collapse system messages
-  const systemMessage = systemMessages.reduce((reduced, message) => {
-    const systemContents = Array.isArray(message.content)
-      ? message.content
-      : [message.content];
-    reduced.content.push(...systemContents.map(normalizeContent));
-    return reduced;
-  }, { role: "system", content: []});
+  const systemMessage = systemMessages.reduce(
+    (reduced, message) => {
+      const systemContents = Array.isArray(message.content)
+        ? message.content
+        : [message.content];
+      reduced.content.push(...systemContents.map(normalizeContent));
+      return reduced;
+    },
+    { role: "system", content: [] }
+  );
 
   // Converge them
   if (systemMessage && systemMessage.content.length > 0) {
@@ -50,8 +55,9 @@ export const ChatView = ({ messages, style }) => {
 
   return html`
     <div style=${{ paddingTop: "0.5em", ...style }}>
-      ${collapsedMessages.map((msg) => {
+      ${collapsedMessages.map((msg, index) => {
         return html`<${ChatMessage}
+          id=${`${id}-chat-messages`}
           message=${msg}
           toolMessages=${toolMessages}
         />`;
@@ -71,10 +77,10 @@ const normalizeContent = (content) => {
   }
 };
 
-const ChatMessage = ({ message, toolMessages }) => {
+const ChatMessage = ({ id, message, toolMessages }) => {
   const iconCls = iconForMsg(message);
   const icon = iconCls ? html`<i class="${iconCls}"></i>` : "";
-
+  const collapse = message.role === "system";
   return html`
     <div
       class="container-fluid ${message.role}"
@@ -86,7 +92,7 @@ const ChatMessage = ({ message, toolMessages }) => {
         marginLeft: "0",
         marginRight: "0",
         opacity: message.role === "system" ? "0.7" : "1",
-        whiteSpace: "normal"
+        whiteSpace: "normal",
       }}
     >
       <div class="row row-cols-2">
@@ -111,12 +117,13 @@ const ChatMessage = ({ message, toolMessages }) => {
           }}
         >
           <div style=${{ fontWeight: "500" }}>${message.role}</div>
-          <div style=${{ fontSize: "0.8rem" }}>
+          <${ExpandablePanel} collapse=${collapse}>
             <${MessageContents}
+              key=${`${id}-contents`}
               message=${message}
               toolMessages=${toolMessages}
             />
-          </div>
+          </${ExpandablePanel}>
         </div>
       </div>
     </div>
@@ -138,54 +145,32 @@ const MessageContents = ({ message, toolMessages }) => {
 
     // Render the tool calls made by this message
     const toolCalls = message.tool_calls.map((tool_call) => {
+      // Get the basic tool data
       const toolMessage = toolMessages[tool_call.id];
-      const fn = tool_call.function;
-      const args = tool_call.arguments
-        ? Object.keys(tool_call.arguments).map((key) => {
-            return `${key}: ${tool_call.arguments[key]}`;
-          })
-        : [];
 
-      const adaptToolMessage = (toolMessage) => {
-        if (!toolMessage) {
-          return undefined;
-        }
+      // Extract tool input
+      const { input, functionCall, inputType } = resolveToolInput(tool_call);
 
-        const content = toolMessage.tool_error || toolMessage.content;
-        if (typeof content === "string") {
-          return [
-            {
-              type: "tool",
-              text: content,
-            },
-          ];
-        } else {
-          return content.map((con) => {
-            if (typeof content === "string") {
-              return {
-                type: "tool",
-                text: content,
-              };
-            } else if (con.type === "text") {
-              return {
-                ...con,
-                type: "tool",
-              };
-            }
-          });
-        }
-      };
-      const adaptedToolMessage = adaptToolMessage(toolMessage);
+      // Resolve the tool output
+      const resolvedToolOutput = resolveToolMessage(toolMessage);
+
       return html`<p>
         <i class="bi bi-tools" style=${{
           marginRight: "0.2rem",
           opacity: "0.4",
         }}></i>
-        <code style=${{ fontSize: "0.7rem" }}>${fn}(${args.join(",")})</code>
+        <code style=${{ fontSize: "0.7rem" }}>${functionCall}</code>
         <div>
           ${
             toolMessage
-              ? html`<${MessageContent} contents=${adaptedToolMessage} />`
+              ? html`
+              <div style=${{ marginLeft: "1.5em" }}>
+              <${ToolInput} type=${inputType} contents=${input}/>
+              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+              <${MessageContent} contents=${resolvedToolOutput} />
+              </${ExpandablePanel}>
+              </div>
+              `
               : ""
           }
         </div>
@@ -201,6 +186,39 @@ const MessageContents = ({ message, toolMessages }) => {
   }
 };
 
+export const ToolInput = ({ type, contents }) => {
+  if (!contents) {
+    return "";
+  }
+
+  const toolInputRef = useRef();
+  useMemo(() => {
+    const tokens = Prism.languages[type];
+    if (toolInputRef.current && tokens) {
+      const html = Prism.highlight(contents, tokens, type);
+      toolInputRef.current.innerHTML = html;
+    }
+  }, [toolInputRef.current, type, contents]);
+
+  return html` <pre
+    style=${{
+      padding: "0.5em",
+      backgroundColor: "#f8f8f8",
+      marginTop: "0.25em",
+      marginBottom: "1rem",
+    }}
+  >
+      <code ref=${toolInputRef} class="sourceCode${type
+    ? ` language-${type}`
+    : ""}" style=${{
+    overflowWrap: "anywhere",
+    whiteSpace: "pre-wrap",
+  }}>
+        ${contents}
+        </code>
+    </pre>`;
+};
+
 export const iconForMsg = (msg) => {
   let iconCls = icons.role.assistant;
   if (msg.role === "user") {
@@ -211,4 +229,102 @@ export const iconForMsg = (msg) => {
     iconCls = icons.role.tool;
   }
   return iconCls;
+};
+
+const resolveToolMessage = (toolMessage) => {
+  if (!toolMessage) {
+    return undefined;
+  }
+
+  const content = toolMessage.tool_error || toolMessage.content;
+  if (typeof content === "string") {
+    return [
+      {
+        type: "tool",
+        text: content,
+      },
+    ];
+  } else {
+    return content.map((con) => {
+      if (typeof content === "string") {
+        return {
+          type: "tool",
+          text: content,
+        };
+      } else if (con.type === "text") {
+        return {
+          ...con,
+          type: "tool",
+        };
+      }
+    });
+  }
+};
+
+const resolveToolInput = (tool_call) => {
+  const toolName = tool_call.function;
+
+  const extractInputMetadata = () => {
+    if (toolName === "bash") {
+      return ["cmd", "bash"];
+    } else if (toolName === "python") {
+      return ["code", "python"];
+    } else if (toolName === "web_search") {
+      return ["query", "text"];
+    } else {
+      return [undefined, undefined];
+    }
+  };
+  const [inputKey, inputType] = extractInputMetadata();
+
+  const extractInput = (inputKey, tool_call) => {
+    const formatArg = (key, value) => {
+      const quotedValue = typeof value === "string" ? `"${value}"` : value;
+      return `${key}: ${quotedValue}`;
+    };
+
+    if (tool_call.arguments) {
+      if (Object.keys(tool_call.arguments).length === 1) {
+        return {
+          input: tool_call.arguments[Object.keys(tool_call.arguments)[0]],
+          args: [],
+        };
+      } else if (tool_call.arguments[inputKey]) {
+        const input = tool_call.arguments[inputKey];
+        const args = Object.keys(tool_call.arguments)
+          .filter((key) => {
+            return key !== inputKey;
+          })
+          .map((key) => {
+            return formatArg(key, tool_call.arguments[key]);
+          });
+        return {
+          input,
+          args,
+        };
+      } else {
+        const args = Object.keys(tool_call.arguments).map((key) => {
+          return formatArg(key, tool_call.arguments[key]);
+        });
+
+        return {
+          input: undefined,
+          args: args,
+        };
+      }
+    }
+    return {
+      input: undefined,
+      args: [],
+    };
+  };
+  const { input, args } = extractInput(inputKey, tool_call);
+
+  const functionCall =
+    args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
+  return {
+    functionCall,
+    input,
+    inputType,
+  };
 };

@@ -114,7 +114,7 @@ export const Navbar = ({
     : "";
 
   return html`
-    <nav class="navbar sticky-top shadow-sm" style=${{ flexWrap: "nowrap" }}>
+    <nav class="navbar sticky-top" style=${{ flexWrap: "nowrap", borderBottom: "solid var(--bs-border-color) 1px" }}>
       <div
         style=${{
           display: "grid",
@@ -138,7 +138,7 @@ const CanceledPanel = ({ sampleCount }) => {
     }}
   >
     <i class="${icons.logging.info}" style=${{ fontSize: "1.1em" }} /> cancelled
-    (${sampleCount} samples)
+    (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
   </div>`;
 };
 

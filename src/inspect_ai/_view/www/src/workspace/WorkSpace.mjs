@@ -27,6 +27,8 @@ const kJsonTabId = "json-tab";
 const kLoggingTabId = "logging-tab";
 const kInfoTabId = "plan-tab";
 
+const kPrismRenderMaxSize = 250000;
+
 export const WorkSpace = (props) => {
   const divRef = useRef();
   const codeRef = useRef();
@@ -44,6 +46,7 @@ export const WorkSpace = (props) => {
       filter: {},
       epoch: "all",
       sort: kDefaultSort,
+      renderedCode: false
     },
   });
 
@@ -157,8 +160,8 @@ export const WorkSpace = (props) => {
       label: "JSON",
       scrollable: true,
       content: () => {
-        if (codeRef.current) {
-          if (workspaceLog.contents.samples?.length <= 200) {
+        if (codeRef.current && !state.viewState.renderedCode) {
+          if (workspaceLog.raw.length < kPrismRenderMaxSize) {
             codeRef.current.innerHTML = Prism.highlight(
               workspaceLog.raw,
               Prism.languages.javascript,
@@ -169,18 +172,28 @@ export const WorkSpace = (props) => {
             codeRef.current.innerText = "";
             codeRef.current.appendChild(textNode);
           }
+
+          const viewState = state.viewState;
+          viewState.renderedCode = true;
+          setState({ viewState });
         }
-        return html`<div
+
+        // note that we'e rendered 
+        return html`
+        <div
           style=${{
             padding: "1rem",
             fontSize: "0.9rem",
-          }}
-        >
+          }}>
           <pre>
-      <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-            whiteSpace: "pre-wrap",
-            fontSize: "0.9em",
-          }}></code></pre>
+            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
+                  fontSize: "0.9em",
+                  whiteSpace: "pre-wrap",
+                  wordWrap: "anywhere"
+      
+                }}>
+            </code>
+          </pre>
         </div>`;
       },
       tools: (_state) => [
@@ -253,17 +266,17 @@ export const WorkSpace = (props) => {
 
   // Display the log
   useEffect(() => {
-if (workspaceLog.contents && workspaceLog.eval?.run_id !== currentTaskId) {
+  if (workspaceLog.contents && workspaceLog.eval?.run_id !== currentTaskId) {
       const defaultTab =
         workspaceLog.contents?.status !== "error" ? kEvalTabId : kInfoTabId;
       setSelectedTab(state, defaultTab);
       if (divRef.current) {
         divRef.current.scrollTop = 0;
       }
-      setCurrentTaskId(workspaceLog.contents.eval?.run_id);
-    } else if (currentTaskId === undefined) {
-      setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
     }
+
+    setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
+    setState({viewState: {...state.viewState, renderedCode: false}});
   }, [workspaceLog, divRef, currentTaskId]);
 
   // Compute the tools for this tab

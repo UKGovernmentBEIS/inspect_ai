@@ -67,6 +67,7 @@ book:
 
       - part: "Advanced"
         chapters:
+           - caching.qmd
            - eval-logs.qmd
            - eval-suites.qmd
            - eval-tuning.qmd

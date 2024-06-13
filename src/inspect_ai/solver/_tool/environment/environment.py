@@ -4,6 +4,16 @@ from typing import Awaitable, Callable, Literal, Union, overload
 
 from inspect_ai.util import ExecResult
 
+TaskInit = Callable[[str, str | None], Awaitable[None]]
+TaskCleanup = TaskInit
+
+SampleInit = Callable[
+    [str, str | None, dict[str, str]], Awaitable[dict[str, "ToolEnvironment"]]
+]
+SampleCleanup = Callable[
+    [str, str | None, dict[str, "ToolEnvironment"], bool], Awaitable[None]
+]
+
 
 class ToolEnvironment(abc.ABC):
     """Environment for executing arbitrary code from tools.
@@ -13,8 +23,8 @@ class ToolEnvironment(abc.ABC):
     """
 
     @classmethod
-    async def startup(cls, task_name: str, config: str | None) -> None:
-        """Called at task startup time to initialize resources required by enviroments.
+    async def task_init(cls, task_name: str, config: str | None) -> None:
+        """Called at task startup initialize resources.
 
         Args:
           task_name (str): Name of task using the tool environment.
@@ -23,19 +33,47 @@ class ToolEnvironment(abc.ABC):
         pass
 
     @classmethod
-    @abc.abstractmethod
-    async def setup(
-        cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> "ToolEnvironments":
-        """Setup tool environments.
+    async def task_cleanup(cls, task_name: str, config: str | None) -> None:
+        """Called at task exit as a last chance to cleanup resources.
 
         Args:
           task_name (str): Name of task using the tool environment.
           config (str): Implementation defined configuration file (optional).
-          metadata (dict[str,str]): `metadata` field from Sample.
+        """
+        pass
+
+    @classmethod
+    async def sample_init(
+        cls, task_name: str, config: str | None, metadata: dict[str, str]
+    ) -> dict[str, "ToolEnvironment"]:
+        """Initialize tool environments for a sample.
+
+        Args:
+          task_name (str): Name of task using the tool environment.
+          config (str): Implementation defined configuration file (optional).
+          metadata (dict[str,str]): Sample `metadata` field
 
         Returns:
-          ToolEnvironments with named environments and optional cleanup function.
+          Dictionary of named tool environments.
+        """
+        return {}
+
+    @classmethod
+    @abc.abstractmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: str | None,
+        environments: dict[str, "ToolEnvironment"],
+        interrupted: bool,
+    ) -> None:
+        """Cleanup tool environments.
+
+        Args:
+          task_name (str): Name of task using the tool environment.
+          config (str): Implementation defined configuration file (optional).
+          environments (dict[str,ToolEnvironment]): Tool environments created for this sample.
+          interrupted (bool): Was the task interrupted by an error or cancellation
         """
         ...
 

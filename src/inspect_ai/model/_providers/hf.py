@@ -21,15 +21,14 @@ from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
-from .._model import (
+from .._model import ModelAPI, simple_input_messages
+from .._model_output import (
     ChatCompletionChoice,
     Logprob,
     Logprobs,
-    ModelAPI,
     ModelOutput,
     ModelUsage,
     TopLogprob,
-    simple_input_messages,
 )
 from .._tool import ToolChoice, ToolInfo
 from .._util import chat_api_input

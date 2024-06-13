@@ -14,7 +14,7 @@ class CommonOptions(TypedDict):
     debug_port: int
 
 
-def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+def log_level_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--log-level",
         type=click.Choice(
@@ -25,6 +25,15 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_LOG_LEVEL",
         help=f"Set the log level (defaults to '{DEFAULT_LOG_LEVEL}')",
     )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
+def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    @log_level_option
     @click.option(
         "--log-dir",
         type=str,

@@ -1,32 +1,33 @@
 import tempfile
 from logging import getLogger
 from pathlib import Path
-from typing import Literal, Union, overload
+from typing import Literal, Union, cast, overload
 
 import aiofiles
 from typing_extensions import override
 
-from inspect_ai.solver._tool.environment.environment import (
-    ToolEnvironment,
-    ToolEnvironments,
-)
-from inspect_ai.solver._tool.environment.registry import toolenv
 from inspect_ai.util._context.subprocess import ExecResult
 
+from ..environment import ToolEnvironment
+from ..registry import toolenv
+from .cleanup import (
+    project_cleanup,
+    project_cleanup_shutdown,
+    project_cleanup_startup,
+    project_startup,
+)
 from .compose import (
     compose_build,
     compose_check_running,
     compose_cleanup_images,
     compose_cp,
-    compose_down,
     compose_exec,
-    compose_mkdir,
     compose_pull,
     compose_services,
     compose_up,
 )
 from .config import auto_config
-from .util import to_project, tools_log
+from .util import ComposeProject, task_project_name, tools_log
 
 logger = getLogger(__name__)
 
@@ -34,76 +35,97 @@ logger = getLogger(__name__)
 @toolenv(name="docker")
 class DockerToolEnvironment(ToolEnvironment):
     @classmethod
-    async def startup(cls, task_name: str, config: str | None) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-            # unique project name for provisioning
-            project = to_project(task_name)
+    async def task_init(cls, task_name: str, config: str | None) -> None:
+        # intialize project cleanup
+        project_cleanup_startup()
 
-            # synthesize config if necessary
-            config = config if config else await auto_config(temp_dir)
+        # create project
+        temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        project = ComposeProject(
+            name=task_project_name(task_name),
+            config=config if config else await auto_config(temp_dir.name),
+            env=dict(),
+            working_dir="/",
+            temp_dir=temp_dir,
+        )
 
-            # build containers which are out of date
-            await compose_build(project=project, config=config)
+        # build containers which are out of date
+        await compose_build(project)
 
-            # cleanup images created during pull
-            await compose_cleanup_images(project=project, config=config)
+        # cleanup images created during build
+        await compose_cleanup_images(project)
 
-            # pull any remote images
-            pull_result = await compose_pull(project=project, config=config)
-            if not pull_result.success:
-                msg = "Failed to pull docker images"
-                raise RuntimeError(msg)
+        # pull any remote images
+        services = await compose_services(project)
+        for name, service in services.items():
+            if (
+                service.get("build", None) is None
+                and service.get("x-local", None) is None
+            ):
+                pull_result = await compose_pull(name, project)
+                if not pull_result.success:
+                    image = service.get("image", "(unknown)")
+                    logger.error(
+                        f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
+                    )
 
-            # provide some space above task display
-            print("")
+        # cleanup temp_dir
+        temp_dir.cleanup()
+
+        # provide some space above task display
+        print("")
+
+    @classmethod
+    async def task_cleanup(cls, task_name: str, config: str | None) -> None:
+        await project_cleanup_shutdown()
 
     @override
     @classmethod
-    async def setup(
+    async def sample_init(
         cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> ToolEnvironments:
+    ) -> dict[str, ToolEnvironment]:
         tools_log("setup")
 
-        # Provide a temporary directory that is available during setup
+        # create environment variables for sample metadata
+        env: dict[str, str] = {}
+        for key, value in metadata.items():
+            env[f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"] = value
+
+        # create project
         temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-
-        # Create a unique project name to disambiguate different instances
-        # of the docker compositions
-        project = to_project(task_name)
-
-        # confirm that there is a docker compose file in the working directory
-        # otherwise synthesize a default compose file
-        config = config if config else await auto_config(temp_dir.name)
+        project = ComposeProject(
+            name=task_project_name(task_name),
+            config=config if config else await auto_config(temp_dir.name),
+            env=env,
+            working_dir="/",
+            temp_dir=temp_dir,
+        )
 
         # enumerate the services that will be created
-        services = await compose_services(project=project, config=config)
+        services = await compose_services(project)
 
         # start the services
-        await compose_up(project, config)
+        await compose_up(project)
+
+        # note that the project is running
+        project_startup(project)
 
         # check to ensure that the services are running
-        await compose_check_running(
-            list(services.keys()), project=project, config=config
-        )
+        await compose_check_running(list(services.keys()), project=project)
 
         # create tool environments
         environments: dict[str, ToolEnvironment] = {}
-        for name, service in services.items():
+        for service, service_info in services.items():
+            # update the project w/ the working directory
+            project.working_dir = await container_working_dir(service, project)
+
             # create the docker tool environemnt
-            docker_env = DockerToolEnvironment(name, project, config)
+            docker_env = DockerToolEnvironment(service, project)
 
-            # save reference to enviroinment (mark as default if requested)
-            is_default = service.get("x-default", False) is True
-            key = "default" if is_default else name
+            # save reference to environment (mark as default if requested)
+            is_default = service_info.get("x-default", False) is True
+            key = "default" if is_default else service
             environments[key] = docker_env
-
-            # create working dir
-            await compose_mkdir(
-                SAMPLE_DIR,
-                service=docker_env._service,
-                config=docker_env._config,
-                project=docker_env._project,
-            )
 
         # confirm that we have a 'default' environemnt
         if environments.get("default", None) is None:
@@ -113,25 +135,31 @@ class DockerToolEnvironment(ToolEnvironment):
                 + "'x-default: true' to one of your service definitions."
             )
 
-        async def cleanup(cancelled: bool) -> None:
-            # bring down services
-            await compose_down(project=project, config=config, cancelled=cancelled)
+        return environments
 
-            # cleanup the temp directory
-            temp_dir.cleanup()
-
-        return ToolEnvironments(environments=environments, cleanup=cleanup)
-
-    def __init__(
-        self,
-        service: str,
-        project: str,
+    @override
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
         config: str | None,
+        environments: dict[str, ToolEnvironment],
+        interrupted: bool,
     ) -> None:
+        # if we were interrupted then wait unil the end of the task to cleanup
+        # (this enables us to show output for the cleanup operation)
+        if not interrupted:
+            # extract project from first environment
+            project = cast(
+                DockerToolEnvironment, next(iter(environments.values()))
+            )._project
+            # cleanup the project
+            await project_cleanup(project=project, quiet=True)
+
+    def __init__(self, service: str, project: ComposeProject) -> None:
         super().__init__()
         self._service = service
         self._project = project
-        self._config = config
 
     @override
     async def exec(
@@ -148,8 +176,7 @@ class DockerToolEnvironment(ToolEnvironment):
             env_args = [f"--env {key}={value}" for key, value in env.items()]
 
         result = await compose_exec(
-            ["--workdir", SAMPLE_DIR] + env_args + [self._service] + cmd,
-            config=self._config,
+            env_args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
             input=input,
@@ -169,8 +196,8 @@ class DockerToolEnvironment(ToolEnvironment):
                 async with aiofiles.open(temp_file.name, "wb") as f:
                     await f.write(contents)
 
-            # resolve relative file paths to sample dir
-            file = container_file(file)
+            # resolve relative file paths
+            file = container_file(self._project, file)
 
             # ensure that the directory exists
             parent = Path(file).parent.as_posix()
@@ -184,7 +211,6 @@ class DockerToolEnvironment(ToolEnvironment):
             await compose_cp(
                 src=temp_file.name,
                 dest=f"{self._service}:{file}",
-                config=self._config,
                 project=self._project,
             )
 
@@ -200,15 +226,14 @@ class DockerToolEnvironment(ToolEnvironment):
 
         # Write the contents to a temp file
         with tempfile.NamedTemporaryFile(delete=True) as temp_file:
-            # resolve relative file paths to sample dir
-            file = container_file(file)
+            # resolve relative file paths
+            file = container_file(self._project, file)
 
             # copy the file
             await compose_cp(
                 src=f"{self._service}:{file}",
                 dest=temp_file.name,
                 project=self._project,
-                config=self._config,
             )
 
             # read and return w/ appropriate encoding
@@ -220,12 +245,22 @@ class DockerToolEnvironment(ToolEnvironment):
                     return await f.read()
 
 
-# directory where copy sample specific files to
-SAMPLE_DIR = "/tmp/sample"
+async def container_working_dir(
+    service: str, project: ComposeProject, default: str = "/"
+) -> str:
+    result = await compose_exec([service, "bash", "-c", "pwd"], project)
+    if result.success:
+        return result.stdout.strip()
+    else:
+        logger.warning(
+            f"Failed to get working directory for docker container '{service}': "
+            + f"{result.stderr}"
+        )
+        return default
 
 
-def container_file(file: str) -> str:
+def container_file(project: ComposeProject, file: str) -> str:
     path = Path(file)
     if not path.is_absolute():
-        path = Path(SAMPLE_DIR) / path
+        path = Path(project.working_dir) / path
     return path.as_posix()

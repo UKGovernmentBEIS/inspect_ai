@@ -7,7 +7,16 @@ import { SampleList } from "./SampleList.mjs";
 import { InlineSampleDisplay } from "./SampleDisplay.mjs";
 
 export const SamplesTab = (props) => {
-  const { task, model, samples, sampleDescriptor, filter, sort, epoch, context } = props;
+  const {
+    task,
+    model,
+    samples,
+    sampleDescriptor,
+    filter,
+    sort,
+    epoch,
+    context,
+  } = props;
 
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredSamples, setFilteredSamples] = useState([]);
@@ -42,6 +51,16 @@ export const SamplesTab = (props) => {
     if (dialogEl) {
       const modal = new bootstrap.Modal(dialogEl.base);
       modal.show();
+    }
+  }, [sampleDialogRef]);
+
+  const hideSample = useCallback(() => {
+    const dialogEl = sampleDialogRef.current;
+    if (dialogEl && dialogEl.base) {
+      const modal = bootstrap.Modal.getInstance(dialogEl.base);
+      if (modal) {
+        modal.hide();
+      }
     }
   }, [sampleDialogRef]);
 
@@ -91,6 +110,10 @@ export const SamplesTab = (props) => {
 
   // Focus the sample list
   useEffect(() => {
+    // Hide a dialog, if it is displaying
+    hideSample();
+
+    // Focus the list, if present
     const listEl = sampleListRef.current;
     if (listEl && listEl.base) {
       listEl.base.focus();
@@ -130,16 +153,17 @@ export const SamplesTab = (props) => {
     }
   }, [selectedIndex, filteredSamples]);
 
+  const elements = [];
   if (items.length === 1) {
-    return [html`
-      <${InlineSampleDisplay} 
-        index="0" 
-        id="sample-display" 
-        sample=${items[0].data} 
-        sampleDescriptor=${sampleDescriptor} 
-        context=${context}/>`];
+    elements.push(html` <${InlineSampleDisplay}
+      index="0"
+      id="sample-display"
+      sample=${items[0].data}
+      sampleDescriptor=${sampleDescriptor}
+      context=${context}
+    />`);
   } else {
-    return [
+    elements.push(
       html`<${SampleList}
         listRef=${sampleListRef}
         items=${items}
@@ -149,23 +173,26 @@ export const SamplesTab = (props) => {
         nextSample=${nextSample}
         prevSample=${previousSample}
         showSample=${showSample}
-      />`,
-      html`
-        <${SampleDialog}
-          ref=${sampleDialogRef}
-          task=${task}
-          model=${model}
-          title=${items.length > 0 ? items[selectedIndex].label : undefined}
-          index=${items.length > 0 ? items[selectedIndex].number : undefined}
-          sample=${items.length > 0 ? items[selectedIndex].data : undefined}
-          sampleDescriptor=${sampleDescriptor}
-          nextSample=${nextSampleIndex() > -1 ? nextSample : undefined}
-          prevSample=${previousSampleIndex() > -1 ? previousSample : undefined}
-          context=${context}
-        />
-      `,
-    ];
+      />`
+    );
   }
+
+  elements.push(html`
+    <${SampleDialog}
+      ref=${sampleDialogRef}
+      task=${task}
+      model=${model}
+      title=${items.length > 0 ? items[selectedIndex].label : undefined}
+      index=${items.length > 0 ? items[selectedIndex].number : undefined}
+      sample=${items.length > 0 ? items[selectedIndex].data : undefined}
+      sampleDescriptor=${sampleDescriptor}
+      nextSample=${nextSampleIndex() > -1 ? nextSample : undefined}
+      prevSample=${previousSampleIndex() > -1 ? previousSample : undefined}
+      context=${context}
+    />
+  `);
+
+  return elements;
 };
 
 // Perform any grouping of the samples
@@ -219,7 +246,7 @@ const groupBySample = (samples, sampleDescriptor, order) => {
       });
       counter.resetItem();
     }
-    
+
     counter.incrementItem();
     results.push({
       label: `Sample ${counter.group()} (Epoch ${counter.item()})`,
@@ -228,7 +255,7 @@ const groupBySample = (samples, sampleDescriptor, order) => {
       data: sample,
       type: "sample",
     });
-  
+
     return results;
   };
 };
@@ -246,7 +273,7 @@ const groupByEpoch = (samples, sampleDescriptor, order) => {
       counter.incrementGroup();
       // Add a separator
       results.push({
-        label: `Epoch ${counter.group()}`, 
+        label: `Epoch ${counter.group()}`,
         number: counter.group(),
         index: index,
         data: `Epoch ${counter.group()}`,

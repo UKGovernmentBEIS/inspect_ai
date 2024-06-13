@@ -8,16 +8,20 @@ const converter = new showdown.Converter();
 export const MarkdownDiv = (props) => {
   const { markdown, style } = props;
   
-  // Escape all HTML tags
-  const escaped = DOMPurify.sanitize(markdown, { ALLOWED_TAGS: []});
+  // Escape all tags
+  const escaped = escape(markdown);
 
   // Pre-render any text that isn't handled by markdown
   const preRendered = preRenderText(escaped);
   const renderedHtml = converter.makeHtml(preRendered);
 
+  // For `code` tags, reverse the escaping if we can
+  const withCode = unescapeCodeHtmlEntities(renderedHtml);
+  
   // Return the rendered markdown
-  const markup = { __html: renderedHtml };
-  return html`<div dangerouslySetInnerHTML=${markup} style=${style} class="${props.class ? props.class : ''} markdown-content" />`;
+  const markup = { __html: withCode };
+
+  return html`<div dangerouslySetInnerHTML=${markup} style=${style} class="${props.class ? `${props.class} ` : ''}markdown-content" />`;
 };
 
 
@@ -38,3 +42,32 @@ const preRenderText = (txt) => {
   // Also fools this
   return rendered.replaceAll(kCommonmarkReferenceLinkPattern, "\[$1\]:$2");
 };
+
+const escape = (content) => {
+  return content.replace(/[<>&'"]/g, function (c) {
+      switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+      }
+  });
+}
+
+function unescapeCodeHtmlEntities(str) {
+  const htmlEntities = {
+    '&lt;': '<',
+    '&gt;': '>',
+    '&amp;': '&',
+    '&#x5C;': '\\',
+    '&quot;': '"',
+  };
+  
+  return str.replace(/(<code[^>]*>)([\s\S]*?)(<\/code>)/gi, function(match, starttag, content, endtag) {
+      return starttag + content.replace(/&(?:amp|lt|gt|quot|#39|#x2F|#x5C|#96);/g, function(entity) {
+          return htmlEntities[entity] || entity;
+      }) + endtag;
+  });
+}
+

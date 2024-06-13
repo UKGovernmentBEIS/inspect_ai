@@ -6,6 +6,7 @@ export const icons = {
     down: "bi bi-arrow-down",
   },
   "collapse-all": "bi bi-arrows-collapse",
+  "collapse-up": "bi bi-chevron-up",
   "close": "bi bi-x",
   config: "bi bi-gear",
   confirm: "bi bi-check",
@@ -16,6 +17,7 @@ export const icons = {
   },
   error: "bi bi-exclamation-circle",
   "expand-all": "bi bi-arrows-expand",
+  "expand-down": "bi bi-chevron-down",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
   logging: {

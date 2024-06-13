@@ -4,7 +4,7 @@ import contextlib
 import sys
 from copy import deepcopy
 from logging import getLogger
-from typing import AsyncGenerator, Callable
+from typing import AsyncGenerator, Awaitable, Callable
 
 from typing_extensions import Unpack
 
@@ -32,6 +32,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._log import eval_error
 from inspect_ai.model import (
+    CachePolicy,
     GenerateConfig,
     GenerateConfigArgs,
     Model,
@@ -39,10 +40,10 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.scorer import Score, Scorer, Target
-from inspect_ai.solver import Generate, Plan, Solver, TaskState
+from inspect_ai.solver import Generate, Plan, Solver, TaskState, ToolEnvironment
 from inspect_ai.solver._tool.environment.context import (
-    cleanup_tool_environments_context,
-    init_tool_environments_context,
+    cleanup_tool_environments_sample,
+    init_tool_environments_sample,
     startup_tool_environments,
 )
 
@@ -154,8 +155,11 @@ async def task_run(
         )
 
         # run startup pass for the tool_environment
+        shutdown_tool_environments: Callable[[], Awaitable[None]] | None = None
         if tool_environment:
-            await startup_tool_environments(task.name, tool_environment)
+            shutdown_tool_environments = await startup_tool_environments(
+                task.name, tool_environment
+            )
 
         with display().task(profile) as td:
             try:
@@ -174,7 +178,7 @@ async def task_run(
                     # provide solvers a function that they can use to generate output
                     async def generate(
                         state: TaskState,
-                        cache: bool = False,
+                        cache: bool | CachePolicy = False,
                         **kwargs: Unpack[GenerateConfigArgs],
                     ) -> TaskState:
                         return await task_generate(
@@ -258,13 +262,25 @@ async def task_run(
                 # display it
                 td.error(logger.samples_logged, error, type, value, traceback)
 
-    # log as appropriate
-    if cancelled:
-        return logger.log_cancelled(stats)
-    elif error:
-        return logger.log_failure(stats, error)
-    else:
-        return logger.log_success(stats)
+        # log as appropriate
+        if cancelled:
+            eval_log = logger.log_cancelled(stats)
+        elif error:
+            eval_log = logger.log_failure(stats, error)
+        else:
+            eval_log = logger.log_success(stats)
+
+        # run tool environment shutdown if we have it
+        if shutdown_tool_environments:
+            try:
+                await shutdown_tool_environments()
+            except BaseException as ex:
+                py_logger.warning(
+                    f"Error occurred shutting down tool environments: {exception_message(ex)}"
+                )
+
+    # return eval log
+    return eval_log
 
 
 async def task_run_sample(
@@ -505,10 +521,11 @@ async def toolenv_context(
             # record resolved bytes
             files[path] = file_bytes
 
-    cancelled = False
+    interrupted = False
+    environments: dict[str, ToolEnvironment] | None = None
     try:
         # initialize tool environment,
-        await init_tool_environments_context(
+        environments = await init_tool_environments_sample(
             type=tool_environment[0],
             task_name=task_name,
             config=tool_environment[1],
@@ -519,10 +536,17 @@ async def toolenv_context(
         # run sample
         yield
 
-    except (asyncio.CancelledError, KeyboardInterrupt) as ex:
-        cancelled = True
+    except BaseException as ex:
+        interrupted = True
         raise ex
 
     finally:
         # cleanup tool environment
-        await cleanup_tool_environments_context(cancelled)
+        if environments:
+            await cleanup_tool_environments_sample(
+                type=tool_environment[0],
+                task_name=task_name,
+                config=tool_environment[1],
+                environments=environments,
+                interrupted=interrupted,
+            )

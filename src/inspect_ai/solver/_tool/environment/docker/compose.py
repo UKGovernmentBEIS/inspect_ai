@@ -1,12 +1,12 @@
 import json
 from logging import getLogger
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypedDict, cast
 
 import yaml
 
 from inspect_ai.util._context.subprocess import ExecResult, subprocess
 
-from .util import tools_log
+from .util import ComposeProject, tools_log
 
 logger = getLogger(__name__)
 
@@ -14,50 +14,39 @@ logger = getLogger(__name__)
 COMPOSE_WAIT = "120"
 
 
-async def compose_up(project: str, config: str | None) -> None:
+async def compose_up(project: ComposeProject) -> None:
     # Start the environment
     result = await compose_command(
         ["up", "--detach", "--wait", "--wait-timeout", COMPOSE_WAIT],
         project=project,
-        config=config,
     )
     if not result.success:
         msg = f"Failed to start docker services {result.stderr}"
         raise RuntimeError(msg)
 
 
-async def compose_down(project: str, config: str | None, cancelled: bool) -> None:
+async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
     # shut down docker containers
     result = await compose_command(
-        ["down", "--volumes"],
-        project=project,
-        config=config,
-        capture_output=not cancelled,
-        ansi="never" if cancelled else "auto",
+        ["down", "--volumes"], project=project, capture_output=quiet, ansi="never"
     )
     if not result.success:
         msg = f"Failed to stop docker service {result.stderr}"
         logger.warning(msg)
 
-    await compose_cleanup_images(project=project, config=config)
+    await compose_cleanup_images(project=project)
 
 
-async def compose_cp(src: str, dest: str, project: str, config: str | None) -> None:
-    result = await compose_command(
-        ["cp", src, dest],
-        project=project,
-        config=config,
-    )
+async def compose_cp(src: str, dest: str, project: ComposeProject) -> None:
+    result = await compose_command(["cp", src, dest], project=project)
     if not result.success:
         msg = f"Failed to copy file from '{src}' to '{dest}'"
         raise RuntimeError(msg)
 
 
-async def compose_check_running(
-    services: list[str], project: str, config: str | None
-) -> None:
+async def compose_check_running(services: list[str], project: ComposeProject) -> None:
     # Check to ensure that the status of containers is healthy
-    running_services = await compose_ps("running", project=project, config=config)
+    running_services = await compose_ps("running", project=project)
     if len(running_services) > 0:
         if len(running_services) != len(services):
             unhealthy_services = services
@@ -74,13 +63,11 @@ async def compose_ps(
     status: Literal[
         "paused", "restarting", "removing", "running", "dead", "created", "exited"
     ],
-    project: str,
-    config: str | None,
+    project: ComposeProject,
 ) -> list[dict[str, Any]]:
     result = await compose_command(
         ["ps", "--status", status, "--format", "json"],
         project=project,
-        config=config,
     )
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
@@ -92,13 +79,10 @@ async def compose_ps(
     ]
 
 
-async def compose_build(
-    project: str, config: str | None, capture_output: bool = False
-) -> None:
+async def compose_build(project: ComposeProject, capture_output: bool = False) -> None:
     result = await compose_command(
         ["build"],
         project=project,
-        config=config,
         capture_output=capture_output,
     )
     if not result.success:
@@ -107,68 +91,62 @@ async def compose_build(
 
 
 async def compose_pull(
-    project: str, config: str | None, capture_output: bool = False
+    service: str, project: ComposeProject, capture_output: bool = False
 ) -> ExecResult[str]:
     return await compose_command(
-        ["pull", "--ignore-buildable", "--policy", "missing"],
+        ["pull", "--ignore-buildable", "--policy", "missing", service],
         project=project,
-        config=config,
         capture_output=capture_output,
     )
 
 
 async def compose_exec(
     command: list[str],
-    project: str,
-    config: str | None = None,
+    project: ComposeProject,
     timeout: int | None = None,
     input: str | bytes | None = None,
 ) -> ExecResult[str]:
     return await compose_command(
-        ["exec"] + command, project=project, config=config, timeout=timeout, input=input
-    )
-
-
-async def compose_mkdir(
-    dir: str, service: str, project: str, config: str | None = None
-) -> None:
-    # create working dir
-    result = await compose_exec(
-        [service, "bash", "-c", f"mkdir -p {dir}"],
+        ["exec"] + command,
         project=project,
-        config=config,
+        timeout=timeout,
+        input=input,
+        forward_env=False,
     )
-    if not result.success:
-        msg = f"Failed to create directory '{dir}': {result.stderr}"
-        raise RuntimeError(msg)
 
 
-async def compose_services(
-    project: str, config: str | None = None
-) -> dict[str, dict[str, str]]:
-    result = await compose_command(["config"], project=project, config=config)
+ComposeService = TypedDict(
+    "ComposeService",
+    {
+        "image": str | None,
+        "build": str | None,
+        "x-default": bool | None,
+        "x-local": bool | None,
+    },
+)
+
+
+async def compose_services(project: ComposeProject) -> dict[str, ComposeService]:
+    result = await compose_command(["config"], project=project)
     if not result.success:
         raise RuntimeError("Error reading docker config: {result.stderr}")
-    return cast(dict[str, dict[str, str]], yaml.safe_load(result.stdout)["services"])
+    return cast(dict[str, ComposeService], yaml.safe_load(result.stdout)["services"])
 
 
 async def compose_cleanup_images(
-    project: str,
-    config: str | None = None,
+    project: ComposeProject,
     timeout: int | None = None,
 ) -> None:
     tools_log("Removing images")
     # List the images that would be created for this compose
-    images_result = await compose_command(
-        ["config", "--images"], project=project, config=config
-    )
+    images_result = await compose_command(["config", "--images"], project=project)
 
     # Remove those images explicitly
     if images_result.success:
         for image in images_result.stdout.strip().split("\n"):
             # See if this image was created by
             # inspect directly
-            if image.startswith(project if project else ""):
+            if image.startswith(project.name):
                 # see if this image is present
                 image_result = await subprocess(
                     ["docker", "images", "-q", image],
@@ -194,27 +172,31 @@ async def compose_cleanup_images(
 
 async def compose_command(
     command: list[str],
-    project: str,
-    config: str | None = None,
+    project: ComposeProject,
     timeout: int | None = None,
     input: str | bytes | None = None,
+    forward_env: bool = True,
     capture_output: bool = True,
     ansi: Literal["never", "always", "auto"] | None = None,
 ) -> ExecResult[str]:
     # The base docker compose command
     compose_command = ["docker", "compose"]
 
+    # env to forward
+    env = project.env if forward_env else {}
+
     # ansi
     if ansi:
         compose_command = compose_command + ["--ansi", ansi]
 
-    # If an explicit project is provided, use that
-    if project:
-        compose_command = compose_command + ["--project-name", project]
+    # add project scope
+    compose_command = compose_command + ["--project-name", project.name]
 
-    # If an explicit configuration file is provided, use that
-    if config:
-        compose_command = compose_command + ["-f", config]
+    # add config file if specified
+    if project.config:
+        compose_command = compose_command + ["-f", project.config]
+
+    # build final command
     compose_command = compose_command + command
 
     # Execute the command
@@ -222,6 +204,7 @@ async def compose_command(
     result = await subprocess(
         compose_command,
         input=input,
+        env=env,
         timeout=timeout,
         capture_output=capture_output,
     )

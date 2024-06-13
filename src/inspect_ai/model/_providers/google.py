@@ -41,7 +41,8 @@ from .._chat_message import (
 )
 from .._content import Content, ContentImage, ContentText
 from .._generate_config import GenerateConfig
-from .._model import ChatCompletionChoice, ModelAPI, ModelOutput, StopReason
+from .._model import ModelAPI
+from .._model_output import ChatCompletionChoice, ModelOutput, StopReason
 from .._tool import ToolCall, ToolChoice, ToolInfo
 from .._util import chat_api_tool
 from .util import model_base_url

@@ -5,6 +5,7 @@ from inspect_ai._util.registry import (
     registry_info,
 )
 from inspect_ai.model import (
+    CachePolicy,
     ChatMessageTool,
     GenerateConfig,
     Model,
@@ -22,7 +23,7 @@ from .util import has_max_messages
 async def task_generate(
     model: Model,
     state: TaskState,
-    cache: bool,
+    cache: bool | CachePolicy,
     config: GenerateConfig,
     max_messages: int | None,
 ) -> TaskState:
@@ -30,13 +31,19 @@ async def task_generate(
     tool_choice = state.tool_choice
 
     while True:
+        # If we don't update the epoch here as we go, it's entirely possible
+        # we'd cache the same response for every single epoch, which would
+        # completely defeat the point!
+        if isinstance(cache, CachePolicy):
+            cache.epoch = state.epoch
+
         # call the model
         output = await model.generate(
-            state.messages,
-            tools_info(state.tools),
-            tool_choice,
-            cache,
-            config,
+            input=state.messages,
+            tools=tools_info(state.tools),
+            tool_choice=tool_choice,
+            config=config,
+            cache=cache,
         )
 
         # append the assistant message

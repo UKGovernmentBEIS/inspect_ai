@@ -21,13 +21,8 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import (
-    ChatCompletionChoice,
-    ModelAPI,
-    ModelOutput,
-    ModelUsage,
-    simple_input_messages,
-)
+from .._model import ModelAPI, simple_input_messages
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .._tool import ToolChoice, ToolInfo
 from .util import as_stop_reason, model_base_url
 

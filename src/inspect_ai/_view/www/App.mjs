@@ -12,7 +12,7 @@ import { sleep } from "./src/utils/sleep.mjs"
 
 import { AppErrorBoundary } from "./src/components/AppErrorBoundary.mjs"
 import { ErrorPanel } from "./src/components/ErrorPanel.mjs";
-import { LoadingScreen } from "./src/components/LoadingScreen.mjs";
+import { ProgressBar } from "./src/components/ProgressBar.mjs";
 
 import { Navbar } from "./src/navbar/Navbar.mjs"
 import { Sidebar } from "./src/sidebar/Sidebar.mjs";
@@ -162,7 +162,7 @@ export function App() {
         return pendingLog.endsWith(val.name);
       });
       if (index > -1) {
-        setSelected(index);    
+        setSelected(index);
       }
       setPendingLog(undefined);
     }
@@ -222,12 +222,13 @@ export function App() {
 
     // poll every 1s for events
     setInterval(() => {
-      api.client_events().then((events) => {
+      api.client_events().then(async (events) => {
         if (events.includes("reload")) {
           window.location.reload(true);
         }
         if (events.includes("refresh-evals")) {
-          load();
+          await load();
+          setSelected(0);
         }
       });
     }, 1000);
@@ -268,7 +269,7 @@ export function App() {
 
   const progress = () => {
     if (status.loading) {
-      return html`<${LoadingScreen} />`;
+      return html`<${ProgressBar}/>`;
     }
   }
 

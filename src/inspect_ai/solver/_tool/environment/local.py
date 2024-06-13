@@ -1,27 +1,37 @@
 import tempfile
 from pathlib import Path
-from typing import Literal, Union, overload
+from typing import Literal, Union, cast, overload
 
 import aiofiles
 from typing_extensions import override
 
 from inspect_ai.util import ExecResult, subprocess
 
-from .environment import ToolEnvironment, ToolEnvironments
+from .environment import ToolEnvironment
 from .registry import toolenv
 
 
 @toolenv(name="local")
 class LocalToolEnvironment(ToolEnvironment):
+    @override
     @classmethod
-    async def setup(
+    async def sample_init(
         cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> ToolEnvironments:
-        # local tool environments just provide a single default tool env
-        environment = LocalToolEnvironment()
-        return ToolEnvironments(
-            environments={"default": environment}, cleanup=environment.cleanup
-        )
+    ) -> dict[str, ToolEnvironment]:
+        return {"default": LocalToolEnvironment()}
+
+    @override
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: str | None,
+        environments: dict[str, ToolEnvironment],
+        interrupted: bool,
+    ) -> None:
+        for environment in environments.values():
+            env = cast(LocalToolEnvironment, environment)
+            env.directory.cleanup()
 
     def __init__(self) -> None:
         self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
@@ -66,9 +76,6 @@ class LocalToolEnvironment(ToolEnvironment):
         else:
             async with aiofiles.open(file, "rb") as f:
                 return await f.read()
-
-    async def cleanup(self, cancelled: bool) -> None:
-        self.directory.cleanup()
 
     def _resolve_file(self, file: str) -> str:
         path = Path(file)

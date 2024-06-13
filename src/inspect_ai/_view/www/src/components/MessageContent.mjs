@@ -46,15 +46,12 @@ const messageRenderers = {
     render: (content, isLast) => {
       return html`<pre
         style=${{
-          border: "solid var(--bs-border-color) 1px",
-          padding: "1em",
-          marginTop: "0.5em",
+          marginLeft: "2px",
+          padding: "0.5em 0.5em 0.5em 0.5em",
           whiteSpace: "pre-wrap",
-          maxHeight: "50em",
-          overflow: "scroll"
-
+          marginBottom: "0"
         }}
-      ><code class="sourceCode">
+      ><code class="sourceCode" style=${{wordWrap: "anywhere"}}>
       ${content.text}
       </code></pre>`;
     },

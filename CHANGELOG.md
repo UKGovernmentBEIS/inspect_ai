@@ -2,17 +2,19 @@
 
 ## v0.3.15 (Unreleased)
 
--   [Tool Environments](https://ukgovernmentbeis.github.io/inspect_ai/tools.html#tool-environments) for executing tool code in sandboxed containers.
+-   [Tool Environments](https://ukgovernmentbeis.github.io/inspect_ai/agents.html#sec-tool-environments) for executing tool code in a sandbox.
+-   [Caching](https://ukgovernmentbeis.github.io/inspect_ai/caching.html) to reduce the number of model API calls made.
 -   The `multiple_choice()` solver now has support for questions with multiple correct answers.
 -   More fine grained handling of Claude `BadRequestError` (400) errors (which were formerly all treated as content moderation errors).
 -   Filter out empty TextBlockParam when playing messages back to Claude.
+-   Automatically combine Claude user messages that include tool content.
 -   Revert to "auto" rather than "none" after forced tool call.
--   Automatically combine Anthropic user messages that include tool content.
--   Support all Llama series models on Bedrock.
 -   Provide `TaskState.tools` getter/setter (where the setter automatically syncs the system messages to the specified set of tools).
 -   The `use_tools()` function now uses the `TaskState.tools` setter, so replaces the current set of tools entirely rather than appending to it.
 -   Set `state.completed = False` when `max_messages` is reached.
 -   Allow tools to be declared with no parameters.
+-   Allow for null `bytes` field in `Logprobs` and `TopLogprobs`
+-   Support all Llama series models on Bedrock.
 -   Added `truthfulqa` benchmark.
 -   Added `intercode-ctf` example.
 

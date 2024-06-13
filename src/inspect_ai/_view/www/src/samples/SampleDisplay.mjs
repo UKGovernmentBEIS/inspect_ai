@@ -53,8 +53,8 @@ export const SampleDisplay = ({index, id, sample, sampleDescriptor, context}) =>
     <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${
       selectedTab === msgTabId || selectedTab === undefined
     }>
-      <${ChatView} messages=${sample.messages}/>
-    </${TabPanel}>`,
+      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages}/>
+    </${TabPanel}>`,  
     html`
     <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${
       selectedTab === scoringTabId

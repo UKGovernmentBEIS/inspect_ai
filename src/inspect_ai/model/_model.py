@@ -5,9 +5,8 @@ import logging
 import os
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Any, Callable, Literal, Type, cast
+from typing import Any, Callable, Type, cast
 
-from pydantic import BaseModel, Field
 from tenacity import (
     retry,
     retry_if_exception,
@@ -30,7 +29,7 @@ from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai.util import concurrency
 from inspect_ai.util._context.concurrency import using_concurrency
 
-from ._cache import cache_fetch, cache_store
+from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -39,128 +38,10 @@ from ._chat_message import (
 )
 from ._content import Content, ContentText
 from ._generate_config import GenerateConfig
+from ._model_output import ModelOutput, ModelUsage
 from ._tool import ToolChoice, ToolFunction, ToolInfo
 
 logger = logging.getLogger(__name__)
-
-
-class ModelUsage(BaseModel):
-    input_tokens: int = Field(default=0)
-    """Total input tokens used."""
-
-    output_tokens: int = Field(default=0)
-    """Total output tokens used."""
-
-    total_tokens: int = Field(default=0)
-    """Total tokens used."""
-
-
-StopReason = Literal["stop", "length", "tool_calls", "content_filter", "unknown"]
-"""Reason that the model stopped generating."""
-
-
-class TopLogprob(BaseModel):
-    """List of the most likely tokens and their log probability, at this token position."""
-
-    token: str
-    """The top-kth token represented as a string."""
-
-    logprob: float
-    """The log probability value of the model for the top-kth token."""
-
-    bytes: list[int]
-    """The top-kth token represented as a byte array (a list of integers)."""
-
-
-class Logprob(BaseModel):
-    """Log probability for a token."""
-
-    token: str
-    """The predicted token represented as a string."""
-
-    logprob: float
-    """The log probability value of the model for the predicted token."""
-
-    bytes: list[int]
-    """The predicted token represented as a byte array (a list of integers)."""
-
-    top_logprobs: list[TopLogprob] | None
-    """If the `top_logprobs` argument is greater than 0, this will contain an ordered list of the top K most likely tokens and their log probabilities."""
-
-
-class Logprobs(BaseModel):
-    """Log probability information for a completion choice."""
-
-    content: list[Logprob]
-    """a (num_generated_tokens,) length list containing the individual log probabilities for each generated token."""
-
-
-class ChatCompletionChoice(BaseModel):
-    message: ChatMessageAssistant
-    """Assistant message."""
-
-    stop_reason: StopReason = Field(default="unknown")
-    """Reason that the model stopped generating."""
-
-    logprobs: Logprobs | None = Field(default=None)
-    """Logprobs."""
-
-
-class ModelOutput(BaseModel):
-    model: str = Field(default="")
-    """Model used for generation."""
-
-    choices: list[ChatCompletionChoice] = Field(default=[])
-    """Completion choices."""
-
-    usage: ModelUsage | None = Field(default=None)
-    """Model token usage"""
-
-    error: str | None = Field(default=None)
-    """Error message in the case of content moderation refusals."""
-
-    @property
-    def completion(self) -> str:
-        """Text of first message choice text."""
-        if len(self.choices) > 0:
-            return self.choices[0].message.text
-        else:
-            return ""
-
-    @completion.setter
-    def completion(self, completion: str) -> None:
-        """Set the text of the first message choice.
-
-        Args:
-          completion (str): Text for first message.
-        """
-        if len(self.choices) > 0:
-            self.choices[0].message.text = completion
-        else:
-            self.choices.append(
-                ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=completion), stop_reason="stop"
-                )
-            )
-
-    @staticmethod
-    def from_content(
-        model: str,
-        content: str,
-        stop_reason: StopReason = "stop",
-        error: str | None = None,
-    ) -> "ModelOutput":
-        """Convenient method to create ModelOutput from simple text content."""
-        return ModelOutput(
-            model=model,
-            choices=[
-                ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=content, source="generate"),
-                    stop_reason=stop_reason,
-                )
-            ],
-            error=error,
-        )
 
 
 class ModelAPI(abc.ABC):
@@ -260,8 +141,8 @@ class Model:
         input: str | list[ChatMessage],
         tools: list[ToolInfo] = [],
         tool_choice: ToolChoice | None = None,
-        cache: bool = False,
         config: GenerateConfig = GenerateConfig(),
+        cache: bool | CachePolicy = False,
     ) -> ModelOutput:
         """Generate output from the model.
 
@@ -273,7 +154,8 @@ class Model:
             model to call.
           tool_choice (ToolChoice): Directives to the model
             as to which tools to prefer.
-          cache (bool): Cache model output.
+          cache (bool | CachePolicy): Caching behavior for
+            generate responses (defaults to no caching).
           config (GenerateConfig): Model configuration.
 
         Returns:
@@ -300,19 +182,31 @@ class Model:
         # concurrency limits (max_connections) for the model
         if using_concurrency():
             async with self._connection_concurrency(config):
-                return await self._generate(input, tools, tool_choice, cache, config)
+                return await self._generate(
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                    cache=cache,
+                )
 
         # no connection semaphore, just proceed straight to the call
         else:
-            return await self._generate(input, tools, tool_choice, cache, config)
+            return await self._generate(
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                cache=cache,
+            )
 
     async def _generate(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
         tool_choice: ToolChoice | None,
-        cache: bool,
         config: GenerateConfig,
+        cache: bool | CachePolicy = False,
     ) -> ModelOutput:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice else "auto"
@@ -381,14 +275,20 @@ class Model:
         )
         async def generate() -> ModelOutput:
             if cache:
-                existing = cache_fetch(
+                if isinstance(cache, CachePolicy):
+                    policy = cache
+                else:
+                    policy = CachePolicy()
+                cache_entry = CacheEntry(
                     base_url=self.api.base_url,
-                    config=config,
+                    config=deepcopy(config),
                     input=input,
                     model=str(self),
+                    policy=policy,
                     tool_choice=tool_choice,
                     tools=tools,
                 )
+                existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
                     return existing
 
@@ -400,15 +300,7 @@ class Model:
             )
 
             if cache:
-                cache_store(
-                    base_url=self.api.base_url,
-                    config=config,
-                    input=input,
-                    model=str(self),
-                    tool_choice=tool_choice,
-                    tools=tools,
-                    value=output,
-                )
+                cache_store(entry=cache_entry, output=output)
 
             return output
 

@@ -4,6 +4,26 @@
     margin-bottom: 1em;
 }
 
+.sidebar-header {
+    margin-top: 0 !important;
+}
+
+.sidebar-menu-container {
+    padding-top: 10px !important;
+}
+
+#quarto-sidebar div:nth-of-type(3) {
+    padding-top: 5px !important;
+}
+
+.sidebar-menu-container > ul > li:first-of-type {
+    margin-bottom: 0.7em !important;
+}
+
+.sidebar-item-section {
+    margin-bottom: 0.6em !important;
+}
+
 .sidebar-header-item>p {
     margin-bottom: 0;
 }

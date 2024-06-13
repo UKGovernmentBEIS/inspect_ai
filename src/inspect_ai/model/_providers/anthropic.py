@@ -36,9 +36,9 @@ from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
 from .._content import Content, ContentText
 from .._generate_config import GenerateConfig
-from .._model import (
+from .._model import ModelAPI
+from .._model_output import (
     ChatCompletionChoice,
-    ModelAPI,
     ModelOutput,
     ModelUsage,
     StopReason,

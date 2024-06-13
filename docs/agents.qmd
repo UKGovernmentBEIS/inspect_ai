@@ -432,7 +432,7 @@ class ToolEnvironment:
 There are two tool environments built in to Inspect:
 
 | Environment Type | Description                                                                                                                                                               |
-|--------------------------|----------------------------------------------|
+|---------------------------|---------------------------------------------|
 | `local`          | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
 | `docker`         | Run `tool_environment()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
 
@@ -475,22 +475,53 @@ While `--tool-environment` can be a default un-configured environment (e.g. “
 Here is how Docker tool environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
 | Config Files   | Behavior                                                                                                        |
-|---------------------|---------------------------------------------------|
+|-----------------------|------------------------------------------------|
 | None           | Creates a tool environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
 | `Dockerfile`   | Creates a tool environment by building the image.                                                               |
 | `compose.yaml` | Creates tool environment(s) based on `compose.yaml`.                                                            |
 
-Here is what a simple `compose.yaml` would look like for a single tool environment that uses the `ctf-agent-environment` Docker image:
+If you have a `Dockerfile`, then `compose.yaml` is not strictly required, however you still may want to provide one (e.g. to set compute resource limits). For example:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default: 
+    build: .
+    command: tail -f /dev/null
+    cpus: 1.0
+    mem_limit: 0.5gb
+```
+
+The `command` is provided to prevent the container from exiting.
+
+Here is what a simple `compose.yaml` would look like for a local pre-built image named `ctf-agent-environment` (resource limits excluded for brevity):
 
 ``` {.yaml filename="compose.yaml"}
 services:
   default: 
     image: ctf-agent-environment
-    cpus: 1.0
-    mem_limit: 0.5gb
+    x-local: true
+    command: tail -f /dev/null
 ```
 
-Note that we've also chosen to limit the CPU and memory usage of the container (see the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on these and other container options).
+The `ctf-agent-environment` is not an image that exists on a remote registry, so we add the `x-local: true` to indicate that it should not be pulled. If local images are tagged, they also will not be pulled by default (so `x-local: true` is not required). For example:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default: 
+    image: ctf-agent-environment:1.0.0
+    command: tail -f /dev/null
+```
+
+If we are using an image from a remote registry we similarly don't need to include `x-local`:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: python:3.12-bookworm
+    command: tail -f /dev/null
+```
+
+See the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on all available container options.
 
 #### Multiple Environments
 
@@ -500,10 +531,12 @@ In some cases you may want to create multiple tool environments (e.g. if one env
 services:
   default:
     image: ctf-agent-environment
+    x-local: true
     cpus: 1.0
     mem_limit: 0.5gb
-  ghidra:
-    image: ctf-ghidra-environment
+  victim:
+    image: ctf-victim-environment
+    x-local: true
     cpus: 1.0
     mem_limit: 1gb
 ```
@@ -512,12 +545,14 @@ The first environment listed is the “default” environment, and can be access
 
 ``` python
 tool_environment()          # default tool environment
-tool_environment("ghidra")  # named tool environment
+tool_environment("victim")  # named tool environment
 ```
 
 ::: {.callout-note apperance="simple"}
 If you define multiple tool environments you are *required* to name one of them "default" so that Inspect knows which environment to copy samples files to and resolve for calls to `tool_environment()` without an argument.
 :::
+
+#### Files
 
 Sample `files` will be copied into the default tool environment unless their name contains a prefix mapping them into another environment (e.g. `"victim:flag.txt": "flag.txt"`).
 
@@ -529,11 +564,13 @@ Note that in many cases you’ll want to provision additional infrastructure (e.
 services:
   default: 
     image: ctf-agent-environment
+    x-local: true
     volumes:
       - ctf-challenge-volume:/shared-data
     
   writer:
     image: ctf-challenge-writer
+    x-local: true
     volumes:
       - ctf-challenge-volume:/shared-data
 volumes:
@@ -551,6 +588,18 @@ Creating and executing code within Docker containers can be expensive both in te
 As described above, each `Sample` is provisioned its own container. The number of running containers for an evaluation is therefore determined by the `max_samples` option (which is by default set to `max_connections`, typically 10 unless overridden).
 
 Use `max_samples` to dial up or down the number of containers running at any given time. Note that a running container does not necessarily use CPU resources unless it has active background processes.
+
+Use a `compose.yaml` file to limit the resources consumed by each running container. For example:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default: 
+    image: ctf-agent-environment
+    x-local: true
+    command: tail -f /dev/null
+    cpus: 1.0
+    mem_limit: 0.5gb
+```
 
 #### Concurrent Execution
 

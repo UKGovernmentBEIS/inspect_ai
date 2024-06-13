@@ -19,6 +19,7 @@ export const LoggingPanel = ({ logging, context }) => {
         width: "100%",
         marginBottom: "0rem",
         tableLayout: "fixed",
+        alignSelf: "flex-start"
       }}
     >
       <colgroup>

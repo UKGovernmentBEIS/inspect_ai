@@ -28,10 +28,10 @@ export const MetaDataView = ({
     fontWeight: "300",
     whiteSpace: "pre-wrap",
     wordWrap: "anywhere",
+    fontSize: "0.8rem"
   };
   const cellKeyTextStyle = {
-    fontSize: "0.8em",
-    marginBottom: "-0.2em",
+    fontSize: "0.8rem",
   };
 
   // Configure options for
@@ -52,8 +52,8 @@ export const MetaDataView = ({
   const entryEls = (entries || []).map((entry, index) => {
     const id = `${baseId}-value-${index}`;
     return html`<tr class="${baseId}-row">
-        <td class="${baseId}-key" style=${{ ...cellStyle, ...cellKeyStyle }}>
-          <span style=${cellKeyTextStyle}>${entry.name}</span>
+        <td class="${baseId}-key" style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}>
+          ${entry.name}
         </td>
         <td
           class="${baseId}-value"

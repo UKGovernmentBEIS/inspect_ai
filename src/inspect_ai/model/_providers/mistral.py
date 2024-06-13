@@ -30,9 +30,9 @@ from inspect_ai._util.constants import (
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
-from .._model import (
+from .._model import ModelAPI
+from .._model_output import (
     ChatCompletionChoice,
-    ModelAPI,
     ModelOutput,
     ModelUsage,
     StopReason,

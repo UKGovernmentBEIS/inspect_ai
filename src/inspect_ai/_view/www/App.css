@@ -271,6 +271,12 @@ body {
   --bs-list-group-active-border-color: var(--bs-gray-800);
 }
 
+.markdown-content pre > code,
+.markdown-content pre {
+  white-space: pre-wrap;
+  word-wrap: anywhere;
+}
+
 .log pre code {
   white-space: pre-wrap;
   font-size: 0.9em;
@@ -317,6 +323,16 @@ code:not(.sourceCode) {
 .token.selector,
 .token.string {
   color: var(--bs-body-color);
+}
+
+.token.operator {
+  background: inherit;
+}
+
+pre[class*=language-] {
+  border: unset;
+  border-radius: unset;
+  box-shadow: unset;
 }
 
 .font-title {
@@ -570,4 +586,18 @@ table.table.table-sm td {
 
 .tab-content>.active {
   display: flex;
+}
+
+.left-to-right-animate {
+  position: absolute;
+  animation: moveLeftToRight 2s linear infinite;
+}
+
+@keyframes moveLeftToRight {
+  from {
+      margin-left: 0;
+  }
+  to {
+      margin-left: 100%;
+  }
 }
