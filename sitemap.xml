@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/index.html</loc>
-    <lastmod>2024-06-10T15:36:33.207Z</lastmod>
+    <lastmod>2024-06-13T11:34:10.137Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/workflow.html</loc>
@@ -18,7 +18,7 @@
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/examples.html</loc>
-    <lastmod>2024-06-10T21:45:03.293Z</lastmod>
+    <lastmod>2024-06-13T11:47:19.002Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/solvers.html</loc>
@@ -30,7 +30,7 @@
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/agents.html</loc>
-    <lastmod>2024-06-10T21:42:21.016Z</lastmod>
+    <lastmod>2024-06-12T08:23:16.938Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/scorers.html</loc>
@@ -43,6 +43,10 @@
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/models.html</loc>
     <lastmod>2024-06-10T15:36:33.207Z</lastmod>
+  </url>
+  <url>
+    <loc>https://UKGovernmentBEIS.github.io/inspect_ai/caching.html</loc>
+    <lastmod>2024-06-13T11:45:04.617Z</lastmod>
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/eval-logs.html</loc>
@@ -58,6 +62,6 @@
   </url>
   <url>
     <loc>https://UKGovernmentBEIS.github.io/inspect_ai/extensions.html</loc>
-    <lastmod>2024-06-10T21:42:21.016Z</lastmod>
+    <lastmod>2024-06-13T11:34:10.137Z</lastmod>
   </url>
 </urlset>

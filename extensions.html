@@ -126,7 +126,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./extensions.html"><span class="chapter-title">Extensions</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./extensions.html"><span class="chapter-title">Extensions</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -244,6 +244,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./caching.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Caching</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
@@ -297,7 +302,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./extensions.html"><span class="chapter-title">Extensions</span></a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./extensions.html"><span class="chapter-title">Extensions</span></a></li></ol></nav>
 <div class="quarto-title">
 <h1 class="title"><span id="sec-extensions" class="quarto-section-identifier"><span class="chapter-title">Extensions</span></span></h1>
 </div>
@@ -376,8 +381,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><a href="agents.html#sec-tool-environments">Tool Environments</a> provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g.&nbsp;creating network hosts for a cybersecurity eval). Inspect comes with two tool environments built in:</p>
 <table class="table">
 <colgroup>
-<col style="width: 37%">
-<col style="width: 62%">
+<col style="width: 38%">
+<col style="width: 61%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -401,44 +406,110 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PodmanToolEnvironment(ToolEnvironment):</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">@classmethod</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> startup(cls, task_name: <span class="bu">str</span>, config: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">@classmethod</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> setup(</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        cls, task_name: <span class="bu">str</span>, config: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>, metadata: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>]</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ToolEnvironments:</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">@override</span></span>
-<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="bu">exec</span>(</span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
-<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>        cmd: <span class="bu">list</span>[<span class="bu">str</span>],</span>
-<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>        env: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
-<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>        timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ExecResult[<span class="bu">str</span>]:</span>
-<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">@override</span></span>
-<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> write_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, contents: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
-<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">@overload</span></span>
-<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: Literal[<span class="va">True</span>] <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> <span class="bu">str</span>: ...</span>
-<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">@overload</span></span>
-<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: Literal[<span class="va">False</span>]) <span class="op">-&gt;</span> <span class="bu">bytes</span>: ...</span>
-<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">@override</span></span>
-<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> Union[<span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>]:</span>
-<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The two class methods take care of various stages of initialisation:</p>
-<ul>
-<li><p><code>startup()</code> is called once at the beginning of the evaluation task. This is the place to do expensive operations that have console output/progress (e.g.&nbsp;pulling or building images).</p></li>
-<li><p><code>setup()</code> is called for each sample to create one or more <code>ToolEnvironment</code> instances. Often there will just a single environment, but in some cases (e.g.&nbsp;a cybersecurity eval) you might have a main container and a network host that is being attacked. Setup returns these instances along with a <code>cleanup()</code> function for tearing them down.</p></li>
-</ul>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> task_init(</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        cls, task_name: <span class="bu">str</span>, config: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">@classmethod</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> task_cleanup(</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        cls, task_name: <span class="bu">str</span>, config: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>       ...</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">@classmethod</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> sample_init(</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>        cls, </span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>        task_name: <span class="bu">str</span>, </span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>        config: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>, </span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>        metadata: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>]</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, ToolEnvironment]:</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">@classmethod</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> sample_cleanup(</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>        cls,</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>        task_name: <span class="bu">str</span>,</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>        config: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>,</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>        environments: <span class="bu">dict</span>[<span class="bu">str</span>, ToolEnvironment],</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>        interrupted: <span class="bu">bool</span>,</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="bu">exec</span>(</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>        cmd: <span class="bu">list</span>[<span class="bu">str</span>],</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>        env: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>        timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ExecResult[<span class="bu">str</span>]:</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> write_file(</span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, contents: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a>    <span class="at">@overload</span></span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(</span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: Literal[<span class="va">True</span>] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">str</span>: </span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a>    <span class="at">@overload</span></span>
+<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(</span>
+<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: Literal[<span class="va">False</span>]</span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">bytes</span>: </span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(</span>
+<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Union[<span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>]:</span>
+<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The class methods take care of various stages of initialisation, setup, and teardown:</p>
+<table class="table">
+<colgroup>
+<col style="width: 24%">
+<col style="width: 24%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Method</th>
+<th>Lifecycle</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>task_init()</code></td>
+<td>Called at the beginning of each <code>Task</code>.</td>
+<td>Expensive initialisation operations (e.g.&nbsp;pulling or building images)</td>
+</tr>
+<tr class="even">
+<td><code>task_cleanup()</code></td>
+<td>Called at the end of each <code>Task</code>.</td>
+<td>Last chance handler for any resources not yet cleaned up (see also discussion below).</td>
+</tr>
+<tr class="odd">
+<td><code>sample_init()</code></td>
+<td>Called at the beginning of each <code>Sample</code>.</td>
+<td>Create <code>ToolEnvironment</code> instances for the sample.</td>
+</tr>
+<tr class="even">
+<td><code>sample_cleanup()</code></td>
+<td>Called at the end of each <code>Sample</code></td>
+<td>Cleanup <code>ToolEnvironment</code> instances for the sample.</td>
+</tr>
+</tbody>
+</table>
+<p>While <code>task_cleanup()</code> may not seem necessary at first blush (since <code>sample_cleanup()</code> is always called), there are several important reasons for it:</p>
+<ol type="1">
+<li>There may be global resources that are not tied to samples that need to be cleaned up.</li>
+<li>It’s possible that <code>sample_cleanup()</code> will be interrupted (e.g.&nbsp;via a Ctrl+C) during execution. In that case its resources are still not cleaned up.</li>
+<li>The <code>sample_cleanup()</code> function might be long running, and in the case of error or interruption you want to provide explicit user feedback on the cleanup in the console (which isn’t possible when cleanup is run “inline” with samples). An <code>interrupted</code> flag is passed to <code>sample_cleanup()</code> which allows for varying behaviour for this scenario.</li>
+</ol>
+<p>To implement <code>task_cleanup()</code> properly, you’ll likely need to track running environments using a per-coroutine <code>ContextVar</code>. The <code>DockerToolEnvironment</code> provides an example of this.</p>
 <p>The <code>ToolEnvironment</code> instance methods provide access to process execution and file input/output within the environment.</p>
 <p>The best way to learn about writing tool environments is to look at the source code for the built in environments, <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/local.py">LocalToolEnvironment</a> and <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/docker/docker.py">DockerToolEnvironment</a>.</p>
 <section id="environment-registration" class="level3">

@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Log Viewer</title>
+<title>Inspect – Caching</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./vscode.html" rel="next">
-<link href="./workflow.html" rel="prev">
+<link href="./eval-logs.html" rel="next">
+<link href="./models.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -75,9 +75,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -130,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./workflow.html">Basics</a></li><li class="breadcrumb-item"><a href="./log-viewer.html"><span class="chapter-title">Log Viewer</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html"><span class="chapter-title">Caching</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -181,7 +178,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Log Viewer</span></a>
+  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -248,7 +245,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./caching.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Caching</span></a>
+  <a href="./caching.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Caching</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -284,29 +281,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#view-basics" id="toc-view-basics" class="nav-link" data-scroll-target="#view-basics">View Basics</a>
+  <li><a href="#caching-basics" id="toc-caching-basics" class="nav-link" data-scroll-target="#caching-basics">Caching Basics</a>
   <ul class="collapse">
-  <li><a href="#log-history" id="toc-log-history" class="nav-link" data-scroll-target="#log-history">Log History</a></li>
+  <li><a href="#model-versions" id="toc-model-versions" class="nav-link" data-scroll-target="#model-versions">Model Versions</a></li>
   </ul></li>
-  <li><a href="#sample-details" id="toc-sample-details" class="nav-link" data-scroll-target="#sample-details">Sample Details</a>
-  <ul class="collapse">
-  <li><a href="#messages" id="toc-messages" class="nav-link" data-scroll-target="#messages">Messages</a></li>
-  <li><a href="#scoring" id="toc-scoring" class="nav-link" data-scroll-target="#scoring">Scoring</a></li>
-  <li><a href="#metadata" id="toc-metadata" class="nav-link" data-scroll-target="#metadata">Metadata</a></li>
-  </ul></li>
-  <li><a href="#scores-and-answers" id="toc-scores-and-answers" class="nav-link" data-scroll-target="#scores-and-answers">Scores and Answers</a></li>
-  <li><a href="#filtering-and-sorting" id="toc-filtering-and-sorting" class="nav-link" data-scroll-target="#filtering-and-sorting">Filtering and Sorting</a></li>
-  <li><a href="#python-logging" id="toc-python-logging" class="nav-link" data-scroll-target="#python-logging">Python Logging</a></li>
-  <li><a href="#task-information" id="toc-task-information" class="nav-link" data-scroll-target="#task-information">Task Information</a></li>
+  <li><a href="#cache-policy" id="toc-cache-policy" class="nav-link" data-scroll-target="#cache-policy">Cache Policy</a></li>
+  <li><a href="#model-api" id="toc-model-api" class="nav-link" data-scroll-target="#model-api">Model API</a></li>
+  <li><a href="#management" id="toc-management" class="nav-link" data-scroll-target="#management">Management</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./workflow.html">Basics</a></li><li class="breadcrumb-item"><a href="./log-viewer.html"><span class="chapter-title">Log Viewer</span></a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html"><span class="chapter-title">Caching</span></a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title"><span id="sec-log-viewer" class="quarto-section-identifier"><span class="chapter-title">Log Viewer</span></span></h1>
+<h1 class="title"><span id="sec-caching" class="quarto-section-identifier"><span class="chapter-title">Caching</span></span></h1>
 </div>
 
 
@@ -325,96 +315,114 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Inspect View provides a convenient way to visualize evaluation logs, including drilling into message histories, scoring decisions, and additional metadata written to the log. Here’s what the main view of an evaluation log looks like:</p>
-<p><a href="images/inspect-view-main.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-main.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."></a></p>
-<p>Below we’ll describe how to get the most out of using Inspect View.</p>
-<p>Note that this section covers <em>interactively</em> exploring log files. You can also use the <code>EvalLog</code> API to compute on log files (e.g.&nbsp;to compare across runs or to more systematically traverse results). See the section on <a href="eval-logs.html">Eval Logs</a> to learn more about how to process log files with code.</p>
+<p>Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense. Caching is also often useful during development—for example, when you are iterating on a scorer you may want the model outputs served from a cache to both save time as well as for increased determinism.</p>
 </section>
-<section id="view-basics" class="level2">
-<h2 class="anchored" data-anchor-id="view-basics">View Basics</h2>
-<p>To run Inspect View, use the <code>inspect view</code> command:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>By default, <code>inspect view</code> will use the configured log directory of the environment it is run from (e.g.&nbsp;<code>./logs</code>). You can specify an alternate log directory using <code>--log-dir</code> ,for example:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view <span class="at">--log-dir</span> ./experiment-logs</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>By default it will run on port 7575 (and kill any existing <code>inspect view</code> using that port). If you want to run two instances of <code>inspect view</code> you can specify an alternate port:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view <span class="at">--log-dir</span> ./experiment-logs <span class="at">--port</span> 6565</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You only need to run <code>inspect view</code> once at the beginning of a session (as it will automatically update to show new evaluations when they are run).</p>
-<section id="log-history" class="level3">
-<h3 class="anchored" data-anchor-id="log-history">Log History</h3>
-<p>You can view and navigate between a history of all evals in the log directory using the menu at the top right:</p>
-<p><a href="images/inspect-view-history.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-history.png" class="border img-fluid" alt="The Inspect log viewer, with the history panel displayed on the left overlaying the main interface. Several log files are displayed in the log history, each of which includes a summary of the results."></a></p>
+<section id="caching-basics" class="level2">
+<h2 class="anchored" data-anchor-id="caching-basics">Caching Basics</h2>
+<p>Use the <code>cache</code> parameter on calls to <code>generate()</code> to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:</p>
+<ul>
+<li>Model name and base URL (e.g.&nbsp;<code>openai/gpt-4-turbo</code>)</li>
+<li>Model prompt (i.e.&nbsp;message history)</li>
+<li>Epoch number (for ensuring distinct generations per epoch)</li>
+<li>Generate configuration (e.g.&nbsp;<code>temperature</code>, <code>top_p</code>, etc.)</li>
+<li>Active <code>tools</code> and <code>tool_choice</code></li>
+</ul>
+<p>If all of these inputs are identical, then the model response will be served from the cache. By default, model responses are cached for 1 week (see <a href="#cache-policy">Cache Policy</a> below for details on customising this).</p>
+<p>For example, here we are iterating on our self critique template, so we cache the main call to <code>generate()</code>:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>example_dataset(<span class="st">"theory_of_mind"</span>),</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        plan<span class="op">=</span>[</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>            chain_of_thought(),</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>            generate(cache <span class="op">=</span> <span class="va">True</span>),</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>            self_critique(CRITIQUE_TEMPLATE)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can similarly do this with the <code>generate</code> function passed into a <code>Solver</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> custom_solver(cache): </span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">async</span> <span class="kw">def</span> solve(state, generate):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># (custom solver logic prior to generate)</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> generate(state, cache)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You don’t strictly need to provide a <code>cache</code> argument for a custom solver that uses caching, but it’s generally good practice to enable users of the function to control caching behaviour.</p>
+<p>You can also use caching with lower-level <code>generate()</code> calls (e.g.&nbsp;a model instance you have obtained with <code>get_model()</code>. There are some special considerations around epochs for this case, see the <a href="#model-api">Model API</a> section below for further discussion.</p>
+<section id="model-versions" class="level3">
+<h3 class="anchored" data-anchor-id="model-versions">Model Versions</h3>
+<p>The model name (e.g.&nbsp;<code>openai/gpt-4-turbo</code>) is used as part of the cache key. Note though that many model names are aliases to specific model versions. For example, <code>gpt-4</code>, <code>gpt-4-turbo</code>, may resolve to different versions over time as updates are released.</p>
+<p>If you want to invalidate caches for updated model versions, it’s much better to use an explicitly versioned model name. For example:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If you do this, then when a new version of turbo is deployed a call to the model will occur rather than resolving to a cached version.</p>
 </section>
 </section>
-<section id="sample-details" class="level2">
-<h2 class="anchored" data-anchor-id="sample-details">Sample Details</h2>
-<p>Click a sample to drill into its messages, scoring, and metadata.</p>
-<section id="messages" class="level3">
-<h3 class="anchored" data-anchor-id="messages">Messages</h3>
-<p>The messages tab displays the message history. In this example we see that the model make two tool calls before answering (the final assistant message is not fully displayed for brevity):</p>
-<p><a href="images/inspect-view-messages.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/inspect-view-messages.png" class="border img-fluid" alt="The Inspect log viewer showing a sample expanded, with details on the user, assistant, and tool messages for the sample."></a></p>
-<p>Looking carefully at the message history (especially for agents or multi-turn solvers) is critically important for understanding how well your evaluation is constructed.</p>
+<section id="cache-policy" class="level2">
+<h2 class="anchored" data-anchor-id="cache-policy">Cache Policy</h2>
+<p>By default, if you specify <code>cache = True</code> then the cache will expire in 1 week. You can customise this by passing a <code>CachePolicy</code> rather than a boolean. For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"3h"</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"4D"</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"2W"</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"3M"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can use <code>s</code>, <code>m</code>, <code>h</code>, <code>D</code>, <code>W</code> , <code>M</code>, and <code>Y</code> as abbreviations for <code>expiry</code> values.</p>
+<p>If you want the cache to <em>never</em> expire, specify <code>None</code>. For example:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry <span class="op">=</span> <span class="va">None</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also define scopes for cache expiration (e.g.&nbsp;cache for a specific task or usage pattern). Use the <code>scopes</code> parameter to add named scopes to the cache key:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>scache <span class="op">=</span> CachePolicy(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    expiry <span class="op">=</span> <span class="st">"1M"</span>,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    scopes <span class="op">=</span> {<span class="st">"role"</span>: <span class="st">"attacker"</span>, <span class="st">"team"</span>: <span class="st">"red"</span>})</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="scoring" class="level3">
-<h3 class="anchored" data-anchor-id="scoring">Scoring</h3>
-<p>The scoring tab shows additional details including the full input and full model explanation for answers:</p>
-<p><a href="images/inspect-view-scoring.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/inspect-view-scoring.png" class="border img-fluid" alt="The Inspect log viewer showing a sample expanded, with details on the scoring of the sample, including the input, target, answer, and explanation."></a></p>
+<section id="model-api" class="level2">
+<h2 class="anchored" data-anchor-id="model-api">Model API</h2>
+<p>You can use the <code>cache</code> parameter in lower-level Model API calls (e.g.&nbsp;models obtained via <code>get_model()</code>). For example:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"anthropic/claude-3-opus-20240229"</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> model.generate(<span class="bu">input</span>, cache <span class="op">=</span> <span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If you are using Model APIs directly and your evaluation has multiple epochs, you will likely also want to add an <code>epoch</code> to the <code>CachePolicy</code> to ensure that outputs vary across epochs. For example, in a custom scorer:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), bootstrap_std()])</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> custom_scorer(model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>):</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>   </span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># resolve model</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    grader_model <span class="op">=</span> get_model(model)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># (create input for grading)</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="co"># use caching but also forward epoch</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        output <span class="op">=</span> grader_model.generate(</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>            <span class="bu">input</span>,</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>            cache <span class="op">=</span> CachePolicy(</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>                expiry <span class="op">=</span> <span class="st">"4W"</span>,</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>                epoch <span class="op">=</span> state.epoch</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>        <span class="co"># (use output to determine score value)</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> value</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>     <span class="cf">return</span> score</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="metadata" class="level3">
-<h3 class="anchored" data-anchor-id="metadata">Metadata</h3>
-<p>The metadata tab shows additional data made available by solvers, tools, an scorers (in this case the <code>web_search()</code> tool records which URLs it visited to retrieve additional context):</p>
-<p><a href="images/inspect-view-metadata.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-view-metadata.png" class="border img-fluid" alt="The Inspect log viewer showing a sample expanded, with details on the metadata recorded by the web search tool during the evaluation (specifically, the URLs queried by the web search tool for the sample)."></a></p>
-</section>
-</section>
-<section id="scores-and-answers" class="level2">
-<h2 class="anchored" data-anchor-id="scores-and-answers">Scores and Answers</h2>
-<p>Reliable, high quality scoring is a critical component of every evaluation, and developing custom scorers that deliver this can be challenging. One major difficulty lies in the free form text nature of model output: we have a very specific target we are comparing against and we sometimes need to pick the answer out of a sea of text. Model graded output introduces another set of challenges entirely.</p>
-<p>For comparison based scoring, scorers typically perform two core tasks:</p>
-<ol type="1">
-<li>Extract the answer from the model’s output; and</li>
-<li>Compare the extracted answer to the target.</li>
-</ol>
-<p>A scorer can fail to correctly score output at either of these steps. Failing to extract an answer entirely can occur (e.g.&nbsp;due to a regex that’s not quite flexible enough) and as can failing to correctly identify equivalent answers (e.g.&nbsp;thinking that “1,242” is different from “1242.00” or that “Yes.” is different than “yes”).</p>
-<p>You can use the log viewer to catch and evaluate these sorts of issues. For example, here we can see that we were unable to extract answers for a couple of questions that were scored incorrect:</p>
-<p><a href="images/inspect-view-answers.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6"><img src="images/inspect-view-answers.png" class="border img-fluid" alt="The Inspect log viewer with several 5 samples displayed, 3 of which are incorrect. The Answer column displays the answer extracted from the model output for each sample."></a></p>
-<p>It’s possible that these answers are legitimately incorrect. However it’s also possible that the correct answer is in the model’s output but just in a format we didn’t quite expect. In each case you’ll need to drill into the sample to investigate.</p>
-<p>Answers don’t just appear magically, scorers need to produce them during scoring. The scorers built in to Inspect all do this, but when you create a custom scorer, you should be sure to always include an <code>answer</code> in the <code>Score</code> objects you return if you can. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> Score(</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    value<span class="op">=</span><span class="st">"C"</span> <span class="cf">if</span> extracted <span class="op">==</span> target.text <span class="cf">else</span> <span class="st">"I"</span>, </span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    answer<span class="op">=</span>extracted, </span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    explanation<span class="op">=</span>state.output.completion</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If we only return the <code>value</code> of “C” or “I” we’d lose the context of exactly what was being compared when the score was assigned.</p>
-<p>Note there is also an <code>explanation</code> field: this is also important, as it allows you to view the entire context from which the answer was extracted from.</p>
-</section>
-<section id="filtering-and-sorting" class="level2">
-<h2 class="anchored" data-anchor-id="filtering-and-sorting">Filtering and Sorting</h2>
-<p>It’s often useful to filter log entries by score (for example, to investigate whether incorrect answers are due to scorer issues or are true negatives). Use the <strong>Scores</strong> picker to filter by specific scores:</p>
-<p><a href="images/inspect-view-filter.png" class="lightbox" data-gallery="quarto-lightbox-gallery-7"><img src="images/inspect-view-filter.png" class="border img-fluid" alt="The Inspect log view, with 4 samples displayed, each of which are marked incorrect. The Scores picker is focused, and has selected 'Incorrect', indicating that only incorrect scores should be displayed."></a></p>
-<p>By default, samples are ordered (with all samples for an epoch presented in sequence). However you can also order by score, or order by samples (so you see all of the results for a given sample across all epochs presented together). Use the <strong>Sort</strong> picker to control this:</p>
-<p><a href="images/inspect-view-sort.png" class="lightbox" data-gallery="quarto-lightbox-gallery-8"><img src="images/inspect-view-sort.png" class="border img-fluid" alt="The Inspect log view, with the results of a single sample for each of the 4 epochs of the evaluation."></a></p>
-<p>Viewing by sample can be especially valuable for diagnosing the sources of inconsistency (and determining whether they are inherent or an artifact of the evaluation methodology). Above we can see that sample 1 is incorrect in epoch 1 because of issue the model had with forming a correct function call.</p>
-</section>
-<section id="python-logging" class="level2">
-<h2 class="anchored" data-anchor-id="python-logging">Python Logging</h2>
-<p>Beyond the standard information included an eval log file, you may want to do additional console logging to assist with developing and debugging. Inspect installs a log handler that displays logging output above eval progress as well as saves it into the evaluation log file.</p>
-<p>If you use the <a href="https://docs.python.org/3/library/logging.html">recommend practice</a> of the Python <code>logging</code> library for obtaining a logger your logs will interoperate well with Inspect. For example, here we developing a web search tool and want to log each time a query occurs:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># setup logger for this source file</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>logger <span class="op">=</span> logging.getLogger(<span class="va">__name__</span>)</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># log each time we see a web query</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>logger.info(<span class="ss">f"web query: </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can see all of these log entries in the <strong>Logging</strong> tab:</p>
-<p><a href="images/inspect-view-logging.png" class="lightbox" data-gallery="quarto-lightbox-gallery-9"><img src="images/inspect-view-logging.png" class="border img-fluid" alt="The Logging panel of the Inspect log viewer, displaying several info log messages from the web search tool indicating what queries were executed by the tool."></a></p>
-<p>It is important to note that the Inspect View will show all log entries level <code>info</code> or higher. However, printing every <code>info</code> message to the console during an eval might be too distracting, so the default log level for printing is <code>warning</code>. If you change it to <code>info</code> then you’ll also see these log messages in the console:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval biology_qa.py <span class="at">--log-level</span> info</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><a href="images/inspect-view-logging-console.png" class="lightbox" data-gallery="quarto-lightbox-gallery-10"><img src="images/inspect-view-logging-console.png" class="img-fluid" alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display."></a></p>
-<p>A default log level of <code>warning</code> enables you to include many calls to <code>logger.info()</code> in your code without having them show by default, while also making them available in the log viewer should you need them.</p>
-<p>Note that you can also set the log level using the <code>INSPECT_LOG_LEVEL</code> environment variable (which is often included in a <a href="workflow.html#sec-workflow-configuration">.env configuration file</a>).</p>
-</section>
-<section id="task-information" class="level2">
-<h2 class="anchored" data-anchor-id="task-information">Task Information</h2>
-<p>The <strong>Info</strong> panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, plan, and scorer details, git revision, and model token usage:</p>
-<p><a href="images/inspect-view-info.png" class="lightbox" data-gallery="quarto-lightbox-gallery-11"><img src="images/inspect-view-info.png" class="border img-fluid" alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, plan, and scorer details, git revision, and model token usage."></a></p>
+<section id="management" class="level2">
+<h2 class="anchored" data-anchor-id="management">Management</h2>
+<p>Use the <code>inspect cache</code> command the view the current contents of the cache, prune expired entries, or clear entries entirely. For example:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># list the current contents of the cache</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache list</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># clear the cache (globally or by model)</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache clear </span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache clear <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># prune expired entries from the cache</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache list <span class="at">--prunable</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache prune</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache prune <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>See <code>inspect cache --help</code> for further details on management commands.</p>
 
 
 </section>
@@ -883,13 +891,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./workflow.html" class="pagination-link" aria-label="Workflow">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Workflow</span></span>
+      <a href="./models.html" class="pagination-link" aria-label="Models">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Models</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./vscode.html" class="pagination-link" aria-label="VS Code">
-        <span class="nav-page-text"><span class="chapter-title">VS Code</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./eval-logs.html" class="pagination-link" aria-label="Eval Logs">
+        <span class="nav-page-text"><span class="chapter-title">Eval Logs</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -947,31 +955,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"openEffect":"zoom","descPosition":"bottom"});
-window.onload = () => {
-  lightboxQuarto.on('slide_before_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    const href = trigger.getAttribute('href');
-    if (href !== null) {
-      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-      if (imgEl !== null) {
-        const srcAttr = imgEl.getAttribute("src");
-        if (srcAttr && srcAttr.startsWith("data:")) {
-          slideConfig.href = srcAttr;
-        }
-      }
-    } 
-  });
-
-  lightboxQuarto.on('slide_after_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    if (window.Quarto?.typesetMath) {
-      window.Quarto.typesetMath(slideNode);
-    }
-  });
-
-};
-          </script>
 
 
 
