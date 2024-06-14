@@ -25,7 +25,7 @@ Remember to put your answer on its own line at the end in the form "ANSWER: $ANS
 def math(shuffle=True):
     return Task(
         dataset=csv_dataset(
-            csv_file="datasets/math_exampel.csv",
+            csv_file="datasets/math_example.csv",
             sample_fields=FieldSpec(
                 input="Question", 
                 target="Answer"
