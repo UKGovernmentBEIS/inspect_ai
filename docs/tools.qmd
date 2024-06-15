@@ -166,9 +166,3 @@ def intercode_ctf():
 We specify a 3-minute timeout for execution of the bash and python tools to ensure that they don't perform extremely long running operations.
 
 See the [Agents](#sec-agents) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.
-
-Note that the `bash()` and `python()` tools are not yet available in the version of Inspect published to PyPI (it is only available from the development version of Inspect). To install the development version:
-
-``` bash
-$ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-```

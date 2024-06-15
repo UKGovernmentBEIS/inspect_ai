@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.15 (Unreleased)
+## v0.3.15 (15 June 2024)
 
 -   [Tool Environments](https://ukgovernmentbeis.github.io/inspect_ai/agents.html#sec-tool-environments) for executing tool code in a sandbox.
 -   [Caching](https://ukgovernmentbeis.github.io/inspect_ai/caching.html) to reduce the number of model API calls made.

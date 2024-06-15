@@ -162,7 +162,7 @@ class RichTaskDisplay(TaskDisplay):
         traceback: TracebackType | None,
     ) -> None:
         panel = self.task_panel(
-            body=rich_traceback(exc_type, exc_value, traceback),
+            body=rich_traceback(exc_type, exc_value, traceback, True),
             config=None,
             footer=task_interrupted(
                 self.profile.log_location, samples_logged, self.theme

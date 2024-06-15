@@ -13,20 +13,35 @@ import {
 } from "../utils/Format.mjs";
 
 import { SampleScoreView } from "./SampleScoreView.mjs";
+import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 
-export const InlineSampleDisplay = ({index, id, sample, sampleDescriptor, context}) => {
-  return html`<div style=${{flexDirection: "row", width: "100%", margin: "1em"}}>
-    <${SampleDisplay} 
-      index=${index} 
-      id=${id} 
-      sample=${sample} 
-      sampleDescriptor=${sampleDescriptor} 
-      context=${context}/>
-      </div>`
-}
+export const InlineSampleDisplay = ({
+  index,
+  id,
+  sample,
+  sampleDescriptor,
+  context,
+}) => {
+  return html`<div
+    style=${{ flexDirection: "row", width: "100%", margin: "1em" }}
+  >
+    <${SampleDisplay}
+      index=${index}
+      id=${id}
+      sample=${sample}
+      sampleDescriptor=${sampleDescriptor}
+      context=${context}
+    />
+  </div>`;
+};
 
-export const SampleDisplay = ({index, id, sample, sampleDescriptor, context}) => {
-
+export const SampleDisplay = ({
+  index,
+  id,
+  sample,
+  sampleDescriptor,
+  context,
+}) => {
   // Tab ids
   const baseId = `sample-${index}`;
   const msgTabId = `${baseId}-messages`;
@@ -53,8 +68,10 @@ export const SampleDisplay = ({index, id, sample, sampleDescriptor, context}) =>
     <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${
       selectedTab === msgTabId || selectedTab === undefined
     }>
-      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages}/>
-    </${TabPanel}>`,  
+      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
+      sample.messages
+    }/>
+    </${TabPanel}>`,
     html`
     <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${
       selectedTab === scoringTabId
@@ -79,7 +96,7 @@ export const SampleDisplay = ({index, id, sample, sampleDescriptor, context}) =>
         ${sampleMetadatas}
       </${TabPanel}>`
     );
-  }  
+  }
 
   return html`<${SampleSummary}
     id=${sample.id}
@@ -87,17 +104,17 @@ export const SampleDisplay = ({index, id, sample, sampleDescriptor, context}) =>
     sampleDescriptor=${sampleDescriptor}/>
 
   <${TabSet} id="task-sample-details-tab-${id}" styles=${{
-  tabs: {
-    fontSize: "0.8em",
-  },
-  tabBody: {
-    paddingLeft: ".4em",
-    marginTop: "0.5rem",
-  },
+    tabs: {
+      fontSize: "0.8em",
+    },
+    tabBody: {
+      paddingLeft: ".4em",
+      marginTop: "0.5rem",
+    },
   }}>
     ${tabs}
   </${TabSet}>`;
-}
+};
 
 const metadataViewsForSample = (id, sample, context) => {
   const sampleMetadatas = [];
@@ -138,7 +155,7 @@ const inputString = (input) => {
       }
     });
   }
-};  
+};
 
 const SampleSummary = ({ id, sample, sampleDescriptor }) => {
   const input =
@@ -154,16 +171,15 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
       ? Math.max(0.15, sampleDescriptor.messageShape.answer)
       : 0;
 
-    const scoreInput = [inputString(sample.input)];
-    if (sample.choices && sample.choices.length > 0) {
-      scoreInput.push("");
-      scoreInput.push(
-        ...sample.choices.map((choice, index) => {
-          return `${String.fromCharCode(65 + index)}) ${choice}`;
-        })
-      );
-    }
-    
+  const scoreInput = [inputString(sample.input)];
+  if (sample.choices && sample.choices.length > 0) {
+    scoreInput.push("");
+    scoreInput.push(
+      ...sample.choices.map((choice, index) => {
+        return `${String.fromCharCode(65 + index)}) ${choice}`;
+      })
+    );
+  }
 
   // The columns for the sample
   const columns = [];
@@ -183,7 +199,11 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
   if (sample.target) {
     columns.push({
       label: "Target",
-      value: arrayToString(sample?.target),
+      value: html`<${MarkdownDiv}
+        markdown=${arrayToString(arrayToString(sample?.target || "none"))}
+        style=${{ paddingLeft: "0" }}
+        class="no-last-para-padding"
+      />`,
       size: `${target}fr`,
       clamp: true,
     });
@@ -193,7 +213,13 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
   if (fullAnswer) {
     columns.push({
       label: "Answer",
-      value: sample ? shortenCompletion(fullAnswer) : "",
+      value: sample
+        ? html`<${MarkdownDiv}
+            markdown=${arrayToString(shortenCompletion(fullAnswer))}
+            style=${{ paddingLeft: "0" }}
+            class="no-last-para-padding"
+          />`
+        : "",
       size: `${answer}fr`,
       clamp: true,
     });

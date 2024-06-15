@@ -242,7 +242,7 @@ def eval_error(
 
     with open(os.devnull, "w") as f:
         console = Console(record=True, file=f)
-        console.print(rich_traceback(exc_type, exc_value, exc_traceback))
+        console.print(rich_traceback(exc_type, exc_value, exc_traceback, False))
         traceback_ansi = console.export_text(styles=True)
 
     # return error
@@ -254,14 +254,17 @@ def eval_error(
 
 
 def rich_traceback(
-    exc_type: Type[Any], exc_value: BaseException, exc_traceback: TracebackType | None
+    exc_type: Type[Any],
+    exc_value: BaseException,
+    exc_traceback: TracebackType | None,
+    show_locals: bool,
 ) -> RenderableType:
     rich_tb = Traceback.from_exception(
         exc_type=exc_type,
         exc_value=exc_value,
         traceback=exc_traceback,
         suppress=[click, asyncio, tenacity, sys.modules[PKG_NAME]],
-        show_locals=True,
+        show_locals=show_locals,
         max_frames=10,
     )
     return rich_tb

@@ -1,6 +1,7 @@
 import logging
 import os
 import pickle
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from hashlib import md5
 from pathlib import Path
@@ -52,12 +53,6 @@ class CachePolicy:
     """The `CachePolicy` is used to define various criteria that impact how model calls are cached.
 
     Attributes:
-        epoch(int): The current epoch on the `TaskState` at the time of caching.
-          This is an essential part of generated cache keys to ensure we don't
-          fetch from the cache when we're in a different epoch. If we do, all
-          the epochs will have exactly the same response which completely
-          defeats the point of epochs! Defaults to `None` to allow for easy
-          initialisation, but not expected to be `None` after that.
         expiry(str | None): Default "24h". The expiry time for the cache entry.
           This is a string of the format "12h" for 12 hours or "1W" for a week,
           etc. This is how long we will keep the cache entry, if we access it
@@ -70,17 +65,25 @@ class CachePolicy:
 
     def __init__(
         self,
-        epoch: int | None = None,
         expiry: str | None = "1W",
         scopes: dict[str, str] = {},
     ) -> None:
         self.scopes = scopes
-        self.epoch = epoch
 
         if expiry is None:
             self.expiry = None
         else:
             self.expiry = _parse_expiry(expiry)
+
+
+# The `epoch` is an essential part of the cache key for `generate` call. When
+# calling with multiple epochs we are essentially making *exactly the same call*
+# multiple times, so all other fields will be the same.
+#
+# Abstracting this to a ContextVar allows us to set it at the execution stage
+# and access it safely where we're fetching/storing from the cache without
+# adding more noise to the call stack.
+epoch: ContextVar[int] = ContextVar("epoch")
 
 
 class CacheEntry:
@@ -132,9 +135,9 @@ def _cache_key(entry: CacheEntry) -> str:
         entry.base_url,
         entry.tool_choice,
         entry.tools,
-        entry.policy.epoch,
         entry.policy.expiry,
         entry.policy.scopes,
+        epoch.get(None),
     ]
 
     base_string = "|".join([str(component) for component in components])

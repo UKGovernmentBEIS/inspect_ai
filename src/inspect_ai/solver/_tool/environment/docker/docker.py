@@ -89,7 +89,7 @@ class DockerToolEnvironment(ToolEnvironment):
         # create environment variables for sample metadata
         env: dict[str, str] = {}
         for key, value in metadata.items():
-            env[f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"] = value
+            env[f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"] = str(value)
 
         # create project
         temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)

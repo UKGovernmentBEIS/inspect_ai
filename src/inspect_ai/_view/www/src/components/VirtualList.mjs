@@ -97,7 +97,6 @@ export class VirtualList extends Component {
               <div key=${`list-item-${start + index}`}>
               ${component}
               </div>`
-            return component;
           })}
         </div>
       </div>

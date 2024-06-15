@@ -279,6 +279,7 @@ class Model:
                     policy = cache
                 else:
                     policy = CachePolicy()
+
                 cache_entry = CacheEntry(
                     base_url=self.api.base_url,
                     config=deepcopy(config),

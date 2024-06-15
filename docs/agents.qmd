@@ -16,13 +16,6 @@ We'll cover the basics of all of these approaches below.
 
 An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Tool Environments](#sec-tool-environments) section goes into more depth on this.
 
-::: callout-important
-The features described in this section are not yet available in the version of Inspect published to PyPI (rather they are only available in the development version of Inspect). To install the development version:
-
-``` bash
-$ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-```
-
 If you are building agent evaluations based on the documentation here, you should install the development version before proceeding.
 :::
 
@@ -327,14 +320,6 @@ The examples shown above execute tool code within the main process running the e
 -   You need to provision per-sample file system resources.
 
 -   You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
-
-::: callout-important
-Tool environments are not yet available in the version of Inspect published to PyPI (they are rather only available from the development version of Inspect). To install the development version:
-
-``` bash
-$ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-```
-:::
 
 ### Example: File Listing
 

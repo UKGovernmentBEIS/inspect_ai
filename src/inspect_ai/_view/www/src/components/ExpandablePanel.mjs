@@ -8,7 +8,12 @@ export const ExpandablePanel = ({ collapse, border, lines=7, children }) => {
   const [showToggle, setShowToggle] = useState(false);
 
   const contentsRef = useRef();
-  const observerRef = useRef(null);
+  const observerRef = useRef();
+
+  // Ensure that when content changes, we reset the collapse state.
+  useEffect(() => {
+  setCollapsed(collapse)
+  }, [children, collapse]);
 
   // Determine whether we should show the toggle
   useEffect(() => {
@@ -41,7 +46,7 @@ export const ExpandablePanel = ({ collapse, border, lines=7, children }) => {
         observerRef.current.unobserve(contentsRef.current);
       }
     };
-  }, [collapse, observerRef]);
+  }, [collapse, contentsRef, observerRef]);
 
   // Enforce the line clamp if need be
   let contentsStyle = { fontSize: "0.8rem" };
@@ -53,7 +58,7 @@ export const ExpandablePanel = ({ collapse, border, lines=7, children }) => {
     contentsStyle.border = "solid var(--bs-light-border-subtle) 1px"
   }
 
-  return html`<div ref=${contentsRef} style=${contentsStyle}>
+  return html`<div class="expandable-panel" ref=${contentsRef} style=${contentsStyle}>
       ${children}
     </div>
     ${showToggle

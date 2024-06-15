@@ -13,6 +13,7 @@ from inspect_ai.model import (
     ToolFunction,
     ToolInfo,
 )
+from inspect_ai.model._cache import epoch
 from inspect_ai.solver import TaskState, Tool
 from inspect_ai.solver._tool.tool import TOOL_PARAMS
 from inspect_ai.solver._tool.tool_def import ToolDef, tool_defs
@@ -34,8 +35,7 @@ async def task_generate(
         # If we don't update the epoch here as we go, it's entirely possible
         # we'd cache the same response for every single epoch, which would
         # completely defeat the point!
-        if isinstance(cache, CachePolicy):
-            cache.epoch = state.epoch
+        epoch.set(state.epoch)
 
         # call the model
         output = await model.generate(

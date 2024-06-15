@@ -2,6 +2,7 @@ import { html } from "htm/preact";
 import { useEffect, useMemo } from "preact/hooks";
 
 import { sharedStyles } from "../Constants.mjs";
+import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 
 import {
   shortenCompletion,
@@ -26,8 +27,7 @@ export const SampleList = (props) => {
     nextSample,
     prevSample,
     showSample,
-  
-    } = props;
+  } = props;
   // If there are no samples, just display an empty state
   if (items.length === 0) {
     return html`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
@@ -249,7 +249,11 @@ const SampleRow = ({
           ...cellStyle,
         }}
       >
-        ${arrayToString(sample?.target)}
+        <${MarkdownDiv}
+          markdown=${arrayToString(sample?.target)}
+          style=${{ paddingLeft: "0" }}
+          class="no-last-para-padding"
+        />
       </div>
       <div
         class="sample-answer"
@@ -258,7 +262,15 @@ const SampleRow = ({
           ...cellStyle,
         }}
       >
-        ${sample ? shortenCompletion(answerForSample(sample)) : ""}
+        ${sample
+          ? html`
+              <${MarkdownDiv}
+                markdown=${shortenCompletion(answerForSample(sample))}
+                style=${{ paddingLeft: "0" }}
+                class="no-last-para-padding"
+              />
+            `
+          : ""}
       </div>
 
       <div
@@ -285,7 +297,7 @@ const gridColumnStyles = (sampleDescriptor) => {
     gridGap: "0.5em",
     gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr minmax(2rem, auto)`,
     paddingLeft: "1em",
-    paddingRight: "1em"
+    paddingRight: "1em",
   };
 };
 

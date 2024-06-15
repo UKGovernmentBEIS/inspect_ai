@@ -144,14 +144,14 @@ export const SamplesTab = (props) => {
     if (next > -1) {
       setSelectedIndex(next);
     }
-  }, [selectedIndex, filteredSamples]);
+  }, [selectedIndex, filteredSamples, nextSampleIndex]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
     if (prev > -1) {
       setSelectedIndex(prev);
     }
-  }, [selectedIndex, filteredSamples]);
+  }, [selectedIndex, filteredSamples, previousSampleIndex]);
 
   const elements = [];
   if (items.length === 1) {
@@ -186,8 +186,8 @@ export const SamplesTab = (props) => {
       index=${items.length > 0 ? items[selectedIndex].number : undefined}
       sample=${items.length > 0 ? items[selectedIndex].data : undefined}
       sampleDescriptor=${sampleDescriptor}
-      nextSample=${nextSampleIndex() > -1 ? nextSample : undefined}
-      prevSample=${previousSampleIndex() > -1 ? previousSample : undefined}
+      nextSample=${nextSample}
+      prevSample=${previousSample}
       context=${context}
     />
   `);

@@ -601,3 +601,7 @@ table.table.table-sm td {
       margin-left: 100%;
   }
 }
+
+.expandable-panel pre {
+  overflow: unset;
+}

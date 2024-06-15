@@ -36,12 +36,12 @@ You can similarly do this with the `generate` function passed into a `Solver`:
 
 ``` python
 @solver
-def custom_solver(cache): 
-  
+def custom_solver(cache):
+
   async def solve(state, generate):
-    
+
     # (custom solver logic prior to generate)
-    
+
     return generate(state, cache)
 
   return solve
@@ -49,7 +49,12 @@ def custom_solver(cache):
 
 You don't strictly need to provide a `cache` argument for a custom solver that uses caching, but it's generally good practice to enable users of the function to control caching behaviour.
 
-You can also use caching with lower-level `generate()` calls (e.g. a model instance you have obtained with `get_model()`. There are some special considerations around epochs for this case, see the [Model API](#model-api) section below for further discussion.
+You can also use caching with lower-level `generate()` calls (e.g. a model instance you have obtained with `get_model()`. For example:
+
+``` python
+model = get_model("anthropic/claude-3-opus-20240229")
+output = model.generate(input, cache = True)
+```
 
 ### Model Versions
 
@@ -61,7 +66,7 @@ If you want to invalidate caches for updated model versions, it's much better to
 $ inspect eval ctf.py --model openai/gpt-4-turbo-2024-04-09
 ```
 
-If you do this, then when a new version of turbo is deployed a call to the model will occur rather than resolving to a cached version.
+If you do this, then when a new version of `gpt-4-turbo` is deployed a call to the model will occur rather than resolving from the cache.
 
 ## Cache Policy {#cache-policy}
 
@@ -91,44 +96,6 @@ scache = CachePolicy(
 )
 ```
 
-## Model API {#model-api}
-
-You can use the `cache` parameter in lower-level Model API calls (e.g. models obtained via `get_model()`). For example:
-
-``` python
-model = get_model("anthropic/claude-3-opus-20240229")
-output = model.generate(input, cache = True)
-```
-
-If you are using Model APIs directly and your evaluation has multiple epochs, you will likely also want to add an `epoch` to the `CachePolicy` to ensure that outputs vary across epochs. For example, in a custom scorer:
-
-``` python
-@scorer(metrics=[accuracy(), bootstrap_std()])
-def custom_scorer(model: str | Model | None = None):
-   
-    # resolve model
-    grader_model = get_model(model)
-
-    async def score(state: TaskState, target: Target)
-        
-        # (create input for grading)
-
-        # use caching but also forward epoch
-        output = grader_model.generate(
-            input,
-            cache = CachePolicy(
-                expiry = "4W",
-                epoch = state.epoch
-            )
-        )
-
-        # (use output to determine score value)
-
-        return value
-
-     return score
-```
-
 ## Management
 
 Use the `inspect cache` command the view the current contents of the cache, prune expired entries, or clear entries entirely. For example:
@@ -138,11 +105,11 @@ Use the `inspect cache` command the view the current contents of the cache, prun
 $ inspect cache list
 
 # clear the cache (globally or by model)
-$ inspect cache clear 
+$ inspect cache clear
 $ inspect cache clear --model openai/gpt-4-turbo-2024-04-09
 
 # prune expired entries from the cache
-$ inspect cache list --prunable
+$ inspect cache list --pruneable
 $ inspect cache prune
 $ inspect cache prune --model openai/gpt-4-turbo-2024-04-09
 ```

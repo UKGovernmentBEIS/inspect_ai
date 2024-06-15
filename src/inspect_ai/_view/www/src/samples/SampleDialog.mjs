@@ -65,7 +65,6 @@ export const SampleDialog = (props) => {
       }}   
     >
     <${SampleDisplay}
-      key=${`${task}-sample-display-${index}`}
       index=${index}
       id=${id}
       sample=${sample}
