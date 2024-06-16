@@ -1,3 +1,109 @@
 /* PrismJS 1.29.0
 https://prismjs.com/download.html#themes=prism-dark&languages=markup+css+clike+javascript+bash+python */
-code[class*=language-],pre[class*=language-]{color:#fff;background:0 0;text-shadow:0 -.1em .2em #000;font-family:Consolas,Monaco,'Andale Mono','Ubuntu Mono',monospace;font-size:1em;text-align:left;white-space:pre;word-spacing:normal;word-break:normal;word-wrap:normal;line-height:1.5;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-hyphens:none;-moz-hyphens:none;-ms-hyphens:none;hyphens:none}@media print{code[class*=language-],pre[class*=language-]{text-shadow:none}}:not(pre)>code[class*=language-],pre[class*=language-]{background:#4c3f33}pre[class*=language-]{padding:1em;margin:.5em 0;overflow:auto;border:.3em solid #7a6651;border-radius:.5em;box-shadow:1px 1px .5em #000 inset}:not(pre)>code[class*=language-]{padding:.15em .2em .05em;border-radius:.3em;border:.13em solid #7a6651;box-shadow:1px 1px .3em -.1em #000 inset;white-space:normal}.token.cdata,.token.comment,.token.doctype,.token.prolog{color:#997f66}.token.punctuation{opacity:.7}.token.namespace{opacity:.7}.token.boolean,.token.constant,.token.number,.token.property,.token.symbol,.token.tag{color:#d1939e}.token.attr-name,.token.builtin,.token.char,.token.inserted,.token.selector,.token.string{color:#bce051}.language-css .token.string,.style .token.string,.token.entity,.token.operator,.token.url,.token.variable{color:#f4b73d}.token.atrule,.token.attr-value,.token.keyword{color:#d1939e}.token.important,.token.regex{color:#e90}.token.bold,.token.important{font-weight:700}.token.italic{font-style:italic}.token.entity{cursor:help}.token.deleted{color:red}
+/* DO NOT SIMPLY REPLACE - NOTE the '.vscode-dark' preview on selectors
+   which is used to target this at vscode dark mode. Be sure to replace this 
+   when updating */
+.vscode-dark code[class*="language-"],
+.vscode-dark pre[class*="language-"] {
+  color: #fff;
+  background: 0 0;
+  text-shadow: 0 -0.1em 0.2em #000;
+  font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+  font-size: 1em;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+@media print {
+  .vscode-dark code[class*="language-"],
+  .vscode-dark pre[class*="language-"] {
+    text-shadow: none;
+  }
+}
+.vscode-dark :not(pre) > code[class*="language-"],
+.vscode-dark pre[class*="language-"] {
+  background: #4c3f33;
+}
+.vscode-dark pre[class*="language-"] {
+  padding: 1em;
+  margin: 0.5em 0;
+  overflow: auto;
+  border: 0.3em solid #7a6651;
+  border-radius: 0.5em;
+  box-shadow: 1px 1px 0.5em #000 inset;
+}
+.vscode-dark :not(pre) > code[class*="language-"] {
+  padding: 0.15em 0.2em 0.05em;
+  border-radius: 0.3em;
+  border: 0.13em solid #7a6651;
+  box-shadow: 1px 1px 0.3em -0.1em #000 inset;
+  white-space: normal;
+}
+.vscode-dark .token.cdata,
+.vscode-dark .token.comment,
+.vscode-dark .token.doctype,
+.vscode-dark .token.prolog {
+  color: #997f66;
+}
+.vscode-dark .token.punctuation {
+  opacity: 0.7;
+}
+.vscode-dark .token.namespace {
+  opacity: 0.7;
+}
+.vscode-dark .token.boolean,
+.vscode-dark .token.constant,
+.vscode-dark .token.number,
+.vscode-dark .token.property,
+.vscode-dark .token.symbol,
+.vscode-dark .token.tag {
+  color: #d1939e;
+}
+.vscode-dark .token.attr-name,
+.vscode-dark .token.builtin,
+.vscode-dark .token.char,
+.vscode-dark .token.inserted,
+.vscode-dark .token.selector,
+.vscode-dark .token.string {
+  color: #bce051;
+}
+.vscode-dark .language-css .token.string,
+.vscode-dark .style .token.string,
+.vscode-dark .token.entity,
+.vscode-dark .token.operator,
+.vscode-dark .token.url,
+.vscode-dark .token.variable {
+  color: #f4b73d;
+}
+.vscode-dark .token.atrule,
+.vscode-dark .token.attr-value,
+.vscode-dark .token.keyword {
+  color: #d1939e;
+}
+.vscode-dark .token.important,
+.vscode-dark .token.regex {
+  color: #e90;
+}
+.vscode-dark .token.bold,
+.vscode-dark .token.important {
+  font-weight: 700;
+}
+.vscode-dark .token.italic {
+  font-style: italic;
+}
+.vscode-dark .token.entity {
+  cursor: help;
+}
+.vscode-dark .token.deleted {
+  color: red;
+}

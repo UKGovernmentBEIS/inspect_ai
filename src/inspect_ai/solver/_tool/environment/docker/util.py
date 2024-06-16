@@ -1,4 +1,3 @@
-import tempfile
 from dataclasses import dataclass
 from logging import getLogger
 
@@ -15,7 +14,6 @@ class ComposeProject:
     config: str | None
     env: dict[str, str]
     working_dir: str
-    temp_dir: tempfile.TemporaryDirectory[str]
 
     def __init__(
         self,
@@ -23,13 +21,11 @@ class ComposeProject:
         config: str | None,
         env: dict[str, str],
         working_dir: str,
-        temp_dir: tempfile.TemporaryDirectory[str],
     ) -> None:
         self.name = name
         self.config = config
         self.env = env
         self.working_dir = working_dir
-        self.temp_dir = temp_dir
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ComposeProject):

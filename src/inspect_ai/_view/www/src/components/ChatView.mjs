@@ -201,9 +201,9 @@ export const ToolInput = ({ type, contents }) => {
   }, [toolInputRef.current, type, contents]);
 
   return html` <pre
+    class="tool-output"
     style=${{
       padding: "0.5em",
-      backgroundColor: "#f8f8f8",
       marginTop: "0.25em",
       marginBottom: "1rem",
     }}

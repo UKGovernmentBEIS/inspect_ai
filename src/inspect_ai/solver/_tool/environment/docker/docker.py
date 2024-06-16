@@ -26,7 +26,6 @@ from .compose import (
     compose_services,
     compose_up,
 )
-from .config import auto_config
 from .util import ComposeProject, task_project_name, tools_log
 
 logger = getLogger(__name__)
@@ -39,41 +38,41 @@ class DockerToolEnvironment(ToolEnvironment):
         # intialize project cleanup
         project_cleanup_startup()
 
-        # create project
-        temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-        project = ComposeProject(
-            name=task_project_name(task_name),
-            config=config if config else await auto_config(temp_dir.name),
-            env=dict(),
-            working_dir="/",
-            temp_dir=temp_dir,
-        )
+        try:
+            # create project
+            project = ComposeProject(
+                name=task_project_name(task_name),
+                config=config,
+                env=dict(),
+                working_dir="/",
+            )
 
-        # build containers which are out of date
-        await compose_build(project)
+            # build containers which are out of date
+            await compose_build(project)
 
-        # cleanup images created during build
-        await compose_cleanup_images(project)
+            # cleanup images created during build
+            await compose_cleanup_images(project)
 
-        # pull any remote images
-        services = await compose_services(project)
-        for name, service in services.items():
-            if (
-                service.get("build", None) is None
-                and service.get("x-local", None) is None
-            ):
-                pull_result = await compose_pull(name, project)
-                if not pull_result.success:
-                    image = service.get("image", "(unknown)")
-                    logger.error(
-                        f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
-                    )
+            # pull any remote images
+            services = await compose_services(project)
+            for name, service in services.items():
+                if (
+                    service.get("build", None) is None
+                    and service.get("x-local", None) is None
+                ):
+                    pull_result = await compose_pull(name, project)
+                    if not pull_result.success:
+                        image = service.get("image", "(unknown)")
+                        logger.error(
+                            f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
+                        )
 
-        # cleanup temp_dir
-        temp_dir.cleanup()
+            # provide some space above task display
+            print("")
 
-        # provide some space above task display
-        print("")
+        except BaseException as ex:
+            await project_cleanup_shutdown()
+            raise ex
 
     @classmethod
     async def task_cleanup(cls, task_name: str, config: str | None) -> None:
@@ -92,13 +91,8 @@ class DockerToolEnvironment(ToolEnvironment):
             env[f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"] = str(value)
 
         # create project
-        temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         project = ComposeProject(
-            name=task_project_name(task_name),
-            config=config if config else await auto_config(temp_dir.name),
-            env=env,
-            working_dir="/",
-            temp_dir=temp_dir,
+            name=task_project_name(task_name), config=config, env=env, working_dir="/"
         )
 
         # enumerate the services that will be created

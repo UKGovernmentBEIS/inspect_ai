@@ -7,6 +7,7 @@ from rich.panel import Panel
 from inspect_ai._util.error import exception_message
 
 from .compose import compose_down
+from .config import auto_config_cleanup
 from .util import ComposeProject
 
 
@@ -21,9 +22,6 @@ def project_startup(project: ComposeProject) -> None:
 async def project_cleanup(project: ComposeProject, quiet: bool = True) -> None:
     # bring down services
     await compose_down(project=project, quiet=quiet)
-
-    # remove temp dir
-    project.temp_dir.cleanup()
 
     # remove the project from the list of running projects
     running_projects().remove(project)
@@ -52,6 +50,9 @@ async def project_cleanup_shutdown() -> None:
                 print(
                     f"Error cleaning up compose containers: {exception_message(result)}"
                 )
+
+    # cleanup auto config
+    auto_config_cleanup()
 
 
 def running_projects() -> list[ComposeProject]:

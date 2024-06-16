@@ -1,5 +1,4 @@
 import os
-import tempfile
 from logging import getLogger
 from pathlib import Path
 
@@ -8,18 +7,28 @@ import aiofiles
 logger = getLogger(__name__)
 
 
-async def auto_config(temp_dir: str) -> str | None:
+async def auto_config() -> str | None:
     # compose file provides all the config we need
     if has_compose_file():
         return None
 
+    # temporary auto-compose
+    if has_auto_compose_file():
+        return AUTO_COMPOSE_YAML
+
     # dockerfile just needs a compose.yaml synthesized
     elif has_dockerfile():
-        return await dockerfile_compose(Path(), temp_dir)
+        return await auto_compose_file(COMPOSE_DOCKERFILE_YAML)
 
     # otherwise provide a generic python container
     else:
-        return await generic_container_compose(temp_dir)
+        return await auto_compose_file(COMPOSE_GENERIC_YAML)
+
+
+def auto_config_cleanup() -> None:
+    # if we have an auto-generated .compose.yaml then clean it up
+    if has_auto_compose_file():
+        Path(AUTO_COMPOSE_YAML).unlink(True)
 
 
 def has_compose_file() -> bool:
@@ -39,37 +48,32 @@ def has_dockerfile() -> bool:
     return os.path.isfile("Dockerfile")
 
 
-# Our default compose.yaml
-COMPOSE_GENERIC_YAML = """
+def has_auto_compose_file() -> bool:
+    return os.path.isfile(AUTO_COMPOSE_YAML)
+
+
+AUTO_COMPOSE_YAML = ".compose.yaml"
+
+COMPOSE_COMMENT = """# inspect auto-generated docker compose file
+# (will be removed when task is complete)"""
+
+COMPOSE_GENERIC_YAML = f"""{COMPOSE_COMMENT}
 services:
   default:
     image: "python:3.12-bookworm"
-    command: tail -f /dev/null
+    command: "tail -f /dev/null"
 """
 
-
-async def generic_container_compose(directory: str) -> str:
-    return await default_compose_file(directory, COMPOSE_GENERIC_YAML)
-
-
-async def dockerfile_compose(context: Path, directory: str) -> str:
-    # Template for a DockerFile
-    compose_dockerfile_yaml = f"""
+COMPOSE_DOCKERFILE_YAML = f"""{COMPOSE_COMMENT}
 services:
   default:
     build:
-      context: {context.resolve().as_posix()}
-    command: tail -f /dev/null
-    """
-
-    return await default_compose_file(directory, compose_dockerfile_yaml)
+      context: "."
+    command: "tail -f /dev/null"
+"""
 
 
-# Provide the path to a default compose file
-async def default_compose_file(directory: str, contents: str) -> str:
-    with tempfile.NamedTemporaryFile(
-        dir=directory, suffix=".yaml", delete=False
-    ) as compose_file:
-        async with aiofiles.open(compose_file.name, "w", encoding="utf-8") as f:
-            await f.write(contents)
-        return compose_file.name
+async def auto_compose_file(contents: str) -> str:
+    async with aiofiles.open(AUTO_COMPOSE_YAML, "w", encoding="utf-8") as f:
+        await f.write(contents)
+    return AUTO_COMPOSE_YAML

@@ -6,6 +6,7 @@ import yaml
 
 from inspect_ai.util._context.subprocess import ExecResult, subprocess
 
+from .config import auto_config
 from .util import ComposeProject, tools_log
 
 logger = getLogger(__name__)
@@ -129,7 +130,7 @@ ComposeService = TypedDict(
 async def compose_services(project: ComposeProject) -> dict[str, ComposeService]:
     result = await compose_command(["config"], project=project)
     if not result.success:
-        raise RuntimeError("Error reading docker config: {result.stderr}")
+        raise RuntimeError(f"Error reading docker config: {result.stderr}")
     return cast(dict[str, ComposeService], yaml.safe_load(result.stdout)["services"])
 
 
@@ -193,8 +194,9 @@ async def compose_command(
     compose_command = compose_command + ["--project-name", project.name]
 
     # add config file if specified
-    if project.config:
-        compose_command = compose_command + ["-f", project.config]
+    config = project.config if project.config else await auto_config()
+    if config:
+        compose_command = compose_command + ["-f", config]
 
     # build final command
     compose_command = compose_command + command

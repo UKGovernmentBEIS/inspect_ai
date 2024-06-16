@@ -441,6 +441,20 @@ pre[class*=language-] {
   margin-bottom: 0.75em;
 }
 
+
+.sample-answer .markdown-content h1,
+.sample-answer .markdown-content h2,
+.sample-answer .markdown-content h3,
+.sample-answer .markdown-content h4,
+.sample-answer .markdown-content h5,
+.sample-answer .markdown-content h6 {
+  font-size: 1em;
+  font-weight: 400;
+  margin-top: 0em;
+  margin-bottom: 0em;
+}
+
+
 .accordion-item:not(.no-highlight) .collapse.show.highlight-when-expanded,
 .accordion-item:not(.no-highlight) .collapsing.highlight-when-expanded,
 .accordion-item:not(.no-highlight)  .accordion-button[aria-expanded="true"].highlight-when-expanded {
@@ -604,4 +618,12 @@ table.table.table-sm td {
 
 .expandable-panel pre {
   overflow: unset;
+}
+
+.tool-output {
+  background-color: #f8f8f8;
+}
+
+.vscode-dark .tool-output {
+  background-color: #333333;
 }

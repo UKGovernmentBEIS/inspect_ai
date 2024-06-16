@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useCallback, useState, useEffect, useRef } from "preact/hooks";
+import { useCallback, useState, useEffect, useMemo, useRef } from "preact/hooks";
 
 // Registration component
 import "./src/Register.mjs";
@@ -267,13 +267,15 @@ export function App() {
         />
       `;
 
-  const progress = () => {
+  const progress = useMemo(() => {
     if (status.loading) {
       return html`<${ProgressBar}/>`;
+    } else {
+      return undefined;
     }
-  }
+  }, [status]);
 
-  const workspace = () => {
+  const workspace = useMemo(() => {
     if (status.error) {
       return html`<${ErrorPanel}
         title="An error occurred while loading this task."
@@ -289,13 +291,14 @@ export function App() {
         offcanvas=${offcanvas}
       />`
     }
-  }
+  }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
+
   return html`
     <${AppErrorBoundary}>
     <div>
       ${appEnvelope}
-      ${progress()}
-      ${workspace()}
+      ${progress}
+      ${workspace}
     </div>
     </${AppErrorBoundary}>
   `;

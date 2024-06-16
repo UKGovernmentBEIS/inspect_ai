@@ -11,6 +11,7 @@ import {
 } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
+import { inputString } from "../utils/Format.mjs"
 
 const kSampleHeight = 82;
 const kSeparatorHeight = 20;
@@ -240,7 +241,7 @@ const SampleRow = ({
           ...cellStyle,
         }}
       >
-        ${sample.input}
+        ${inputString(sample.input)}
       </div>
       <div
         class="sample-target"

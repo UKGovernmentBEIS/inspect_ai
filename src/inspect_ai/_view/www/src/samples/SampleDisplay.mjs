@@ -5,6 +5,8 @@ import { ChatView } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
+import { inputString } from "../utils/Format.mjs"
+
 import { sharedStyles } from "../Constants.mjs";
 import {
   arrayToString,
@@ -141,20 +143,6 @@ const metadataViewsForSample = (id, sample, context) => {
     />`);
   }
   return sampleMetadatas;
-};
-
-const inputString = (input) => {
-  if (typeof input === "string") {
-    return input;
-  } else {
-    return input.map((inp) => {
-      if (typeof inp === "string") {
-        return inp;
-      } else {
-        return inp.content;
-      }
-    });
-  }
 };
 
 const SampleSummary = ({ id, sample, sampleDescriptor }) => {
