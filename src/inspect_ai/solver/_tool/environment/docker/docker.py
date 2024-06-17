@@ -1,3 +1,4 @@
+import os
 import tempfile
 from logging import getLogger
 from pathlib import Path
@@ -182,12 +183,13 @@ class DockerToolEnvironment(ToolEnvironment):
         tools_log(f"write_file: {file}")
 
         # Write the contents to a temp file
-        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+            src_file = os.path.join(temp_dir, os.path.basename(file))
             if isinstance(contents, str):
-                async with aiofiles.open(temp_file.name, "w", encoding="utf-8") as f:
+                async with aiofiles.open(src_file, "w", encoding="utf-8") as f:
                     await f.write(contents)
             else:
-                async with aiofiles.open(temp_file.name, "wb") as f:
+                async with aiofiles.open(src_file, "wb") as f:
                     await f.write(contents)
 
             # resolve relative file paths
@@ -203,9 +205,10 @@ class DockerToolEnvironment(ToolEnvironment):
 
             # use the cp command to copy the file
             await compose_cp(
-                src=temp_file.name,
+                src=os.path.basename(src_file),
                 dest=f"{self._service}:{file}",
                 project=self._project,
+                cwd=os.path.dirname(src_file),
             )
 
     @overload
@@ -219,23 +222,25 @@ class DockerToolEnvironment(ToolEnvironment):
         tools_log(f"read_file: {file}")
 
         # Write the contents to a temp file
-        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             # resolve relative file paths
             file = container_file(self._project, file)
 
             # copy the file
+            dest_file = os.path.join(temp_dir, os.path.basename(file))
             await compose_cp(
                 src=f"{self._service}:{file}",
-                dest=temp_file.name,
+                dest=os.path.basename(dest_file),
                 project=self._project,
+                cwd=os.path.dirname(dest_file),
             )
 
             # read and return w/ appropriate encoding
             if text:
-                async with aiofiles.open(temp_file.name, "r", encoding="utf-8") as f:
+                async with aiofiles.open(dest_file, "r", encoding="utf-8") as f:
                     return await f.read()
             else:
-                async with aiofiles.open(temp_file.name, "rb") as f:
+                async with aiofiles.open(dest_file, "rb") as f:
                     return await f.read()
 
 

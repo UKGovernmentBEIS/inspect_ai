@@ -139,6 +139,13 @@ def bedrock() -> type[ModelAPI]:
     return BedrockAPI
 
 
+@modelapi(name="mockllm")
+def mockllm() -> type[ModelAPI]:
+    from .mock_llm import MockLLM
+
+    return MockLLM
+
+
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"

@@ -241,7 +241,7 @@ def eval_error(
     )
 
     with open(os.devnull, "w") as f:
-        console = Console(record=True, file=f)
+        console = Console(record=True, file=f, legacy_windows=True)
         console.print(rich_traceback(exc_type, exc_value, exc_traceback, False))
         traceback_ansi = console.export_text(styles=True)
 

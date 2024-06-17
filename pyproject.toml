@@ -30,7 +30,7 @@ convention = "google"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-rA --doctest-modules --color=yes --cov=inspect_ai"
+addopts = "-rA --doctest-modules --color=yes"
 testpaths = ["tests"]
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
 norecursedirs = [

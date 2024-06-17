@@ -1,5 +1,6 @@
 import json
 from logging import getLogger
+from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
 
 import yaml
@@ -38,10 +39,12 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
     await compose_cleanup_images(project=project)
 
 
-async def compose_cp(src: str, dest: str, project: ComposeProject) -> None:
-    result = await compose_command(["cp", src, dest], project=project)
+async def compose_cp(
+    src: str, dest: str, project: ComposeProject, cwd: str | Path | None = None
+) -> None:
+    result = await compose_command(["cp", src, dest], project=project, cwd=cwd)
     if not result.success:
-        msg = f"Failed to copy file from '{src}' to '{dest}'"
+        msg = f"Failed to copy file from '{src}' to '{dest}': {result.stderr}"
         raise RuntimeError(msg)
 
 
@@ -176,6 +179,7 @@ async def compose_command(
     project: ComposeProject,
     timeout: int | None = None,
     input: str | bytes | None = None,
+    cwd: str | Path | None = None,
     forward_env: bool = True,
     capture_output: bool = True,
     ansi: Literal["never", "always", "auto"] | None = None,
@@ -206,6 +210,7 @@ async def compose_command(
     result = await subprocess(
         compose_command,
         input=input,
+        cwd=cwd,
         env=env,
         timeout=timeout,
         capture_output=capture_output,

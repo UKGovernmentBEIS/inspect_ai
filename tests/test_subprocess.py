@@ -14,7 +14,7 @@ async def test_subprocess_execute():
 
 @pytest.mark.asyncio
 async def test_subprocess_fail():
-    result = await subprocess(["python4"])
+    result = await subprocess(["cat", "phantom.txt"])
     assert result.success is False
 
 

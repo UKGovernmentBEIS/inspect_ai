@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.16 (Unreleased)
+
+-   Various fixes for the use of Docker tool environments on Windows.
+
 ## v0.3.15 (15 June 2024)
 
 -   [Tool Environments](https://ukgovernmentbeis.github.io/inspect_ai/agents.html#sec-tool-environments) for executing tool code in a sandbox.

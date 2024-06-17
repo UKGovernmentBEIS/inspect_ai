@@ -1,6 +1,5 @@
 import asyncio
 import os
-import shlex
 import sys
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -85,20 +84,27 @@ async def subprocess(
     # resolve input
     input = input.encode() if isinstance(input, str) else input
 
-    # build command
-    args = args if isinstance(args, list) else [args]
-    command = " ".join([shlex.quote(arg) for arg in args])
-
     # function to run command (we may or may not run it w/ concurrency)
     async def run_command() -> Union[ExecResult[str], ExecResult[bytes]]:
-        proc = await asyncio.create_subprocess_shell(
-            command,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE if capture_output else None,
-            stderr=asyncio.subprocess.PIPE if capture_output else None,
-            cwd=cwd,
-            env={**os.environ, **env},
-        )
+        if isinstance(args, str):
+            proc = await asyncio.create_subprocess_shell(
+                args,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE if capture_output else None,
+                stderr=asyncio.subprocess.PIPE if capture_output else None,
+                cwd=cwd,
+                env={**os.environ, **env},
+            )
+        else:
+            proc = await asyncio.create_subprocess_exec(
+                args[0],
+                *args[1:],
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE if capture_output else None,
+                stderr=asyncio.subprocess.PIPE if capture_output else None,
+                cwd=cwd,
+                env={**os.environ, **env},
+            )
 
         # wait for it to execute and return result
         stdout, stderr = await proc.communicate(input=input)
