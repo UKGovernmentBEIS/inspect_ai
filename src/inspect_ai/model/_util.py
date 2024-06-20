@@ -122,6 +122,7 @@ def chat_api_tool(tool: ToolInfo) -> ChatApiTool:
         properties[param.name] = dict(
             type=param.type,
             description=param.description,
+            **param.properties,
         )
         if not param.optional:
             required.append(param.name)

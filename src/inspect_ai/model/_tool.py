@@ -22,6 +22,11 @@ class ToolParam:
     optional: bool
     """Is the parameter optional"""
 
+    properties: dict[str, Any] = field(default_factory=dict)
+    """Additional properties for tool param.
+
+    For example: properties={"items": {"type": "string"}} for a list of strings as tool param."""
+
 
 @dataclass
 class ToolInfo:
