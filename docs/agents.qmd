@@ -445,7 +445,7 @@ Similar conventions exist for `eval()` and the CLI:
 
 ``` python
 eval(task, tool_environment="docker")
-eval(task, tool_environment=("docker","my-compose.yaml"))
+eval(task, tool_environment=("docker", "my-compose.yaml"))
 ```
 
 ``` bash
