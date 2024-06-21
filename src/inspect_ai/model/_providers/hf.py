@@ -138,7 +138,7 @@ class HuggingFaceAPI(ModelAPI):
         response = await batched_generate(
             GenerateInput(
                 input=chat,
-                device=self.device,
+                device=self.model.device,
                 tokenizer=tokenizer,
                 generator=generator,
                 decoder=decoder,
