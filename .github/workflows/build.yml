@@ -22,7 +22,7 @@ jobs:
       - name: Format with Ruff
         uses: chartboost/ruff-action@v1
         with:
-          args: 'format --check'
+          args: "format --check"
 
   mypy:
     runs-on: ubuntu-latest
@@ -69,4 +69,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+        # Without this step, the build fails due to these static assets
+        # being duplicated into the `dist` folder.
+        #
+        # REVIEW: Is there a better way to do this? The only thing I found on
+        # `check-wheel-contents` was to ignore the duplicate file check
+        # completely which seems like throwing the baby out with the bathwater...
+      - name: Delete knowingly duplicated files
+        run: rm src/inspect_ai/_view/www/favicon.svg src/inspect_ai/_view/www/libs/bootstrap/css/fonts/bootstrap-icons.woff src/inspect_ai/_view/www/libs/bootstrap/css/fonts/bootstrap-icons.woff2
+
       - uses: hynek/build-and-inspect-python-package@v1

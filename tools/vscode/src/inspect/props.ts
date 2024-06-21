@@ -118,11 +118,19 @@ export function inspectViewPath(): AbsolutePath | null {
           version: string;
           path: string;
         };
-        const viewPath = toAbsolutePath(version.path)
+        let viewPath = toAbsolutePath(version.path)
           .child("_view")
-          .child("www");
+          .child("www")
+          .child("dist");
         if (viewPath) {
           inspectPropsCache_.setViewPath(viewPath);
+        } else {
+          // The dist folder is only available on newer versions, this is for
+          // backwards compatibility only
+          let viewPath = toAbsolutePath(version.path)
+            .child("_view")
+            .child("www")
+          if (viewPath) inspectPropsCache_.setViewPath(viewPath);
         }
         return viewPath;
       } catch (error) {
