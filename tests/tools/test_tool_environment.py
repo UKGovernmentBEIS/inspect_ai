@@ -2,14 +2,7 @@ from test_helpers.tools import list_files, read_file
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.model import (
-    ChatCompletionChoice,
-    ChatMessageAssistant,
-    ChatMessageTool,
-    ModelOutput,
-    ToolCall,
-    get_model,
-)
+from inspect_ai.model import ChatMessageTool, ModelOutput, get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, use_tools
 
@@ -32,26 +25,13 @@ def test_tool_environment_read_file():
         task,
         model=get_model(
             "mockllm/model",
-            custom_output=ModelOutput(
-                model="mockllm/model",
-                choices=[
-                    ChatCompletionChoice(
-                        message=ChatMessageAssistant(
-                            content="🤔 I think I'll take a look at that file",
-                            source="generate",
-                            tool_calls=[
-                                ToolCall(
-                                    id="tool_call_id",
-                                    function="read_file",
-                                    arguments={"file": "foo.txt"},
-                                    type="function",
-                                )
-                            ],
-                        ),
-                        stop_reason="tool_calls",
-                    )
-                ],
-            ),
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="read_file",
+                    tool_arguments={"file": "foo.txt"},
+                )
+            ],
         ),
         max_messages=5,  # otherwise we can get into an infinite loop if the tools error
     )[0]
@@ -80,26 +60,13 @@ def test_tool_environment_list_files():
         task,
         model=get_model(
             "mockllm/model",
-            custom_output=ModelOutput(
-                model="mockllm/model",
-                choices=[
-                    ChatCompletionChoice(
-                        message=ChatMessageAssistant(
-                            content="🤔 I think I'll take a look at those files",
-                            source="generate",
-                            tool_calls=[
-                                ToolCall(
-                                    id="tool_call_id",
-                                    function="list_files",
-                                    arguments={"dir": "."},
-                                    type="function",
-                                )
-                            ],
-                        ),
-                        stop_reason="tool_calls",
-                    )
-                ],
-            ),
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="list_files",
+                    tool_arguments={"dir": "."},
+                )
+            ],
         ),
         max_messages=5,  # otherwise we can get into an infinite loop if the tools error
     )[0]

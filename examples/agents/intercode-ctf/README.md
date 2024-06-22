@@ -1,6 +1,6 @@
 ## InterCode CTF 
 
-This directory includes an implementation of the [InterCode CTF](https://intercode-benchmark.github.io/#ctf) benchmark (originally published in [InterCode: Standardizing and Benchmarking Interactive Coding with Execution Feedback](https://arxiv.org/abs/2306.14898)).
+This directory includes an implementation of the [InterCode CTF](https://intercode-benchmark.github.io/#ctf) benchmark (originally published in [InterCode: Standardizing and Benchmarking Interactive Coding with Execution Feedback](https://arxiv.org/abs/2306.14898)). Here we evaluate 81 of the 100 challenges (excluding the 19 challenges that require internet access).
 
 This implementation uses [tool calling](https://ukgovernmentbeis.github.io/inspect_ai/tools.html) to enable the model to execute bash and python code. The system prompt from the paper has been modified accordingly, and also asks the model to reason step by step about each action it takes (this strategy is also [explored](https://github.com/princeton-nlp/intercode/blob/master/experiments/eval_react.py) in the paper).
 

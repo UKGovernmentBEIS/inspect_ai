@@ -9,6 +9,7 @@ import { CopyButton } from "./../components/CopyButton.mjs";
 export const Navbar = ({
   file,
   task,
+  logs,
   model,
   status,
   samples,
@@ -31,25 +32,27 @@ export const Navbar = ({
   const navbarContents = logFileName
     ? html` <div
           class="navbar-brand navbar-text mb-0"
-          style=${{ display: "flex", paddingTop: 0 }}
+          style=${{ display: "flex", paddingTop: 0, marginLeft: "0.5rem" }}
         >
-          <button
-            id="sidebarToggle"
-            class="btn${toggleOffCanClass}"
-            type="button"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#sidebarOffCanvas"
-            aria-controls="sidebarOffCanvas"
-            style=${{
-              padding: "0rem 0.1rem 0.1rem 0rem",
-              marginTop: "-8px",
-              marginRight: "0.2rem",
-              lineHeight: "16px",
-              marginLeft: "0.3em",
-            }}
-          >
-            <i class=${icons.menu}></i>
-          </button>
+          ${logs.files.length > 1 || logs.log_dir
+            ? html`<button
+                id="sidebarToggle"
+                class="btn${toggleOffCanClass}"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#sidebarOffCanvas"
+                aria-controls="sidebarOffCanvas"
+                style=${{
+                  padding: "0rem 0.1rem 0.1rem 0rem",
+                  marginTop: "-8px",
+                  marginRight: "0.2rem",
+                  lineHeight: "16px",
+
+                }}
+              >
+                <i class=${icons.menu}></i>
+              </button> `
+            : ""}
           <div style=${{ display: "flex", flexDirection: "column" }}>
             <div
               style=${{

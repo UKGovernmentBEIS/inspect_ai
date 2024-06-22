@@ -1,9 +1,11 @@
-import { Uri } from "vscode";
+import { MessageItem, Uri, window, workspace } from "vscode";
 
 import { InspectLogviewManager } from "./logview-manager";
 import { workspacePath } from "../../core/path";
 import { showError } from "../../components/error";
 import { TerminalLink, TerminalLinkContext } from "vscode";
+import { existsSync } from "fs";
+import { basename } from "path";
 
 const kLogFilePattern = /^.*Log: (\S*?\.json)\s*/g;
 
@@ -39,14 +41,48 @@ export const logviewTerminalLinkProvider = (manager: InspectLogviewManager) => {
       });
       return result;
     },
-    handleTerminalLink: (link: LogViewTerminalLink) => {
+    handleTerminalLink: async (link: LogViewTerminalLink) => {
 
-      const logFile = /^[a-z0-9]+:\/\//.test(link.data) ? Uri.parse(link.data) : Uri.file(workspacePath(link.data).path);
-
-
-      manager.showLogFile(logFile).catch(async (err: Error) => {
-        await showError("Failed to preview log file - failed to start Inspect View", err);
-      });
+      // Resolve the clicked link into a complete Uri to the file
+      const logUri = await resolveLogFile(link.data);
+      if (logUri) {
+        manager.showLogFile(logUri).catch(async (err: Error) => {
+          await showError("Failed to preview log file - failed to start Inspect View", err);
+        });
+      } else {
+        // Since we couldn't resolve the log file, just let the user know
+        const close: MessageItem = { title: "Close" };
+        await window.showInformationMessage<MessageItem>(
+          "Unable to find this log file within the current workspace.",
+          close
+        );
+      }
     },
   };
+};
+
+const resolveLogFile = async (link: string) => {
+  if (/^[a-z0-9]+:\/\//.test(link)) {
+    // This is a Uri - just parse it and return
+    // (e.g. S3 url)
+    return Uri.parse(link);
+  } else {
+    // This is likely a file path. 
+    const wsAbs = workspacePath(link);
+    if (existsSync(wsAbs.path)) {
+      // This is a workspace file that exists
+      return Uri.file(wsAbs.path);
+    } else {
+      // This is a path to a file which I can't find
+      // in the workspace as an absolute path, try searching for
+      // the file itself in any folder.
+      const filename = basename(link);
+      const files = await workspace.findFiles(`**/${filename}`);
+      if (files.length === 1) {
+        return Uri.file(files[0].path);
+      } else {
+        return undefined;
+      }
+    }
+  }
 };

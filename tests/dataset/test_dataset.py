@@ -77,7 +77,7 @@ def assert_sample(sample: Sample) -> None:
 
 
 def dataset_path(file: str) -> str:
-    return os.path.join("tests", "test_dataset", file)
+    return os.path.join("tests", "dataset", "test_dataset", file)
 
 
 def example_path(*paths: str) -> str:

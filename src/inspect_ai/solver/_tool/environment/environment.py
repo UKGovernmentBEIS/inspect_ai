@@ -5,7 +5,7 @@ from typing import Awaitable, Callable, Literal, Union, overload
 from inspect_ai.util import ExecResult
 
 TaskInit = Callable[[str, str | None], Awaitable[None]]
-TaskCleanup = TaskInit
+TaskCleanup = Callable[[str, str | None, bool], Awaitable[None]]
 
 SampleInit = Callable[
     [str, str | None, dict[str, str]], Awaitable[dict[str, "ToolEnvironment"]]
@@ -25,16 +25,6 @@ class ToolEnvironment(abc.ABC):
     @classmethod
     async def task_init(cls, task_name: str, config: str | None) -> None:
         """Called at task startup initialize resources.
-
-        Args:
-          task_name (str): Name of task using the tool environment.
-          config (str): Implementation defined configuration file (optional).
-        """
-        pass
-
-    @classmethod
-    async def task_cleanup(cls, task_name: str, config: str | None) -> None:
-        """Called at task exit as a last chance to cleanup resources.
 
         Args:
           task_name (str): Name of task using the tool environment.
@@ -76,6 +66,29 @@ class ToolEnvironment(abc.ABC):
           interrupted (bool): Was the task interrupted by an error or cancellation
         """
         ...
+
+    @classmethod
+    async def task_cleanup(
+        cls, task_name: str, config: str | None, cleanup: bool
+    ) -> None:
+        """Called at task exit as a last chance to cleanup resources.
+
+        Args:
+          task_name (str): Name of task using the tool environment.
+          config (str): Implementation defined configuration file (optional).
+          cleanup (bool): Whether to actually cleanup environment resources
+            (False if `--no-toolenv-cleanup` was specified)
+        """
+        pass
+
+    @classmethod
+    async def cli_cleanup(cls, id: str | None) -> None:
+        """Handle a cleanup invoked from the CLI (e.g. inspect toolenv cleanup).
+
+        Args:
+          id (str | None): Optional ID to limit scope of cleanup.
+        """
+        pass
 
     @abc.abstractmethod
     async def exec(

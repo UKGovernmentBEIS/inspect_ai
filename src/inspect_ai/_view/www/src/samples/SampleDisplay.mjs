@@ -174,7 +174,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
   columns.push({
     label: "Id",
     value: id,
-    size: "minmax(2em, auto)",
+    size: "minmax(2em, 25%)",
   });
 
   columns.push({
@@ -260,9 +260,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
           style.display = "flex";
           style.justifyContent = "center";
         }
-        if (col.clamp) {
-          style.wordWrap = "anywhere";
-        }
+        style.wordWrap = "anywhere";
         return html`<div style=${{ ...style }}>${col.value}</div>`;
       })}
     </div>

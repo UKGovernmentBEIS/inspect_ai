@@ -1,6 +1,5 @@
 from typing import Any
 
-from inspect_ai._util.error import exception_message
 from inspect_ai._util.registry import (
     registry_info,
 )
@@ -15,7 +14,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._cache import epoch
 from inspect_ai.solver import TaskState, Tool
-from inspect_ai.solver._tool.tool import TOOL_PARAMS
+from inspect_ai.solver._tool.tool import TOOL_PARAMS, ToolError
 from inspect_ai.solver._tool.tool_def import ToolDef, tool_defs
 
 from .util import has_max_messages
@@ -63,9 +62,9 @@ async def task_generate(
                 tool_error: str | None = None
                 try:
                     result = await call_tool(tdefs, tool_call, state.metadata)
-                except Exception as ex:
+                except ToolError as ex:
                     result = ""
-                    tool_error = str(ex)
+                    tool_error = ex.message
 
                 if isinstance(result, tuple):
                     result, metadata = result
@@ -109,12 +108,12 @@ async def call_tool(
 ) -> Any:
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
-        raise ValueError(call.parse_error)
+        raise ToolError(call.parse_error)
 
     # find the tool
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
-        return f"Tool {call.function} not found"
+        raise ToolError(f"Tool {call.function} not found")
 
     # resolve metadata params and prepend to arguments
     tool_params: dict[str, str] = registry_info(tool_def.tool).metadata.get(
@@ -130,7 +129,4 @@ async def call_tool(
     arguments = resolved_params | call.arguments
 
     # call the tool
-    try:
-        return await tool_def.tool(**arguments)
-    except Exception as e:
-        return f"Error: {exception_message(e)}"
+    return await tool_def.tool(**arguments)

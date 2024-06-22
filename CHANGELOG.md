@@ -3,6 +3,12 @@
 ## v0.3.16 (Unreleased)
 
 -   Various fixes for the use of Docker tool environments on Windows.
+-   Ability to disable cleanup of tool environments via `--no-toolenv-cleanup` 
+-   New `inspect toolenv cleanup` command for manually cleaning up tool environments.
+-   `ToolError` exception type for explicitly raising tool errors to the model. Formerly, any exception would be surfaced as a tool error to the model. Now, the `ToolError` exception is required for reporting to the model (otherwise other exception types go through the call stack and result in an eval error).
+-   Resolve `INSPECT_LOG_DIR` in `.env` file relative to `.env` file parent directory.
+-   Use `-` for delimiting `--limit` ranges rather than `,`
+-   Use HF model device for generate (compatibility with multi-GPU)
 
 ## v0.3.15 (15 June 2024)
 

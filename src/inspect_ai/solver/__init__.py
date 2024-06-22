@@ -16,7 +16,7 @@ from ._tool.environment import (
     toolenv,
 )
 from ._tool.execute import bash, python
-from ._tool.tool import Tool, tool
+from ._tool.tool import Tool, ToolError, ToolResult, tool
 from ._tool.use_tools import use_tools
 from ._tool.web_search import web_search
 
@@ -42,6 +42,8 @@ __all__ = [
     "Choices",
     "TaskState",
     "Tool",
+    "ToolError",
+    "ToolResult",
     "Generate",
     "ToolEnvironment",
     "ToolEnvironments",

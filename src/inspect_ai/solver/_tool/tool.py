@@ -19,6 +19,12 @@ from inspect_ai.model import Content
 ToolResult = str | int | float | bool | list[Content]
 
 
+class ToolError(Exception):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
 @runtime_checkable
 class Tool(Protocol):
     async def __call__(

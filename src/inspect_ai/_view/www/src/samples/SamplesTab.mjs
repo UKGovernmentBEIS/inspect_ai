@@ -1,5 +1,11 @@
 import { html } from "htm/preact";
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 
 import { byEpoch, bySample, sort as doSort } from "./tools/SortFilter.mjs";
 import { SampleDialog } from "./SampleDialog.mjs";
@@ -78,7 +84,6 @@ export const SamplesTab = (props) => {
     }
   }, [sampleDialogRef, sampleListRef]);
 
-  // Compute the grouped items
   useEffect(() => {
     // Sort the samples
     const { sorted, order } = doSort(sort, filteredSamples, sampleDescriptor);
@@ -100,13 +105,17 @@ export const SamplesTab = (props) => {
       return results;
     });
 
+    setItems(items);
     const firstSample = items.findIndex((val) => {
       return val.type === "sample";
     });
+    if (items.length) {
+      setSelectedIndex(firstSample);
+    } 
 
-    setItems(items);
-    setSelectedIndex(firstSample);
+    return items;
   }, [filteredSamples, sort, epoch, sampleDescriptor]);
+
 
   // Focus the sample list
   useEffect(() => {
@@ -154,9 +163,10 @@ export const SamplesTab = (props) => {
   }, [selectedIndex, filteredSamples, previousSampleIndex]);
 
   const elements = [];
-  if (items.length === 1) {
+  if (samples?.length === 1 && items.length === 1) {
     elements.push(html` <${InlineSampleDisplay}
       index="0"
+      key=${`${task}-single-sample`}
       id="sample-display"
       sample=${items[0].data}
       sampleDescriptor=${sampleDescriptor}

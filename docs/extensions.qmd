@@ -79,10 +79,10 @@ eval(math, model = "custom/my-model")
 
 [Tool Environments](#sec-tool-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two tool environments built in:
 
-| Environment Type | Description                                                                                                                                                               |
+| Environment Type | Description |
 |----------------------------|--------------------------------------------|
-| `local`          | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker`         | Run `tool_environment()` methods within a Docker container                                                                                                                |
+| `local` | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `tool_environment()` methods within a Docker container |
 
 To create a custom tool environment, derive a class from `ToolEnvironment`, implement the required static and instance methods, and add the `@toolenv` decorator to it. For example:
 
@@ -95,12 +95,6 @@ class PodmanToolEnvironment(ToolEnvironment):
         cls, task_name: str, config: str | None
     ) -> None:
         ...
-
-    @classmethod
-    async def task_cleanup(
-        cls, task_name: str, config: str | None
-    ) -> None:
-       ...
 
     @classmethod
     async def sample_init(
@@ -119,6 +113,16 @@ class PodmanToolEnvironment(ToolEnvironment):
         environments: dict[str, ToolEnvironment],
         interrupted: bool,
     ) -> None:
+        ...
+
+    @classmethod
+    async def task_cleanup(
+        cls, task_name: str, config: str | None, cleanup: bool
+    ) -> None:
+       ...
+
+    @classmethod
+    async def cli_cleanup(cls, id: str | None) -> None:
         ...
 
     async def exec(
@@ -155,22 +159,35 @@ class PodmanToolEnvironment(ToolEnvironment):
 
 The class methods take care of various stages of initialisation, setup, and teardown:
 
-| Method             | Lifecycle                                 | Purpose                                                                               |
-|------------------|------------------|-------------------------------------|
-| `task_init()`      | Called at the beginning of each `Task`.   | Expensive initialisation operations (e.g. pulling or building images)                 |
-| `task_cleanup()`   | Called at the end of each `Task`.         | Last chance handler for any resources not yet cleaned up (see also discussion below). |
-| `sample_init()`    | Called at the beginning of each `Sample`. | Create `ToolEnvironment` instances for the sample.                                    |
-| `sample_cleanup()` | Called at the end of each `Sample`        | Cleanup `ToolEnvironment` instances for the sample.                                   |
+| Method | Lifecycle | Purpose |
+|------------------|------------------|------------------------------------|
+| `task_init()` | Called at the beginning of each `Task`. | Expensive initialisation operations (e.g. pulling or building images) |
+| `sample_init()` | Called at the beginning of each `Sample`. | Create `ToolEnvironment` instances for the sample. |
+| `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `ToolEnvironment` instances for the sample. |
+| `task_cleanup()` | Called at the end of each `Task`. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()` | Called via `inspect toolenv cleanup` | CLI invoked manual cleanup of resources created by this `ToolEnvironment`. |
 
-While `task_cleanup()` may not seem necessary at first blush (since `sample_cleanup()` is always called), there are several important reasons for it:
+The `task_cleanup()` has a number of important functions:
 
 1.  There may be global resources that are not tied to samples that need to be cleaned up.
 2.  It's possible that `sample_cleanup()` will be interrupted (e.g. via a Ctrl+C) during execution. In that case its resources are still not cleaned up.
 3.  The `sample_cleanup()` function might be long running, and in the case of error or interruption you want to provide explicit user feedback on the cleanup in the console (which isn't possible when cleanup is run "inline" with samples). An `interrupted` flag is passed to `sample_cleanup()` which allows for varying behaviour for this scenario.
+4.  Cleanup may be disabled (e.g. when the user passes `--no-toolenv-cleanup`) in which case it should print container IDs and instructions for cleaning up after the containers are no longer needed.
 
-To implement `task_cleanup()` properly, you'll likely need to track running environments using a per-coroutine `ContextVar`. The `DockerToolEnvironment` provides an example of this.
+To implement `task_cleanup()` properly, you'll likely need to track running environments using a per-coroutine `ContextVar`. The `DockerToolEnvironment` provides an example of this. Note that the `cleanup` argument passed to `task_cleanup()` indicates whether to actually clean up (it would be `False` if `--no-toolenv-cleanup` was passed to `inspect eval`). In this case you might want to print a list of the resources that were not cleaned up and provide directions on how to clean them up manually.
 
-The `ToolEnvironment` instance methods provide access to process execution and file input/output within the environment.
+The `cli_cleanup()` function is a global cleanup handler that should be able to do the following:
+
+1.  Cleanup *all* environments created by this provider (corresponds to e.g. `inspect toolenv cleanup docker` at the CLI).
+2.  Cleanup a single environment created by this provider (corresponds to e.g. `inspect toolenv cleanup docker <id>` at the CLI).
+
+The `task_cleanup()` function will typically print out the information required to invoke `cli_cleanup()` when it is invoked with `cleanup = False`. Try invoking the `DockerToolEnvironmet` with `--no-toolenv-cleanup` to see an example.
+
+The `ToolEnvironment` instance methods provide access to process execution and file input/output within the environment. A few notes on implementing these methods:
+
+1. The `exec()` method currently only handles text output. If a call results in binary output then a `UnicodeDecodeError` will be raised. Tool environments should catch this and raise a `ToolError`.
+
+2. The `read_file()` method raise a `FileNotFoundError` if the specified `file` does not exist in the tool environment, as tools calling `read_file()` will often want to catch the `FileNotFoundError` and re-throw a `ToolError` (since models will frequently attempt to read files that do not exist).
 
 The best way to learn about writing tool environments is to look at the source code for the built in environments, [LocalToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/local.py) and [DockerToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/docker/docker.py).
 
@@ -187,7 +204,7 @@ inspect_package = "inspect_package.inspect_extensions"
 
 ### Environment Usage
 
-Once the package is installed, you can refer to the custom tool environment the same way you'd refer to a built in tool environment. For example, in a `Task` defintion:
+Once the package is installed, you can refer to the custom tool environment the same way you'd refer to a built in tool environment. For example:
 
 ``` python
 Task(
@@ -196,24 +213,13 @@ Task(
 )
 ```
 
-Or when calling `eval()` or using `inspect eval` from the CLI:
+Tool environments can be invoked with an optional configuration parameter, which is passed as the `config` argument to the `startup()` and `setup()` methods. In Python this is done with a tuple
 
 ``` python
-eval(task, tool_environment="podman")
-```
-
-``` bash
-$ inspect eval --tool-environment podman
-```
-
-Tool environments can be invoked with an optional configuration parameter, which is passed as the `config` argument to the `startup()` and `setup()` methods. In Python this is done with a tuple and on the CLI by adding a `:` delimiter. For example:
-
-``` python
-eval(task, tool_environment=("podman", "config.yaml"))
-```
-
-``` bash
-$ inspect eval --tool-environment podman:config.yaml
+Task(
+    ...,
+    tool_environment=("podman","config.yaml")
+)
 ```
 
 ## Storage

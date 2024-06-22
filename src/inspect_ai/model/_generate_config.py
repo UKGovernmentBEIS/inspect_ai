@@ -45,7 +45,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI only."""
 
     seed: int | None
-    """Random seed. OpenAI only. OpenAI and Mistral only."""
+    """Random seed. OpenAI and Mistral only."""
 
     suffix: str | None
     """The suffix that comes after a completion of inserted text. OpenAI only."""
@@ -103,7 +103,7 @@ class GenerateConfig(BaseModel):
     """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI only."""
 
     seed: int | None = Field(default=None)
-    """Random seed. OpenAI only. OpenAI and Mistral only."""
+    """Random seed. OpenAI and Mistral only."""
 
     suffix: str | None = Field(default=None)
     """The suffix that comes after a completion of inserted text. OpenAI only."""

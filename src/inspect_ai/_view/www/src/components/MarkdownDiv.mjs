@@ -9,7 +9,7 @@ export const MarkdownDiv = (props) => {
   const { markdown, style } = props;
   
   // Escape all tags
-  const escaped = escape(markdown);
+  const escaped = markdown ? escape(markdown) : "";
 
   // Pre-render any text that isn't handled by markdown
   const preRendered = preRenderText(escaped);

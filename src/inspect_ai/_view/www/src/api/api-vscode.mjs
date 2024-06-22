@@ -14,9 +14,15 @@ async function client_events() {
 async function eval_logs() {
   const response = await vscodeClient(kMethodEvalLogs, []);
   if (response) {
-    return {
-      log_dir: "",
-      files: JSON5.parse(response)
+    const parsed = JSON5.parse(response);
+    if (Array.isArray(parsed)) {
+      // This is an old response, which omits the log_dir
+      return {
+        log_dir: "",
+        files: parsed
+      }  
+    } else {
+      return parsed;
     }
   } else {
     return undefined;

@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useCallback, useState, useEffect, useMemo, useRef } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState, useRef } from "preact/hooks";
 
 // Registration component
 import "./src/Register.mjs";
@@ -33,11 +33,15 @@ export function App() {
     loading: true,
     error: undefined
   });
+  const [headersLoading, setHeadersLoading] = useState(false);
 
 
   // Read header information for the logs
   // and then update
   useEffect(async () => {
+    // Loeading headers
+    setHeadersLoading(true);
+
     // Group into chunks
     const chunkSize = 12;
     const fileLists = [];
@@ -45,10 +49,6 @@ export function App() {
       let chunk = logs.files.slice(i, i + chunkSize).map((log) => {
         return log.name;
       }).filter((chunk) => {
-        // Don't reload headers that we already have status for
-        // TODO: We should re-compute the next chunk as needed
-        // TODO: If we stream or refresh logs, we need to be smarter
-        // about refreshing this
         const currentHeader = logHeaders[chunk];
         if (currentHeader) {
           return false;
@@ -60,26 +60,51 @@ export function App() {
     }
 
     // Chunk by chunk, read the header information
-    for (const fileList of fileLists) {
-      const headers = await api.eval_log_headers(fileList);
-      const updatedHeaders = logHeaders;
-      headers.forEach((header, index) => {
-        const logFile = fileList[index];
-        updatedHeaders[logFile] = header;
-      });
-      setLogHeaders({ ...logHeaders, ...updatedHeaders });
-      await sleep(2000);
+    try {
+      for (const fileList of fileLists) {
+
+          const headers = await api.eval_log_headers(fileList);
+          const updatedHeaders = logHeaders;
+          headers.forEach((header, index) => {
+            const logFile = fileList[index];
+            updatedHeaders[logFile] = header;
+          });
+          setLogHeaders({ ...logHeaders, ...updatedHeaders });
+          await sleep(pendingLog !== undefined ? 0 : 2000);  
+      }
+    } catch (e) {
+      // Show an error
+      console.log(e);
+      setStatus({ loading: false, error: e });
     }
-  }, [logs]);
+
+    setHeadersLoading(false);
+  }, [logs, pendingLog, setStatus]);
+
+
+  // Filter out running logs
+  const filteredLogs = useMemo(() => {
+    // Filter out running tasks
+    const notRunning = Object.keys(logHeaders).filter((key) => {
+      return logHeaders[key].status !== "started";
+    });
+
+    const files = logs.files.filter((file) => {
+      return notRunning.includes(file.name)
+    });
+
+    return {
+      log_dir: logs.log_dir,
+      files: files
+    };
+
+  }, [logHeaders, logs]);
 
   // Load a specific log file
   useEffect(async () => {
-    if (logs.files.length > 0 && selected > -1) {
-      const targetLog = logs.files[selected];
-      const header = logHeaders[targetLog.name];
-      // Only show the log once we have at least one log which isn't currently running.
-      // This prevents a 'flash', for example, the most recent log is running and would be selected
-      if (currentLog.name !== targetLog.name && header && header.status !== "started") {
+    if (filteredLogs.files.length > 0 && selected > -1) {
+      const targetLog = filteredLogs.files[selected];
+      if (currentLog.name !== targetLog.name) {
         try {
           setStatus({ loading: true, error: undefined });
           const logContents = await api.eval_log(targetLog.name, false);
@@ -91,29 +116,27 @@ export function App() {
           // Show an error
           console.log(e);
           setStatus({ loading: false, error: e });
-        }
+        }  
       }
     } else {
       setCurrentLog({ contents: undefined, name: undefined, raw: undefined });
     }
-  }, [selected, logs, logHeaders]);
+  }, [selected, filteredLogs, setStatus, currentLog, setCurrentLog]);
 
+
+  // Select any pending logs if they are loaded
   useEffect(() => {
-    // Filter out running tasks
-    const currentlogs = logs;
-    const runningEvals = Object.keys(logHeaders).filter((key) => {
-      return logHeaders[key].status === "started";
-    });
-
-    const nonRunningLogFiles = currentlogs.files.filter((file) => {
-      return !runningEvals.includes(file.name)
-    });
-
-    if (nonRunningLogFiles.length !== currentlogs.files.length) {
-      setLogs({ log_dir: currentlogs.log_dir, files: nonRunningLogFiles });
-    }
-
-  }, [logHeaders]);
+    if (filteredLogs && pendingLog) {      
+      const index = filteredLogs.files.findIndex((val) => {
+        return pendingLog.endsWith(val.name);
+      });
+      if (index > -1) {
+        setSelected(index);
+        setPendingLog(undefined);
+      }
+      
+    }  
+  }, [filteredLogs, pendingLog, setSelected, setPendingLog])
 
   // Keep a queue of loading operations that will be run
   // as needed
@@ -125,11 +148,11 @@ export function App() {
       .then(async () => {
 
         // first check whether the selected file has already
-        // been loaded, and if so, just selected it without
+        // been loaded, and if so, just select it without
         // reloading
-        if (logs.files.length > 0 && currentLog.name) {
+        if (filteredLogs.files.length > 0 && currentLog.name) {
           const name = filename(currentLog.name);
-          if (logs.files.includes(name)) {
+          if (filteredLogs.files.includes(name)) {
             return;
           }
         }
@@ -151,48 +174,37 @@ export function App() {
 
     // Wait for the current operation to finish
     await loadQueue.current;
-  }, [setLogs, currentLog]);
+  }, [filteredLogs, setLogs, currentLog]);
 
-
-  // Ensure that we have a selected index when there is are 
-  // new logs
-  useEffect(() => {
-    if (logs && pendingLog) {
-      const index = logs.files.findIndex((val) => {
-        return pendingLog.endsWith(val.name);
-      });
-      if (index > -1) {
-        setSelected(index);
-      }
-      setPendingLog(undefined);
-    }
-  }, [logs, pendingLog])
-
-  // listen for updateState messages from vscode
-  useEffect(() => {
-    const onMessage = async (e) => {
+  const onMessage = useMemo(() =>{ 
+    return async (e) => {
       switch (e.data.type || e.data.message) {
         case "updateState": {
           if (e.data.url) {
-            const index = logs.files.findIndex((val) => {
-              return e.data.url.endsWith(val.name);
+            const decodedUrl = decodeURIComponent(e.data.url);
+            const index = filteredLogs.files.findIndex((val) => {
+              return decodedUrl.endsWith(val.name);
             });
             if (index > -1) {
               // Select the correct index
               setSelected(index);
             } else {
               await loadLogs();
-              setPendingLog(e.data.url);
+              setPendingLog(decodedUrl);
             }
           }
         }
       }
     };
+  }, [filteredLogs, loadLogs, setSelected, setPendingLog])
+
+  // listen for updateState messages from vscode
+  useEffect(() => {
     window.addEventListener("message", onMessage);
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [logs, setCurrentLog, setPendingLog]);
+  }, [onMessage]);
 
   useEffect(async () => {
     // See whether a specific task_file has been passed.
@@ -212,11 +224,20 @@ export function App() {
       }
       : loadLogs;
 
+
+    // See whether there is state encoding in the document itself
+    const embeddedState = document.getElementById("logview-state");
+    if (embeddedState) {
+      const state = JSON.parse(embeddedState.textContent);
+      onMessage({ data: state});
+    }
+
     // initial fetch of logs
     await load();
 
-    // Select the first log
-    if (selected === -1) {
+    // Select the first log if there wasn't some
+    // message embedded within the view html itself
+    if (selected === -1 && !embeddedState) {
       setSelected(0);
     }
 
@@ -236,36 +257,42 @@ export function App() {
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
-  const fullScreen = logs.files.length === 1 && !logs.log_dir;
+  const fullScreen = filteredLogs.files.length === 1 && !filteredLogs.log_dir;
 
-  const appEnvelope = fullScreen
-    ? ""
-    : html`
-        <${Navbar} 
-          file=${currentLog.name}
-          task=${currentLog.contents?.eval?.task}
-          model=${currentLog.contents?.eval?.model}
-          metrics=${currentLog.contents?.results?.metrics}
-          samples=${currentLog.contents?.samples}
-          status=${currentLog.contents?.status}
-          offcanvas=${offcanvas} />
-        <${Sidebar}
-          logs=${logs}
-          logHeaders=${logHeaders}
-          offcanvas=${offcanvas}
-          selected=${selected}
-          onSelected=${(index) => {
-        setSelected(index);
+  const appEnvelope = [
+    html` <${Navbar}
+      file=${currentLog.name}
+      logs=${filteredLogs}
+      task=${currentLog.contents?.eval?.task}
+      model=${currentLog.contents?.eval?.model}
+      metrics=${currentLog.contents?.results?.metrics}
+      samples=${currentLog.contents?.samples}
+      status=${currentLog.contents?.status}
+      offcanvas=${offcanvas}
+    />`,
+  ];
+  if (!fullScreen) {
+    appEnvelope.push(html`
+      <${Sidebar}
+        logs=${filteredLogs}
+        logHeaders=${logHeaders}
+        loading=${headersLoading}
+        offcanvas=${offcanvas}
+        selectedIndex=${selected}
+        onSelectedIndexChanged=${(index) => {
+          setSelected(index);
 
-        // hide the sidebar offcanvas
-        var myOffcanvas = document.getElementById("sidebarOffCanvas");
-        var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
-        if (bsOffcanvas) {
-          bsOffcanvas.hide();
-        }
-      }}
-        />
-      `;
+
+          // hide the sidebar offcanvas
+          var myOffcanvas = document.getElementById("sidebarOffCanvas");
+          var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
+          if (bsOffcanvas) {
+            bsOffcanvas.hide();
+          }
+        }}
+      />
+    `);
+  }
 
   const progress = useMemo(() => {
     if (status.loading) {
@@ -284,7 +311,7 @@ export function App() {
     } else {
       return html`
       <${WorkSpace}
-        logs=${logs}
+        logs=${filteredLogs}
         log=${currentLog}
         selected=${selected}
         fullScreen=${fullScreen}

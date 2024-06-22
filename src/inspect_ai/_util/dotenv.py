@@ -26,27 +26,31 @@ def init_dotenv() -> None:
     if dotenv_file:
         # is there an INSPECT_LOG_DIR currently in the environment? (we will give it preference)
         environment_log_dir = os.environ.get(INSPECT_LOG_DIR_VAR, None)
-        if environment_log_dir:
-            environment_log_dir = absolute_file_path(environment_log_dir)
-
-        # is there an INSPECT_LOG_DIR in the .env? If so resolve path relative to .env
         dotenv_log_dir = dotenv_values(dotenv_file).get(INSPECT_LOG_DIR_VAR, None)
-        if dotenv_log_dir:
+
+        # If the environment is providing a log_dir that is the same as what is configured
+        # in the environment, treat this as if the environment is providing the log_dir
+        # (which means it will be interpreted relative to the env file)
+        #
+        # If the log_dir is coming from the environment, interpret it relative to the cwd
+        inspect_log_dir = None
+        if environment_log_dir == dotenv_log_dir or not environment_log_dir:
             # check for a relative dir, if we find one then resolve to absolute
-            fs_scheme = urlparse(dotenv_log_dir).scheme
-            if not fs_scheme and not os.path.isabs(dotenv_log_dir):
-                dotenv_log_dir = (
-                    (Path(dotenv_file).parent / dotenv_log_dir).resolve().as_posix()
-                )
+            if dotenv_log_dir:
+                fs_scheme = urlparse(dotenv_log_dir).scheme
+                if not fs_scheme and not os.path.isabs(dotenv_log_dir):
+                    inspect_log_dir = (
+                        (Path(dotenv_file).parent / dotenv_log_dir).resolve().as_posix()
+                    )
+        elif environment_log_dir:
+            inspect_log_dir = absolute_file_path(environment_log_dir)
 
         # do the load, overriding as necessary if we are in vscode
         load_dotenv(dotenv_file, override=override)
 
         # apply the log_dir, giving preference to the existing environment var
-        if environment_log_dir:
-            os.environ[INSPECT_LOG_DIR_VAR] = environment_log_dir
-        elif dotenv_log_dir:
-            os.environ[INSPECT_LOG_DIR_VAR] = dotenv_log_dir
+        if inspect_log_dir:
+            os.environ[INSPECT_LOG_DIR_VAR] = inspect_log_dir
 
 
 @contextlib.contextmanager

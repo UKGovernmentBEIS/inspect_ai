@@ -59,9 +59,43 @@ Note that this tool doesn't make network requests or do heavy computation, so is
 Note that when using tools with models, the models do not call the Python function directly. Rather, the model generates a structured request which includes function parameters, and then Inspect calls the function and returns the result to the model.
 :::
 
+## Tool Errors
+
+If an exception occurs during tool execution, it will by default result in a runtime error that exits the evaluation task. This is often the correct behaviour (as a malfunctioning tool invalidates the assumptions of the eval), however sometimes there are "expected" errors. For example, if you give the model a tool to execute bash or python code, it may submit invalid code. In this case you want to report the error to the model and have it adapt.
+
+You can report errors to the model from tools by raising a `ToolError` exception. These exceptions will not terminate the eval, but rather will report back to the model and that an error has occurred and allow it to recover. For example, here is the code for the built in `bash()` tool:
+
+``` python
+@tool(prompt="Use the bash tool for shell commands.")
+def bash(timeout: int | None = None) -> Tool:
+   
+    async def execute(cmd: str) -> str:
+        """
+        Execute a bash command.
+
+        Args:
+          cmd (str): The bash command to execute.
+
+        Returns:
+          The output of the command.
+        """
+        result = await tool_environment().exec(
+            cmd=["bash", "-c", cmd], 
+            timeout=timeout
+        )
+        if result.success:
+            return result.stdout
+        else:
+            raise ToolError(result.stderr)
+
+    return execute
+```
+
+We *expect* that some bash commands will result in an error status, so we explicitly raise `ToolError` rather than a normal exception.
+
 ## Tool Choice
 
-By default models will use a tool if they think it's appropriate for the given task. You can override this behavior using the `tool_choice` parameter of the `use_tools()` Solver. For example:
+By default models will use a tool if they think it's appropriate for the given task. You can override this behaviour using the `tool_choice` parameter of the `use_tools()` Solver. For example:
 
 ``` python
 # let the model decide whether to use the tool
@@ -140,7 +174,7 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 
 ### Bash and Python
 
-The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Tool Environment](#sec-tool-environment), which can provide sandboxing for untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
+The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Tool Environment](#sec-tool-environments), which can provide sandboxing for untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
 
 ``` python
 CMD_TIMEOUT = 180

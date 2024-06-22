@@ -1,5 +1,4 @@
 import pytest
-from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval_async
 from inspect_ai._util.registry import registry_info
@@ -20,7 +19,6 @@ def my_plan() -> Plan:
     return Plan(steps=[chain_of_thought(), generate()])
 
 
-@skip_if_no_openai
 @pytest.mark.asyncio
 async def test_plan_cleanup():
     @solver
@@ -43,7 +41,7 @@ async def test_plan_cleanup():
         ),
     )
 
-    result = await eval_async(task, model="openai/gpt-4")
+    result = await eval_async(tasks=task, model="mockllm/model")
 
     assert result[0].status == "error"
     assert cleaned_up

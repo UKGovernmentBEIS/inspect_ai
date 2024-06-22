@@ -7,11 +7,13 @@ from typing import Literal, Union, cast, overload
 import aiofiles
 from typing_extensions import override
 
+from inspect_ai.solver._tool.tool import ToolError
 from inspect_ai.util._context.subprocess import ExecResult
 
 from ..environment import ToolEnvironment
 from ..registry import toolenv
 from .cleanup import (
+    cli_cleanup,
     project_cleanup,
     project_cleanup_shutdown,
     project_cleanup_startup,
@@ -27,6 +29,7 @@ from .compose import (
     compose_services,
     compose_up,
 )
+from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name, tools_log
 
 logger = getLogger(__name__)
@@ -36,16 +39,16 @@ logger = getLogger(__name__)
 class DockerToolEnvironment(ToolEnvironment):
     @classmethod
     async def task_init(cls, task_name: str, config: str | None) -> None:
+        # validate prereqs
+        await validate_prereqs()
+
         # intialize project cleanup
         project_cleanup_startup()
 
         try:
             # create project
-            project = ComposeProject(
-                name=task_project_name(task_name),
-                config=config,
-                env=dict(),
-                working_dir="/",
+            project = await ComposeProject.create(
+                name=task_project_name(task_name), config=config
             )
 
             # build containers which are out of date
@@ -72,12 +75,8 @@ class DockerToolEnvironment(ToolEnvironment):
             print("")
 
         except BaseException as ex:
-            await project_cleanup_shutdown()
+            await project_cleanup_shutdown(True)
             raise ex
-
-    @classmethod
-    async def task_cleanup(cls, task_name: str, config: str | None) -> None:
-        await project_cleanup_shutdown()
 
     @override
     @classmethod
@@ -92,8 +91,8 @@ class DockerToolEnvironment(ToolEnvironment):
             env[f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"] = str(value)
 
         # create project
-        project = ComposeProject(
-            name=task_project_name(task_name), config=config, env=env, working_dir="/"
+        project = await ComposeProject.create(
+            name=task_project_name(task_name), config=config, env=env
         )
 
         # enumerate the services that will be created
@@ -151,6 +150,16 @@ class DockerToolEnvironment(ToolEnvironment):
             # cleanup the project
             await project_cleanup(project=project, quiet=True)
 
+    @classmethod
+    async def task_cleanup(
+        cls, task_name: str, config: str | None, cleanup: bool
+    ) -> None:
+        await project_cleanup_shutdown(cleanup)
+
+    @classmethod
+    async def cli_cleanup(cls, id: str | None) -> None:
+        await cli_cleanup(id)
+
     def __init__(self, service: str, project: ComposeProject) -> None:
         super().__init__()
         self._service = service
@@ -168,14 +177,21 @@ class DockerToolEnvironment(ToolEnvironment):
         # will be available to the bash command
         env_args = []
         if len(env.items()) > 0:
-            env_args = [f"--env {key}={value}" for key, value in env.items()]
+            for key, value in env.items():
+                env_args.append("--env")
+                env_args.append(f"{key}={value}")
 
-        result = await compose_exec(
-            env_args + [self._service] + cmd,
-            project=self._project,
-            timeout=timeout,
-            input=input,
-        )
+        try:
+            result = await compose_exec(
+                env_args + [self._service] + cmd,
+                project=self._project,
+                timeout=timeout,
+                input=input,
+            )
+        except UnicodeDecodeError:
+            raise ToolError(
+                "Unicode decoding error reading command output (it is likely binary rather than text)"
+            )
         return result
 
     @override
@@ -228,12 +244,18 @@ class DockerToolEnvironment(ToolEnvironment):
 
             # copy the file
             dest_file = os.path.join(temp_dir, os.path.basename(file))
-            await compose_cp(
-                src=f"{self._service}:{file}",
-                dest=os.path.basename(dest_file),
-                project=self._project,
-                cwd=os.path.dirname(dest_file),
-            )
+            try:
+                await compose_cp(
+                    src=f"{self._service}:{file}",
+                    dest=os.path.basename(dest_file),
+                    project=self._project,
+                    cwd=os.path.dirname(dest_file),
+                )
+            except RuntimeError as ex:
+                if "could not find" in str(ex).lower():
+                    raise FileNotFoundError(str(ex))
+                else:
+                    raise ex
 
             # read and return w/ appropriate encoding
             if text:
