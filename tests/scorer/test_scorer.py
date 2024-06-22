@@ -1,5 +1,5 @@
 import pytest
-from test_helpers.utils import run_example, skip_if_no_openai
+from test_helpers.utils import run_example
 
 from inspect_ai import Task, eval, score
 from inspect_ai.dataset import Sample
@@ -60,17 +60,15 @@ def test_valid_scorers_succeed():
         scorer(metrics=[accuracy()], name=f.__name__)(f)()
 
 
-@skip_if_no_openai
 def test_no_scorer():
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
     )
-    log = eval(task)[0]
+    log = eval(tasks=task, model="mockllm/model")[0]
     assert log.samples[0].score is None
 
 
-@skip_if_no_openai
 def test_score_function():
-    log = run_example("popularity.py", "openai/gpt-4")
+    log = run_example("popularity.py", "mockllm/model")
     log = score(log[0], includes())
     assert log.samples[0].score.value

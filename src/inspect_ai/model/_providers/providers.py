@@ -25,7 +25,7 @@ def openai() -> type[ModelAPI]:
 def anthropic() -> type[ModelAPI]:
     FEATURE = "Anthropic API"
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.27.0"
+    MIN_VERSION = "0.29.0"
 
     # verify we have the package
     try:
@@ -141,7 +141,7 @@ def bedrock() -> type[ModelAPI]:
 
 @modelapi(name="mockllm")
 def mockllm() -> type[ModelAPI]:
-    from .mock_llm import MockLLM
+    from .mockllm import MockLLM
 
     return MockLLM
 

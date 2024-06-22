@@ -29,7 +29,7 @@ def tool_environment(name: str = "default") -> ToolEnvironment:
         raise RuntimeError(
             "No tool environment has been provided for the current task. "
             + "Please specify one using either the tool_environment task/eval "
-            + "option, or the --tool-environment CLI option."
+            + "option, or the --toolenv CLI option."
         )
 
     # short circuit for 1 environment (allows single environment to not sweat 'default')
@@ -47,7 +47,7 @@ def tool_environment(name: str = "default") -> ToolEnvironment:
 
 
 async def startup_tool_environments(
-    task_name: str, tool_environment: tuple[str, str | None]
+    task_name: str, tool_environment: tuple[str, str | None], cleanup: bool
 ) -> Callable[[], Awaitable[None]]:
     # find type
     toolenv_type = registry_find_toolenv(tool_environment[0])
@@ -60,7 +60,7 @@ async def startup_tool_environments(
     task_cleanup = cast(TaskCleanup, getattr(toolenv_type, "task_cleanup"))
 
     async def shutdown() -> None:
-        await task_cleanup(task_name, tool_environment[1])
+        await task_cleanup(task_name, tool_environment[1], cleanup)
 
     return shutdown
 
@@ -94,7 +94,6 @@ async def init_tool_environments_sample(
         return environments
 
     except Exception as ex:
-        # cleanup
         await sample_cleanup(task_name, config, environments, True)
         raise ex
 

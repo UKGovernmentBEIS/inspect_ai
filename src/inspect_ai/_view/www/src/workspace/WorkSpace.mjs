@@ -94,6 +94,10 @@ export const WorkSpace = (props) => {
           />`;
         },
         tools: (state) => {
+          // Don't show tools if there is a sample sample
+          if (workspaceLog.contents?.samples?.length <= 1) {
+            return "";
+          }
           return html`<${SampleTools}
             epoch=${state.viewState.epoch}
             epochs=${workspaceLog.contents?.eval?.config?.epochs}
@@ -222,7 +226,7 @@ export const WorkSpace = (props) => {
       viewState.filter = filter;
       setState({ viewState });
     },
-    [state]
+    [state, setState]
   );
 
   const setEpoch = useCallback(
@@ -275,9 +279,21 @@ export const WorkSpace = (props) => {
       }
     }
 
-    setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
-    setState({viewState: {...state.viewState, renderedCode: false}});
+    // Reset state
+    const newState = {
+      openSamples: [],
+      filter: {},
+      epoch: "all",
+      sort: kDefaultSort,
+      renderedCode: false  
+    };
+
+    setState({viewState: {...state.viewState, ...newState}});
   }, [workspaceLog, divRef, currentTaskId]);
+
+  useEffect(() => {
+    setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
+  }, [workspaceLog])
 
   // Compute the tools for this tab
   const tabTools = Object.keys(tabs)

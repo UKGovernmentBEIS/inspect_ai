@@ -44,6 +44,7 @@ export const SortFilter = ({ sort, setSort, epochs }) => {
         class="form-select form-select-sm"
         aria-label=".epoch-filter-label"
         style=${{ fontSize: "0.7rem" }}
+        value=${sort}
         onChange=${(e) => {
           setSort(e.target.value);
         }}
@@ -51,7 +52,6 @@ export const SortFilter = ({ sort, setSort, epochs }) => {
         ${options.map((option) => {
           return html`<option
             value="${option.val}"
-            ${sort === option.val ? "selected" : ""}
           >
             ${option.label}
           </option>`;

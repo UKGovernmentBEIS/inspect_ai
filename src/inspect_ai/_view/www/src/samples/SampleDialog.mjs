@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { useCallback, useMemo } from "preact/hooks";
 
 import { icons } from "../Constants.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -10,8 +11,6 @@ export const SampleDialog = (props) => {
   const {
     id,
     index,
-    task,
-    model,
     title,
     sample,
     sampleDescriptor,
@@ -26,43 +25,50 @@ export const SampleDialog = (props) => {
     return html`<${LargeModal} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
   }
 
-  const nextTool = {
-    label: "Next Sample",
-    icon: icons.next,
-    onclick: nextSample,
-    enabled: !!nextSample,
-  };
+  const tools = useMemo(() => {
+    const nextTool = {
+      label: "Next Sample",
+      icon: icons.next,
+      onclick: nextSample,
+      enabled: !!nextSample,
+    };
+  
+    const prevTool = {
+      label: "Previous Sample",
+      icon: icons.previous,
+      onclick: prevSample,
+      enabled: !!prevSample,
+    };
 
-  const prevTool = {
-    label: "Previous Sample",
-    icon: icons.previous,
-    onclick: prevSample,
-    enabled: !!prevSample,
-  };
+    return {
+      left: [prevTool],
+      right: [nextTool]
+    }
+  
+  }, [prevSample, nextSample])
+
+  const handleKeyUp = useCallback((e) => {
+    switch (e.key) {
+      case "ArrowRight":
+        if (nextSample) {
+          nextSample();
+        }
+        break;
+      case "ArrowLeft":
+        if (prevSample) {
+          prevSample();
+        }
+        break;
+    }
+  }, [prevSample, nextSample])
 
   // Provide the dialog
   return html`
     <${LargeModal} 
       id=${id} 
       detail=${title}
-      detailTools=${{
-        left: [prevTool],
-        right: [nextTool],
-      }}
-      onkeyup=${(e) => {
-        switch (e.key) {
-          case "ArrowRight":
-            if (nextSample) {
-              nextSample();
-            }
-            break;
-          case "ArrowLeft":
-            if (prevSample) {
-              prevSample();
-            }
-            break;
-        }
-      }}   
+      detailTools=${tools}
+      onkeyup=${handleKeyUp}   
     >
     <${SampleDisplay}
       index=${index}

@@ -104,6 +104,7 @@ async def task_run(
         # resolve some config
         model_name = ModelName(model)
         epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
+        toolenv_cleanup = config.toolenv_cleanup is not False
         log_images = config.log_images is not False
         log_samples = config.log_samples is not False
         generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
@@ -158,7 +159,7 @@ async def task_run(
         shutdown_tool_environments: Callable[[], Awaitable[None]] | None = None
         if tool_environment:
             shutdown_tool_environments = await startup_tool_environments(
-                task.name, tool_environment
+                task.name, tool_environment, toolenv_cleanup
             )
 
         with display().task(profile) as td:
@@ -201,6 +202,7 @@ async def task_run(
                             sample=sample,
                             state=state,
                             tool_environment=tool_environment,
+                            toolenv_cleanup=toolenv_cleanup,
                             plan=plan,
                             max_messages=config.max_messages,
                             scorer=scorer,
@@ -288,6 +290,7 @@ async def task_run_sample(
     sample: Sample,
     state: TaskState,
     tool_environment: tuple[str, str | None] | None,
+    toolenv_cleanup: bool,
     plan: Plan,
     max_messages: int | None,
     scorer: Scorer | None,
@@ -319,7 +322,7 @@ async def task_run_sample(
 
     # use toolenv if provided
     toolenv_cm = (
-        toolenv_context(task_name, tool_environment, sample)
+        toolenv_context(task_name, tool_environment, toolenv_cleanup, sample)
         if tool_environment
         else contextlib.nullcontext()
     )
@@ -496,7 +499,10 @@ def create_task_semaphone(
 
 @contextlib.asynccontextmanager
 async def toolenv_context(
-    task_name: str, tool_environment: tuple[str, str | None], sample: Sample
+    task_name: str,
+    tool_environment: tuple[str, str | None],
+    cleanup: bool,
+    sample: Sample,
 ) -> AsyncGenerator[None, None]:
     # read files from sample
     files: dict[str, bytes] = {}
@@ -542,7 +548,7 @@ async def toolenv_context(
 
     finally:
         # cleanup tool environment
-        if environments:
+        if environments and cleanup:
             await cleanup_tool_environments_sample(
                 type=tool_environment[0],
                 task_name=task_name,

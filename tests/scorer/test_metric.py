@@ -1,7 +1,5 @@
 from typing import Any
 
-from test_helpers.utils import skip_if_no_openai
-
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import registry_info
@@ -74,7 +72,6 @@ def test_inspect_metrics() -> None:
     registry_assert(accuracy(), f"{PKG_NAME}/accuracy")
 
 
-@skip_if_no_openai
 def test_extra_metrics() -> None:
     # check that we get the extra metrics and de-duping works
     def check_log(log):
@@ -95,7 +92,7 @@ def test_extra_metrics() -> None:
     )
 
     # normal eval
-    log = eval(task)[0]
+    log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log)
 
     # eval log w/ different scorer (that still uses accuracy)

@@ -1,14 +1,15 @@
 import json
+import os
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
 
 import yaml
+from pydantic import BaseModel
 
 from inspect_ai.util._context.subprocess import ExecResult, subprocess
 
-from .config import auto_config
-from .util import ComposeProject, tools_log
+from .util import ComposeProject, is_inspect_project, tools_log
 
 logger = getLogger(__name__)
 
@@ -28,15 +29,22 @@ async def compose_up(project: ComposeProject) -> None:
 
 
 async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
+    # set cwd to config file directory
+    cwd = os.path.dirname(project.config) if project.config else None
+
     # shut down docker containers
     result = await compose_command(
-        ["down", "--volumes"], project=project, capture_output=quiet, ansi="never"
+        ["down", "--volumes"],
+        project=project,
+        cwd=cwd,
+        capture_output=quiet,
+        ansi="never",
     )
     if not result.success:
         msg = f"Failed to stop docker service {result.stderr}"
         logger.warning(msg)
 
-    await compose_cleanup_images(project=project)
+    await compose_cleanup_images(project=project, cwd=cwd)
 
 
 async def compose_cp(
@@ -50,7 +58,7 @@ async def compose_cp(
 
 async def compose_check_running(services: list[str], project: ComposeProject) -> None:
     # Check to ensure that the status of containers is healthy
-    running_services = await compose_ps("running", project=project)
+    running_services = await compose_ps(project=project, status="running")
     if len(running_services) > 0:
         if len(running_services) != len(services):
             unhealthy_services = services
@@ -64,23 +72,30 @@ async def compose_check_running(services: list[str], project: ComposeProject) ->
 
 
 async def compose_ps(
+    project: ComposeProject,
     status: Literal[
         "paused", "restarting", "removing", "running", "dead", "created", "exited"
-    ],
-    project: ComposeProject,
+    ]
+    | None = None,
+    all: bool = False,
 ) -> list[dict[str, Any]]:
-    result = await compose_command(
-        ["ps", "--status", status, "--format", "json"],
-        project=project,
-    )
+    command = ["ps", "--format", "json"]
+    if all:
+        command.append("--all")
+    if status:
+        command = command + ["--status", status]
+    result = await compose_command(command, project=project)
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
 
-    return [
-        cast(dict[str, Any], json.loads(service))
-        for service in result.stdout.strip().split("\n")
-    ]
+    output = result.stdout.strip()
+    if len(output) > 0:
+        return [
+            cast(dict[str, Any], json.loads(service)) for service in output.split("\n")
+        ]
+    else:
+        return []
 
 
 async def compose_build(project: ComposeProject, capture_output: bool = False) -> None:
@@ -137,13 +152,32 @@ async def compose_services(project: ComposeProject) -> dict[str, ComposeService]
     return cast(dict[str, ComposeService], yaml.safe_load(result.stdout)["services"])
 
 
+class Project(BaseModel):
+    Name: str
+    Status: str
+    ConfigFiles: str
+
+
+async def compose_ls() -> list[Project]:
+    result = await subprocess(["docker", "compose", "ls", "--all", "--format", "json"])
+    if result.success:
+        projects: list[dict[str, Any]] = json.loads(result.stdout)
+        projects = list(filter(lambda p: is_inspect_project(p["Name"]), projects))
+        return [Project(**project) for project in projects]
+    else:
+        raise RuntimeError(result.stderr)
+
+
 async def compose_cleanup_images(
     project: ComposeProject,
+    cwd: str | None = None,
     timeout: int | None = None,
 ) -> None:
     tools_log("Removing images")
     # List the images that would be created for this compose
-    images_result = await compose_command(["config", "--images"], project=project)
+    images_result = await compose_command(
+        ["config", "--images"], project=project, cwd=cwd
+    )
 
     # Remove those images explicitly
     if images_result.success:
@@ -188,7 +222,7 @@ async def compose_command(
     compose_command = ["docker", "compose"]
 
     # env to forward
-    env = project.env if forward_env else {}
+    env = project.env if (project.env and forward_env) else {}
 
     # ansi
     if ansi:
@@ -198,9 +232,8 @@ async def compose_command(
     compose_command = compose_command + ["--project-name", project.name]
 
     # add config file if specified
-    config = project.config if project.config else await auto_config()
-    if config:
-        compose_command = compose_command + ["-f", config]
+    if project.config:
+        compose_command = compose_command + ["-f", project.config]
 
     # build final command
     compose_command = compose_command + command

@@ -1,5 +1,6 @@
 import os
 import sys
+from collections import deque
 from contextlib import AbstractContextManager, contextmanager
 from copy import deepcopy
 from pathlib import PurePath
@@ -61,20 +62,52 @@ class chdir_python(AbstractContextManager[None]):
 
 
 @overload
-def cwd_relative_path(file: str) -> str: ...
+def cwd_relative_path(file: str, walk_up: bool = False) -> str: ...
 
 
 @overload
-def cwd_relative_path(file: None) -> None: ...
+def cwd_relative_path(file: None, walk_up: bool = False) -> None: ...
 
 
-def cwd_relative_path(file: str | None) -> str | None:
+def cwd_relative_path(file: str | None, walk_up: bool = False) -> str | None:
     if file:
         cwd = PurePath(os.getcwd())
         task_path = PurePath(file)
         if task_path.is_relative_to(cwd):
             return task_path.relative_to(cwd).as_posix()
+        elif walk_up:
+            return relative_walk(cwd, task_path)
         else:
             return file
     else:
         return None
+
+
+# A slightly modified implementation of task_path.relative(d, walk_up=True)
+# since that wasn't introduced until python 3.12
+def relative_walk(from_path: PurePath, to_path: PurePath) -> str:
+    if from_path.anchor != to_path.anchor:
+        raise ValueError(
+            f"{str(from_path)!r} and {str(to_path)!r} have different anchors"
+        )
+
+    from_parts = deque(from_path.parts)
+    to_parts = deque(to_path.parts)
+
+    while from_parts and to_parts and from_parts[0] == to_parts[0]:
+        from_parts.popleft()
+        to_parts.popleft()
+
+    # Process the remaining segments in the base_parts
+    relative_parts: list[str] = []
+    for part in from_parts:
+        if not part or part == ".":
+            pass
+        elif part == "..":
+            raise ValueError(f"'..' segment in {str(from_path)!r} cannot be walked")
+        else:
+            relative_parts.append("..")
+
+    # Add the remaining parts of other_parts
+    relative_parts.extend(to_parts)
+    return str(PurePath(*relative_parts))

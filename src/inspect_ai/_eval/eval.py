@@ -40,7 +40,8 @@ def eval(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
-    tool_environment: ToolEnvironmentSpec | None = None,
+    toolenv: ToolEnvironmentSpec | None = None,
+    toolenv_cleanup: bool | None = None,
     plan: Solver | list[Solver] | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
@@ -67,8 +68,10 @@ def eval(
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
         task_args (dict[str,Any]): Task arguments
-        tool_environment (ToolEnvironmentSpec | None): Tool
+        toolenv (ToolEnvironmentSpec | None): Tool
            environment type (or optionally a tuple with type and config file)
+        toolenv_cleanup (bool | None): Cleanup tool environments after task completes
+          (defaults to True)
         plan (Solver | list[Solver] | None): Alternative plan
            for evaluating task(s). Optional (uses task plan by default).
         log_level (str | None): "debug", "http", "info", "warning", "error",
@@ -106,7 +109,8 @@ def eval(
             model_base_url=model_base_url,
             model_args=model_args,
             task_args=task_args,
-            tool_environment=tool_environment,
+            toolenv=toolenv,
+            toolenv_cleanup=toolenv_cleanup,
             plan=plan,
             log_level=log_level,
             log_dir=log_dir,
@@ -130,7 +134,8 @@ async def eval_async(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
-    tool_environment: ToolEnvironmentSpec | None = None,
+    toolenv: ToolEnvironmentSpec | None = None,
+    toolenv_cleanup: bool | None = None,
     plan: Solver | list[Solver] | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
@@ -157,8 +162,10 @@ async def eval_async(
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
         task_args (dict[str,Any]): Task arguments
-        tool_environment (ToolEnvironentSpec | None): Tool
+        toolenv (ToolEnvironentSpec | None): Tool
            environment type (or optionally a tuple with type and config file)
+        toolenv_cleanup (bool | None): Cleanup tool environments after task completes
+           (defaults to True)
         plan (Solver | list[Solver] | None): Alternative plan
             for evaluating task(s). Optional (uses task plan by default).
         log_level (str | None): "debug", "http", "info", "warning", "error",
@@ -239,6 +246,7 @@ async def eval_async(
         max_messages=max_messages,
         max_samples=max_samples,
         max_subprocesses=max_subprocesses,
+        toolenv_cleanup=toolenv_cleanup,
         log_samples=log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
@@ -267,7 +275,7 @@ async def eval_async(
             run_id=run_id,
             model=model,
             dataset=task.dataset,
-            tool_environment=tool_environment,
+            tool_environment=toolenv,
             task_attribs=task.attribs,
             task_args=task_args,
             model_args=model_args,
@@ -306,6 +314,7 @@ def eval_retry(
     log_dir: str | None = None,
     max_samples: int | None = None,
     max_subprocesses: int | None = None,
+    toolenv_cleanup: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -327,6 +336,8 @@ def eval_retry(
            (default is running all samples in parallel)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
+        toolenv_cleanup (bool | None): Cleanup tool environments after task completes
+           (defaults to True)
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to True)
@@ -352,6 +363,7 @@ def eval_retry(
             log_dir=log_dir,
             max_samples=max_samples,
             max_subprocesses=max_subprocesses,
+            toolenv_cleanup=toolenv_cleanup,
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
@@ -369,6 +381,7 @@ async def eval_retry_async(
     log_dir: str | None = None,
     max_samples: int | None = None,
     max_subprocesses: int | None = None,
+    toolenv_cleanup: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -390,6 +403,8 @@ async def eval_retry_async(
            (default is running all samples in parallel)
         max_subprocesses (int): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
+        toolenv_cleanup (bool | None): Cleanup tool environments after task completes
+           (defaults to True)
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to True)
@@ -455,6 +470,11 @@ async def eval_retry_async(
         max_messages = eval_log.eval.config.max_messages
         max_samples = max_samples
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
+        toolenv_cleanup = (
+            toolenv_cleanup
+            if toolenv_cleanup is not None
+            else eval_log.eval.config.toolenv_cleanup
+        )
         log_samples = (
             log_samples if log_samples is not None else eval_log.eval.config.log_samples
         )
@@ -478,7 +498,8 @@ async def eval_retry_async(
                 model_base_url=model_base_url,
                 model_args=model_args,
                 task_args=task_args,
-                tool_environment=eval_log.eval.tool_environment,
+                toolenv=eval_log.eval.tool_environment,
+                toolenv_cleanup=toolenv_cleanup,
                 log_level=log_level,
                 log_dir=log_dir,
                 limit=limit,

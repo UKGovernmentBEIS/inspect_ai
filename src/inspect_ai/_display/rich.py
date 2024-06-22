@@ -20,6 +20,7 @@ from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
 
+from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai.log import EvalError, EvalResults, EvalStats
 from inspect_ai.log._log import rich_traceback
@@ -162,7 +163,7 @@ class RichTaskDisplay(TaskDisplay):
         traceback: TracebackType | None,
     ) -> None:
         panel = self.task_panel(
-            body=rich_traceback(exc_type, exc_value, traceback, True),
+            body=rich_traceback(exc_type, exc_value, traceback),
             config=None,
             footer=task_interrupted(
                 self.profile.log_location, samples_logged, self.theme
@@ -247,13 +248,19 @@ def task_panel(
         if options.jupyter:
             log_location = f"[link={log_location}]{log_location}[/link]"
 
+        # Print a cwd relative path
+        try:
+            log_location_relative = cwd_relative_path(log_location, walk_up=True)
+        except ValueError:
+            log_location_relative = log_location
+
         root = Table.grid(expand=True)
         root.add_column()
         root.add_row(table)
         root.add_row()
         root.add_row(
             f"[bold][{theme.light}]Log:[/{theme.light}][/bold] "
-            + f"[{theme.link}]{log_location}[/{theme.link}]"
+            + f"[{theme.link}]{log_location_relative}[/{theme.link}]"
         )
 
     # create panel w/ title

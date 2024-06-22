@@ -6,17 +6,19 @@ import { InspectLogviewWebviewManager } from "./logview-webview";
 import { InspectLogviewManager } from "./logview-manager";
 import { InspectSettingsManager } from "../settings/inspect-settings";
 import { InspectManager } from "../inspect/inspect-manager";
+import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 
-export function activateLogview(
+export async function activateLogview(
   inspectManager: InspectManager,
   settingsMgr: InspectSettingsManager,
+  envMgr: WorkspaceEnvManager,
   context: ExtensionContext
-): [Command[], InspectLogviewManager] {
+): Promise<[Command[], InspectLogviewManager]> {
 
   // initilize manager
   const logviewWebManager = new InspectLogviewWebviewManager(inspectManager, context);
-  const logviewManager = new InspectLogviewManager(logviewWebManager, settingsMgr);
+  const logviewManager = new InspectLogviewManager(logviewWebManager, settingsMgr, envMgr);
 
   // logview commands
-  return [logviewCommands(logviewManager), logviewManager];
+  return [await logviewCommands(logviewManager), logviewManager];
 }

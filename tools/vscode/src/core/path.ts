@@ -17,7 +17,11 @@ export const activeWorkspacePath = (): AbsolutePath => {
 };
 
 // Resolves a workspace relative path into an absolute path
-export const workspacePath = (unknownPath: UnknownPath) => {
+export const workspacePath = (unknownPath?: UnknownPath) => {
+  if (!unknownPath) {
+    return activeWorkspacePath();
+  }
+
   if (path.isAbsolute(unknownPath)) {
     return toAbsolutePath(unknownPath);
   } else {

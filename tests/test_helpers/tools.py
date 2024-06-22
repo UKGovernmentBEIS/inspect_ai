@@ -1,5 +1,5 @@
 from inspect_ai.model import ContentText
-from inspect_ai.solver import tool, tool_environment
+from inspect_ai.solver import ToolError, tool, tool_environment
 
 
 # define tool
@@ -39,7 +39,10 @@ def read_file():
         Returns:
           File contents
         """
-        return await tool_environment().read_file(file)
+        try:
+            return await tool_environment().read_file(file)
+        except FileNotFoundError:
+            raise ToolError(f"File {file} not found.")
 
     return execute
 
@@ -64,6 +67,26 @@ def list_files():
         if result.success:
             return result.stdout
         else:
-            return f"Error: {result.stderr}"
+            raise ToolError(result.stderr)
+
+    return execute
+
+
+@tool(prompt="Use the exec tool to run programs")
+def exec():
+    async def execute(program: str):
+        """Run a program
+
+        Args:
+            program (str): Program to run
+
+        Returns:
+            Program output
+        """
+        result = await tool_environment().exec([program])
+        if result.success:
+            return result.stdout
+        else:
+            raise ToolError(result.stderr)
 
     return execute

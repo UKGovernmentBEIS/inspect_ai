@@ -19,7 +19,9 @@ For the following exercise, it is important that you answer with only a single w
 @task
 def images():
     return Task(
-        dataset=json_dataset(os.path.join("tests", "test_images", "images.jsonl")),
+        dataset=json_dataset(
+            os.path.join("tests", "util", "test_images", "images.jsonl")
+        ),
         plan=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=match(),
     )

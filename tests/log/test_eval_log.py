@@ -3,7 +3,6 @@ import os
 
 import pytest
 from pydantic_core import PydanticSerializationError
-from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -19,14 +18,13 @@ from inspect_ai.solver import (
 
 def log_path(file: str) -> str:
     # use .txt extension so vscode linter doesn't complain about invalid json
-    return os.path.join("tests", "test_eval_log", f"{file}.txt")
+    return os.path.join("tests", "log", "test_eval_log", f"{file}.txt")
 
 
 class NotSerializable:
     name: str
 
 
-@skip_if_no_openai
 def test_ignore_unserializable():
     @solver
     def inject_unserializable():
@@ -42,7 +40,7 @@ def test_ignore_unserializable():
     )
 
     try:
-        eval(task, model="openai/gpt-4")
+        eval(tasks=task, model="mockllm/model")
     except PydanticSerializationError:
         assert False, "Eval raised Pydantic serialization error."
 

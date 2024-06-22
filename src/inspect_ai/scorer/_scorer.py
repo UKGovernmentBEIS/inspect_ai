@@ -50,7 +50,9 @@ Valid scorer types include:
 """
 
 
-def scorer_register(scorer: ScorerType, name: str = "") -> ScorerType:
+def scorer_register(
+    scorer: ScorerType, name: str = "", metadata: dict[str, Any] = {}
+) -> ScorerType:
     r"""Register a function or class as a scorer.
 
     Args:
@@ -58,12 +60,16 @@ def scorer_register(scorer: ScorerType, name: str = "") -> ScorerType:
             Scorer, function that returns a Scorer, or class
             deriving from the Scorer protocol.
         name (str): Name of scorer (Optional, defaults to object name)
+        metadata (dict[str,Any]): Additional values to serialize
+            in metadata.
 
     Returns:
         Scorer with registry attributes.
     """
     scorer_name = name if name else getattr(scorer, "__name__")
-    registry_add(scorer, RegistryInfo(type="scorer", name=scorer_name))
+    registry_add(
+        scorer, RegistryInfo(type="scorer", name=scorer_name, metadata=metadata)
+    )
     return scorer
 
 
@@ -129,7 +135,11 @@ def scorer(
             return scorer
 
         # register the scorer
-        return scorer_register(cast(ScorerType, scorer_wrapper), scorer_name)
+        return scorer_register(
+            scorer=cast(ScorerType, scorer_wrapper),
+            name=scorer_name,
+            metadata={SCORER_METRICS: metrics} | metadata,
+        )
 
     return wrapper
 

@@ -1,8 +1,9 @@
 import { html } from "htm/preact";
 
-export const ProgressBar = () => {
+export const ProgressBar = ({style}) => {
 
   const emptyStyle = {
+    ...style,
     display: "flex",
     textAlign: "center",
     flex: "0 0 content",

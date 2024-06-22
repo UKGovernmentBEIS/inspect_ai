@@ -100,7 +100,7 @@ def list_files():
         if result.success:
             return result.stdout
         else:
-            return f"Error: {result.stderr}"
+            raise ToolError(result.stderr)
 
     return execute
 ```

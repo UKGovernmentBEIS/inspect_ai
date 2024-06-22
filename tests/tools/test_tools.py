@@ -1,6 +1,6 @@
 from random import randint
 
-from test_helpers.tools import addition
+from test_helpers.tools import addition, exec, read_file
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
@@ -236,6 +236,37 @@ def test_dynamic_tools():
     assert tool_call is not None and tool_call.function == "shape"
 
 
+@skip_if_no_openai
+def test_tool_error():
+    task = Task(
+        dataset=[Sample(input="Please read the file 'foo.txt'")],
+        plan=[use_tools([read_file()]), generate()],
+        scorer=match(),
+        tool_environment="local",
+    )
+    log = eval(task, model="openai/gpt-4")[0]
+    assert log.status == "success"
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "read_file")
+    assert tool_call
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert response.tool_error
+
+
+@skip_if_no_openai
+def test_tool_eval_error():
+    task = Task(
+        dataset=[Sample(input="Run the program 'floozle'")],
+        plan=[use_tools([exec()]), generate()],
+        scorer=match(),
+        tool_environment="local",
+    )
+    log = eval(task, model="openai/gpt-4")[0]
+    assert log.status == "error"
+
+
 def get_tool_call(messages: list[ChatMessage], tool: str) -> ToolCall | None:
     assistant_messages = [
         message for message in messages if isinstance(message, ChatMessageAssistant)
@@ -261,7 +292,9 @@ def get_tool_call(messages: list[ChatMessage], tool: str) -> ToolCall | None:
         return None
 
 
-def get_tool_response(messages: list[ChatMessage], tool_call: ToolCall) -> str | None:
+def get_tool_response(
+    messages: list[ChatMessage], tool_call: ToolCall
+) -> ChatMessageTool | None:
     tool_messages = [
         message for message in messages if isinstance(message, ChatMessageTool)
     ]
@@ -270,6 +303,6 @@ def get_tool_response(messages: list[ChatMessage], tool_call: ToolCall) -> str |
         None,
     )
     if tool_response:
-        return tool_response.text
+        return tool_response
     else:
         return None

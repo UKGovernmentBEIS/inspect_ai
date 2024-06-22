@@ -1,11 +1,14 @@
 import { inspectVersion } from "./props";
 
+export function withMinimumInspectVersion(version: string, hasVersion: () => void, doesntHaveVersion: () => void): void;
+export function withMinimumInspectVersion<T>(version: string, hasVersion: () => T, doesntHaveVersion: () => T): T;
 
-export const withMinimumInspectVersion = (version: string, hasVersion: () => void, doesntHaveVersion: () => void) => {
+export function withMinimumInspectVersion<T>(version: string, hasVersion: () => T, doesntHaveVersion: () => T): T | void {
   const activeVersion = inspectVersion();
   if (activeVersion && activeVersion.compare(version) >= 0) {
-    hasVersion();
+    return hasVersion();
   } else {
-    doesntHaveVersion();
+    return doesntHaveVersion();
   }
-};
+}
+

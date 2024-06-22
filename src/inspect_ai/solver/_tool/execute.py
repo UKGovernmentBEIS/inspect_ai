@@ -1,5 +1,5 @@
 from .environment import tool_environment
-from .tool import Tool, tool
+from .tool import Tool, ToolError, tool
 
 
 @tool(prompt="If you need to execute a bash command, use the bash tool.")
@@ -29,7 +29,7 @@ def bash(timeout: int | None = None) -> Tool:
         if result.success:
             return result.stdout
         else:
-            return result.stderr
+            raise ToolError(result.stderr)
 
     return execute
 
@@ -63,6 +63,6 @@ def python(timeout: int | None = None) -> Tool:
         if result.success:
             return result.stdout
         else:
-            return result.stderr
+            raise ToolError(result.stderr)
 
     return execute

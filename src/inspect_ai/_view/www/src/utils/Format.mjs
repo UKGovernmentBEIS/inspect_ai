@@ -127,6 +127,11 @@ export function formatPrettyDecimal(num) {
 }
 
 export function formatDecimalNoTrailingZeroes(num) {
+  // This isn't a number, continue
+  if (typeof(num) !== "number") {
+    return num;
+  }
+
   if (num.toString().includes(".")) {
     const decimal = num.toString().split(".")[1];
     const trimmed = decimal.replace(/\.?0+$/, '');

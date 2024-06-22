@@ -7,6 +7,7 @@ from typing_extensions import override
 
 from inspect_ai.util import ExecResult, subprocess
 
+from ..tool import ToolError
 from .environment import ToolEnvironment
 from .registry import toolenv
 
@@ -44,9 +45,14 @@ class LocalToolEnvironment(ToolEnvironment):
         env: dict[str, str] = {},
         timeout: int | None = None,
     ) -> ExecResult[str]:
-        return await subprocess(
-            args=cmd, input=input, cwd=self.directory.name, env=env, timeout=timeout
-        )
+        try:
+            return await subprocess(
+                args=cmd, input=input, cwd=self.directory.name, env=env, timeout=timeout
+            )
+        except UnicodeDecodeError:
+            raise ToolError(
+                "Unicode decoding error reading command output (it is likely binary rather than text)"
+            )
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:

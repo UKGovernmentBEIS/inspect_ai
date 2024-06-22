@@ -86,9 +86,10 @@ export async function activate(context: ExtensionContext) {
   });
 
   // Activate the log view
-  const [logViewCommands, logviewWebviewManager] = activateLogview(
+  const [logViewCommands, logviewWebviewManager] = await activateLogview(
     inspectManager,
     settingsMgr,
+    workspaceEnvManager,
     context
   );
   const inspectLogviewManager = logviewWebviewManager;

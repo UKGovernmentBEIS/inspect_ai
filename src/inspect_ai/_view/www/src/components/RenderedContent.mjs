@@ -155,8 +155,8 @@ const contentRenderers = {
       return (
         Array.isArray(val) &&
         val.length > 0 &&
-        val[0].role !== undefined &&
-        val[0].content !== undefined
+        val[0]?.role !== undefined &&
+        val[0]?.content !== undefined
       );
     },
     render: (_id, entry, _defaultRendering, _options) => {

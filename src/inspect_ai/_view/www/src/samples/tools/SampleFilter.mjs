@@ -48,6 +48,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
         })
       );
       return html`<${SelectFilter}
+        value=${filter.value || "all"}
         options=${options}
         filterFn=${filterCategory}
       />`;
@@ -61,6 +62,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
         })
       );
       return html`<${SelectFilter}
+        value=${filter.value || "all"}
         options=${options}
         filterFn=${filterCategory}
       />`;
@@ -93,6 +95,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
 
       
       return html`<${SelectFilter}
+        value=${filter.value || "all"}
         options=${options}
         filterFn=${filterCategory}
       />`;
@@ -104,7 +107,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
   }
 };
 
-const SelectFilter = ({ options, filterFn }) => {
+const SelectFilter = ({ value, options, filterFn }) => {
   return html`
     <div style=${{ display: "flex" }}>
       <span
@@ -116,6 +119,7 @@ const SelectFilter = ({ options, filterFn }) => {
         class="form-select form-select-sm"
         aria-label=".sample-label"
         style=${{ fontSize: "0.7rem" }}
+        value=${value}
         onChange=${filterFn}
       >
         ${options.map((option) => {
