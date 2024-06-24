@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { icons, sharedStyles } from "../Constants.mjs";
 
-export const ExpandablePanel = ({ collapse, border, lines=7, children }) => {
+export const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
   const [collapsed, setCollapsed] = useState(collapse);
   const [showToggle, setShowToggle] = useState(false);
 
@@ -12,7 +12,7 @@ export const ExpandablePanel = ({ collapse, border, lines=7, children }) => {
 
   // Ensure that when content changes, we reset the collapse state.
   useEffect(() => {
-  setCollapsed(collapse)
+    setCollapsed(collapse);
   }, [children, collapse]);
 
   // Determine whether we should show the toggle
@@ -33,14 +33,14 @@ export const ExpandablePanel = ({ collapse, border, lines=7, children }) => {
         }
       });
     });
-    
+
     if (contentsRef.current) {
       observerRef.current.observe(contentsRef.current);
     }
 
     // Initial check
-    checkScrollable(); 
-    
+    checkScrollable();
+
     return () => {
       if (observerRef.current && contentsRef.current) {
         observerRef.current.unobserve(contentsRef.current);
@@ -55,10 +55,14 @@ export const ExpandablePanel = ({ collapse, border, lines=7, children }) => {
   }
 
   if (border) {
-    contentsStyle.border = "solid var(--bs-light-border-subtle) 1px"
+    contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
   }
 
-  return html`<div class="expandable-panel" ref=${contentsRef} style=${contentsStyle}>
+  return html`<div
+      class="expandable-panel"
+      ref=${contentsRef}
+      style=${contentsStyle}
+    >
       ${children}
     </div>
     ${showToggle
@@ -84,9 +88,8 @@ const MoreToggle = ({ collapsed, border, setCollapsed }) => {
     topStyle.marginTop = "0.5em";
   } else {
     topStyle.marginTop = "0";
-    
   }
- 
+
   return html`
     <div style=${topStyle}>
       <div

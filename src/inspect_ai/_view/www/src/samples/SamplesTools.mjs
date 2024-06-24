@@ -1,13 +1,20 @@
 import { html } from "htm/preact";
 
 import { EpochFilter } from "./tools/EpochFilter.mjs";
-import {
-  SortFilter,
-} from "./tools/SortFilter.mjs";
+import { SortFilter } from "./tools/SortFilter.mjs";
 import { SampleFilter } from "./tools/SampleFilter.mjs";
 
 export const SampleTools = (props) => {
-  const { epoch, setEpoch, filter, filterChanged, sort, setSort, epochs, sampleDescriptor } = props;
+  const {
+    epoch,
+    setEpoch,
+    filter,
+    filterChanged,
+    sort,
+    setSort,
+    epochs,
+    sampleDescriptor,
+  } = props;
 
   const hasEpochs = epochs > 1;
   const tools = [];
@@ -17,7 +24,7 @@ export const SampleTools = (props) => {
         epoch=${epoch}
         setEpoch="${setEpoch}"
         epochs=${epochs}
-      />`
+      />`,
     );
   }
 
@@ -26,15 +33,11 @@ export const SampleTools = (props) => {
       filter=${filter}
       filterChanged=${filterChanged}
       descriptor=${sampleDescriptor}
-    />`
+    />`,
   );
 
   tools.push(
-    html`<${SortFilter}
-      sort=${sort}
-      setSort=${setSort}
-      epochs=${hasEpochs}
-    />`
+    html`<${SortFilter} sort=${sort} setSort=${setSort} epochs=${hasEpochs} />`,
   );
 
   return tools;

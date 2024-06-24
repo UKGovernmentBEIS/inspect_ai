@@ -102,6 +102,10 @@ def sample_init():
 6.  InterCode samples can include a "setup" field that includes a command to run before executing the sample.
 7.  Ammend the prompt with a list of files copied to the working directory for the sample.
 
+::: {.callout-note appearance="simple"}
+Take special note of the `CMD_TIMEOUT` and `MAX_MESSAGES` constants. These put boundaries on execution time and steps, ensuring that agent tasks don't run for extended periods (or even get in a loop where they never terminate). You should generally always set these values in your own agent evals.
+:::
+
 The full source code for this example can be found in the Inspect GitHub repo at [examples/agents/intercode-ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/intercode-ctf).
 
 ## Custom Scaffolding
@@ -443,7 +447,9 @@ tool_environment=("docker","my-compose.yaml")
 
 ### Docker Configuration {#sec-docker-configuration}
 
-While `--toolenv` can be a default un-configured environment (e.g. “docker”), more commonly you’ll provide explicit configuration in either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
+Before using Docker tool environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/) (version 24.0.7 or greater).
+
+You can use the Docker tool enviornment without any special configuration, however most commonly you’ll provide explicit configuration via either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
 
 Here is how Docker tool environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
@@ -559,6 +565,22 @@ volumes:
 ```
 
 See the documentation on [Docker Compose](https://docs.docker.com/compose/compose-file/) files for information on their full schema and feature set.
+
+#### Sample Metadata
+
+You might want to interpolate Sample metadata into your Docker compose files. You can do this using the standard clmpose environment variable syntax, where any metadata in the Sample is made available with a `SAMPLE_METADATA_` prefix. For example, you might have a per-sample memory limit (with a default value of 0.5gb if unspecified):
+
+```yaml
+services:
+  default:
+    image: ctf-agent-environment
+    x-local: true
+    cpus: 1.0
+    mem_limit: ${SAMPLE_METDATA_MEMORY_LIMIT-0.5gb}
+```
+
+Note that `-` suffix that provides the default value of 0.5gb. This is important to include so that when the compose file is read _without_ the context of a Sample (for example, when pulling/building images at startup) that a default value is available. 
+
 
 ### Environment Cleanup
 

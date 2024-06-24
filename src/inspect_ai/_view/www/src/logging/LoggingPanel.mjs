@@ -19,13 +19,13 @@ export const LoggingPanel = ({ logging, context }) => {
         width: "100%",
         marginBottom: "0rem",
         tableLayout: "fixed",
-        alignSelf: "flex-start"
+        alignSelf: "flex-start",
       }}
     >
       <colgroup>
         <col span="1" style="width: 1.6rem;" />
         <col span="1" style="width: 10rem;" />
-        <col span="1"/>
+        <col span="1" />
       </colgroup>
       <tbody>
         ${logging.map((log, index) => {
@@ -51,7 +51,8 @@ export const LoggingPanel = ({ logging, context }) => {
                 }}
               >
               ${logDate.toLocaleDateString()} ${logDate.toLocaleTimeString()}
-              </pre>
+              </pre
+              >
             </td>
             <td>
               <${RenderedContent}
@@ -69,7 +70,8 @@ export const LoggingPanel = ({ logging, context }) => {
                       fontSize: "0.7rem",
                       whiteSpace: "pre-wrap",
                     }}
-                  >${val}</pre
+                  >
+${val}</pre
                   >`;
                 }}
               />

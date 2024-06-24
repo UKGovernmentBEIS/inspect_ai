@@ -20,7 +20,7 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
     scoreInput.push(
       ...sample.choices.map((choice, index) => {
         return `${String.fromCharCode(65 + index)}) ${choice}`;
-      })
+      }),
     );
   }
 
@@ -57,7 +57,7 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
             <td style=${{ paddingRight: "2em", paddingLeft: "0" }}>
               <${MarkdownDiv}
                 markdown=${arrayToString(
-                  arrayToString(sample?.target || "none")
+                  arrayToString(sample?.target || "none"),
                 )}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"
@@ -74,8 +74,8 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
               ${sampleDescriptor?.scoreDescriptor.render
                 ? sampleDescriptor.scoreDescriptor.render(sample?.score?.value)
                 : sample?.score?.value === null
-                ? "null"
-                : sample?.score?.value}
+                  ? "null"
+                  : sample?.score?.value}
             </td>
           </tr>
         </tbody>
@@ -96,8 +96,8 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
               <tbody>
                 <td style=${{ paddingLeft: "0" }}>
                   <${MarkdownDiv} markdown=${arrayToString(
-            sample?.score?.explanation
-          )} style=${{ paddingLeft: "0" }} class="no-last-para-padding"/>
+                    sample?.score?.explanation,
+                  )} style=${{ paddingLeft: "0" }} class="no-last-para-padding"/>
                 </td>
               </tbody>
             </table

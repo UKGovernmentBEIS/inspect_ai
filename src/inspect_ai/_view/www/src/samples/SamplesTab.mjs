@@ -1,11 +1,5 @@
 import { html } from "htm/preact";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
 import { byEpoch, bySample, sort as doSort } from "./tools/SortFilter.mjs";
 import { SampleDialog } from "./SampleDialog.mjs";
@@ -47,7 +41,7 @@ export const SamplesTab = (props) => {
         } else {
           return true;
         }
-      })
+      }),
     );
   }, [samples, filter, sort, epoch]);
 
@@ -75,7 +69,7 @@ export const SamplesTab = (props) => {
   useEffect(() => {
     const dialogEl = sampleDialogRef.current;
     if (dialogEl) {
-      dialogEl.base.addEventListener("hidden.bs.modal", (event) => {
+      dialogEl.base.addEventListener("hidden.bs.modal", () => {
         const listEl = sampleListRef.current;
         if (listEl) {
           listEl.base.focus();
@@ -93,7 +87,7 @@ export const SamplesTab = (props) => {
       sort,
       epoch,
       order,
-      sampleDescriptor
+      sampleDescriptor,
     );
 
     // Process the samples into the proper data structure
@@ -111,22 +105,15 @@ export const SamplesTab = (props) => {
     });
     if (items.length) {
       setSelectedIndex(firstSample);
-    } 
+    }
 
     return items;
   }, [filteredSamples, sort, epoch, sampleDescriptor]);
-
 
   // Focus the sample list
   useEffect(() => {
     // Hide a dialog, if it is displaying
     hideSample();
-
-    // Focus the list, if present
-    const listEl = sampleListRef.current;
-    if (listEl && listEl.base) {
-      listEl.base.focus();
-    }
   }, [items]);
 
   const nextSampleIndex = useCallback(() => {
@@ -164,14 +151,16 @@ export const SamplesTab = (props) => {
 
   const elements = [];
   if (samples?.length === 1 && items.length === 1) {
-    elements.push(html` <${InlineSampleDisplay}
-      index="0"
-      key=${`${task}-single-sample`}
-      id="sample-display"
-      sample=${items[0].data}
-      sampleDescriptor=${sampleDescriptor}
-      context=${context}
-    />`);
+    elements.push(
+      html` <${InlineSampleDisplay}
+        index="0"
+        key=${`${task}-single-sample`}
+        id="sample-display"
+        sample=${items[0].data}
+        sampleDescriptor=${sampleDescriptor}
+        context=${context}
+      />`,
+    );
   } else {
     elements.push(
       html`<${SampleList}
@@ -183,7 +172,7 @@ export const SamplesTab = (props) => {
         nextSample=${nextSample}
         prevSample=${previousSample}
         showSample=${showSample}
-      />`
+      />`,
     );
   }
 
@@ -221,7 +210,7 @@ const getSampleProcessor = (samples, sort, epoch, order, sampleDescriptor) => {
 // Performs no grouping
 const noGrouping = (samples, order) => {
   const counter = getCounter(samples.length, 1, order);
-  return (sample, index, _previousSample) => {
+  return (sample, index) => {
     counter.incrementItem();
     const itemCount = counter.item();
     return [

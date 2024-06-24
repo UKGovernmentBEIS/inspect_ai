@@ -4,7 +4,7 @@ import { icons } from "../Constants.mjs";
 import { formatTime } from "../utils/Format.mjs";
 import { Card, CardHeader, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
-import { ModelTokenTable } from "./ModelTokenTable.mjs"
+import { ModelTokenTable } from "./ModelTokenTable.mjs";
 
 const kUsageCardBodyId = "usage-card-body";
 
@@ -65,4 +65,3 @@ const duration = (stats) => {
   const durationSec = durationMs / 1000;
   return formatTime(durationSec);
 };
-

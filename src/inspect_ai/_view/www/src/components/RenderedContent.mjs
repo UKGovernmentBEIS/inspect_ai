@@ -4,7 +4,7 @@ import { icons } from "../Constants.mjs";
 
 import { ANSIDisplay } from "./AnsiDisplay.mjs";
 import { MetaDataView } from "./MetaDataView.mjs";
-import { ChatView } from "./ChatView.mjs"
+import { ChatView } from "./ChatView.mjs";
 
 export const RenderedContent = ({
   id,
@@ -35,7 +35,7 @@ export const RenderedContent = ({
       entry,
       defaultRendering,
       options,
-      context
+      context,
     );
     if (rendered !== undefined) {
       value = rendered;
@@ -120,32 +120,28 @@ const contentRenderers = {
         const types = new Set(
           entry.value.map((entry) => {
             return typeof entry;
-          })
+          }),
         );
         return types.size === 1;
       } else {
         return false;
       }
     },
-    render: (id,
-      entry,
-      _defaultRendering,
-      _options,
-      context) => {
-
+    render: (id, entry, _defaultRendering, _options, context) => {
       const arrayMap = {};
-      entry.value.forEach((entry, index) => { 
+      entry.value.forEach((entry, index) => {
         arrayMap[`[${index}]`] = entry;
       });
 
       const arrayRendered = html`<${MetaDataView}
         id=${id}
-        style=${{fontSize: "0.8rem"}}
+        style=${{ fontSize: "0.8rem" }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
         context=${context}
-        compact/>`;
-      return { rendered: arrayRendered};  
+        compact
+      />`;
+      return { rendered: arrayRendered };
     },
   },
   ChatMessage: {
@@ -159,7 +155,7 @@ const contentRenderers = {
         val[0]?.content !== undefined
       );
     },
-    render: (_id, entry, _defaultRendering, _options) => {
+    render: (_id, entry) => {
       return {
         rendered: html`<${ChatView} messages=${entry.value} />`,
       };
@@ -175,18 +171,18 @@ const contentRenderers = {
       results.push(
         html`<div style=${{ marginBottom: "0.5rem", fontWeight: "500" }}>
           <i class=${icons.search}></i> ${entry.value.query}
-        </div>`
+        </div>`,
       );
       entry.value.results.forEach((result) => {
         results.push(
           html`<div>
             <a href="${result.url}">${result.url}</a>
-          </div>`
+          </div>`,
         );
         results.push(
           html`<div style=${{ fontSize: "0.7rem", marginBottom: "0.5rem" }}>
             ${result.summary}
-          </div>`
+          </div>`,
         );
       });
       return {
@@ -210,12 +206,7 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (
-      id,
-      entry,
-      _defaultRendering,
-      _options,
-      context) => {
+    render: (id, entry, _defaultRendering, _options, context) => {
       // Generate a json preview
       const summary = [];
       const keys = Object.keys(entry.value);
@@ -229,11 +220,12 @@ const contentRenderers = {
 
       return {
         rendered: html`<${MetaDataView}
-        id=${id}
-        style=${{fontSize: "0.8rem"}}
-        entries="${entry.value}"
-        tableOptions="borderless,sm"
-        context=${context}/>`,
+          id=${id}
+          style=${{ fontSize: "0.8rem" }}
+          entries="${entry.value}"
+          tableOptions="borderless,sm"
+          context=${context}
+        />`,
       };
     },
   },

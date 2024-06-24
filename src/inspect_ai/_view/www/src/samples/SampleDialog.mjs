@@ -5,7 +5,7 @@ import { icons } from "../Constants.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { LargeModal } from "../components/LargeModal.mjs";
 
-import { SampleDisplay } from "./SampleDisplay.mjs"
+import { SampleDisplay } from "./SampleDisplay.mjs";
 
 export const SampleDialog = (props) => {
   const {
@@ -32,7 +32,7 @@ export const SampleDialog = (props) => {
       onclick: nextSample,
       enabled: !!nextSample,
     };
-  
+
     const prevTool = {
       label: "Previous Sample",
       icon: icons.previous,
@@ -42,25 +42,27 @@ export const SampleDialog = (props) => {
 
     return {
       left: [prevTool],
-      right: [nextTool]
-    }
-  
-  }, [prevSample, nextSample])
+      right: [nextTool],
+    };
+  }, [prevSample, nextSample]);
 
-  const handleKeyUp = useCallback((e) => {
-    switch (e.key) {
-      case "ArrowRight":
-        if (nextSample) {
-          nextSample();
-        }
-        break;
-      case "ArrowLeft":
-        if (prevSample) {
-          prevSample();
-        }
-        break;
-    }
-  }, [prevSample, nextSample])
+  const handleKeyUp = useCallback(
+    (e) => {
+      switch (e.key) {
+        case "ArrowRight":
+          if (nextSample) {
+            nextSample();
+          }
+          break;
+        case "ArrowLeft":
+          if (prevSample) {
+            prevSample();
+          }
+          break;
+      }
+    },
+    [prevSample, nextSample],
+  );
 
   // Provide the dialog
   return html`
@@ -78,4 +80,3 @@ export const SampleDialog = (props) => {
       context=${context}/>
     </${LargeModal}>`;
 };
-

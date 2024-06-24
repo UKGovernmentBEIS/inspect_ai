@@ -10,8 +10,14 @@ export const EmptyPanel = ({ id, classes, height, style, children }) => {
     height: height ? height : "10rem",
   };
   return html`
-    <div ...${{id}} class="${classes ? classes : ""}" style=${{width: "100%"}}>
-      <div  style=${{...emptyStyle, ...style}}><div>${children || ""}</div></div>
+    <div
+      ...${{ id }}
+      class="${classes ? classes : ""}"
+      style=${{ width: "100%" }}
+    >
+      <div style=${{ ...emptyStyle, ...style }}>
+        <div>${children || ""}</div>
+      </div>
     </div>
   `;
 };

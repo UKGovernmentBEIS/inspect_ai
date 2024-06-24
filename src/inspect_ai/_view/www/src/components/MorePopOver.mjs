@@ -12,7 +12,7 @@ export const MorePopOver = ({ title, customClass, children }) => {
     const contentEl = contentRef.current;
     const popOverContent = document.createElement("div");
     contentEl.childNodes.forEach((child) =>
-      popOverContent.appendChild(child.cloneNode(true))
+      popOverContent.appendChild(child.cloneNode(true)),
     );
     new bootstrap.Popover(popoverRef.current, {
       content: popOverContent,
@@ -40,9 +40,9 @@ export const MorePopOver = ({ title, customClass, children }) => {
   `);
 
   // A container to hold the popover contents
-  popoverElements.push(html` <div style="display: none;" ref=${contentRef}>
-    ${children}
-  </div>`);
+  popoverElements.push(
+    html` <div style="display: none;" ref=${contentRef}>${children}</div>`,
+  );
 
   return popoverElements;
 };

@@ -6,10 +6,8 @@ export const EpochFilter = ({ epochs, epoch, setEpoch }) => {
     options.push(i + "");
   }
   return html`
-    <div style=${{ display: "flex"}}>
-      <span
-        class="epoch-filter-label"
-        style=${{ alignSelf: "center"}}
+    <div style=${{ display: "flex" }}>
+      <span class="epoch-filter-label" style=${{ alignSelf: "center" }}
         >Epochs:</span
       >
       <select

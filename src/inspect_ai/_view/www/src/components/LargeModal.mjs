@@ -12,38 +12,43 @@ export const LargeModal = (props) => {
   const headerEls = [];
   // The title
   headerEls.push(
-    html`<div class="modal-title" style=${{ fontSize: "0.7em", flex: "1 1 auto" }}>
+    html`<div
+      class="modal-title"
+      style=${{ fontSize: "0.7em", flex: "1 1 auto" }}
+    >
       ${title || ""}
-    </div>`
+    </div>`,
   );
 
   // A centered text element with tools to the left and right
   if (detail) {
-    headerEls.push(html`<div
-      style=${{
-        marginLeft: "auto",
-        marginRight: "auto",
-        display: "flex",
-        flex: "1 1 auto",
-        justifyContent: "center",
-      }}
-    >
-      ${detailTools.left
-        ? detailTools.left.map((tool) => {
-            return html`<${TitleTool} ...${tool} />`;
-          })
-        : ""}
-      <div
-        style=${{ fontSize: "0.7em", display: "flex", alignItems: "center" }}
+    headerEls.push(
+      html`<div
+        style=${{
+          marginLeft: "auto",
+          marginRight: "auto",
+          display: "flex",
+          flex: "1 1 auto",
+          justifyContent: "center",
+        }}
       >
-        <div>${detail}</div>
-      </div>
-      ${detailTools.right
-        ? detailTools.right.map((tool) => {
-            return html`<${TitleTool} ...${tool} />`;
-          })
-        : ""}
-    </div>`);
+        ${detailTools.left
+          ? detailTools.left.map((tool) => {
+              return html`<${TitleTool} ...${tool} />`;
+            })
+          : ""}
+        <div
+          style=${{ fontSize: "0.7em", display: "flex", alignItems: "center" }}
+        >
+          <div>${detail}</div>
+        </div>
+        ${detailTools.right
+          ? detailTools.right.map((tool) => {
+              return html`<${TitleTool} ...${tool} />`;
+            })
+          : ""}
+      </div>`,
+    );
   }
 
   // The close 'x'

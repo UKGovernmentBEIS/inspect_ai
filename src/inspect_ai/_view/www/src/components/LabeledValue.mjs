@@ -1,6 +1,12 @@
 import { html } from "htm/preact";
 
-export const LabeledValue = ({ label, style, valueStyle, layout="column", children }) => {
+export const LabeledValue = ({
+  label,
+  style,
+  valueStyle,
+  layout = "column",
+  children,
+}) => {
   const flexDirection = layout === "column" ? "column" : "row";
 
   return html` <div
@@ -16,7 +22,7 @@ export const LabeledValue = ({ label, style, valueStyle, layout="column", childr
         textTransform: "uppercase",
         fontWeight: "600",
         marginBottom: "-0.2rem",
-        color: "var(--bs-secondary)"
+        color: "var(--bs-secondary)",
       }}
     >
       ${label}

@@ -1,0 +1,5 @@
+# Ignore all vendored code
+libs/**/*.css
+libs/**/*.js
+preact/**/*.js
+preact/**/*.mjs

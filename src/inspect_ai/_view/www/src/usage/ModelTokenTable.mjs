@@ -23,7 +23,12 @@ const TokenTable = ({ children }) => {
   </table>`;
 };
 
-const thStyle = {padding: 0, fontSize: "0.7rem", fontWeight: 400, textTransform: "uppercase"}
+const thStyle = {
+  padding: 0,
+  fontSize: "0.7rem",
+  fontWeight: 400,
+  textTransform: "uppercase",
+};
 
 const TokenHeader = () => {
   return html`<thead>
@@ -33,7 +38,7 @@ const TokenHeader = () => {
         colspan="3"
         align="center"
         class="card-subheading"
-        style=${{paddingBottom: "0.7rem"}}
+        style=${{ paddingBottom: "0.7rem" }}
       >
         Tokens
       </td>
