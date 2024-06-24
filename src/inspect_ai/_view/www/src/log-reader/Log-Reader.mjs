@@ -11,11 +11,16 @@ export const readLogFile = (filename, text) => {
 
   // TODO Exception handling
   if (!adapter) {
-    throw new Error(`The file ${filename} is not recognized as a valid log file`);
+    throw new Error(
+      `The file ${filename} is not recognized as a valid log file`,
+    );
   }
   try {
     return adapter.read(text);
-  } catch(e) {
-    throw new Error(`Failed to parse the file ${filename}. Please check the file exists and that the format is valid.`, e);
+  } catch (e) {
+    throw new Error(
+      `Failed to parse the file ${filename}. Please check the file exists and that the format is valid.`,
+      e,
+    );
   }
 };

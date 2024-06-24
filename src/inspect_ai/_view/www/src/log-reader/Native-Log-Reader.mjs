@@ -2,7 +2,7 @@ import { register } from "./Log-Reader.mjs";
 
 export const rawFileReader = {
   name: "RawFileReader",
-  canRead: (_filename) => {
+  canRead: () => {
     return true;
   },
   read: (contents) => {

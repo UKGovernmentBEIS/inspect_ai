@@ -51,9 +51,8 @@ export class VirtualList extends Component {
 
   render(
     { data, rowMap, renderRow, overscanCount = 10, ...props },
-    { offset = 0, height = 0 }
+    { offset = 0, height = 0 },
   ) {
-    
     // Compute the start and ending rows
     const firstVisibleIdx = rowMap.findIndex((row) => {
       return row.start + row.height >= offset;
@@ -67,7 +66,7 @@ export class VirtualList extends Component {
 
     // Compute the total height
     const lastRow = rowMap[rowMap.length - 1];
-    const totalHeight = lastRow.start + lastRow.height;
+    const totalHeight = lastRow ? lastRow.start + lastRow.height : 0;
 
     // Compute the visible rows (including overscan)
     let visibleRowCount = lastIndex - firstIndex;
@@ -82,21 +81,16 @@ export class VirtualList extends Component {
     const selection = data.slice(start, end);
 
     // const firstRow
-    const top = rowMap[firstVisibleIdx].start;
+    const top = firstVisibleIdx !== -1 ? rowMap[firstVisibleIdx].start : 0;
     const rows = html`<div onscroll=${this.handleScroll} ...${props}>
       <div style=${`${STYLE_INNER} height:${totalHeight}px;`}>
-        <div
-          style=${`${STYLE_CONTENT} top:${top}px;`}
-          ref=${this.containerRef}
-        >
+        <div style=${`${STYLE_CONTENT} top:${top}px;`} ref=${this.containerRef}>
           ${selection.map((item, index) => {
-
             const component = renderRow(item, start + index);
 
-            return html`
-              <div key=${`list-item-${start + index}`}>
+            return html` <div key=${`list-item-${start + index}`}>
               ${component}
-              </div>`
+            </div>`;
           })}
         </div>
       </div>

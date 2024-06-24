@@ -9,7 +9,7 @@ export const CopyButton = ({ value }) => {
     onclick=${(e) => {
       const iEl = e.target;
       if (iEl) {
-        iEl.className = `${icons.confirm} primary`
+        iEl.className = `${icons.confirm} primary`;
         setTimeout(() => {
           iEl.className = icons.copy;
         }, 1250);

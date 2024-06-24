@@ -50,11 +50,7 @@ export const SortFilter = ({ sort, setSort, epochs }) => {
         }}
       >
         ${options.map((option) => {
-          return html`<option
-            value="${option.val}"
-          >
-            ${option.label}
-          </option>`;
+          return html`<option value="${option.val}">${option.label}</option>`;
         })}
       </select>
     </div>
@@ -67,7 +63,7 @@ export const byEpoch = (sort) => {
 
 export const bySample = (sort) => {
   return sort === kSampleAscVal || sort === kSampleDescVal;
-}
+};
 
 export const sort = (sort, samples, sampleDescriptor) => {
   const sorted = samples.sort((a, b) => {
@@ -89,13 +85,22 @@ export const sort = (sort, samples, sampleDescriptor) => {
       case kEpochDescVal:
         return b.epoch - a.epoch;
       case kScoreAscVal:
-        return sampleDescriptor.scoreDescriptor.compare(a.score.value, b.score.value);
+        return sampleDescriptor.scoreDescriptor.compare(
+          a.score.value,
+          b.score.value,
+        );
       case kScoreDescVal:
-        return sampleDescriptor.scoreDescriptor.compare(b.score.value, a.score.value);
+        return sampleDescriptor.scoreDescriptor.compare(
+          b.score.value,
+          a.score.value,
+        );
     }
   });
   return {
     sorted,
-    order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
-  }
+    order:
+      sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal
+        ? "asc"
+        : "desc",
+  };
 };

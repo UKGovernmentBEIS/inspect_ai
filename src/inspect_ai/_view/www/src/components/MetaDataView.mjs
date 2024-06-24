@@ -10,25 +10,29 @@ export const MetaDataView = ({
   tableOptions,
   context,
   expanded,
-  compact
+  compact,
 }) => {
   const baseId = baseClass || "metadataview";
 
-  const cellStyle = compact ? { padding: "0em"} : { padding: "0.3em 0.3em 0.3em 0em" };
-  const cellKeyStyle = compact ?  {
-    fontWeight: "400",
-    paddingRight: "0.2em",
-    whiteSpace: "nowrap",
-  } : {
-    fontWeight: "400",
-    paddingRight: "1em",
-    whiteSpace: "nowrap",
-  };
+  const cellStyle = compact
+    ? { padding: "0em" }
+    : { padding: "0.3em 0.3em 0.3em 0em" };
+  const cellKeyStyle = compact
+    ? {
+        fontWeight: "400",
+        paddingRight: "0.2em",
+        whiteSpace: "nowrap",
+      }
+    : {
+        fontWeight: "400",
+        paddingRight: "1em",
+        whiteSpace: "nowrap",
+      };
   const cellValueStyle = {
     fontWeight: "300",
     whiteSpace: "pre-wrap",
     wordWrap: "anywhere",
-    fontSize: "0.8rem"
+    fontSize: "0.8rem",
   };
   const cellKeyTextStyle = {
     fontSize: "0.8rem",
@@ -52,21 +56,21 @@ export const MetaDataView = ({
   const entryEls = (entries || []).map((entry, index) => {
     const id = `${baseId}-value-${index}`;
     return html`<tr class="${baseId}-row">
-        <td class="${baseId}-key" style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}>
-          ${entry.name}
-        </td>
-        <td
-          class="${baseId}-value"
-          style=${{ ...cellStyle, ...cellValueStyle }}
-        >
-          <${RenderedContent}
-            id=${id}
-            entry=${entry}
-            context=${context}
-            options=${{ expanded }}
-          />
-        </td>
-      </tr>`;
+      <td
+        class="${baseId}-key"
+        style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}
+      >
+        ${entry.name}
+      </td>
+      <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
+        <${RenderedContent}
+          id=${id}
+          entry=${entry}
+          context=${context}
+          options=${{ expanded }}
+        />
+      </td>
+    </tr>`;
   });
 
   return html`<table

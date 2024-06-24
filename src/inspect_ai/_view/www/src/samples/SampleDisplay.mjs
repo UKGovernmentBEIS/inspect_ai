@@ -5,7 +5,7 @@ import { ChatView } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
-import { inputString } from "../utils/Format.mjs"
+import { inputString } from "../utils/Format.mjs";
 
 import { sharedStyles } from "../Constants.mjs";
 import {
@@ -71,8 +71,8 @@ export const SampleDisplay = ({
       selectedTab === msgTabId || selectedTab === undefined
     }>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
-      sample.messages
-    }/>
+        sample.messages
+      }/>
     </${TabPanel}>`,
     html`
     <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${
@@ -96,7 +96,7 @@ export const SampleDisplay = ({
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
         ${sampleMetadatas}
-      </${TabPanel}>`
+      </${TabPanel}>`,
     );
   }
 
@@ -121,26 +121,30 @@ export const SampleDisplay = ({
 const metadataViewsForSample = (id, sample, context) => {
   const sampleMetadatas = [];
   if (Object.keys(sample?.metadata).length > 0) {
-    sampleMetadatas.push(html` <${MetaDataView}
-      id="task-sample-metadata-${id}"
-      classes="tab-pane"
-      entries="${sample?.metadata}"
-      style=${{ marginTop: "1em" }}
-      context=${context}
-    />`);
+    sampleMetadatas.push(
+      html` <${MetaDataView}
+        id="task-sample-metadata-${id}"
+        classes="tab-pane"
+        entries="${sample?.metadata}"
+        style=${{ marginTop: "1em" }}
+        context=${context}
+      />`,
+    );
   }
 
   if (
     sample?.score?.metadata &&
     Object.keys(sample?.score?.metadata).length > 0
   ) {
-    sampleMetadatas.push(html`<${MetaDataView}
-      id="task-sample-metadata-${id}"
-      classes="tab-pane"
-      entries="${sample?.score?.metadata}"
-      style=${{ marginTop: "1em" }}
-      context=${context}
-    />`);
+    sampleMetadatas.push(
+      html`<${MetaDataView}
+        id="task-sample-metadata-${id}"
+        classes="tab-pane"
+        entries="${sample?.score?.metadata}"
+        style=${{ marginTop: "1em" }}
+        context=${context}
+      />`,
+    );
   }
   return sampleMetadatas;
 };
@@ -165,7 +169,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
     scoreInput.push(
       ...sample.choices.map((choice, index) => {
         return `${String.fromCharCode(65 + index)}) ${choice}`;
-      })
+      }),
     );
   }
 
@@ -218,8 +222,8 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
     value: sampleDescriptor?.scoreDescriptor.render
       ? sampleDescriptor.scoreDescriptor.render(sample?.score?.value)
       : sample?.score?.value === null
-      ? "null"
-      : sample?.score?.value,
+        ? "null"
+        : sample?.score?.value,
     size: "minmax(2em, auto)",
     center: true,
   });

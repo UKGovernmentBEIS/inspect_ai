@@ -41,17 +41,16 @@ export const TabPanel = ({
   const tabContentsId = computeTabContentsId(id, index);
 
   return html`<div
-  id="${tabContentsId}"
-  class="tab-pane show ${selected ? "active" : ""}"
-  style=${{
-    flex: "1",
-    overflowY: scrollable === undefined || scrollable ? "auto" : "hidden",
-    ...style,
-  }}
->
-  ${children}
-</div>`;
-
+    id="${tabContentsId}"
+    class="tab-pane show ${selected ? "active" : ""}"
+    style=${{
+      flex: "1",
+      overflowY: scrollable === undefined || scrollable ? "auto" : "hidden",
+      ...style,
+    }}
+  >
+    ${children}
+  </div>`;
 };
 
 // Render the tabs / pills themselves
@@ -68,6 +67,9 @@ const Tabs = ({ tabs, type, style }) => {
 
 // An individual tab
 const Tab = ({ type, tab, index, style }) => {
+  // TODO: If there's no tab.props.id, this is just a string of "-1", "-2" per
+  // index because there's no `id`, what should this really be?
+  // eslint-disable-next-line no-undef
   const tabId = tab.props.id || computeTabId(id, index);
   const tabContentsId = computeTabContentsId(tab.props.id, index);
   const isActive = tab.props.selected;

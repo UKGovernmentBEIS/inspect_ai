@@ -1,6 +1,3 @@
-
-
-
 export const filename = (path) => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
@@ -10,4 +7,4 @@ export const filename = (path) => {
   } else {
     return path;
   }
-}
+};

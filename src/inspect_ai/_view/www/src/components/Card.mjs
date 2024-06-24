@@ -11,8 +11,7 @@ export const CardHeader = ({ id, icon, label, classes, style, children }) => {
           }}
         ></i>`
       : ""}
-      ${label ? label : ""}
-     ${children}
+    ${label ? label : ""} ${children}
   </div> `;
 };
 

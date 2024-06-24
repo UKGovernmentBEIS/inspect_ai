@@ -14,11 +14,19 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
     <div
       ...${{ id }}
       class="${classes ? classes : ""}"
-      style=${{ ...emptyStyle, flexDirection: "column", minHeight: "10rem", marginTop: "4rem" }}
+      style=${{
+        ...emptyStyle,
+        flexDirection: "column",
+        minHeight: "10rem",
+        marginTop: "4rem",
+      }}
     >
-      <div style=${{...emptyStyle, fontSize: "1.3rem"}}>
+      <div style=${{ ...emptyStyle, fontSize: "1.3rem" }}>
         <div>
-          <i class="${icons.error}" style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"></i>
+          <i
+            class="${icons.error}"
+            style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
+          ></i>
         </div>
         <div>${title || ""}</div>
       </div>
@@ -30,7 +38,7 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
           border: "solid 1px var(--bs-border-color)",
           borderRadius: "var(--bs-border-radius)",
           padding: "1em",
-          maxWidth: "80%"
+          maxWidth: "80%",
         }}
       >
         <div>

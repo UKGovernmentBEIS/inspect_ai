@@ -3,7 +3,6 @@ import { html } from "htm/preact";
 import { LabeledValue } from "../components/LabeledValue.mjs";
 import { formatDataset } from "../utils/Format.mjs";
 
-
 export const TitleBlock = ({ log, status }) => {
   if (!log) {
     return "";
@@ -50,7 +49,7 @@ export const TitleBlock = ({ log, status }) => {
       value: html`<${LabeledValue} label="Config">
       <${ParamSummary} params=${hyperparameters}/>
     </${LabeledValue}>`,
-    });  
+    });
   }
 
   return html`
@@ -61,10 +60,16 @@ export const TitleBlock = ({ log, status }) => {
         display: "grid",
         gridColumnGap: "1em",
         paddingTop: "0.5em",
-        gridTemplateColumns: `${values.map((val) => { return val.size; }).join(" ")}`,
+        gridTemplateColumns: `${values
+          .map((val) => {
+            return val.size;
+          })
+          .join(" ")}`,
       }}
     >
-      ${values.map((val) => { return val.value;})}
+      ${values.map((val) => {
+        return val.value;
+      })}
     </div>
   `;
 };

@@ -1,5 +1,6 @@
 from typing import Any
 
+from inspect_ai._util.error import exception_message
 from inspect_ai._util.registry import (
     registry_info,
 )
@@ -128,5 +129,8 @@ async def call_tool(
         resolved_params[name] = resolved
     arguments = resolved_params | call.arguments
 
-    # call the tool
-    return await tool_def.tool(**arguments)
+    # call the tool (catch TypeError and convert to ToolError)
+    try:
+        return await tool_def.tool(**arguments)
+    except TypeError as ex:
+        raise ToolError(exception_message(ex))

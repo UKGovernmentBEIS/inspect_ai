@@ -48,7 +48,6 @@ export const openAiLogReader = {
       };
     };
 
-
     const lines = contents.split(/\r\n|\n/);
     const evalLog = {
       eval: {},
@@ -108,7 +107,7 @@ export const openAiLogReader = {
                 solver: comp === generateName ? "generate" : comp,
                 params: {},
               };
-            })
+            }),
           );
 
           const evalSpec = spec.run_config.eval_spec;
@@ -159,7 +158,9 @@ export const openAiLogReader = {
 
           if (json.data.sampled) {
             sample.output = sample.output || {};
-            sample.output.choices = sample.output.choices || json.data.sampled.map(sample => generateMessage(sample));
+            sample.output.choices =
+              sample.output.choices ||
+              json.data.sampled.map((sample) => generateMessage(sample));
             sample.messages.push({
               role: "assistant",
               content: arrayToString(json.data.sampled),
@@ -215,14 +216,16 @@ export const openAiLogReader = {
           }
           if (json.data.picked) {
             evalLog.samples[idx].output = evalLog.samples[idx].output || {
-              choices: json.data.picked.map(pick => generateMessage(pick)),
+              choices: json.data.picked.map((pick) => generateMessage(pick)),
             };
           }
 
           if (json.data.sampled) {
             if (!evalLog.samples[idx].output.choices) {
               evalLog.samples[idx].output = evalLog.samples[idx].output || {
-                choices: json.data.sampled.map(sample => generateMessage(sample)),
+                choices: json.data.sampled.map((sample) =>
+                  generateMessage(sample),
+                ),
               };
             } else {
               evalLog.samples[idx].metadata =

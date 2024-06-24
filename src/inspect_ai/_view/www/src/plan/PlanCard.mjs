@@ -1,12 +1,9 @@
 import { html } from "htm/preact";
 
-import { toTitleCase } from "../utils/Format.mjs"
-import { ghCommitUrl  } from "../utils/Git.mjs";
+import { toTitleCase } from "../utils/Format.mjs";
+import { ghCommitUrl } from "../utils/Git.mjs";
 import { icons } from "../Constants.mjs";
-import {
-  Card,
-  CardBody,
-} from "../components/Card.mjs";
+import { Card, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { CardHeader } from "../components/Card.mjs";
 
@@ -17,10 +14,10 @@ export const PlanCard = ({ log, context }) => {
     <${Card}>
       <${CardHeader} icon=${icons.config} label="Config"/>
       <${CardBody} id="${kPlanCardBodyId}" style=${{
-    paddingTop: "0",
-    paddingBottom: "0",
-    borderTop: "solid var(--bs-border-color) 1px",
-  }}>
+        paddingTop: "0",
+        paddingBottom: "0",
+        borderTop: "solid var(--bs-border-color) 1px",
+      }}>
         <${PlanDetailView}
           evaluation=${log?.eval}
           plan=${log?.plan}
@@ -31,7 +28,6 @@ export const PlanCard = ({ log, context }) => {
     </${Card}>
   `;
 };
-
 
 const planItemStyle = {
   fontSize: "0.9rem",
@@ -57,14 +53,16 @@ const ScorerDetailVew = ({ scorer, context }) => {
 
 const DatasetDetailView = ({ dataset, context, style }) => {
   if (!dataset || Object.keys(dataset).length === 0) {
-    return html`<span style=${{...planItemStyle, ...style}}>No dataset information available</span>`;
+    return html`<span style=${{ ...planItemStyle, ...style }}
+      >No dataset information available</span
+    >`;
   }
 
   return html`<${MetaDataView}
     entries="${dataset}"
     tableOptions="borderless,sm"
     context=${context}
-    style=${{...planItemStyle, ...style}}
+    style=${{ ...planItemStyle, ...style }}
   />`;
 };
 
@@ -101,7 +99,13 @@ const DetailStep = ({ icon, name, params, style, context }) => {
   return html`
     <div style=${style}>
       ${iconHtml} ${name}
-      <div style=${{ marginLeft: "1.3rem", marginTop: "0.2rem", marginBottom: "0.3rem" }}>
+      <div
+        style=${{
+          marginLeft: "1.3rem",
+          marginTop: "0.2rem",
+          marginBottom: "0.3rem",
+        }}
+      >
         ${html`<${MetaDataView}
           entries="${params}"
           context=${context}
@@ -128,10 +132,12 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
 
   const taskInformation = {
     ["Task ID"]: evaluation?.task_id,
-    ["Run ID"]: evaluation?.run_id
+    ["Run ID"]: evaluation?.run_id,
   };
   if (revision) {
-    taskInformation[`${revision.type ? `${toTitleCase(revision.type)} ` : ""}Revision`] = {
+    taskInformation[
+      `${revision.type ? `${toTitleCase(revision.type)} ` : ""}Revision`
+    ] = {
       _html: html`<a href="${ghCommitUrl(revision.origin, revision.commit)}"
         >${revision.commit}</a
       >`,
@@ -158,7 +164,7 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
   if (evaluation?.tool_environment) {
     config["tool_environment"] = evaluation.tool_environment[0];
     if (evaluation.tool_environment[1]) {
-      config["tool_environment_config"] = evaluation.tool_environment[1]
+      config["tool_environment_config"] = evaluation.tool_environment[1];
     }
   }
 
@@ -167,24 +173,22 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
     width: "unset",
     textAlign: "left",
     paddingLeft: "0.6rem",
-    paddingRight: "0.6rem"
-
+    paddingRight: "0.6rem",
   };
 
   const wideColumnStyle = {
     flex: "1 1 1",
     width: "unset",
     paddingLeft: "0.6rem",
-    paddingRight: "0.6rem"
-
+    paddingRight: "0.6rem",
   };
 
   const oneColumnStyle = {
-    flex: "0 0 100%"
+    flex: "0 0 100%",
   };
 
   const twoColumnStyle = {
-    flex: "0 0 50%"
+    flex: "0 0 50%",
   };
 
   const planMetadataStyle = {
@@ -220,7 +224,7 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
       contents: html`
         <${ScorerDetailVew} context=${context} scorer=${scorer} />
       `,
-    });  
+    });
   }
 
   // Compute the column style for the remaining (either 1 or 2 columns wide)
@@ -230,7 +234,7 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
     task_args,
     model_args,
     config,
-    metadata
+    metadata,
   );
   const configColumnStyle = cols.length === 1 ? oneColumnStyle : twoColumnStyle;
 
@@ -247,8 +251,6 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
       />
     `,
   });
-
-  
 
   if (task_args && Object.keys(task_args).length > 0) {
     metadataColumns.push({
@@ -312,7 +314,6 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
       `,
     });
   }
-  
 
   if (metadata && Object.keys(metadata).length > 0) {
     metadataColumns.push({
@@ -332,7 +333,15 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
 
   return html`
     <div style=${{ paddingTop: "0", paddingBottom: "1em", marginLeft: "0" }}>
-      <div class="row" style=${{ justifyContent: "space-between", flexWrap: "wrap", paddingBottom: "0.7rem", borderBottom: "solid 1px var(--bs-border-color)" }}>
+      <div
+        class="row"
+        style=${{
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          paddingBottom: "0.7rem",
+          borderBottom: "solid 1px var(--bs-border-color)",
+        }}
+      >
         ${taskColumns.map((col) => {
           return html`<${PlanColumn} title="${col.title}" style=${col.style}>
         ${col.contents}
@@ -341,7 +350,10 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
         })}
       </div>
 
-      <div class="row" style=${{ justifyContent: "flex-start", flexWrap: "wrap" }}>
+      <div
+        class="row"
+        style=${{ justifyContent: "flex-start", flexWrap: "wrap" }}
+      >
         ${metadataColumns.map((col) => {
           return html`<${PlanColumn} title="${col.title}" style=${col.style}>
             ${col.contents}

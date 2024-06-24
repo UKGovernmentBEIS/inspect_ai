@@ -1,11 +1,15 @@
+import {
+  webViewJsonRpcClient,
+  kMethodEvalLog,
+  kMethodEvalLogs,
+  kMethodEvalLogHeaders,
+} from "./jsonrpc.mjs";
 
+const vscodeApi = window.acquireVsCodeApi
+  ? window.acquireVsCodeApi()
+  : undefined;
 
-import { webViewJsonRpcClient, kMethodEvalLog, kMethodEvalLogs, kMethodEvalLogHeaders } from "./jsonrpc.mjs";
-
-const vscodeApi = window.acquireVsCodeApi ? window.acquireVsCodeApi() : undefined;
-
-const vscodeClient = webViewJsonRpcClient(vscodeApi)
-
+const vscodeClient = webViewJsonRpcClient(vscodeApi);
 
 async function client_events() {
   return [];
@@ -19,15 +23,14 @@ async function eval_logs() {
       // This is an old response, which omits the log_dir
       return {
         log_dir: "",
-        files: parsed
-      }  
+        files: parsed,
+      };
     } else {
       return parsed;
     }
   } else {
     return undefined;
   }
-
 }
 
 async function eval_log(file, headerOnly) {
@@ -48,11 +51,9 @@ async function eval_log_headers(files) {
   }
 }
 
-
 export default {
   client_events,
   eval_logs,
   eval_log,
-  eval_log_headers
-}
-
+  eval_log_headers,
+};

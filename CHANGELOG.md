@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.16 (Unreleased)
+## v0.3.16 (24 June 2024)
 
 -   Various fixes for the use of Docker tool environments on Windows.
 -   Ability to disable cleanup of tool environments via `--no-toolenv-cleanup` 

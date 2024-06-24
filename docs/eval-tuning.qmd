@@ -2,9 +2,17 @@
 
 ## Overview
 
-Inspect runs evaluations using a highly parallel async architecture. Rather than processing a batch at a time, all samples are processed concurrently. This is possible because evaluations generally use relatively little local compute, but rather spend most of their time waiting for model API calls and web requests to complete. Consequently, Inspect eagerly executes as much local computation as it can and at the same time ensures that model APIs are not over-saturated by enforcing a maximum number of concurrent connections.
+Inspect runs evaluations using a highly parallel async architecture. Rather than processing a batch at a time, many samples are processed concurrently. This is possible because evaluations generally use relatively little local compute, but rather spend most of their time waiting for model API calls and web requests to complete. Consequently, Inspect eagerly executes as much local computation as it can and at the same time ensures that model APIs are not over-saturated by enforcing a maximum number of concurrent connections.
 
 This section describes how to tune Inspect's concurrency, as well as how to handle situations where more local compute is required.
+
+## Max Samples
+
+The `max_samples` option determines how many samples are executed in parallel. By default, `max_samples` is set to `max_connections` so that the connection to the Model API can be fully utilised. See the section below for more details on `max_connections`.
+
+If you have additional expensive operations beyond calling models (e.g. using a [Tool Environment](#sec-tool-environments)) then you may want to increase `max_samples` to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you'll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing `max_samples`.
+
+Note that setting `max_samples` to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using tool environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).
 
 ## Model APIs
 
@@ -16,10 +24,9 @@ Connections to model APIs are the most fundamental unit of concurrency to manage
 $ inspect eval --model openai/gpt-4 --max-connections 20
 ```
 
-The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get _worse_ performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The "correct" max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations. 
+The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get *worse* performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The "correct" max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.
 
-
-### Rate Limits 
+### Rate Limits
 
 When you run an eval you'll see information reported on the current active connection usage as well as the number of HTTP rate limit errors that have been encountered (note that Inspect will automatically retry on rate limits and other errors likely to be transient):
 

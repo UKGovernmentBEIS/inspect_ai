@@ -45,7 +45,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       options.push(
         ...descriptor.scoreDescriptor.categories.map((cat) => {
           return { text: cat.text, value: cat.val };
-        })
+        }),
       );
       return html`<${SelectFilter}
         value=${filter.value || "all"}
@@ -59,7 +59,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       options.push(
         ...descriptor.scoreDescriptor.categories.map((cat) => {
           return { text: cat, value: cat };
-        })
+        }),
       );
       return html`<${SelectFilter}
         value=${filter.value || "all"}
@@ -83,17 +83,15 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
 
     case kScoreTypeObject: {
       if (!descriptor.scoreDescriptor.categories) {
-        return  "";
+        return "";
       }
       const options = [{ text: "All", value: "all" }];
       options.push(
         ...descriptor.scoreDescriptor.categories.map((cat) => {
-          return { text: cat.text, value: cat.value};
-        })
+          return { text: cat.text, value: cat.value };
+        }),
       );
 
-
-      
       return html`<${SelectFilter}
         value=${filter.value || "all"}
         options=${options}

@@ -19,7 +19,7 @@ export const Sidebar = ({
     <div
       class="sidebar border-end offcanvas-start${sidebarOffCanClass}"
       id="sidebarOffCanvas"
-      style=${{ display: "flex", flexDirection: "column", height: "100%"}}
+      style=${{ display: "flex", flexDirection: "column", height: "100%" }}
     >
       <div
         style=${{
@@ -32,7 +32,7 @@ export const Sidebar = ({
           position: "fixed",
           width: "var(--sidebar-width)",
           zIndex: 10,
-          borderBottom: "solid var(--bs-light-border-subtle) 1px"
+          borderBottom: "solid var(--bs-light-border-subtle) 1px",
         }}
       >
         <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
@@ -53,8 +53,10 @@ export const Sidebar = ({
           <i class=${icons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "43px" }}>${ loading ? html`<${ProgressBar} style=${{marginTop: "-2px"}}/>` : ""}</div>
-      <ul class="list-group" style=${{flexGrow: 1, overflowY: "auto"}}>
+      <div style=${{ marginTop: "43px" }}>
+        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
+      </div>
+      <ul class="list-group" style=${{ flexGrow: 1, overflowY: "auto" }}>
         ${logs.files.map((file, index) => {
           const active = index === selectedIndex ? " active" : "";
           const logHeader = logHeaders[file.name];
@@ -72,7 +74,7 @@ export const Sidebar = ({
           const completed = logHeader?.stats?.completed_at;
           const time = completed ? new Date(completed) : undefined;
           const timeStr = time
-            ? `${time.toDateString()} 
+            ? `${time.toDateString()}
           ${time.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -139,30 +141,30 @@ export const Sidebar = ({
                                 style=${{ fontWeight: 600, fontSize: "1.5em" }}
                               >
                                 ${formatPrettyDecimal(
-                                  logHeader?.results.metrics[metric].value
+                                  logHeader?.results.metrics[metric].value,
                                 )}
                               </div>
                             </div>
                           `;
-                        }
+                        },
                       )}
                     </div>`
                   : logHeader?.status === "error"
-                  ? html`<div style=${{ color: "var(--bs-danger)" }}>
-                      Eval Error
-                    </div>`
-                  : logHeader?.status === "cancelled"
-                  ? html`<div style=${{ color: "var(--bs-secondary)" }}>
-                      Cancelled
-                    </div>`
-                  : logHeader?.status === "started"
-                  ? html`<div
-                      class="spinner-border spinner-border-sm"
-                      role="status"
-                    >
-                      <span class="visually-hidden">Loading...</span>
-                    </div>`
-                  : ""}
+                    ? html`<div style=${{ color: "var(--bs-danger)" }}>
+                        Eval Error
+                      </div>`
+                    : logHeader?.status === "cancelled"
+                      ? html`<div style=${{ color: "var(--bs-secondary)" }}>
+                          Cancelled
+                        </div>`
+                      : logHeader?.status === "started"
+                        ? html`<div
+                            class="spinner-border spinner-border-sm"
+                            role="status"
+                          >
+                            <span class="visually-hidden">Loading...</span>
+                          </div>`
+                        : ""}
               </div>
               <div style=${{ marginTop: "0.4em" }}>
                 <small class="mb-1 text-muted">
@@ -205,7 +207,7 @@ const prettyDir = (path) => {
     } else {
       return path;
     }
-  } catch (e) {
+  } catch {
     return path;
   }
 };

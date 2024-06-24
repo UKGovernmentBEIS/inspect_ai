@@ -6,7 +6,10 @@ export const MessageContent = (props) => {
   if (Array.isArray(contents)) {
     return contents.map((content, index) => {
       if (typeof content === "string") {
-        return renderer.render(content, index === contents.length - 1);
+        return messageRenderers["text"].render({
+          text: content,
+          index: index === contents.length - 1,
+        });
       } else {
         const renderer = messageRenderers[content.type];
         if (renderer) {
@@ -32,7 +35,7 @@ const messageRenderers = {
     },
   },
   image: {
-    render: (content, isLast) => {
+    render: (content) => {
       return html`<img
         src="${content.image}"
         style=${{
@@ -43,15 +46,15 @@ const messageRenderers = {
     },
   },
   tool: {
-    render: (content, isLast) => {
+    render: (content) => {
       return html`<pre
         style=${{
           marginLeft: "2px",
           padding: "0.5em 0.5em 0.5em 0.5em",
           whiteSpace: "pre-wrap",
-          marginBottom: "0"
+          marginBottom: "0",
         }}
-      ><code class="sourceCode" style=${{wordWrap: "anywhere"}}>
+      ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
       ${content.text}
       </code></pre>`;
     },

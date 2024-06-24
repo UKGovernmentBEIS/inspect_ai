@@ -35,7 +35,9 @@ export const WorkSpace = (props) => {
 
   const workspaceLog = props.log;
 
-  const [currentTaskId, setCurrentTaskId] = useState(workspaceLog?.contents?.eval?.run_id);
+  const [currentTaskId, setCurrentTaskId] = useState(
+    workspaceLog?.contents?.eval?.run_id,
+  );
 
   // State tracking for the view
   const [state, setState] = useState({
@@ -46,7 +48,7 @@ export const WorkSpace = (props) => {
       filter: {},
       epoch: "all",
       sort: kDefaultSort,
-      renderedCode: false
+      renderedCode: false,
     },
   });
 
@@ -63,7 +65,7 @@ export const WorkSpace = (props) => {
     return samplesDescriptor(
       workspaceLog.contents?.samples,
       workspaceLog.contents?.eval?.config?.epochs || 1,
-      context
+      context,
     );
   }, [workspaceLog]);
 
@@ -126,16 +128,18 @@ export const WorkSpace = (props) => {
         ];
 
         if (workspaceLog.contents?.status !== "started") {
-          infoCards.push(html`<${UsageCard}
-            stats=${workspaceLog.contents?.stats}
-            context=${context}
-          />`);
+          infoCards.push(
+            html`<${UsageCard}
+              stats=${workspaceLog.contents?.stats}
+              context=${context}
+            />`,
+          );
         }
 
         // If there is error or progress, includes those within info
         if (workspaceLog.contents?.status === "error") {
           infoCards.unshift(
-            html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`
+            html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`,
           );
         }
         return html`<div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
@@ -155,7 +159,7 @@ export const WorkSpace = (props) => {
           context=${context}
         />`;
       },
-      tools: (_state) => [],
+      tools: () => [],
     };
 
     // The JSON Tab
@@ -169,7 +173,7 @@ export const WorkSpace = (props) => {
             codeRef.current.innerHTML = Prism.highlight(
               workspaceLog.raw,
               Prism.languages.javascript,
-              "javacript"
+              "javacript",
             );
           } else {
             const textNode = document.createTextNode(workspaceLog.raw);
@@ -182,25 +186,24 @@ export const WorkSpace = (props) => {
           setState({ viewState });
         }
 
-        // note that we'e rendered 
-        return html`
-        <div
+        // note that we'e rendered
+        return html` <div
           style=${{
             padding: "1rem",
             fontSize: "0.9rem",
-          }}>
+          }}
+        >
           <pre>
             <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-                  fontSize: "0.9em",
-                  whiteSpace: "pre-wrap",
-                  wordWrap: "anywhere"
-      
-                }}>
+            fontSize: "0.9em",
+            whiteSpace: "pre-wrap",
+            wordWrap: "anywhere",
+          }}>
             </code>
           </pre>
         </div>`;
       },
-      tools: (_state) => [
+      tools: () => [
         html`<${ToolButton}
           name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
           icon="${icons.copy}"
@@ -226,7 +229,7 @@ export const WorkSpace = (props) => {
       viewState.filter = filter;
       setState({ viewState });
     },
-    [state, setState]
+    [state, setState],
   );
 
   const setEpoch = useCallback(
@@ -235,7 +238,7 @@ export const WorkSpace = (props) => {
       viewState.epoch = epoch;
       setState({ viewState });
     },
-    [state]
+    [state],
   );
 
   const setSort = useCallback(
@@ -244,7 +247,7 @@ export const WorkSpace = (props) => {
       viewState.sort = sort;
       setState({ viewState });
     },
-    [state]
+    [state],
   );
 
   const copyFeedback = useCallback(
@@ -265,12 +268,12 @@ export const WorkSpace = (props) => {
         }, 1250);
       }
     },
-    [state]
+    [state],
   );
 
   // Display the log
   useEffect(() => {
-  if (workspaceLog.contents && workspaceLog.eval?.run_id !== currentTaskId) {
+    if (workspaceLog.contents && workspaceLog.eval?.run_id !== currentTaskId) {
       const defaultTab =
         workspaceLog.contents?.status !== "error" ? kEvalTabId : kInfoTabId;
       setSelectedTab(state, defaultTab);
@@ -285,15 +288,15 @@ export const WorkSpace = (props) => {
       filter: {},
       epoch: "all",
       sort: kDefaultSort,
-      renderedCode: false  
+      renderedCode: false,
     };
 
-    setState({viewState: {...state.viewState, ...newState}});
+    setState({ viewState: { ...state.viewState, ...newState } });
   }, [workspaceLog, divRef, currentTaskId]);
 
   useEffect(() => {
     setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
-  }, [workspaceLog])
+  }, [workspaceLog]);
 
   // Compute the tools for this tab
   const tabTools = Object.keys(tabs)
@@ -372,25 +375,25 @@ const WorkspaceDisplay = ({
               }}
             >
             <${TabSet} id="log-details" tools="${tabTools}" type="pills" styles=${{
-      tabSet: {
-        fontSize: "0.8rem",
-        flexWrap: "nowrap",
-        padding: "0.5em 1em 0.5em 1em",
-        borderBottom: "solid 1px var(--bs-border-color)",
-      },
-      tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
-      tabs: {
-        padding: ".3rem 0.3rem .3rem 0.3rem",
-        width: "5em",
-        fontSize: "0.7rem",
-      },
-    }} >
+              tabSet: {
+                fontSize: "0.8rem",
+                flexWrap: "nowrap",
+                padding: "0.5em 1em 0.5em 1em",
+                borderBottom: "solid 1px var(--bs-border-color)",
+              },
+              tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
+              tabs: {
+                padding: ".3rem 0.3rem .3rem 0.3rem",
+                width: "5em",
+                fontSize: "0.7rem",
+              },
+            }} >
               ${Object.keys(tabs).map((key) => {
                 const tab = tabs[key];
-                return html`<${TabPanel} 
-                id=${tab.id} 
-                title="${tab.label}" 
-                onSelected="${selectTab}" 
+                return html`<${TabPanel}
+                id=${tab.id}
+                title="${tab.label}"
+                onSelected="${selectTab}"
                 selected=${selectedTab === tab.id}
                 scrollable=${!!tab.scrollable}>
                   ${tab.content()}
