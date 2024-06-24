@@ -281,6 +281,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#max-samples" id="toc-max-samples" class="nav-link" data-scroll-target="#max-samples">Max Samples</a></li>
   <li><a href="#model-apis" id="toc-model-apis" class="nav-link" data-scroll-target="#model-apis">Model APIs</a>
   <ul class="collapse">
   <li><a href="#max-connections" id="toc-max-connections" class="nav-link" data-scroll-target="#max-connections">Max Connections</a></li>
@@ -324,8 +325,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Inspect runs evaluations using a highly parallel async architecture. Rather than processing a batch at a time, all samples are processed concurrently. This is possible because evaluations generally use relatively little local compute, but rather spend most of their time waiting for model API calls and web requests to complete. Consequently, Inspect eagerly executes as much local computation as it can and at the same time ensures that model APIs are not over-saturated by enforcing a maximum number of concurrent connections.</p>
+<p>Inspect runs evaluations using a highly parallel async architecture. Rather than processing a batch at a time, many samples are processed concurrently. This is possible because evaluations generally use relatively little local compute, but rather spend most of their time waiting for model API calls and web requests to complete. Consequently, Inspect eagerly executes as much local computation as it can and at the same time ensures that model APIs are not over-saturated by enforcing a maximum number of concurrent connections.</p>
 <p>This section describes how to tune Inspect’s concurrency, as well as how to handle situations where more local compute is required.</p>
+</section>
+<section id="max-samples" class="level2">
+<h2 class="anchored" data-anchor-id="max-samples">Max Samples</h2>
+<p>The <code>max_samples</code> option determines how many samples are executed in parallel. By default, <code>max_samples</code> is set to <code>max_connections</code> so that the connection to the Model API can be fully utilised. See the section below for more details on <code>max_connections</code>.</p>
+<p>If you have additional expensive operations beyond calling models (e.g.&nbsp;using a <a href="agents.html#sec-tool-environments">Tool Environment</a>) then you may want to increase <code>max_samples</code> to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you’ll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing <code>max_samples</code>.</p>
+<p>Note that setting <code>max_samples</code> to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using tool environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).</p>
 </section>
 <section id="model-apis" class="level2">
 <h2 class="anchored" data-anchor-id="model-apis">Model APIs</h2>
@@ -404,7 +411,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> result.success:</span>
 <span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> result.stdout</span>
 <span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="ss">f"Error: </span><span class="sc">{</span>result<span class="sc">.</span>stderr<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> ToolError(result.stderr)</span>
 <span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The maximum number of concurrent subprocesses can be modified using the <code>--max-subprocesses</code> option. For example:</p>
