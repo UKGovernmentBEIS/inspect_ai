@@ -1,4 +1,5 @@
 from random import randint
+from typing import Literal
 
 from test_helpers.tools import addition, exec, read_file
 from test_helpers.utils import (
@@ -101,7 +102,7 @@ def check_tools_calls(model: Model, **model_args) -> None:
     task = Task(
         dataset=addition_dataset,
         plan=[use_tools(addition()), generate()],
-        scorer=match(),
+        scorer=match("any", numeric=True),
     )
 
     # evaluate the task
@@ -267,29 +268,80 @@ def test_tool_eval_error():
     assert log.status == "error"
 
 
-def get_tool_call(messages: list[ChatMessage], tool: str) -> ToolCall | None:
-    assistant_messages = [
-        message for message in messages if isinstance(message, ChatMessageAssistant)
-    ]
-    tool_call_message = next(
-        (
-            message
-            for message in assistant_messages
-            if message.tool_calls and len(message.tool_calls)
-        ),
-        None,
+@skip_if_no_openai
+def test_tool_calls():
+    @tool(
+        prompt="""If you are given a math problem of any kind,
+        please use the 'add' tool to compute the result. Use
+        the tool at least 3 consecutive times to be sure of
+        the correct answer.""",
     )
-    if tool_call_message:
-        return next(
-            (
-                tool_call
-                for tool_call in (tool_call_message.tool_calls or [])
-                if tool_call.function == tool
-            ),
-            None,
+    def add():
+        async def exec(x: int, y: int):
+            """
+            Tool for adding two numbers.
+
+            Args:
+                x (int): First number to add.
+                y (int): Second number to add.
+
+            Returns:
+                The sum of the two numbers.
+            """
+            return x + y
+
+        return exec
+
+    def task(tool_calls: Literal["loop", "single", "none"]):
+        return Task(
+            dataset=[Sample(input="What is 1+1?", target="2")],
+            plan=[use_tools([add()]), generate(tool_calls=tool_calls)],
+            scorer=match(),
         )
+
+    def check_messages(log, predicate):
+        assert log.status == "success"
+        assert log.samples
+        messages = log.samples[0].messages
+        assert predicate(messages)
+
+    # tool_calls == "loop"
+    log = eval(task("loop"), model="openai/gpt-4")[0]
+    check_messages(log, lambda m: len(get_tool_calls(m, "add")) > 1)
+
+    # tool_calls == "single"
+    log = eval(task("single"), model="openai/gpt-4")[0]
+    check_messages(log, lambda m: len(get_tool_calls(m, "add")) == 1)
+
+    # tool_calls == "none"
+    log = eval(task("none"), model="openai/gpt-4")[0]
+    check_messages(log, lambda m: get_tool_response(m, "add") is None)
+
+
+def get_tool_call(messages: list[ChatMessage], tool: str) -> ToolCall | None:
+    tool_calls = get_tool_calls(messages, tool)
+    if tool_calls:
+        return tool_calls[0]
     else:
         return None
+
+
+def get_tool_calls(messages: list[ChatMessage], tool: str) -> list[ToolCall]:
+    tool_call_messages = [
+        message
+        for message in messages
+        if isinstance(message, ChatMessageAssistant) and message.tool_calls
+    ]
+    tool_calls: list[ToolCall] = []
+    for message in tool_call_messages:
+        tool_calls.extend(
+            [
+                tool_call
+                for tool_call in (message.tool_calls or [])
+                if tool_call.function == tool
+            ]
+        )
+    return tool_calls
 
 
 def get_tool_response(

@@ -1,6 +1,7 @@
 from typing import (
     Any,
     Callable,
+    Literal,
     Protocol,
     TypeVar,
     cast,
@@ -29,8 +30,18 @@ class Generate(Protocol):
 
     Args:
        state (TaskState): Beginning task state.
+
+       tool_calls (Literal["loop", "single", "none"]): Resolve tool calls:
+          - `"loop"` resolves tools calls and then invokes `generate()`,
+             proceeding in a loop which terminates when there are no more
+             tool calls or `max_messages` is exceeded. This is the default behavior.
+          - `"single"` resolves at most a single set of tool calls and then returns.
+          - `"none"` does not resolve tool calls at all (in this
+             case you will need to invoke `call_tools()` directly).
+
        cache: (bool | CachePolicy):
           Caching behaviour for generate responses (defaults to no caching).
+
        **kwargs: Optional generation config arguments.
 
     Returns:
@@ -40,6 +51,7 @@ class Generate(Protocol):
     async def __call__(
         self,
         state: TaskState,
+        tool_calls: Literal["loop", "single", "none"] = "loop",
         cache: bool | CachePolicy = False,
         **kwargs: Unpack[GenerateConfigArgs],
     ) -> TaskState: ...
@@ -195,19 +207,30 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
 
 
 @solver
-def generate(cache: bool | CachePolicy = False) -> Solver:
+def generate(
+    tool_calls: Literal["loop", "single", "none"] = "loop",
+    cache: bool | CachePolicy = False,
+) -> Solver:
     r"""Generate output from the model and append it to task message history.
 
     generate() is the default plan/solver if none is specified for a given task.
 
     Args:
+      tool_calls (Literal["loop", "single", "none"]): Resolve tool calls:
+        - `"loop"` resolves tools calls and then invokes `generate()`,
+            proceeding in a loop which terminates when there are no more
+            tool calls or `max_messages` is exceeded. This is the default behavior.
+        - `"single"` resolves at most a single set of tool calls and then returns.
+        - `"none"` does not resolve tool calls at all (in this
+            case you will need to invoke `call_tools()` directly).
+
       cache: (bool | CachePolicy):
         Caching behaviour for generate responses (defaults to no caching).
     """
 
     # call generate on the tasks
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        return await generate(state, cache=cache)
+        return await generate(state, tool_calls=tool_calls, cache=cache)
 
     # return solve
     return solve

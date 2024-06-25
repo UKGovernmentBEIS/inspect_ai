@@ -90,10 +90,16 @@ cache = CachePolicy(expiry = None)
 You can also define scopes for cache expiration (e.g. cache for a specific task or usage pattern). Use the `scopes` parameter to add named scopes to the cache key:
 
 ``` python
-scache = CachePolicy(
-    expiry = "1M",
-    scopes = {"role": "attacker", "team": "red"})
+cache = CachePolicy(
+    expiry="1M",
+    scopes={"role": "attacker", "team": "red"})
 )
+```
+
+As noted above, caching is by default done per epoch (i.e. each epoch has its own cache scope). You can disable the default behaviour by setting `per_epoch=False`. For example:
+
+``` python
+cache = CachePolicy(per_epoch=False)
 ```
 
 ## Management
