@@ -285,7 +285,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#example-intercode-ctf" id="toc-example-intercode-ctf" class="nav-link" data-scroll-target="#example-intercode-ctf">Example: InterCode CTF</a></li>
   </ul></li>
-  <li><a href="#custom-scaffolding" id="toc-custom-scaffolding" class="nav-link" data-scroll-target="#custom-scaffolding">Custom Scaffolding</a></li>
+  <li><a href="#custom-scaffolding" id="toc-custom-scaffolding" class="nav-link" data-scroll-target="#custom-scaffolding">Custom Scaffolding</a>
+  <ul class="collapse">
+  <li><a href="#sec-tool-calls" id="toc-sec-tool-calls" class="nav-link" data-scroll-target="#sec-tool-calls">Tool Calls</a></li>
+  <li><a href="#tool-filtering" id="toc-tool-filtering" class="nav-link" data-scroll-target="#tool-filtering">Tool Filtering</a></li>
+  </ul></li>
   <li><a href="#agent-libraries" id="toc-agent-libraries" class="nav-link" data-scroll-target="#agent-libraries">Agent Libraries</a>
   <ul class="collapse">
   <li><a href="#sec-langchain" id="toc-sec-langchain" class="nav-link" data-scroll-target="#sec-langchain">Example: LangChain</a></li>
@@ -331,7 +335,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Inspect supports a variety of approaches to agent evaluations, including:</p>
 <ol type="1">
 <li><p>Using Inspect’s built in tool-use loop along with a ReAct prompt that encourages the model to explicitly reason about each tool usage. When you call <code>generate()</code> and the model responds with a tool call, Inspect will automatically re-prompt the model for another generation.</p></li>
-<li><p>Implementing your own outer scaffolding loop on top of the default <code>generate()</code> behavior. This will involve repeated calls to <code>generate()</code> with various <code>tools</code> being made available in the <code>TaskState</code> for each call. It may also involve using the model to help determine what actions to take next.</p></li>
+<li><p>Implementing a custom agent loop that calls <code>generate()</code> directly. This will involve repeated calls to <code>generate()</code> with various <code>tools</code> being made available in the <code>TaskState</code> for each call. It may also involve using critique or reflection to help determine what actions to take next.</p></li>
 <li><p>Adapting another scaffolding scheme provided by a research paper or open source library (for example, using a 3rd party agent library like <a href="https://python.langchain.com/docs/modules/agents/">LangChain</a> or <a href="https://langroid.github.io/langroid/">Langroid</a>).</p></li>
 </ol>
 <p>We’ll cover the basics of all of these approaches below.</p>
@@ -339,8 +343,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="tool-use-loop" class="level2">
 <h2 class="anchored" data-anchor-id="tool-use-loop">Tool Use Loop</h2>
-<p>A basic agent can be implemented by providing tools to the model with <code>use_tools()</code> and then calling <code>generate()</code>. Every time the model calls a tool, the approriate Python function is called and then the model is re-prompted to generate based on the output of the function. This is typically combined with a <a href="https://arxiv.org/pdf/2303.11366.pdf">ReAct</a> prompt that urges the model to reason about each action it takes. For example:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>prompt_template(template <span class="op">=</span> <span class="st">"""</span></span>
+<p>A basic agent can be implemented by providing tools to the model with <code>use_tools()</code> and then calling <code>generate()</code>. Every time the model calls a tool, the appropriate Python function is called and then the model is re-prompted to generate based on the output of the function. This is typically combined with a ReAct prompt that urges the model to reason about each action it takes. For example:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>system_message(<span class="st">"""</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="st">    Each message may perform one function call. You will</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="st">    see the result of the function right after sending </span></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="st">    the message. If you need to perform multiple actions,</span></span>
@@ -348,13 +352,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="st">    function calls. Do some reasoning before your actions,</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="st">    describing what function calls you are going to use </span></span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="st">    and how they fit into your plan. </span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="st">    </span><span class="sc">{prompt}</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that this is merely an example! A production ReAct prompt would typically be longer and more detailed. It would also typically have some fewshot examples from the dataset domain. See <a href="https://www.promptingguide.ai/techniques/react">Prompt Engineering Guide: React</a> for additional details.</p>
 <section id="example-intercode-ctf" class="level3">
 <h3 class="anchored" data-anchor-id="example-intercode-ctf">Example: InterCode CTF</h3>
-<p>This example implements the <a href="https://intercode-benchmark.github.io/#ctf">CTF Benchmark</a> from the <a href="https://arxiv.org/abs/2306.14898">InterCode</a> paper (click the numbers in the right margin for additional explanation of the code):</p>
+<p>This example is based on the <a href="https://intercode-benchmark.github.io/#ctf">CTF Benchmark</a> from the <a href="https://arxiv.org/abs/2306.14898">InterCode</a> paper (click the numbers in the right margin for additional explanation of the code):</p>
 <div class="sourceCode" id="annotated-cell-2"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataset <span class="im">import</span> read_dataset</span>
 <span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
@@ -376,35 +378,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="3">3</button><span id="annotated-cell-2-19" class="code-annotation-target"><a href="#annotated-cell-2-19" aria-hidden="true" tabindex="-1"></a>                bash(timeout<span class="op">=</span>CMD_TIMEOUT),</span>
 <span id="annotated-cell-2-20"><a href="#annotated-cell-2-20" aria-hidden="true" tabindex="-1"></a>                python(timeout<span class="op">=</span>CMD_TIMEOUT)</span>
 <span id="annotated-cell-2-21"><a href="#annotated-cell-2-21" aria-hidden="true" tabindex="-1"></a>            ]),</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="4">4</button><span id="annotated-cell-2-22" class="code-annotation-target"><a href="#annotated-cell-2-22" aria-hidden="true" tabindex="-1"></a>            sample_init(),</span>
-<span id="annotated-cell-2-23"><a href="#annotated-cell-2-23" aria-hidden="true" tabindex="-1"></a>            generate(),</span>
-<span id="annotated-cell-2-24"><a href="#annotated-cell-2-24" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<span id="annotated-cell-2-25"><a href="#annotated-cell-2-25" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
-<span id="annotated-cell-2-26"><a href="#annotated-cell-2-26" aria-hidden="true" tabindex="-1"></a>        max_messages<span class="op">=</span>MAX_MESSAGES,            </span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="5">5</button><span id="annotated-cell-2-27" class="code-annotation-target"><a href="#annotated-cell-2-27" aria-hidden="true" tabindex="-1"></a>        tool_environment<span class="op">=</span><span class="st">"docker"</span>,</span>
-<span id="annotated-cell-2-28"><a href="#annotated-cell-2-28" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="annotated-cell-2-29"><a href="#annotated-cell-2-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-2-30"><a href="#annotated-cell-2-30" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="annotated-cell-2-31"><a href="#annotated-cell-2-31" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sample_init():</span>
-<span id="annotated-cell-2-32"><a href="#annotated-cell-2-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="6">6</button><span id="annotated-cell-2-33" class="code-annotation-target"><a href="#annotated-cell-2-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># run setup code if provided</span></span>
-<span id="annotated-cell-2-34"><a href="#annotated-cell-2-34" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> state.metadata.get(<span class="st">"setup"</span>) <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
-<span id="annotated-cell-2-35"><a href="#annotated-cell-2-35" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> tool_environment().<span class="bu">exec</span>(</span>
-<span id="annotated-cell-2-36"><a href="#annotated-cell-2-36" aria-hidden="true" tabindex="-1"></a>                [<span class="st">"bash"</span>, <span class="st">"-c"</span>, state.metadata[<span class="st">"setup"</span>]]</span>
-<span id="annotated-cell-2-37"><a href="#annotated-cell-2-37" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="annotated-cell-2-38"><a href="#annotated-cell-2-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-2-39"><a href="#annotated-cell-2-39" aria-hidden="true" tabindex="-1"></a>        <span class="co"># add available files (if any) to prompt</span></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="7">7</button><span id="annotated-cell-2-40" class="code-annotation-target"><a href="#annotated-cell-2-40" aria-hidden="true" tabindex="-1"></a>        files <span class="op">=</span> state.metadata[<span class="st">"files"</span>]</span>
-<span id="annotated-cell-2-41"><a href="#annotated-cell-2-41" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(files) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
-<span id="annotated-cell-2-42"><a href="#annotated-cell-2-42" aria-hidden="true" tabindex="-1"></a>            state.user_prompt.text <span class="op">=</span> (</span>
-<span id="annotated-cell-2-43"><a href="#annotated-cell-2-43" aria-hidden="true" tabindex="-1"></a>                <span class="st">"The following files are located in the "</span> </span>
-<span id="annotated-cell-2-44"><a href="#annotated-cell-2-44" aria-hidden="true" tabindex="-1"></a>                <span class="op">+</span> <span class="ss">f"working directory: </span><span class="sc">{</span><span class="st">' '</span><span class="sc">.</span>join(files)<span class="sc">}</span><span class="ss">"</span> </span>
-<span id="annotated-cell-2-45"><a href="#annotated-cell-2-45" aria-hidden="true" tabindex="-1"></a>                <span class="op">+</span> <span class="ss">f"</span><span class="ch">\n\n</span><span class="sc">{</span>state<span class="sc">.</span>user_prompt<span class="sc">.</span>text<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="annotated-cell-2-46"><a href="#annotated-cell-2-46" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-2-47"><a href="#annotated-cell-2-47" aria-hidden="true" tabindex="-1"></a>        <span class="co"># return state</span></span>
-<span id="annotated-cell-2-48"><a href="#annotated-cell-2-48" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="annotated-cell-2-49"><a href="#annotated-cell-2-49" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-2-50"><a href="#annotated-cell-2-50" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="annotated-cell-2-22"><a href="#annotated-cell-2-22" aria-hidden="true" tabindex="-1"></a>            generate(),</span>
+<span id="annotated-cell-2-23"><a href="#annotated-cell-2-23" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="annotated-cell-2-24"><a href="#annotated-cell-2-24" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
+<span id="annotated-cell-2-25"><a href="#annotated-cell-2-25" aria-hidden="true" tabindex="-1"></a>        max_messages<span class="op">=</span>MAX_MESSAGES,            </span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="4">4</button><span id="annotated-cell-2-26" class="code-annotation-target"><a href="#annotated-cell-2-26" aria-hidden="true" tabindex="-1"></a>        tool_environment<span class="op">=</span><span class="st">"docker"</span>,</span>
+<span id="annotated-cell-2-27"><a href="#annotated-cell-2-27" aria-hidden="true" tabindex="-1"></a>    )</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
 <dt data-target-cell="annotated-cell-2" data-target-annotation="1">1</dt>
 <dd>
@@ -420,19 +399,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-2" data-target-annotation="4">4</dt>
 <dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="22" data-code-annotation="4">For each sample we run some initialization code that executes a custom setup command (if provided) as well as adds a list of files included with the sample to the prompt.</span>
-</dd>
-<dt data-target-cell="annotated-cell-2" data-target-annotation="5">5</dt>
-<dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="27" data-code-annotation="5">Specify that Docker should be used as the tool environemnt (the container is built from the provided <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/Dockerfile">Dockerfile</a>)</span>
-</dd>
-<dt data-target-cell="annotated-cell-2" data-target-annotation="6">6</dt>
-<dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="33" data-code-annotation="6">InterCode samples can include a “setup” field that includes a command to run before executing the sample.</span>
-</dd>
-<dt data-target-cell="annotated-cell-2" data-target-annotation="7">7</dt>
-<dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="40" data-code-annotation="7">Ammend the prompt with a list of files copied to the working directory for the sample.</span>
+<span data-code-cell="annotated-cell-2" data-code-lines="26" data-code-annotation="4">Specify that Docker should be used as the tool environemnt (the container is built from the provided <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/Dockerfile">Dockerfile</a>)</span>
 </dd>
 </dl>
 <div class="callout callout-style-simple callout-note">
@@ -450,75 +417,88 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="custom-scaffolding" class="level2">
 <h2 class="anchored" data-anchor-id="custom-scaffolding">Custom Scaffolding</h2>
-<p>The default tool use loop above will work fine for some evaluations, but in other cases you may need to provide more custom logic. For example, you might want to:</p>
+<p>The default tool use loop demonstrated above will work fine for some tasks, but in other cases you may need to provide more custom logic. For example, you might want to:</p>
 <ol type="1">
-<li>Urge the model to continue (or take a different path) if it gives up; or</li>
-<li>Have mutliple <code>generate()</code> passes each with a distinct set of tools.</li>
+<li>Urge the model to continue (or take a different path) if it gives up.</li>
+<li>Exercise more fine grained control over which, when, and how many tool calls are made.</li>
+<li>Redirect the model to another trajectory if its not on a productive course.</li>
+<li>Have multiple <code>generate()</code> passes each with a distinct set of tools.</li>
 </ol>
-<p>Here’s a solver that prompts the model to keep going after a failure to come up with a valid submission. Note that you might implement this with a limited number of “retries” or (as illustrated below) you might rely on <code>max_messages</code> to terminate the evaulation:</p>
-<div class="sourceCode" id="annotated-cell-3"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-3-1"><a href="#annotated-cell-3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="annotated-cell-3-2"><a href="#annotated-cell-3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf()</span>
-<span id="annotated-cell-3-3"><a href="#annotated-cell-3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="annotated-cell-3-4"><a href="#annotated-cell-3-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>csv_dataset(<span class="st">"data"</span>),</span>
-<span id="annotated-cell-3-5"><a href="#annotated-cell-3-5" aria-hidden="true" tabindex="-1"></a>        plan<span class="op">=</span>[</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="1">1</button><span id="annotated-cell-3-6" class="code-annotation-target"><a href="#annotated-cell-3-6" aria-hidden="true" tabindex="-1"></a>            use_tools(bash(<span class="dv">180</span>), python(<span class="dv">180</span>)),</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="2">2</button><span id="annotated-cell-3-7" class="code-annotation-target"><a href="#annotated-cell-3-7" aria-hidden="true" tabindex="-1"></a>            generate_until_submission()</span>
-<span id="annotated-cell-3-8"><a href="#annotated-cell-3-8" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="3">3</button><span id="annotated-cell-3-9" class="code-annotation-target"><a href="#annotated-cell-3-9" aria-hidden="true" tabindex="-1"></a>        max_messages<span class="op">=</span><span class="dv">30</span>,</span>
-<span id="annotated-cell-3-10"><a href="#annotated-cell-3-10" aria-hidden="true" tabindex="-1"></a>        tool_environment<span class="op">=</span><span class="st">"docker"</span></span>
-<span id="annotated-cell-3-11"><a href="#annotated-cell-3-11" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="annotated-cell-3-12"><a href="#annotated-cell-3-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-3-13"><a href="#annotated-cell-3-13" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="annotated-cell-3-14"><a href="#annotated-cell-3-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate_until_submission():</span>
-<span id="annotated-cell-3-15"><a href="#annotated-cell-3-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
-<span id="annotated-cell-3-16"><a href="#annotated-cell-3-16" aria-hidden="true" tabindex="-1"></a>        </span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="4">4</button><span id="annotated-cell-3-17" class="code-annotation-target"><a href="#annotated-cell-3-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="kw">not</span> state.completed:</span>
-<span id="annotated-cell-3-18"><a href="#annotated-cell-3-18" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="5">5</button><span id="annotated-cell-3-19" class="code-annotation-target"><a href="#annotated-cell-3-19" aria-hidden="true" tabindex="-1"></a>            state <span class="op">=</span> <span class="cf">await</span> generate(state)</span>
-<span id="annotated-cell-3-20"><a href="#annotated-cell-3-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> has_submission(state.output.completion)</span>
-<span id="annotated-cell-3-21"><a href="#annotated-cell-3-21" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span></span>
-<span id="annotated-cell-3-22"><a href="#annotated-cell-3-22" aria-hidden="true" tabindex="-1"></a>            </span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="6">6</button><span id="annotated-cell-3-23" class="code-annotation-target"><a href="#annotated-cell-3-23" aria-hidden="true" tabindex="-1"></a>            state.messages.append(ChatMessageUser(</span>
-<span id="annotated-cell-3-24"><a href="#annotated-cell-3-24" aria-hidden="true" tabindex="-1"></a>                content <span class="op">=</span> <span class="st">"Keep going, you can do it!"</span></span>
-<span id="annotated-cell-3-25"><a href="#annotated-cell-3-25" aria-hidden="true" tabindex="-1"></a>            ))</span>
-<span id="annotated-cell-3-26"><a href="#annotated-cell-3-26" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="annotated-cell-3-27"><a href="#annotated-cell-3-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="sec-tool-calls" class="level3">
+<h3 class="anchored" data-anchor-id="sec-tool-calls">Tool Calls</h3>
+<p>When you call the <code>generate()</code> function from a solver, use the <code>tool_calls</code> parameter to customise how tool calls made by the model are handled:</p>
+<table class="table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 80%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>loop</code></td>
+<td>Resolve tools calls and then invoke <code>generate()</code>, proceeding in a loop which terminates when there are no more tool calls or <code>max_messages</code> is reached.</td>
+</tr>
+<tr class="even">
+<td><code>single</code></td>
+<td>Resolve at most a single set of tool calls and then return.</td>
+</tr>
+<tr class="odd">
+<td><code>none</code></td>
+<td>Do not resolve tool calls at all (in this case you will need to invoke <code>call_tools()</code> directly).</td>
+</tr>
+</tbody>
+</table>
+<p>The default behaviour is <code>loop</code>, which along with a ReAct prompt is a sound baseline choice for many agents. More sophisticated agents though will often want to use a custom solver that goes well beyond a simple loop. As a starting point, here is a solver that emulates the default <code>loop</code> behaviour:</p>
+<div class="sourceCode" id="annotated-cell-3"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-3-1"><a href="#annotated-cell-3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="annotated-cell-3-2"><a href="#annotated-cell-3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_loop():</span>
+<span id="annotated-cell-3-3"><a href="#annotated-cell-3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):         </span>
+<span id="annotated-cell-3-4"><a href="#annotated-cell-3-4" aria-hidden="true" tabindex="-1"></a>        </span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="1">1</button><span id="annotated-cell-3-5" class="code-annotation-target"><a href="#annotated-cell-3-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="kw">not</span> state.completed:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="2">2</button><span id="annotated-cell-3-6" class="code-annotation-target"><a href="#annotated-cell-3-6" aria-hidden="true" tabindex="-1"></a>            state <span class="op">=</span> <span class="cf">await</span> generate(state, tool_calls<span class="op">=</span><span class="st">"none"</span>)</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="3">3</button><span id="annotated-cell-3-7" class="code-annotation-target"><a href="#annotated-cell-3-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> state.tool_calls_pending:</span>
+<span id="annotated-cell-3-8"><a href="#annotated-cell-3-8" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="4">4</button><span id="annotated-cell-3-9" class="code-annotation-target"><a href="#annotated-cell-3-9" aria-hidden="true" tabindex="-1"></a>            state <span class="op">=</span> <span class="cf">await</span> call_tools(state)</span>
+<span id="annotated-cell-3-10"><a href="#annotated-cell-3-10" aria-hidden="true" tabindex="-1"></a>           </span>
+<span id="annotated-cell-3-11"><a href="#annotated-cell-3-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
 <dt data-target-cell="annotated-cell-3" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="6" data-code-annotation="1">Set a timeout of 3 minutes for tool execution.</span>
+<span data-code-cell="annotated-cell-3" data-code-lines="5" data-code-annotation="1">The <code>state.completed</code> property will be set to <code>True</code> whenever <code>max_messages</code> is exceeded.</span>
 </dd>
 <dt data-target-cell="annotated-cell-3" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="7" data-code-annotation="2">Custom solver that re-prompts the model after it gives up.</span>
+<span data-code-cell="annotated-cell-3" data-code-lines="6" data-code-annotation="2">By specifying <code>tool_calls="none"</code>, we prevent <code>generate()</code> from actually calling any tools (this is now our responsibility via the <code>call_tools()</code> function.</span>
 </dd>
 <dt data-target-cell="annotated-cell-3" data-target-annotation="3">3</dt>
 <dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="9" data-code-annotation="3">The loop in <code>generate_until_submission()</code> will not always terminate unless a <code>max_messages</code> is supplied!</span>
+<span data-code-cell="annotated-cell-3" data-code-lines="7,8" data-code-annotation="3">It’s possible that the model has chosen not to make any tool calls, and in that case we want to terminate the loop.</span>
 </dd>
 <dt data-target-cell="annotated-cell-3" data-target-annotation="4">4</dt>
 <dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="17" data-code-annotation="4">When <code>max_messages</code> is exceeded, <code>state.completed</code> will be set to <code>False</code>.</span>
-</dd>
-<dt data-target-cell="annotated-cell-3" data-target-annotation="5">5</dt>
-<dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="19,20,21" data-code-annotation="5">Run standard generate tool use loop and check to see if the model came up with a submission (or alternatively gave up).</span>
-</dd>
-<dt data-target-cell="annotated-cell-3" data-target-annotation="6">6</dt>
-<dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="23,24,25" data-code-annotation="6">Provide user message that urges the model to continue.</span>
+<span data-code-cell="annotated-cell-3" data-code-lines="9" data-code-annotation="4">Explicitly resolve tool calls by invoking <code>call_tools()</code> on the state.</span>
 </dd>
 </dl>
+<p>You can imagine several ways you might want to customise this loop:</p>
+<ol type="1">
+<li>Adding another termination condition for the output satisfying some criteria.</li>
+<li>Urging the model to keep going after it decides to stop calling tools.</li>
+<li>Examining and possibly filtering the tool calls before invoking <code>call_tools()</code></li>
+<li>Adding a critique / reflection step between tool calling and generate.</li>
+<li>Deep copying the <code>TaskState</code> and exploring several trajectories.</li>
+</ol>
+</section>
+<section id="tool-filtering" class="level3">
+<h3 class="anchored" data-anchor-id="tool-filtering">Tool Filtering</h3>
+<p>Above we demonstrated making tools available to the model via <code>use_tools()</code>. While this is convenient for simple agents, you may also want to filter the available tools either based on task stages or dynamically based on some other criteria.</p>
 <p>Here’s an example of a <code>Solver</code> that filters the available tools between calls to <code>generate()</code>:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate_ctf():</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># first pass w/ tools</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># first pass w/ core tools</span></span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        state.tools <span class="op">=</span> [decompile(), dissasemble(), bash()]</span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        state <span class="op">=</span> <span class="cf">await</span> generate(state)</span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># second pass w/ prompt and different tools</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># second pass w/ prompt and python tool only</span></span>
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        state.tools <span class="op">=</span> [python()]</span>
 <span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        state.messages.append(ChatMessageUser( </span>
 <span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>            content <span class="op">=</span> <span class="st">"Use Python to extract the flag."</span> </span>
@@ -530,7 +510,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
 <span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    </span>
 <span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can imagine many other variations on the examples above. The key thing to take from these examples is that you can use custom solvers to wrap code around the default <code>generate()</code> tool use loop.</p>
+<p>In this example we rely on the default <code>generate()</code> tool calling behaviour (<code>"loop"</code>). However, you can also imaging combining tool filtering with the more tailored tool calling logic described in <a href="#sec-tool-calls">Tool Calls</a>.</p>
+</section>
 </section>
 <section id="agent-libraries" class="level2">
 <h2 class="anchored" data-anchor-id="agent-libraries">Agent Libraries</h2>

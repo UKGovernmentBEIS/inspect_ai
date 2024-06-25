@@ -608,6 +608,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>ToolChoice</td>
 <td>Tool choice directive.</td>
 </tr>
+<tr class="odd">
+<td><code>tool_calls_pending</code></td>
+<td>bool</td>
+<td>Convenience property for determining whether the last assistant message includes unresolved tool calls.</td>
+</tr>
 </tbody>
 </table>
 <p>These fields are typically modified via the <code>use_tools()</code> solver, but they can also be modified directly for more advanced use cases.</p>
