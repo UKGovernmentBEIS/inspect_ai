@@ -8,6 +8,7 @@ from ._prompt import (
 )
 from ._solver import Generate, Solver, generate, solver
 from ._task_state import Choice, Choices, TaskState
+from ._tool.call_tools import call_tools
 from ._tool.environment import (
     ToolEnvironment,
     ToolEnvironments,
@@ -30,6 +31,7 @@ __all__ = [
     "tool",
     "toolenv",
     "tool_environment",
+    "call_tools",
     "use_tools",
     "bash",
     "python",

@@ -28,6 +28,8 @@ async def sample_with_base64_images(sample: Sample) -> Sample:
             target=sample.target,
             id=sample.id,
             metadata=sample.metadata,
+            files=sample.files,
+            choices=sample.choices,
         )
     else:
         return sample
