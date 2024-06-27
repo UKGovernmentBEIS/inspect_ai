@@ -1,25 +1,20 @@
 import { readFileSync } from "fs";
 
 import {
-  ExtensionContext,
-  WebviewPanel,
-  ViewColumn,
-  Uri,
-  env,
   Disposable,
+  ExtensionContext,
+  MessageItem,
+  Uri,
+  ViewColumn,
+  WebviewPanel,
+  env,
+  window
 } from "vscode";
 
 import {
   InspectWebview,
   InspectWebviewManager,
 } from "../../components/webview";
-import { LogviewState } from "./commands";
-import { inspectViewPath } from "../../inspect/props";
-import {
-  InspectChangedEvent,
-  InspectManager,
-} from "../inspect/inspect-manager";
-import { getNonce } from "../../core/nonce";
 import {
   JsonRpcPostMessageTarget,
   JsonRpcServerMethod,
@@ -28,15 +23,22 @@ import {
   kMethodEvalLogHeaders,
   kMethodEvalLogs,
 } from "../../core/jsonrpc";
+import { getNonce } from "../../core/nonce";
+import { activeWorkspacePath, workspacePath } from "../../core/path";
+import { dirname } from "../../core/uri";
 import {
   inspectEvalLog,
   inspectEvalLogHeaders,
   inspectEvalLogs,
 } from "../../inspect/logs";
-import { activeWorkspacePath } from "../../core/path";
+import { inspectViewPath } from "../../inspect/props";
 import { withMinimumInspectVersion } from "../../inspect/version";
-import { dirname } from "../../core/uri";
 import { kInspectOpenInspectViewVersion } from "../inspect/inspect-constants";
+import {
+  InspectChangedEvent,
+  InspectManager,
+} from "../inspect/inspect-manager";
+import { LogviewState } from "./commands";
 
 const kLogViewId = "inspect.logview";
 
@@ -179,6 +181,26 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
                 // Noop
               }
               break;
+            case "openWorkspaceFile":
+              {
+                if (e.url) {
+                  const file = workspacePath(e.url);
+                  try {
+                    await window.showTextDocument(Uri.file(file.path));
+                  } catch (err) {
+                    if (err instanceof Error && err.name === "CodeExpectedError") {
+                      const close: MessageItem = { title: "Close" };
+                      await window.showInformationMessage<MessageItem>(
+                        "This file is too large to be opened by the viewer.",
+                        close
+                      );
+                    } else {
+                      throw err;
+                    }
+                  }
+                }
+              }
+              break;
           }
         }
       )
@@ -238,9 +260,11 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       indexHtml = indexHtml.replace(
         "<head>\n",
         `<head>
+          <meta name="inspect-extension:version" content="${this.getExtensionVersion()}">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._webviewPanel.webview.cspSource
         } data:; font-src ${this._webviewPanel.webview.cspSource}; style-src ${this._webviewPanel.webview.cspSource
-        } 'unsafe-inline'; script-src 'nonce-${nonce}';">
+        } 'unsafe-inline'; worker-src 'self' ${this._webviewPanel.webview.cspSource} blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this._webviewPanel.webview.cspSource
+        };">
     ${stateScript}
     <link rel="stylesheet" type ="text/css" href="${overrideCssPath.toString()}" >
 

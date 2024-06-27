@@ -7,7 +7,7 @@ from typing import Any, Literal, TypedDict, cast
 import yaml
 from pydantic import BaseModel
 
-from inspect_ai.util._context.subprocess import ExecResult, subprocess
+from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from .util import ComposeProject, is_inspect_project, tools_log
 

@@ -1,5 +1,4 @@
 import asyncio
-from contextvars import ContextVar
 from dataclasses import dataclass
 
 
@@ -40,39 +39,23 @@ def concurrency(
     # sort out key
     key = key if key else name
 
-    # get semaphores dict (only valid when an eval is running)
-    concurrency_semaphores = concurrency_semaphores_context_var.get(None)
-    if concurrency_semaphores is None:
-        raise RuntimeError("Attempted to get eval semaphore when eval not running")
-
     # do we have an existing semaphore? if not create one and store it
-    semaphore = concurrency_semaphores.get(key, None)
+    semaphore = _concurrency_semaphores.get(key, None)
     if semaphore is None:
         semaphore = ConcurencySempahore(
             name, concurrency, asyncio.Semaphore(concurrency)
         )
-        concurrency_semaphores[key] = semaphore
+        _concurrency_semaphores[key] = semaphore
 
     # return the semaphore
     return semaphore.semaphore
 
 
-def init_concurrency() -> None:
-    concurrency_semaphores_context_var.set({})
-
-
-def using_concurrency() -> bool:
-    return concurrency_semaphores_context_var.get(None) is not None
-
-
 def concurrency_status() -> dict[str, tuple[int, int]]:
-    if using_concurrency():
-        status: dict[str, tuple[int, int]] = {}
-        for c in concurrency_semaphores_context_var.get().values():
-            status[c.name] = (c.concurrency - c.semaphore._value, c.concurrency)
-        return status
-    else:
-        return {}
+    status: dict[str, tuple[int, int]] = {}
+    for c in _concurrency_semaphores.values():
+        status[c.name] = (c.concurrency - c.semaphore._value, c.concurrency)
+    return status
 
 
 @dataclass
@@ -82,6 +65,4 @@ class ConcurencySempahore:
     semaphore: asyncio.Semaphore
 
 
-concurrency_semaphores_context_var = ContextVar[dict[str, ConcurencySempahore]](
-    "concurrency_sempahores"
-)
+_concurrency_semaphores: dict[str, ConcurencySempahore] = {}

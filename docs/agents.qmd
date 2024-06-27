@@ -112,6 +112,8 @@ def agent_loop():
             if not state.tool_calls_pending:   # <3>
                 break                          # <3>
             state = await call_tools(state)  # <4> 
+
+        return state
            
     return solve
 ```
@@ -440,7 +442,7 @@ Here is how Docker tool environments are created based on the presence of `Docke
 
 Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. Note that the automatically generated compose file will restrict internet access by default, so if your evaluations require this you'll need to provide your own `compose.yaml` file.
 
-Here's an example of `compose.yaml` file that sets container resource limits and restricts internet access:
+Here's an example of a `compose.yaml` file that sets container resource limits and isolates it from all network interactions including internet access:
 
 ``` {.yaml filename="compose.yaml"}
 services:
@@ -449,12 +451,7 @@ services:
     command: tail -f /dev/null
     cpus: 1.0
     mem_limit: 0.5gb
-    networks:
-      - no-internet
-networks:
-  no-internet:
-    driver: bridge
-    internal: true
+    network_mode: none
 ```
 
 The `command` is provided to prevent the container from exiting.

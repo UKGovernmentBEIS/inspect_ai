@@ -21,7 +21,7 @@ from inspect_ai._util.constants import (
     TOOLS,
     TOOLS_LOG_LEVEL,
 )
-from inspect_ai.util._context.logger import notify_logger_record
+from inspect_ai.util._logger import notify_logger_record
 
 from .rich import rich_console
 
