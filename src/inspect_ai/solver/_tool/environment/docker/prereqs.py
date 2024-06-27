@@ -6,7 +6,7 @@ import semver
 from pydantic import BaseModel
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.util._context.subprocess import subprocess
+from inspect_ai.util._subprocess import subprocess
 
 logger = getLogger(__name__)
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `api_key` to `get_model()` for explicitly specifying an API key for a model.
+
 ## v0.3.17 (25 June 2024)
 
 - Optional increased control over the tool use loop via the `call_tools()` function and new `tool_calls` parameter for `generate()`.

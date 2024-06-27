@@ -33,10 +33,10 @@ from inspect_ai.model import (
     Model,
     ModelName,
 )
-from inspect_ai.model._model import collect_model_usage
+from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
 from inspect_ai.solver import Plan, Solver, TaskState, ToolEnvironmentSpec
-from inspect_ai.util._context.logger import collect_logger_records
+from inspect_ai.util._logger import logger_records
 
 
 class TaskLogger:
@@ -188,10 +188,10 @@ def log_plan(
 def collect_eval_data(stats: EvalStats, logger: TaskLogger) -> None:
     # collect stats
     stats.completed_at = iso_now()
-    stats.model_usage = collect_model_usage()
+    stats.model_usage = model_usage()
 
     # collect log output
-    log_logger_records(logger, collect_logger_records())
+    log_logger_records(logger, logger_records())
 
 
 def log_logger_records(logger: TaskLogger, records: list[LogRecord]) -> None:

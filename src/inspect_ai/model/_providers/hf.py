@@ -39,10 +39,13 @@ class HuggingFaceAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+        )
 
         # set random seeds
         if config.seed is not None:
@@ -76,11 +79,11 @@ class HuggingFaceAPI(ModelAPI):
         # model
         if model_path:
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_path, device_map=self.device, **model_args
+                model_path, device_map=self.device, token=self.api_key, **model_args
             )
         else:
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_name, device_map=self.device, **model_args
+                model_name, device_map=self.device, token=self.api_key, **model_args
             )
 
         # tokenizer

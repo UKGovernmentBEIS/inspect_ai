@@ -24,8 +24,8 @@ from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai.log import EvalError, EvalResults, EvalStats
 from inspect_ai.log._log import rich_traceback
-from inspect_ai.util._context.concurrency import concurrency_status
-from inspect_ai.util._context.logger import logger_http_rate_limit_count
+from inspect_ai.util._concurrency import concurrency_status
+from inspect_ai.util._logger import logger_http_rate_limit_count
 
 from ._display import Display, Progress, TaskDisplay, TaskProfile
 

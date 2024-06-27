@@ -24,11 +24,12 @@ class MockLLM(ModelAPI):
         self,
         model_name: str,
         base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         custom_outputs: Iterable[ModelOutput] = [],
         **model_args: dict[str, Any],
     ) -> None:
-        super().__init__(model_name, base_url, config)
+        super().__init__(model_name, base_url, api_key, config)
         self.model_args = model_args
         if model_name != "model":
             raise ValueError(f"Invalid model name: {model_name}")

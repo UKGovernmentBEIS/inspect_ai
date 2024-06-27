@@ -47,6 +47,7 @@ from inspect_ai.solver._tool.environment.context import (
     startup_tool_environments,
 )
 
+from ..context import init_task_context
 from ..task import Task
 from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
@@ -96,6 +97,9 @@ async def task_run(
 
     """
     with chdir_python(task_run_dir(task)), dotenv_environ():
+        # init task context
+        init_task_context()
+
         # track stats and error
         stats = EvalStats(started_at=iso_now())
         error: EvalError | None = None
