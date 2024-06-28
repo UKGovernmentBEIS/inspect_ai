@@ -32,5 +32,3 @@ The Inspect VS Code extension includes commands and keyboard shortcuts for runni
 Use the run or debug commands to execute the current task. You can alternatively use the <kbd>Ctrl+Shift+U</kbd> keyboard shortcut to run a task, or the <kbd>Ctrl+Shift+T</kbd> keyboard shortcut to debug a task.
 
 > Note that on the Mac you should use `Cmd` rather than `Ctrl` as the prefix for all Inspect keyboard shortcuts.
-
-

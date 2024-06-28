@@ -12,10 +12,10 @@ To get started with Inspect, please see the documentation at <https://UKGovernme
 
 To work on development of Inspect, clone the repository and install with the `-e` flag and `[dev]` optional dependencies:
 
-```         
-$ git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
-$ cd inspect_ai
-$ pip install -e ".[dev]"
+```shell
+git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
+cd inspect_ai
+pip install -e ".[dev]"
 ```
 
 If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.

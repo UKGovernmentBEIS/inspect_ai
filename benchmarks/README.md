@@ -1,4 +1,4 @@
-## Benchmarks
+# Benchmarks
 
 This directory contains evals for several benchmarks. Datasets for evals are not embedded in the repository but are rather ether downloaded either directly from their source URL or via Hugging Face datasets. To use Hugging Face datasets please install the datasets package with `pip install datasets`.
 
