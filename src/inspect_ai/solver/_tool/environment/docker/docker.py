@@ -8,7 +8,7 @@ import aiofiles
 from typing_extensions import override
 
 from inspect_ai.solver._tool.tool import ToolError
-from inspect_ai.util._context.subprocess import ExecResult
+from inspect_ai.util._subprocess import ExecResult
 
 from ..environment import ToolEnvironment
 from ..registry import toolenv

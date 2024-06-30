@@ -23,10 +23,11 @@ class CustomModelAPI(ModelAPI):
         self, 
         model_name: str,
         base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: dict[str,Any]
     ) -> None:
-        super().__init__(model_name, base_url, config)
+        super().__init__(model_name, base_url, api_key, config)
   
     async def generate(
         self,
@@ -50,10 +51,19 @@ If you are publishing a custom model API within a Python package, you should reg
 
 For example, if your package was named `inspect_package` and your model provider was exported from a source file named `inspect_extensions.py` at the root of your package, you would register it like this in `pyproject.toml`:
 
+::: {.panel-tabset group="entry-points"}
+## Setuptools
 ``` toml
 [project.entry-points.inspect_ai]
 inspect_package = "inspect_package.inspect_extensions"
 ```
+
+## Poetry
+``` toml
+[tool.poetry.plugins.inspect_ai]
+inspect_package = "inspect_package.inspect_extensions"
+```
+:::
 
 ### Model Usage
 
@@ -197,10 +207,19 @@ You should build your custom tool environment within a Python package, and then 
 
 For example, if your package was named `inspect_package` and your tool environment provider was exported from a source file named `inspect_extensions.py` at the root of your package, you would register it like this in `pyproject.toml`:
 
+::: {.panel-tabset group="entry-points"}
+## Setuptools
 ``` toml
 [project.entry-points.inspect_ai]
 inspect_package = "inspect_package.inspect_extensions"
 ```
+
+## Poetry
+``` toml
+[tool.poetry.plugins.inspect_ai]
+inspect_package = "inspect_package.inspect_extensions"
+```
+:::
 
 ### Environment Usage
 
@@ -278,9 +297,18 @@ See the fsspec [developer documentation](https://filesystem-spec.readthedocs.io/
 
 As with Model APIs and Tool Environments, fsspec filesystems should be registered using a [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). For example, if your package is named `inspect_package` and you have implemented a `myfs://` filesystem using the `MyFs` class exported from the root of the package, you would register it like this in `pyproject.toml`:
 
-``` python
+::: {.panel-tabset group="entry-points"}
+## Setuptools
+``` toml
 [project.entry-points."fsspec.specs"]
 myfs = "inspect_package:MyFs"
 ```
+
+## Poetry
+``` toml
+[tool.poetry.plugins."fsspec.specs"]
+myfs = "inspect_package:MyFs"
+```
+:::
 
 Once this package is installed, you'll be able to use `myfs://` with Inspect without any further registration.

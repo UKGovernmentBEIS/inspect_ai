@@ -5,7 +5,6 @@ from typing import cast
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ChatMessageUser
-from inspect_ai.solver import TaskState
 
 from ..task import Task
 from .constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
@@ -19,10 +18,6 @@ def sample_messages(sample: Sample) -> list[ChatMessage]:
         for message in messages:
             message.source = "input"
         return messages
-
-
-def has_max_messages(state: TaskState, max_messages: int | None) -> bool:
-    return max_messages is not None and (len(state.messages) >= max_messages)
 
 
 def task_run_dir(task: Task) -> str:

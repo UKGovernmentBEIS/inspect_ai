@@ -1,3 +1,4 @@
+import { asyncJsonParse } from "../utils/Json.mjs";
 import {
   webViewJsonRpcClient,
   kMethodEvalLog,
@@ -33,10 +34,19 @@ async function eval_logs() {
   }
 }
 
-async function eval_log(file, headerOnly) {
+async function eval_log(file, headerOnly, capabilities) {
   const response = await vscodeClient(kMethodEvalLog, [file, headerOnly]);
   if (response) {
-    return JSON5.parse(response);
+    let json;
+    if (capabilities.webWorkers) {
+      json = await asyncJsonParse(response);
+    } else {
+      json = JSON5.parse(response);
+    }
+    return {
+      parsed: json,
+      raw: response,
+    };
   } else {
     return undefined;
   }
@@ -51,9 +61,14 @@ async function eval_log_headers(files) {
   }
 }
 
+async function download_file(logFile) {
+  vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
+}
+
 export default {
   client_events,
   eval_logs,
   eval_log,
   eval_log_headers,
+  download_file,
 };

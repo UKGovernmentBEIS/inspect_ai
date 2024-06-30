@@ -1,9 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Add `api_key` to `get_model()` for explicitly specifying an API key for a model.
+
+## v0.3.17 (25 June 2024)
+
+- Optional increased control over the tool use loop via the `call_tools()` function and new `tool_calls` parameter for `generate()`.
+- New `per_epoch` option for `CachePolicy` to allow caching to ignore epochs.
+- Correctly handle `choices` and `files` when converting `Sample` images to base64. 
+
 ## v0.3.16 (24 June 2024)
 
 -   Various fixes for the use of Docker tool environments on Windows.
--   Ability to disable cleanup of tool environments via `--no-toolenv-cleanup` 
+-   Ability to disable cleanup of tool environments via `--no-toolenv-cleanup`
 -   New `inspect toolenv cleanup` command for manually cleaning up tool environments.
 -   `ToolError` exception type for explicitly raising tool errors to the model. Formerly, any exception would be surfaced as a tool error to the model. Now, the `ToolError` exception is required for reporting to the model (otherwise other exception types go through the call stack and result in an eval error).
 -   Resolve `INSPECT_LOG_DIR` in `.env` file relative to `.env` file parent directory.

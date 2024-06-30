@@ -18,11 +18,11 @@ __all__ = [
     "eval_async",
     "eval_retry",
     "eval_retry_async",
+    "list_tasks",
     "score",
     "score_async",
     "Task",
     "TaskInfo",
     "Tasks",
     "task",
-    "list_tasks",
 ]

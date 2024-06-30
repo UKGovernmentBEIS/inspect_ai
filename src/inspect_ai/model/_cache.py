@@ -58,6 +58,13 @@ class CachePolicy:
           etc. This is how long we will keep the cache entry, if we access it
           after this point we'll clear it. Setting to `None` will cache
           indefinitely.
+        per_epoch(bool): Default True. By default we cache responses separately
+          for different epochs. The general use case is that if there are
+          multiple epochs, we should cache each response separately because
+          scorers will aggregate across epochs. However, sometimes a response
+          can be cached regardless of epoch if the call being made isn't under
+          test as part of the evaluation. If False, this option allows you to
+          bypass that and cache independently of the epoch.
         scopes(dict[str, str]): A dictionary of additional metadata that should
           be included in the cache key. This allows for more fine-grained
           control over the cache key generation.
@@ -66,8 +73,10 @@ class CachePolicy:
     def __init__(
         self,
         expiry: str | None = "1W",
+        per_epoch: bool = True,
         scopes: dict[str, str] = {},
     ) -> None:
+        self.per_epoch = per_epoch
         self.scopes = scopes
 
         if expiry is None:
@@ -137,8 +146,10 @@ def _cache_key(entry: CacheEntry) -> str:
         entry.tools,
         entry.policy.expiry,
         entry.policy.scopes,
-        epoch.get(None),
     ]
+
+    if entry.policy.per_epoch:
+        components.append(epoch.get(None))
 
     base_string = "|".join([str(component) for component in components])
 

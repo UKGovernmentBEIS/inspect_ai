@@ -51,39 +51,40 @@ class MistralAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+        )
 
         # resolve api_key -- look for mistral then azure
-        api_key = os.environ.get(MISTRAL_API_KEY, None)
-        if api_key:
-            base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
-            if base_url:
+        if not self.api_key:
+            self.api_key = os.environ.get(MISTRAL_API_KEY, None)
+            if self.api_key:
+                base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
+                if base_url:
+                    model_args["endpoint"] = base_url
+            else:
+                self.api_key = os.environ.get(
+                    AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
+                )
+                if not self.api_key:
+                    raise ValueError(
+                        f"{MISTRAL_API_KEY} or {AZUREAI_MISTRAL_API_KEY} environment variable not found."
+                    )
+                base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
+                if not base_url:
+                    raise ValueError(
+                        "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
+                        + " environment variable or the --model-base-url CLI flag to set the base URL."
+                    )
                 model_args["endpoint"] = base_url
-        else:
-            api_key = os.environ.get(
-                AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
-            )
-            if not api_key:
-                raise ValueError(
-                    f"{MISTRAL_API_KEY} or {AZUREAI_MISTRAL_API_KEY} environment variable not found."
-                )
-            base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
-            if not base_url:
-                raise ValueError(
-                    "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
-                    + " environment variable or the --model-base-url CLI flag to set the base URL."
-                )
-            model_args["endpoint"] = base_url
-
-        # save key
-        self.api_key = api_key
 
         # create client
         self.client = MistralAsyncClient(
-            api_key=api_key,
+            api_key=self.api_key,
             max_retries=(
                 config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
             ),
@@ -134,7 +135,7 @@ class MistralAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return self.api_key
+        return str(self.api_key)
 
     # not clear what the mistral default max tokens is (not documented)
     # so we set it to the default to be sure

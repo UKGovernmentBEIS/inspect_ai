@@ -27,7 +27,6 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai.util import concurrency
-from inspect_ai.util._context.concurrency import using_concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
 from ._chat_message import (
@@ -48,17 +47,23 @@ class ModelAPI(abc.ABC):
     """Model API provider."""
 
     def __init__(
-        self, model_name: str, base_url: str | None, config: GenerateConfig
+        self,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
     ) -> None:
         """Create a model API provider.
 
         Args:
            model_name (str): Model name.
            base_url (str | None): Alternate base URL for model.
+           api_key (str | None): API key for model.
            config (GenerateConfig): Model configuration.
         """
         self.model_name = model_name
         self.base_url = base_url
+        self.api_key = api_key
         self.config = config
 
     @abc.abstractmethod
@@ -177,21 +182,8 @@ class Model:
         if config.system_message:
             input = [ChatMessageSystem(content=config.system_message)] + input
 
-        # see if we have a connection semaphore (we won't if we
-        # are running outside of an eval()). this is how we enforce
-        # concurrency limits (max_connections) for the model
-        if using_concurrency():
-            async with self._connection_concurrency(config):
-                return await self._generate(
-                    input=input,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    config=config,
-                    cache=cache,
-                )
-
-        # no connection semaphore, just proceed straight to the call
-        else:
+        # enforce concurrency limits
+        async with self._connection_concurrency(config):
             return await self._generate(
                 input=input,
                 tools=tools,
@@ -398,6 +390,7 @@ def get_model(
     model: str | Model | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
+    api_key: str | None = None,
     **model_args: Any,
 ) -> Model:
     """Get an instance of a model.
@@ -410,6 +403,7 @@ def get_model(
          then the model referred to by `INSPECT_MODEL_NAME`).
        config (GenerationConfig): Configuration for model.
        base_url (str | None): Optional. Alternate base URL for model.
+       api_key (str | None): Optional. API key for model.
        **model_args (dict[str,Any]): Additional args to
          pass to model constructor.
 
@@ -458,7 +452,11 @@ def get_model(
     if len(modelapi_types) > 0:
         modelapi_type = cast(type[ModelAPI], modelapi_types[0])
         modelapi_instance = modelapi_type(
-            model_name=model, base_url=base_url, config=config, **model_args
+            model_name=model,
+            base_url=base_url,
+            api_key=api_key,
+            config=config,
+            **model_args,
         )
         return Model(modelapi_instance, config)
 
@@ -564,7 +562,7 @@ def combine_messages(
         return message_type(content=content)
 
 
-def init_async_context_model(model: Model) -> None:
+def init_active_model(model: Model) -> None:
     active_model_context_var.set(model)
     init_model_usage()
 
@@ -598,10 +596,10 @@ def record_model_usage(model: str, usage: ModelUsage) -> None:
         model_usage[model] = total_usage
 
 
-def collect_model_usage() -> dict[str, ModelUsage]:
-    usage = model_usage_context_var.get()
-    model_usage_context_var.set({})
-    return usage
+def model_usage() -> dict[str, ModelUsage]:
+    return model_usage_context_var.get()
 
 
-model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar("model_usage")
+model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "model_usage", default={}
+)
