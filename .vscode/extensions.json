@@ -1,7 +1,7 @@
 {
   "recommendations": [
-    "ms-python.python",
     "charliermarsh.ruff",
+    "ms-python.python",
     "ms-python.mypy-type-checker",
     "quarto.quarto"
   ]
