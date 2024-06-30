@@ -9,7 +9,7 @@
 }
 
 .modal-backdrop {
-  --bs-backdrop-opacity: 0.2;
+  --bs-backdrop-opacity: 0.4;
 }
 
 body[class^="vscode-"] {
@@ -33,6 +33,11 @@ body[class^="vscode-"] {
   --bs-secondary-bg: var(--vscode-list-inactiveSelectionBackground);
   --bs-border-color: var(--vscode-editorGroup-border);
   --bs-card-border-color: var(--vscode-editorGroup-border);
+}
+
+body[class^="vscode-"] .modal-backdrop {
+  --bs-backdrop-opacity: 0.15;
+  --bs-backdrop-bg: var(--vscode-editor-foreground);
 }
 
 body[class^="vscode-"] code {

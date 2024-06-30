@@ -1,6 +1,6 @@
-from ._context.concurrency import concurrency
-from ._context.resource import resource
-from ._context.subprocess import (
+from ._concurrency import concurrency
+from ._resource import resource
+from ._subprocess import (
     ExecResult,
     subprocess,
 )

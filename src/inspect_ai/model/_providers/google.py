@@ -60,14 +60,18 @@ class GoogleAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None,
+        api_key: str | None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+        )
 
         # configure genai client
         base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
         configure(
+            api_key=self.api_key,
             client_options=dict(api_endpoint=base_url),
             **model_args,
         )

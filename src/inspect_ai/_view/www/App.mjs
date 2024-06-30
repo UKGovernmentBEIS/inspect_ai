@@ -34,6 +34,10 @@ export function App() {
     error: undefined,
   });
   const [headersLoading, setHeadersLoading] = useState(false);
+  const [capabilities, setCapabilities] = useState({
+    downloadFiles: true,
+    webWorkers: true,
+  });
 
   // Read header information for the logs
   // and then update
@@ -97,12 +101,16 @@ export function App() {
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
         setStatus({ loading: true, error: undefined });
-        const logContents = await api.eval_log(targetLog.name, false);
+        const logContents = await api.eval_log(
+          targetLog.name,
+          false,
+          capabilities,
+        );
         if (logContents) {
           setCurrentLog({
-            contents: logContents,
+            contents: logContents.parsed,
             name: targetLog.name,
-            raw: JSON.stringify(logContents, null, 2),
+            raw: logContents.raw,
           });
           setStatus({ loading: false, error: undefined });
         }
@@ -112,7 +120,14 @@ export function App() {
         setStatus({ loading: false, error: e });
       }
     }
-  }, [selected, filteredLogs, currentLog, setCurrentLog, setStatus]);
+  }, [
+    selected,
+    filteredLogs,
+    capabilities,
+    currentLog,
+    setCurrentLog,
+    setStatus,
+  ]);
 
   // Keep a queue of loading operations that will be run
   // as needed
@@ -179,6 +194,27 @@ export function App() {
   useEffect(async () => {
     // See whether a specific task_file has been passed.
     const urlParams = new URLSearchParams(window.location.search);
+
+    // Determine the capabilities
+    // If this is vscode, check for the version meta
+    // so we know it supports downloads
+    const bodyEl = document.querySelector("body");
+    const isVSCode = !!bodyEl.getAttributeNames().find((attr) => {
+      return attr.includes("data-vscode-");
+    });
+    const extensionVersionEl = document.querySelector(
+      'meta[name="inspect-extension:version"]',
+    );
+    const extensionVersion = extensionVersionEl
+      ? extensionVersionEl.getAttribute("content")
+      : undefined;
+    if (isVSCode) {
+      if (!extensionVersion) {
+        // VSCode hosts before the extension version was communicated don't support
+        // downloading or web workers.
+        setCapabilities({ downloadFiles: false, webWorkers: false });
+      }
+    }
 
     // Note whether we should default off canvas the sidebar
     setOffcanvas(true);
@@ -276,6 +312,7 @@ export function App() {
         selected=${selected}
         fullScreen=${fullScreen}
         offcanvas=${offcanvas}
+        capabilities=${capabilities}
       />`;
     }
   }, [logs, currentLog, selected, fullScreen, offcanvas, status]);

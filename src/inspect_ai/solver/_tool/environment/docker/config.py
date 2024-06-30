@@ -69,20 +69,12 @@ AUTO_COMPOSE_YAML = ".compose.yaml"
 COMPOSE_COMMENT = """# inspect auto-generated docker compose file
 # (will be removed when task is complete)"""
 
-COMPOSE_NETWORKS = """
-    networks:
-      - no-internet
-networks:
-  no-internet:
-    driver: bridge
-    internal: true
-"""
-
 COMPOSE_GENERIC_YAML = f"""{COMPOSE_COMMENT}
 services:
   default:
     image: "python:3.12-bookworm"
-    command: "tail -f /dev/null"{COMPOSE_NETWORKS}
+    command: "tail -f /dev/null"
+    network_mode: none
 """
 
 COMPOSE_DOCKERFILE_YAML = f"""{COMPOSE_COMMENT}
@@ -90,7 +82,8 @@ services:
   default:
     build:
       context: "."
-    command: "tail -f /dev/null"{COMPOSE_NETWORKS}
+    command: "tail -f /dev/null"
+    network_mode: none
 """
 
 

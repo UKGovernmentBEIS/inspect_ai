@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, Literal, TypeVar, Union, overload
 
-from .concurrency import concurrency, using_concurrency
+from ._concurrency import concurrency
 
 T = TypeVar("T", str, bytes)
 
@@ -140,18 +140,22 @@ async def subprocess(
             return await run_command()
 
     # run command
-    if using_concurrency():
-        async with concurrency("subprocesses", max_subprocesses_context_var.get()):
-            return await run_command_timeout()
-    else:
+    async with concurrency("subprocesses", max_subprocesses_context_var.get()):
         return await run_command_timeout()
 
 
-def init_subprocess(max_subprocesses: int | None = None) -> None:
-    # initialize dedicated subprocesses semaphore
-    cpus = os.cpu_count()
-    max_subprocesses = max_subprocesses if max_subprocesses else cpus if cpus else 1
+def init_max_subprocesses(max_subprocesses: int | None = None) -> None:
+    max_subprocesses = (
+        max_subprocesses if max_subprocesses else default_max_subprocesses()
+    )
     max_subprocesses_context_var.set(max_subprocesses)
 
 
-max_subprocesses_context_var = ContextVar[int]("max_subprocesses")
+def default_max_subprocesses() -> int:
+    cpus = os.cpu_count()
+    return cpus if cpus else 1
+
+
+max_subprocesses_context_var = ContextVar[int](
+    "max_subprocesses", default=default_max_subprocesses()
+)

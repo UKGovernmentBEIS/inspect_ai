@@ -4,7 +4,7 @@ import contextlib
 import sys
 from copy import deepcopy
 from logging import getLogger
-from typing import AsyncGenerator, Awaitable, Callable
+from typing import AsyncGenerator, Awaitable, Callable, Literal
 
 from typing_extensions import Unpack
 
@@ -47,12 +47,13 @@ from inspect_ai.solver._tool.environment.context import (
     startup_tool_environments,
 )
 
+from ..context import init_task_context
 from ..task import Task
 from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
-from .util import has_max_messages, sample_messages, task_run_dir
+from .util import sample_messages, task_run_dir
 
 py_logger = getLogger(__name__)
 
@@ -96,6 +97,9 @@ async def task_run(
 
     """
     with chdir_python(task_run_dir(task)), dotenv_environ():
+        # init task context
+        init_task_context()
+
         # track stats and error
         stats = EvalStats(started_at=iso_now())
         error: EvalError | None = None
@@ -116,6 +120,7 @@ async def task_run(
             limit=config.limit,
             epochs=epochs,
             log_images=log_images,
+            max_messages=config.max_messages,
         )
 
         # resolve tool_environment
@@ -179,15 +184,16 @@ async def task_run(
                     # provide solvers a function that they can use to generate output
                     async def generate(
                         state: TaskState,
+                        tool_calls: Literal["loop", "single", "none"] = "loop",
                         cache: bool | CachePolicy = False,
                         **kwargs: Unpack[GenerateConfigArgs],
                     ) -> TaskState:
                         return await task_generate(
                             model=model,
                             state=state,
+                            tool_calls=tool_calls,
                             cache=cache,
                             config=generate_config.merge(kwargs),
-                            max_messages=config.max_messages,
                         )
 
                     # semaphore to limit concurrency
@@ -337,7 +343,7 @@ async def task_run_sample(
                 progress()
 
                 # check for early termination (tick remaining progress)
-                if state.completed or has_max_messages(state, max_messages):
+                if state.completed:
                     for _ in range(index + 1, len(plan.steps)):
                         progress()
                     break
@@ -382,6 +388,7 @@ async def resolve_dataset(
     limit: int | tuple[int, int] | None,
     epochs: int,
     log_images: bool,
+    max_messages: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # apply limit to dataset
     dataset_limit = (
@@ -418,6 +425,7 @@ async def resolve_dataset(
                 input=sample.input,
                 choices=sample.choices,
                 messages=sample_messages(sample),
+                max_messages=max_messages,
                 completed=False,
                 metadata=sample.metadata if sample.metadata else {},
             )

@@ -21,10 +21,9 @@ from inspect_ai.model import (
     Model,
     get_model,
 )
-from inspect_ai.model._model import init_async_context_model
 from inspect_ai.solver import Solver, ToolEnvironmentSpec
-from inspect_ai.util._context import init_async_context
 
+from .context import init_eval_context
 from .loader import resolve_tasks
 from .task import PreviousTask, Tasks
 from .task.log import TaskLogger
@@ -206,9 +205,8 @@ async def eval_async(
         **model_args,
     )
 
-    # init async context vars
-    init_async_context(max_subprocesses)
-    init_async_context_model(model)
+    # init eval context
+    init_eval_context(model, max_subprocesses)
 
     # if this is a PreviousTask then we are being spotted our id and log
     if isinstance(tasks, PreviousTask):
@@ -284,17 +282,19 @@ async def eval_async(
         )
         loggers.append(logger)
 
-        # run the eval
-        result = await task_run(
-            task=task,
-            sequence=(index + 1, len(task_names)),
-            model=model,
-            logger=logger,
-            config=task_eval_config,
-            plan=plan,
-            score=score,
-            sample_source=sample_source,
-            **kwargs,
+        # run the eval (create a task so it gets its own ContextVar scope)
+        result = await asyncio.create_task(
+            task_run(
+                task=task,
+                sequence=(index + 1, len(task_names)),
+                model=model,
+                logger=logger,
+                config=task_eval_config,
+                plan=plan,
+                score=score,
+                sample_source=sample_source,
+                **kwargs,
+            )
         )
 
         # mark completed and append result
@@ -303,6 +303,10 @@ async def eval_async(
         # notify the view module that an eval just completed
         # (in case we have a view polling for new evals)
         view_notify_eval(logger.location)
+
+        # exit the loop if this was a cancellation
+        if result.status == "cancelled":
+            break
 
     # return list of eval logs
     return EvalLogs(results)

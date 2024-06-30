@@ -58,15 +58,17 @@ class TogetherAIAPI(OpenAIAPI):
         self,
         model_name: str,
         base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
     ) -> None:
-        api_key = os.environ.get("TOGETHER_API_KEY", None)
         if not api_key:
-            raise RuntimeError("TOGETHER_API_KEY environment variable not set")
+            api_key = os.environ.get("TOGETHER_API_KEY", None)
+            if not api_key:
+                raise RuntimeError("TOGETHER_API_KEY environment variable not set")
         base_url = model_base_url(base_url, "TOGETHER_BASE_URL")
         base_url = base_url if base_url else "https://api.together.xyz/v1"
         super().__init__(
-            model_name=model_name, base_url=base_url, config=config, api_key=api_key
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
         )
 
     # Together uses a default of 512 so we bump it up

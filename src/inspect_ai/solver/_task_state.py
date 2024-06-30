@@ -5,6 +5,7 @@ from typing import Any, Union, overload
 
 from inspect_ai.model import (
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
     ModelName,
@@ -121,6 +122,7 @@ class TaskState:
         tools: list[Tool] = [],
         tool_choice: ToolChoice | None = None,
         output: ModelOutput | None = None,
+        max_messages: int | None = None,
         completed: bool = False,
         metadata: dict[str, Any] = {},
     ) -> None:
@@ -166,8 +168,8 @@ class TaskState:
         different ways depending on what solvers are used..
         """
 
-        self.completed = completed
-        """Flag to indicate that the solver loop should terminate."""
+        self._max_messages = max_messages
+        self._completed = completed
 
         self.metadata = metadata
         """Additional task state metadata."""
@@ -230,6 +232,21 @@ class TaskState:
             raise ValueError("user_prompt requested from TaskState but none available")
 
     @property
+    def completed(self) -> bool:
+        """Is the task completed."""
+        if self._completed:
+            return True
+        elif self._max_messages and len(self.messages) >= self._max_messages:
+            return True
+        else:
+            return False
+
+    @completed.setter
+    def completed(self, completed: bool) -> None:
+        """Set the completed status."""
+        self._completed = completed
+
+    @property
     def tools(self) -> list[Tool]:
         return self._tools
 
@@ -252,3 +269,13 @@ class TaskState:
 
         # set the tools
         self._tools = tools
+
+    @property
+    def tool_calls_pending(self) -> bool:
+        if (
+            isinstance(self.messages[-1], ChatMessageAssistant)
+            and self.messages[-1].tool_calls
+        ):
+            return True
+        else:
+            return False

@@ -1,15 +1,15 @@
 import { html } from "htm/preact";
 import {
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
-  useCallback,
-  useMemo,
 } from "preact/hooks";
 
 import { icons } from "../Constants.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
-import { TabSet, TabPanel } from "../components/TabSet.mjs";
+import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
 import { LoggingPanel } from "../logging/LoggingPanel.mjs";
 import { PlanCard } from "../plan/PlanCard.mjs";
@@ -19,7 +19,9 @@ import { SampleTools } from "../samples/SamplesTools.mjs";
 import { kDefaultSort } from "../samples/tools/SortFilter.mjs";
 import { TitleBlock } from "../title/TitleBlock.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
+import { filename } from "../utils/Path.mjs";
 
+import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 
 const kEvalTabId = "eval-tab";
@@ -28,13 +30,13 @@ const kLoggingTabId = "logging-tab";
 const kInfoTabId = "plan-tab";
 
 const kPrismRenderMaxSize = 250000;
+const kJsonMaxSize = 10000000;
 
 export const WorkSpace = (props) => {
   const divRef = useRef();
   const codeRef = useRef();
 
   const workspaceLog = props.log;
-
   const [currentTaskId, setCurrentTaskId] = useState(
     workspaceLog?.contents?.eval?.run_id,
   );
@@ -155,7 +157,9 @@ export const WorkSpace = (props) => {
       scrollable: true,
       content: () => {
         return html`<${LoggingPanel}
+          logFile=${workspaceLog.name}
           logging=${workspaceLog.contents?.logging}
+          capabilities=${props.capabilities}
           context=${context}
         />`;
       },
@@ -168,22 +172,51 @@ export const WorkSpace = (props) => {
       label: "JSON",
       scrollable: true,
       content: () => {
-        if (codeRef.current && !state.viewState.renderedCode) {
-          if (workspaceLog.raw.length < kPrismRenderMaxSize) {
-            codeRef.current.innerHTML = Prism.highlight(
-              workspaceLog.raw,
-              Prism.languages.javascript,
-              "javacript",
-            );
-          } else {
-            const textNode = document.createTextNode(workspaceLog.raw);
-            codeRef.current.innerText = "";
-            codeRef.current.appendChild(textNode);
-          }
+        const renderedContent = [];
+        if (
+          workspaceLog.raw.length > kJsonMaxSize &&
+          props.capabilities.downloadFiles
+        ) {
+          // This JSON file is so large we can't really productively render it
+          // we should instead just provide a DL link
+          const file = `${filename(workspaceLog.name)}.json`;
+          renderedContent.push(
+            html`<${DownloadPanel}
+              message="Log file raw JSON is too large to render."
+              buttonLabel="Download JSON File"
+              logFile=${workspaceLog.name}
+              fileName=${file}
+              fileContents=${workspaceLog.raw}
+            />`,
+          );
+        } else {
+          if (codeRef.current && !state.viewState.renderedCode) {
+            if (workspaceLog.raw.length < kPrismRenderMaxSize) {
+              codeRef.current.innerHTML = Prism.highlight(
+                workspaceLog.raw,
+                Prism.languages.javascript,
+                "javacript",
+              );
+            } else {
+              const textNode = document.createTextNode(workspaceLog.raw);
+              codeRef.current.innerText = "";
+              codeRef.current.appendChild(textNode);
+            }
 
-          const viewState = state.viewState;
-          viewState.renderedCode = true;
-          setState({ viewState });
+            const viewState = state.viewState;
+            viewState.renderedCode = true;
+            setState({ viewState });
+          }
+          renderedContent.push(
+            html`<pre>
+            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
+              fontSize: "0.9em",
+              whiteSpace: "pre-wrap",
+              wordWrap: "anywhere",
+            }}>
+            </code>
+          </pre>`,
+          );
         }
 
         // note that we'e rendered
@@ -191,27 +224,27 @@ export const WorkSpace = (props) => {
           style=${{
             padding: "1rem",
             fontSize: "0.9rem",
+            width: "100%",
           }}
         >
-          <pre>
-            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-            fontSize: "0.9em",
-            whiteSpace: "pre-wrap",
-            wordWrap: "anywhere",
-          }}>
-            </code>
-          </pre>
+          ${renderedContent}
         </div>`;
       },
-      tools: () => [
-        html`<${ToolButton}
-          name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
-          icon="${icons.copy}"
-          classes="task-btn-json-copy clipboard-button"
-          data-clipboard-target="#task-json-contents"
-          onclick="${copyFeedback}"
-        />`,
-      ],
+      tools: () => {
+        if (workspaceLog.raw.length > kJsonMaxSize) {
+          return [];
+        } else {
+          return [
+            html`<${ToolButton}
+              name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
+              icon="${icons.copy}"
+              classes="task-btn-json-copy clipboard-button"
+              data-clipboard-target="#task-json-contents"
+              onclick="${copyFeedback}"
+            />`,
+          ];
+        }
+      },
     };
 
     return resolvedTabs;
