@@ -2,7 +2,7 @@
 
 ## Overview
 
-Inspect has native support for reading datasets in the CSV, JSON, and JSON Lines formats, as well as from [Hugging Face](#sec-hugging-face-datasets). In addition, the core dataset interface for the evaluation pipeline is flexible enough to accept data read from just about any source.
+Inspect has native support for reading datasets in the CSV, JSON, and JSON Lines formats, as well as from [Hugging Face](#sec-hugging-face-datasets). In addition, the core dataset interface for the evaluation pipeline is flexible enough to accept data read from just about any source (see the [Custom Reader](#sec-custom-reader) section below for details).
 
 If your data is already in a format amenable for direct reading as an Inspect `Sample`, reading a dataset is as simple as this:
 
@@ -216,22 +216,22 @@ ChatMessageUser(content = [
 Note that image input is currently only supported for OpenAI vision models (e.g. [gpt-4-vision-preview](https://platform.openai.com/docs/guides/vision)), Google Gemini vision models (e.g. [gemini-pro-vision](https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/gemini-pro-vision)), and Anthropic Claude 3 models.
 :::
 
-## Custom Reader
+## Custom Reader {#sec-custom-reader}
 
-You are not restricted to the built in dataset functions for reading samples. Since the `dataset` field of the `Task` class takes either a `Dataset` or a sequences of`Sample`, the following is also valid:
+You are not restricted to the built in dataset functions for reading samples. You can also construct a `MemoryDataset`, and pass that to a task. For example:
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
+from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, system_message
 
-dataset=[
+dataset=MemoryDataset([
     Sample(
         input="What cookie attributes should I use for strong security?",
         target="secure samesite and httponly",
     )
-]
+])
 
 @task
 def security_guide():
@@ -242,4 +242,4 @@ def security_guide():
     )
 ```
 
-So if the built in dataset functions don't meet your needs, you can create a custom function that yields a list of `Sample` instances and pass those directly to your `Task`.
+So if the built in dataset functions don't meet your needs, you can create a custom function that yields a `MemoryDataset`and pass those directly to your `Task`.

@@ -400,7 +400,7 @@ def get_model(
          If `Model` is passed it is returned unmodified,
          if `None` is passed then the model currently being
          evaluated is returned (or if there is no evaluation
-         then the model referred to by `INSPECT_MODEL_NAME`).
+         then the model referred to by `INSPECT_EVAL_MODEL`).
        config (GenerationConfig): Configuration for model.
        base_url (str | None): Optional. Alternate base URL for model.
        api_key (str | None): Optional. API key for model.
@@ -411,22 +411,24 @@ def get_model(
         Model instance.
 
     """
-    # if the model is None then use the current model from our async
-    # context, else try to use INSPECT_EVAL_MODEL (or the legacy INSPECT_MODEL_NAME)
-    model = (
-        model
-        or active_model()
-        or os.getenv("INSPECT_EVAL_MODEL", None)
-        or os.getenv("INSPECT_MODEL_NAME", None)
-    )
-    if model is None:
-        raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
-
-    # reflect back model -- we take model as a convenience so that
-    # function that accept str | Model can always call get_model and
-    # have it resolve correctly (even if trivially)
+    # start with seeing if a model was passed
     if isinstance(model, Model):
         return model
+
+    # now try finding an 'ambient' model (active or env var)
+    if model is None:
+        # return active_model if there is one
+        active = active_model()
+        if active:
+            return active
+
+        # return based on env var if there is one
+        # (handle lists by taking the first model)
+        model = os.getenv("INSPECT_EVAL_MODEL", None)
+        if model is not None:
+            model = model.split(",")[0]
+        else:
+            raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
 
     # ensure that inspect model provider extensions are loaded
     ensure_entry_points()
@@ -463,6 +465,36 @@ def get_model(
     else:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
+
+
+def resolve_models(
+    model: str | Model | list[str] | list[Model] | None,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] = dict(),
+    config: GenerateConfig = GenerateConfig(),
+) -> list[Model]:
+    # reflect back a plain model
+    if isinstance(model, Model):
+        return [model]
+
+    # helper to resolve model of various types
+    def resolve_model(m: str | Model | None) -> Model:
+        return get_model(
+            model=m,
+            base_url=model_base_url,
+            config=config,
+            **model_args,
+        )
+
+    # resolve None and str to list
+    if model is None or isinstance(model, str):
+        model = model or os.getenv("INSPECT_EVAL_MODEL", None)
+        if model is None:
+            raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
+        model = [m.strip() for m in model.split(",")]
+
+    # resolve models
+    return [resolve_model(m) for m in model]
 
 
 def simple_input_messages(

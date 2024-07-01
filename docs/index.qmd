@@ -179,9 +179,9 @@ These sections discuss more advanced features and workflow. You don't need to re
 
 -   [Caching](#sec-caching) enables you to cache model output to reduce the number of API calls made, saving both time and expense.
 
--   [Eval Logs](#sec-eval-logs) explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
+-   [Parallelism](#sec-parallelism) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
 
--   [Eval Tuning](#sec-eval-tuning) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
+-   [Eval Logs](#sec-eval-logs) explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
 
 -   [Eval Suites](#sec-eval-suites) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 

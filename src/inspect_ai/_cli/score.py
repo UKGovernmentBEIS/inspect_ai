@@ -5,7 +5,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._display import display
 from inspect_ai._display.logger import init_logger
-from inspect_ai._eval.context import init_eval_context
+from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.loader import load_tasks
 from inspect_ai._eval.score import task_score
 from inspect_ai._util.constants import SCORED_SUFFIX
@@ -69,7 +69,8 @@ async def score(
     )
 
     # initialize active model
-    init_eval_context(model)
+    init_eval_context()
+    init_task_context(model)
 
     # instantiate the task so we can get its scorer and metrics
     score_task = load_tasks([task], model)[0]

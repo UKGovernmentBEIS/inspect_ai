@@ -218,6 +218,10 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
 
 
 def view_notify_eval(location: str) -> None:
+    # do not do this when running under pytest
+    if os.environ.get("PYTEST_VERSION", None) is not None:
+        return
+
     file = view_last_eval_file()
     with open(file, "w", encoding="utf-8") as f:
         if not urlparse(location).scheme:

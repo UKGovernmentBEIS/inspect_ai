@@ -53,12 +53,14 @@ For example, if your package was named `inspect_package` and your model provider
 
 ::: {.panel-tabset group="entry-points"}
 ## Setuptools
+
 ``` toml
 [project.entry-points.inspect_ai]
 inspect_package = "inspect_package.inspect_extensions"
 ```
 
 ## Poetry
+
 ``` toml
 [tool.poetry.plugins.inspect_ai]
 inspect_package = "inspect_package.inspect_extensions"
@@ -170,12 +172,15 @@ class PodmanToolEnvironment(ToolEnvironment):
 The class methods take care of various stages of initialisation, setup, and teardown:
 
 | Method | Lifecycle | Purpose |
-|------------------|------------------|------------------------------------|
+|-------------------|-------------------|----------------------------------|
 | `task_init()` | Called at the beginning of each `Task`. | Expensive initialisation operations (e.g. pulling or building images) |
 | `sample_init()` | Called at the beginning of each `Sample`. | Create `ToolEnvironment` instances for the sample. |
 | `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `ToolEnvironment` instances for the sample. |
 | `task_cleanup()` | Called at the end of each `Task`. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
 | `cli_cleanup()` | Called via `inspect toolenv cleanup` | CLI invoked manual cleanup of resources created by this `ToolEnvironment`. |
+| `max_samples()` | Called at startup | Provide a default `max_samples` (used to cap the default, explicit `max_samples` will override this). |
+
+In the case of parallel execution of a group of tasks that share a working directory and tool environment, the `task_init()` and `task_cleanup()` functions may be called once for the entire group as a performance optimisation.
 
 The `task_cleanup()` has a number of important functions:
 
@@ -195,9 +200,9 @@ The `task_cleanup()` function will typically print out the information required 
 
 The `ToolEnvironment` instance methods provide access to process execution and file input/output within the environment. A few notes on implementing these methods:
 
-1. The `exec()` method currently only handles text output. If a call results in binary output then a `UnicodeDecodeError` will be raised. Tool environments should catch this and raise a `ToolError`.
+1.  The `exec()` method currently only handles text output. If a call results in binary output then a `UnicodeDecodeError` will be raised. Tool environments should catch this and raise a `ToolError`.
 
-2. The `read_file()` method raise a `FileNotFoundError` if the specified `file` does not exist in the tool environment, as tools calling `read_file()` will often want to catch the `FileNotFoundError` and re-throw a `ToolError` (since models will frequently attempt to read files that do not exist).
+2.  The `read_file()` method raise a `FileNotFoundError` if the specified `file` does not exist in the tool environment, as tools calling `read_file()` will often want to catch the `FileNotFoundError` and re-throw a `ToolError` (since models will frequently attempt to read files that do not exist).
 
 The best way to learn about writing tool environments is to look at the source code for the built in environments, [LocalToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/local.py) and [DockerToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/docker/docker.py).
 
@@ -209,12 +214,14 @@ For example, if your package was named `inspect_package` and your tool environme
 
 ::: {.panel-tabset group="entry-points"}
 ## Setuptools
+
 ``` toml
 [project.entry-points.inspect_ai]
 inspect_package = "inspect_package.inspect_extensions"
 ```
 
 ## Poetry
+
 ``` toml
 [tool.poetry.plugins.inspect_ai]
 inspect_package = "inspect_package.inspect_extensions"
@@ -299,12 +306,14 @@ As with Model APIs and Tool Environments, fsspec filesystems should be registere
 
 ::: {.panel-tabset group="entry-points"}
 ## Setuptools
+
 ``` toml
 [project.entry-points."fsspec.specs"]
 myfs = "inspect_package:MyFs"
 ```
 
 ## Poetry
+
 ``` toml
 [tool.poetry.plugins."fsspec.specs"]
 myfs = "inspect_package:MyFs"

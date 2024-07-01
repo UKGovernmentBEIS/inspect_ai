@@ -579,7 +579,7 @@ eval("ctf.py", toolenv_cleanup = False)
 
 When you do this, you'll see something like the following printed out at the end of the eval:
 
-![](images/toolenv-no-cleanup.png){.border}
+![](images/toolenv-no-cleanup.png){.border fig-alt="A printed list of yet to be cleaned up Docker tool environments (including the container id and cleanup command for each one)"}
 
 You then might use this command to get a shell inside one of the containers:
 

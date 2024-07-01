@@ -65,7 +65,7 @@ async def subprocess(
     Convenience method for solvers, scorers, and tools to launch
     subprocesses. Automatically enforces a limit on concurrent
     subprocesses (defaulting to os.cpu_count() but controllable
-    via the `max_subproccesses` eval config option).
+    via the `max_subprocesses` eval config option).
 
     Args:
        args (str | list[str]): Command and arguments to execute.

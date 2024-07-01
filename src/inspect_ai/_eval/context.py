@@ -4,11 +4,11 @@ from inspect_ai.util._logger import init_logger_records
 from inspect_ai.util._subprocess import init_max_subprocesses
 
 
-def init_eval_context(model: Model, max_subprocesses: int | None = None) -> None:
-    init_active_model(model)
+def init_eval_context(max_subprocesses: int | None = None) -> None:
     init_max_subprocesses(max_subprocesses)
 
 
-def init_task_context() -> None:
+def init_task_context(model: Model) -> None:
+    init_active_model(model)
     init_model_usage()
     init_logger_records()

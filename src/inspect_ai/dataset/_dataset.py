@@ -27,7 +27,7 @@ class Sample(BaseModel):
         input (str | list[ChatMessage]): The input to be submitted to the model.
         choices (list[str] | None): Optional. List of available answer choices
            (used only for multiple-choice evals).
-        target (str | list[str] | None): Optional. Ideal target output. May be a literal value
+        target (str | list[str]): Optional. Ideal target output. May be a literal value
             or narrative text to be used by a model grader.
         id (int | str | None): Optional. Unique identifier for sample.
         metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
