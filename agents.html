@@ -250,17 +250,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./parallelism.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Parallelism</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-suites.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Suites</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./eval-tuning.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Tuning</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -925,7 +925,7 @@ Note
 <p>You can also do this when using <code>eval(</code>):</p>
 <div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"ctf.py"</span>, toolenv_cleanup <span class="op">=</span> <span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>When you do this, you’ll see something like the following printed out at the end of the eval:</p>
-<p><img src="images/toolenv-no-cleanup.png" class="border img-fluid"></p>
+<p><img src="images/toolenv-no-cleanup.png" class="border img-fluid" alt="A printed list of yet to be cleaned up Docker tool environments (including the container id and cleanup command for each one)"></p>
 <p>You then might use this command to get a shell inside one of the containers:</p>
 <div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-intercode_ctf-ipg9tbviycpvlgwja5anyvn-default-1 bash</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>When you no longer need the environments, you can clean them up either all at once or individually:</p>

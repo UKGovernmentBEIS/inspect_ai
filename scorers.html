@@ -250,17 +250,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./parallelism.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Parallelism</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-suites.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Suites</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./eval-tuning.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Tuning</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -418,7 +418,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>Note that <code>score()</code> above is declared as an <code>async</code> function. When creating custom scorers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your scorer is doing non-trivial work (e.g.&nbsp;calling REST APIs, executing external processes, etc.) please review <a href="eval-tuning.html">Eval Tuning</a> before proceeding.</p>
+<p>Note that <code>score()</code> above is declared as an <code>async</code> function. When creating custom scorers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your scorer is doing non-trivial work (e.g.&nbsp;calling REST APIs, executing external processes, etc.) please review <a href="parallelism.html#sec-parallel-solvers-and-scorers">Parallelism</a> before proceeding.</p>
 </div>
 </div>
 </div>

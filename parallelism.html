@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Caching</title>
+<title>Inspect – Parallelism</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./parallelism.html" rel="next">
-<link href="./models.html" rel="prev">
+<link href="./eval-logs.html" rel="next">
+<link href="./caching.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -127,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html"><span class="chapter-title">Caching</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./parallelism.html"><span class="chapter-title">Parallelism</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -245,12 +245,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./caching.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Caching</span></a>
+  <a href="./caching.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Caching</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./parallelism.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Parallelism</span></a>
+  <a href="./parallelism.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Parallelism</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -281,21 +281,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#caching-basics" id="toc-caching-basics" class="nav-link" data-scroll-target="#caching-basics">Caching Basics</a>
+  <li><a href="#model-connections" id="toc-model-connections" class="nav-link" data-scroll-target="#model-connections">Model Connections</a>
   <ul class="collapse">
-  <li><a href="#model-versions" id="toc-model-versions" class="nav-link" data-scroll-target="#model-versions">Model Versions</a></li>
+  <li><a href="#max-connections" id="toc-max-connections" class="nav-link" data-scroll-target="#max-connections">Max Connections</a></li>
+  <li><a href="#rate-limits" id="toc-rate-limits" class="nav-link" data-scroll-target="#rate-limits">Rate Limits</a></li>
+  <li><a href="#limiting-retries" id="toc-limiting-retries" class="nav-link" data-scroll-target="#limiting-retries">Limiting Retries</a></li>
   </ul></li>
-  <li><a href="#cache-policy" id="toc-cache-policy" class="nav-link" data-scroll-target="#cache-policy">Cache Policy</a></li>
-  <li><a href="#management" id="toc-management" class="nav-link" data-scroll-target="#management">Management</a></li>
+  <li><a href="#sec-multiple-models" id="toc-sec-multiple-models" class="nav-link" data-scroll-target="#sec-multiple-models">Multiple Models</a></li>
+  <li><a href="#sec-parallel-tool-environments" id="toc-sec-parallel-tool-environments" class="nav-link" data-scroll-target="#sec-parallel-tool-environments">Tool Environments</a>
+  <ul class="collapse">
+  <li><a href="#max-samples" id="toc-max-samples" class="nav-link" data-scroll-target="#max-samples">Max Samples</a></li>
+  <li><a href="#max-subprocesses" id="toc-max-subprocesses" class="nav-link" data-scroll-target="#max-subprocesses">Max Subprocesses</a></li>
+  </ul></li>
+  <li><a href="#sec-parallel-solvers-and-scorers" id="toc-sec-parallel-solvers-and-scorers" class="nav-link" data-scroll-target="#sec-parallel-solvers-and-scorers">Solvers and Scorers</a>
+  <ul class="collapse">
+  <li><a href="#rest-apis" id="toc-rest-apis" class="nav-link" data-scroll-target="#rest-apis">REST APIs</a></li>
+  <li><a href="#sec-parallel-code" id="toc-sec-parallel-code" class="nav-link" data-scroll-target="#sec-parallel-code">Parallel Code</a></li>
+  <li><a href="#subprocesses" id="toc-subprocesses" class="nav-link" data-scroll-target="#subprocesses">Subprocesses</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html"><span class="chapter-title">Caching</span></a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./parallelism.html"><span class="chapter-title">Parallelism</span></a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title"><span id="sec-caching" class="quarto-section-identifier"><span class="chapter-title">Caching</span></span></h1>
+<h1 class="title"><span id="sec-parallelism" class="quarto-section-identifier"><span class="chapter-title">Parallelism</span></span></h1>
 </div>
 
 
@@ -314,89 +326,202 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense. Caching is also often useful during development—for example, when you are iterating on a scorer you may want the model outputs served from a cache to both save time as well as for increased determinism.</p>
+<p>Inspect runs evaluations using a parallel async architecture, eagerly executing many samples in parallel while at the same time ensuring that that resources aren’t over-saturated by enforcing various limits (e.g.&nbsp;maximum number of concurrent model connections, maximum number of subprocesses, etc.).</p>
+<p>There are a progression of concurrency concerns, and while most evaluations can rely on the Inspect default behaviour, others will benefit from more customisation. Below we’ll cover the following:</p>
+<ol type="1">
+<li>Model API connection concurrency.</li>
+<li>Evaluting multiple models in parallel.</li>
+<li>Tool environment concurrency.</li>
+<li>Writing parallel code in custom solvers and scorers.</li>
+</ol>
 </section>
-<section id="caching-basics" class="level2">
-<h2 class="anchored" data-anchor-id="caching-basics">Caching Basics</h2>
-<p>Use the <code>cache</code> parameter on calls to <code>generate()</code> to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:</p>
-<ul>
-<li>Model name and base URL (e.g.&nbsp;<code>openai/gpt-4-turbo</code>)</li>
-<li>Model prompt (i.e.&nbsp;message history)</li>
-<li>Epoch number (for ensuring distinct generations per epoch)</li>
-<li>Generate configuration (e.g.&nbsp;<code>temperature</code>, <code>top_p</code>, etc.)</li>
-<li>Active <code>tools</code> and <code>tool_choice</code></li>
-</ul>
-<p>If all of these inputs are identical, then the model response will be served from the cache. By default, model responses are cached for 1 week (see <a href="#cache-policy">Cache Policy</a> below for details on customising this).</p>
-<p>For example, here we are iterating on our self critique template, so we cache the main call to <code>generate()</code>:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>example_dataset(<span class="st">"theory_of_mind"</span>),</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        plan<span class="op">=</span>[</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>            chain_of_thought(),</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>            generate(cache <span class="op">=</span> <span class="va">True</span>),</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>            self_critique(CRITIQUE_TEMPLATE)</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        ]</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can similarly do this with the <code>generate</code> function passed into a <code>Solver</code>:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> custom_solver(cache):</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">async</span> <span class="kw">def</span> solve(state, generate):</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># (custom solver logic prior to generate)</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> generate(state, cache)</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You don’t strictly need to provide a <code>cache</code> argument for a custom solver that uses caching, but it’s generally good practice to enable users of the function to control caching behaviour.</p>
-<p>You can also use caching with lower-level <code>generate()</code> calls (e.g.&nbsp;a model instance you have obtained with <code>get_model()</code>. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"anthropic/claude-3-opus-20240229"</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> model.generate(<span class="bu">input</span>, cache <span class="op">=</span> <span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="model-versions" class="level3">
-<h3 class="anchored" data-anchor-id="model-versions">Model Versions</h3>
-<p>The model name (e.g.&nbsp;<code>openai/gpt-4-turbo</code>) is used as part of the cache key. Note though that many model names are aliases to specific model versions. For example, <code>gpt-4</code>, <code>gpt-4-turbo</code>, may resolve to different versions over time as updates are released.</p>
-<p>If you want to invalidate caches for updated model versions, it’s much better to use an explicitly versioned model name. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you do this, then when a new version of <code>gpt-4-turbo</code> is deployed a call to the model will occur rather than resolving from the cache.</p>
+<section id="model-connections" class="level2">
+<h2 class="anchored" data-anchor-id="model-connections">Model Connections</h2>
+<section id="max-connections" class="level3">
+<h3 class="anchored" data-anchor-id="max-connections">Max Connections</h3>
+<p>Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather <em>rate limits</em> imposed by model API providers. Here we run an evaluation and set the maximum connections to 20:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-connections</span> 20</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get <em>worse</em> performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The “correct” max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.</p>
+</section>
+<section id="rate-limits" class="level3">
+<h3 class="anchored" data-anchor-id="rate-limits">Rate Limits</h3>
+<p>When you run an eval you’ll see information reported on the current active connection usage as well as the number of HTTP rate limit errors that have been encountered (note that Inspect will automatically retry on rate limits and other errors likely to be transient):</p>
+<p><img src="images/rate-limit.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."></p>
+<p>Here we’ve set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using <a href="https://en.wikipedia.org/wiki/Exponential_backoff">exponential backoff</a>, and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.</p>
+<p>You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.</p>
+</section>
+<section id="limiting-retries" class="level3">
+<h3 class="anchored" data-anchor-id="limiting-retries">Limiting Retries</h3>
+<p>By default, inspect will continue to retry model API calls (with exponential backoff) indefinitely when a rate limit error (HTTP status 429) is returned . You can limit these retries by using the <code>max_retries</code> and <code>timeout</code> eval options. For example:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-retries</span> 10 <span class="at">--timeout</span> 600</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If you want more insight into Model API connections and retries, specify <code>log_level=http</code>. For example:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4 <span class="at">--log-level</span><span class="op">=</span>http</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).</p>
+</div>
+</div>
+</div>
 </section>
 </section>
-<section id="cache-policy" class="level2">
-<h2 class="anchored" data-anchor-id="cache-policy">Cache Policy</h2>
-<p>By default, if you specify <code>cache = True</code> then the cache will expire in 1 week. You can customise this by passing a <code>CachePolicy</code> rather than a boolean. For example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"3h"</span>)</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"4D"</span>)</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"2W"</span>)</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"3M"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can use <code>s</code>, <code>m</code>, <code>h</code>, <code>D</code>, <code>W</code> , <code>M</code>, and <code>Y</code> as abbreviations for <code>expiry</code> values.</p>
-<p>If you want the cache to <em>never</em> expire, specify <code>None</code>. For example:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry <span class="op">=</span> <span class="va">None</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can also define scopes for cache expiration (e.g.&nbsp;cache for a specific task or usage pattern). Use the <code>scopes</code> parameter to add named scopes to the cache key:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    expiry<span class="op">=</span><span class="st">"1M"</span>,</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    scopes<span class="op">=</span>{<span class="st">"role"</span>: <span class="st">"attacker"</span>, <span class="st">"team"</span>: <span class="st">"red"</span>})</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>As noted above, caching is by default done per epoch (i.e.&nbsp;each epoch has its own cache scope). You can disable the default behaviour by setting <code>per_epoch=False</code>. For example:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(per_epoch<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="sec-multiple-models" class="level2">
+<h2 class="anchored" data-anchor-id="sec-multiple-models">Multiple Models</h2>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The multiple models feature described below is available in only the development version of Inspect (it is not yet published to PyPI). You can install the development version with:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
+<p>You can evaluate multiple models in parallel by passing a list of models to the <code>eval()</code> function. For example:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"mathematics.py"</span>, model<span class="op">=</span>[</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"openai/gpt-4-turbo"</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"anthropic/claude-3-opus-20240229"</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google/gemini-1.5-pro"</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><img src="images/inspect-multiple-models.png" class="img-fluid" alt="An evaluation task display show the progress for 3 differnet models."></p>
+<p>Since each model provider has its own <code>max_connections</code> they don’t contend with each other for resources. If you need to evaluate multiple models, doing so concurrently is highly recommended.</p>
+<p>If you want to specify multiple models when using the <code>--model</code> CLI argument or <code>INSPECT_EVAL_MODEL</code> environment variable, just separate the model names with commas. For example:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_MODEL</span><span class="op">=</span>openai/gpt-4-turbo,google/gemini-1.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="management" class="level2">
-<h2 class="anchored" data-anchor-id="management">Management</h2>
-<p>Use the <code>inspect cache</code> command the view the current contents of the cache, prune expired entries, or clear entries entirely. For example:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># list the current contents of the cache</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache list</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># clear the cache (globally or by model)</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache clear</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache clear <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># prune expired entries from the cache</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache list <span class="at">--pruneable</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache prune</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache prune <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>See <code>inspect cache --help</code> for further details on management commands.</p>
+<section id="sec-parallel-tool-environments" class="level2">
+<h2 class="anchored" data-anchor-id="sec-parallel-tool-environments">Tool Environments</h2>
+<p><a href="agents.html#sec-tool-environments">Tool Environments</a> (e.g.&nbsp;Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect <code>subprocess()</code> function for executing commands within the environment.</p>
+<section id="max-samples" class="level3">
+<h3 class="anchored" data-anchor-id="max-samples">Max Samples</h3>
+<p>The <code>max_samples</code> option determines how many samples are executed in parallel (and in th case of Docker containers how many containers are run in parallel). By default, <code>max_samples</code> is set to <code>max_connections</code> so that the connection to the Model API can be fully utilised.</p>
+<p>Since Tool enviroinments include additional expensive operations beyond calling models, you may want to increase <code>max_samples</code> to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you’ll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing <code>max_samples</code>.</p>
+<p>Note that setting <code>max_samples</code> to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using tool environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).</p>
+</section>
+<section id="max-subprocesses" class="level3">
+<h3 class="anchored" data-anchor-id="max-subprocesses">Max Subprocesses</h3>
+<p>The <code>max_subprocesses</code> option determines how many subprocesses calls can run in parallel. By defualt, this is set to <code>os.cpu_count()</code>. Depending on the nature of execution done inside tool environments, you might benefit from increasing or decreasting <code>max_subprocesses</code>.</p>
+</section>
+</section>
+<section id="sec-parallel-solvers-and-scorers" class="level2">
+<h2 class="anchored" data-anchor-id="sec-parallel-solvers-and-scorers">Solvers and Scorers</h2>
+<section id="rest-apis" class="level3">
+<h3 class="anchored" data-anchor-id="rest-apis">REST APIs</h3>
+<p>It’s possible that your custom solvers, tools, or scorers will call other REST APIs. Two things to keep in mind when doing this are:</p>
+<ol type="1">
+<li><p>It’s critical that connections to other APIs use <code>async</code> HTTP APIs (i.e.&nbsp;the <code>httpx</code> model rather than the <code>requests</code> module). This is because Inspect’s parallelism relies on everything being <code>async</code>, so if you make a blocking HTTP call with <code>requests</code> it will actually hold up all of the rest of the work in system!</p></li>
+<li><p>As with model APIs, rate limits may be in play, so it’s important not to over-saturate these connections. Recall that Inspect runs all samples in parallel so if you have 500 samples and don’t do anything to limit concurrency, you will likely end up making hundreds of calls at a time to the API.</p></li>
+</ol>
+<p>Here’s some (oversimplified) example code that illustrates how to call a REST API within an Inspect component. We use the <code>async</code> interface of the <code>httpx</code> module, and we use Inspect’s <code>concurrency()</code> function to limit simultaneous connections to 10:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> httpx</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> concurrency</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> Generate, TaskState</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> httpx.AsyncClient()</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  ...</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  <span class="co"># wrap the call to client.get() in an async concurrency </span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  <span class="co"># block to limit simultaneous connections to 10</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">async</span> <span class="cf">with</span> concurrency(<span class="st">"my-rest-api"</span>, <span class="dv">10</span>):</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> <span class="cf">await</span> client.get(<span class="st">"https://example.com/api"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that we pass a name (“my-rest-api”) to the <code>concurrency()</code> function. This provides a named scope for managing concurrency for calls to that specific API/service.</p>
+</section>
+<section id="sec-parallel-code" class="level3">
+<h3 class="anchored" data-anchor-id="sec-parallel-code">Parallel Code</h3>
+<p>Generally speaking, you should try to make all of the code you write within Inspect solvers, tools, and scorers as parallel as possible. The main idea is to eagerly post as much work as you can, and then allow the various concurrency gates described above to take care of not overloading remote APIs or local resources. There are two keys to writing parallel code:</p>
+<ol type="1">
+<li>Use <code>async</code> for all potentially expensive operations. If you are calling a remote API, use the <code>httpx.AsyncClient</code>. If you are running local code, use the <code>subprocess()</code> function described above.</li>
+<li>If your <code>async</code> work can be parallelised, do it using <code>asyncio.gather()</code>. For example, if you are calling three different model APIs to score a task, you can call them all in parallel. Or if you need to retrieve 10 web pages you don’t need to do it in a loop—rather, you can fetch them all at once.</li>
+</ol>
+<section id="model-requests" class="level4">
+<h4 class="anchored" data-anchor-id="model-requests">Model Requests</h4>
+<p>Let’s say you have a scorer that uses three different models to score based on majority vote. You could make all of the model API calls in parallel as follows:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> get_model</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> [</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  get_model(<span class="st">"openai/gpt-4"</span>),</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  get_model(<span class="st">"anthropic/claude-3-sonnet-20240229"</span>),</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  get_model(<span class="st">"mistral/mistral-large-latest"</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> <span class="st">"Output to be scored"</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> <span class="ss">f"Could you please score the following output?</span><span class="ch">\n\n</span><span class="sc">{</span>output<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>graders <span class="op">=</span> [model.generate(prompt) <span class="cf">for</span> model <span class="kw">in</span> models]</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>grader_outputs <span class="op">=</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>graders)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that we don’t await the call to <code>model.generate()</code> when building our list of graders. Rather the call to <code>asyncio.gather()</code> will await each of these requests and return when they have all completed. Inspect’s internal handling of <code>max_connections</code> for model APIs will apply to these requests, so you need now worry about how many you put in flight, they will be throttled as appropriate.</p>
+</section>
+<section id="web-requests" class="level4">
+<h4 class="anchored" data-anchor-id="web-requests">Web Requests</h4>
+<p>Here’s an examples of using <code>asyncio.gather()</code> to parallelise web requests:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> asyncio</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> httpx</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> httpx.AsyncClient()</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>pages <span class="op">=</span> [</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">"https://www.openai.com"</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">"https://www.anthropic.com"</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">"https://www.google.com"</span>,</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">"https://mistral.ai/"</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>downloads <span class="op">=</span> [client.get(page) <span class="cf">for</span> page <span class="kw">in</span> pages]</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>downloads)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that we don’t <code>await</code> the client requests when building up our list of <code>downloads</code>. Rather, we let <code>asyncio.gather()</code> await all of them, returning only when all of the results are available. Compared to looping over each page download this will execute much, much quicker. Note that if you are sending requests to a REST API that might have rate limits, you should consider wrapping your HTTP requests in a <code>concurrency()</code> block. For example:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> concurrency</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> download(page):</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">async</span> <span class="cf">with</span> concurrency(<span class="st">"my-web-api"</span>, <span class="dv">2</span>):</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="cf">await</span> client.get(page)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>downloads <span class="op">=</span> [download(page) <span class="cf">for</span> page <span class="kw">in</span> pages]</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>downloads)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="subprocesses" class="level3">
+<h3 class="anchored" data-anchor-id="subprocesses">Subprocesses</h3>
+<p>It’s possible that your custom solvers, tools, or scorers will need to launch child processes to perform various tasks. Subprocesses have similar considerations as calling APIs: you want to make sure that they don’t block the rest of the work in Inspect (so they should be invoked with <code>async</code>) and you also want to make sure they don’t provide <em>too much</em> concurrency (i.e.&nbsp;you wouldn’t want to launch 200 processes at once on a 4 core machine!)</p>
+<p>To assist with this, Inspect provides the <code>subprocess()</code> function. This <code>async</code> function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout and stderr. The <code>subprocess()</code> function also automatically limits concurrent child processes to the number of CPUs on your system (<code>os.cpu_count()</code>). Here’s an example from the implementation of a <code>list_files()</code> tool:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(prompt<span class="op">=</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>   <span class="st">"If you are asked to list the files in a directory you "</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>   <span class="op">+</span> <span class="st">"should call the list_files function to access the listing."</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>))</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> list_files():</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(<span class="bu">dir</span>: <span class="bu">str</span>):</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""List the files in a directory.</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="co">            dir (str): Directory</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="co">        Returns:</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="co">            File listing of the directory</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="cf">await</span> subprocess([<span class="st">"ls"</span>, <span class="bu">dir</span>])</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> result.success:</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> result.stdout</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> ToolError(result.stderr)</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The maximum number of concurrent subprocesses can be modified using the <code>--max-subprocesses</code> option. For example:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-subprocesses</span> 4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that if you need to execute computationally expensive code in an eval, you should always factor it into a call to <code>subprocess()</code> so that you get optimal concurrency and performance.</p>
+<section id="timeouts" class="level4">
+<h4 class="anchored" data-anchor-id="timeouts">Timeouts</h4>
+<p>If you need to ensure that your subprocess runs for no longer than a specified interval, you can use the <code>timeout</code> option. For example:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> <span class="cf">await</span> subprocess([<span class="st">"ls"</span>, <span class="bu">dir</span>], timeout <span class="op">=</span> <span class="dv">30</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If a timeout occurs, then the <code>result.status</code> will be <code>False</code> and a timeout error message will be included in <code>result.stderr</code>.</p>
 
 
+</section>
+</section>
 </section>
 
 </main> <!-- /main -->
@@ -863,13 +988,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./models.html" class="pagination-link" aria-label="Models">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Models</span></span>
+      <a href="./caching.html" class="pagination-link" aria-label="Caching">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Caching</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./parallelism.html" class="pagination-link" aria-label="Parallelism">
-        <span class="nav-page-text"><span class="chapter-title">Parallelism</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./eval-logs.html" class="pagination-link" aria-label="Eval Logs">
+        <span class="nav-page-text"><span class="chapter-title">Eval Logs</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

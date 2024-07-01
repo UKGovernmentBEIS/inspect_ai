@@ -250,17 +250,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./parallelism.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Parallelism</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-suites.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Suites</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./eval-tuning.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Tuning</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -288,7 +288,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#amazon-s3" id="toc-amazon-s3" class="nav-link" data-scroll-target="#amazon-s3">Amazon S3</a></li>
   <li><a href="#chat-messages" id="toc-chat-messages" class="nav-link" data-scroll-target="#chat-messages">Chat Messages</a></li>
   <li><a href="#image-input" id="toc-image-input" class="nav-link" data-scroll-target="#image-input">Image Input</a></li>
-  <li><a href="#custom-reader" id="toc-custom-reader" class="nav-link" data-scroll-target="#custom-reader">Custom Reader</a></li>
+  <li><a href="#sec-custom-reader" id="toc-sec-custom-reader" class="nav-link" data-scroll-target="#sec-custom-reader">Custom Reader</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -316,7 +316,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Inspect has native support for reading datasets in the CSV, JSON, and JSON Lines formats, as well as from <a href="#sec-hugging-face-datasets">Hugging Face</a>. In addition, the core dataset interface for the evaluation pipeline is flexible enough to accept data read from just about any source.</p>
+<p>Inspect has native support for reading datasets in the CSV, JSON, and JSON Lines formats, as well as from <a href="#sec-hugging-face-datasets">Hugging Face</a>. In addition, the core dataset interface for the evaluation pipeline is flexible enough to accept data read from just about any source (see the <a href="#sec-custom-reader">Custom Reader</a> section below for details).</p>
 <p>If your data is already in a format amenable for direct reading as an Inspect <code>Sample</code>, reading a dataset is as simple as this:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> csv_dataset, json_dataset</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>dataset1 <span class="op">=</span> csv_dataset(<span class="st">"dataset1.csv"</span>)</span>
@@ -546,20 +546,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </section>
-<section id="custom-reader" class="level2">
-<h2 class="anchored" data-anchor-id="custom-reader">Custom Reader</h2>
-<p>You are not restricted to the built in dataset functions for reading samples. Since the <code>dataset</code> field of the <code>Task</code> class takes either a <code>Dataset</code> or a sequences of<code>Sample</code>, the following is also valid:</p>
+<section id="sec-custom-reader" class="level2">
+<h2 class="anchored" data-anchor-id="sec-custom-reader">Custom Reader</h2>
+<p>You are not restricted to the built in dataset functions for reading samples. You can also construct a <code>MemoryDataset</code>, and pass that to a task. For example:</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> MemoryDataset, Sample</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> generate, system_message</span>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>dataset<span class="op">=</span>[</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>dataset<span class="op">=</span>MemoryDataset([</span>
 <span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    Sample(</span>
 <span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"What cookie attributes should I use for strong security?"</span>,</span>
 <span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"secure samesite and httponly"</span>,</span>
 <span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>])</span>
 <span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> security_guide():</span>
@@ -568,7 +568,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>        plan<span class="op">=</span>[system_message(SYSTEM_MESSAGE), generate()],</span>
 <span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
 <span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>So if the built in dataset functions don’t meet your needs, you can create a custom function that yields a list of <code>Sample</code> instances and pass those directly to your <code>Task</code>.</p>
+<p>So if the built in dataset functions don’t meet your needs, you can create a custom function that yields a <code>MemoryDataset</code>and pass those directly to your <code>Task</code>.</p>
 
 
 </section>

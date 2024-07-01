@@ -64,7 +64,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./eval-tuning.html" rel="prev">
+<link href="./eval-suites.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -249,17 +249,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./parallelism.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Parallelism</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-suites.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Suites</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./eval-tuning.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Tuning</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -485,9 +485,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The class methods take care of various stages of initialisation, setup, and teardown:</p>
 <table class="table">
 <colgroup>
-<col style="width: 25%">
-<col style="width: 25%">
-<col style="width: 50%">
+<col style="width: 26%">
+<col style="width: 26%">
+<col style="width: 47%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -522,8 +522,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Called via <code>inspect toolenv cleanup</code></td>
 <td>CLI invoked manual cleanup of resources created by this <code>ToolEnvironment</code>.</td>
 </tr>
+<tr class="even">
+<td><code>max_samples()</code></td>
+<td>Called at startup</td>
+<td>Provide a default <code>max_samples</code> (used to cap the default, explicit <code>max_samples</code> will override this).</td>
+</tr>
 </tbody>
 </table>
+<p>In the case of parallel execution of a group of tasks that share a working directory and tool environment, the <code>task_init()</code> and <code>task_cleanup()</code> functions may be called once for the entire group as a performance optimisation.</p>
 <p>The <code>task_cleanup()</code> has a number of important functions:</p>
 <ol type="1">
 <li>There may be global resources that are not tied to samples that need to be cleaned up.</li>
@@ -1108,8 +1114,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./eval-tuning.html" class="pagination-link" aria-label="Eval Tuning">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Eval Tuning</span></span>
+      <a href="./eval-suites.html" class="pagination-link" aria-label="Eval Suites">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Eval Suites</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
