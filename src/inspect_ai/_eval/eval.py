@@ -2,46 +2,45 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from shortuuid import uuid
 from typing_extensions import Unpack
 
+from inspect_ai._display import display
 from inspect_ai._display.logger import init_logger
-from inspect_ai._util.dotenv import init_dotenv
-from inspect_ai._util.path import cwd_relative_path
+from inspect_ai._util.dotenv import dotenv_environ, init_dotenv
+from inspect_ai._util.error import exception_message
+from inspect_ai._util.path import chdir_python, cwd_relative_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
-from inspect_ai._view.view import view_notify_eval
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
 from inspect_ai.log._file import JSONRecorder
-from inspect_ai.model import (
-    GenerateConfig,
-    GenerateConfigArgs,
-    Model,
-    get_model,
-)
-from inspect_ai.solver import Solver, ToolEnvironmentSpec
+from inspect_ai.log._log import Recorder
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
+from inspect_ai.model._model import resolve_models
+from inspect_ai.solver import Plan, Solver, ToolEnvironmentSpec
+from inspect_ai.solver._tool.environment.context import startup_tool_environments
 
 from .context import init_eval_context
-from .loader import resolve_tasks
+from .loader import ResolvedTask, resolve_tasks
 from .task import PreviousTask, Tasks
 from .task.log import TaskLogger
-from .task.run import eval_log_sample_source, task_run
-from .task.util import task_file, task_run_dir
+from .task.run import create_sample_semaphore, task_run
+from .task.util import task_run_dir
 
 log = logging.getLogger(__name__)
 
 
 def eval(
     tasks: Tasks,
-    model: str | Model | None = None,
+    model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
     toolenv: ToolEnvironmentSpec | None = None,
     toolenv_cleanup: bool | None = None,
-    plan: Solver | list[Solver] | None = None,
+    plan: Plan | Solver | list[Solver] | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -60,9 +59,9 @@ def eval(
     Args:
         tasks: (Tasks): Task(s) to evaluate. If None, attempt
             to evaluate a task in the current working directory
-        model (str | Model | None): Model for evaluation. If not
-            specified uses the current eval's model, or failing that
-            the value of the INSPECT_EVAL_MODEL environment variable.
+        model (str | Model | list[str] | list[Model] | None): Model(s) for
+            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+            environment variable.
         model_base_url: (str | None): Base URL for communicating
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
@@ -71,7 +70,7 @@ def eval(
            environment type (or optionally a tuple with type and config file)
         toolenv_cleanup (bool | None): Cleanup tool environments after task completes
           (defaults to True)
-        plan (Solver | list[Solver] | None): Alternative plan
+        plan (Plan | Solver | list[Solver] | None): Alternative plan
            for evaluating task(s). Optional (uses task plan by default).
         log_level (str | None): "debug", "http", "info", "warning", "error",
            or "critical" (defaults to "info")
@@ -129,13 +128,13 @@ def eval(
 
 async def eval_async(
     tasks: Tasks,
-    model: str | Model | None = None,
+    model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
     toolenv: ToolEnvironmentSpec | None = None,
     toolenv_cleanup: bool | None = None,
-    plan: Solver | list[Solver] | None = None,
+    plan: Plan | Solver | list[Solver] | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -154,9 +153,9 @@ async def eval_async(
     Args:
         tasks: (Tasks): Task(s) to evaluate. If None, attempt
             to evaluate a task in the current working directory
-        model (str | Model | None): Model for evaluation. If not
-            specified uses the current eval's model, or failing that
-            the value of the INSPECT_EVAL_MODEL environment variable.
+        model (str | Model | list[str] | list[Model] | None): Model(s) for
+            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+            environment variable.
         model_base_url: (str | None): Base URL for communicating
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
@@ -165,8 +164,8 @@ async def eval_async(
            environment type (or optionally a tuple with type and config file)
         toolenv_cleanup (bool | None): Cleanup tool environments after task completes
            (defaults to True)
-        plan (Solver | list[Solver] | None): Alternative plan
-            for evaluating task(s). Optional (uses task plan by default).
+        plan (Plan | Solver | list[Solver] | None): Alternative plan
+           for evaluating task(s). Optional (uses task plan by default).
         log_level (str | None): "debug", "http", "info", "warning", "error",
             or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
@@ -192,124 +191,192 @@ async def eval_async(
     Returns:
         List of EvalLog (one for each task)
     """
-    # Provide .env and log support bootstrap for notebooks and invoking
-    # an eval as a plain Python script (as opposed to via inspect eval)
-    init_dotenv()
-    init_logger(log_level)
+    # only a single call to eval_async can be active at a time, this is
+    # because when running a task a chdir to the task's directory (and a
+    # similar mutation of the Python sys.path) occurs. since this is a
+    # change to global process state it cannot occur in parallel. for
+    # task parallelism, use eval_gather, which enforces the appropriate
+    # constraints on task parallelism and schedules multiple tasks for
+    # optimal concurrency
+    global _eval_async_running
+    if _eval_async_running:
+        raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
 
-    # resolve model
-    model = get_model(
-        model=model,
-        base_url=model_base_url,
-        config=GenerateConfig(**kwargs),
-        **model_args,
-    )
+    _eval_async_running = True
+    try:
+        # Provide .env and log support bootstrap for notebooks and invoking
+        # an eval as a plain Python script (as opposed to via inspect eval)
+        init_dotenv()
+        init_logger(log_level)
 
-    # init eval context
-    init_eval_context(model, max_subprocesses)
+        # init eval context
+        init_eval_context(max_subprocesses)
 
-    # if this is a PreviousTask then we are being spotted our id and log
-    if isinstance(tasks, PreviousTask):
-        task_id = tasks.id
-        eval_log = tasks.log
-        tasks = tasks.task
-    else:
-        task_id = None
-        eval_log = None
-
-    # resolve tasks
-    eval_tasks = resolve_tasks(tasks, model, task_args)
-
-    # if we have an eval_log, see if we can re-use its logged samples
-    sample_source = eval_log_sample_source(eval_log, eval_tasks[0].dataset)
-
-    # warn and return empty string if we resolved no tasks
-    if len(eval_tasks) == 0:
-        log.warning("No inspect tasks were found at the specified paths.")
-        return []
-
-    # resolve recorder
-    log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
-    log_dir = cwd_relative_path(log_dir)
-    recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
-
-    # build task names and versions (include version if > 0)
-    task_names: list[str] = [task.name for task in eval_tasks]
-    task_versions: list[int] = [task.version for task in eval_tasks]
-
-    # create config
-    eval_config = EvalConfig(
-        limit=limit,
-        epochs=epochs,
-        max_messages=max_messages,
-        max_samples=max_samples,
-        max_subprocesses=max_subprocesses,
-        toolenv_cleanup=toolenv_cleanup,
-        log_samples=log_samples,
-        log_images=log_images,
-        log_buffer=log_buffer,
-    )
-
-    run_id = uuid()
-    loggers: list[TaskLogger] = []
-    results: list[EvalLog] = []
-    for index, name, version, task in zip(
-        range(0, len(task_names)), task_names, task_versions, eval_tasks
-    ):
-        # tasks can provide their own epochs and max_messages
-        task_eval_config = eval_config.model_copy()
-        if task.epochs is not None:
-            task_eval_config.epochs = task.epochs
-        if task.max_messages is not None:
-            task_eval_config.max_messages = task.max_messages
-
-        # create and track the logger
-        logger = TaskLogger(
-            task_name=name,
-            task_version=version,
-            task_file=task_file(task, relative=True),
-            task_run_dir=task_run_dir(task),
-            task_id=task_id if task_id else uuid(),
-            run_id=run_id,
-            model=model,
-            dataset=task.dataset,
-            tool_environment=toolenv,
-            task_attribs=task.attribs,
-            task_args=task_args,
-            model_args=model_args,
-            eval_config=task_eval_config,
-            recorder=recorder,
+        # resolve models
+        models = resolve_models(
+            model, model_base_url, model_args, GenerateConfig(**kwargs)
         )
-        loggers.append(logger)
 
-        # run the eval (create a task so it gets its own ContextVar scope)
-        result = await asyncio.create_task(
-            task_run(
-                task=task,
-                sequence=(index + 1, len(task_names)),
-                model=model,
-                logger=logger,
-                config=task_eval_config,
-                plan=plan,
-                score=score,
-                sample_source=sample_source,
-                **kwargs,
+        # resolve tasks
+        resolved_tasks: list[ResolvedTask] = []
+        for m in models:
+            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, toolenv))
+
+        # warn and return empty string if we resolved no tasks
+        if len(resolved_tasks) == 0:
+            log.warning("No inspect tasks were found at the specified paths.")
+            return []
+
+        # resolve recorder
+        log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
+        log_dir = cwd_relative_path(log_dir)
+        recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
+
+        # create config
+        eval_config = EvalConfig(
+            limit=limit,
+            epochs=epochs,
+            max_messages=max_messages,
+            max_samples=max_samples,
+            max_subprocesses=max_subprocesses,
+            toolenv_cleanup=toolenv_cleanup,
+            log_samples=log_samples,
+            log_images=log_images,
+            log_buffer=log_buffer,
+        )
+
+        # run tasks (batch so that multiple models are executed in parallel)
+        run_id = uuid()
+        results: list[EvalLog] = []
+        for sequence in range(0, len(resolved_tasks) // len(models)):
+            task_batch = list(filter(lambda t: t.sequence == sequence, resolved_tasks))
+            results.extend(
+                await eval_parallel(
+                    run_id=run_id,
+                    tasks=task_batch,
+                    eval_config=eval_config,
+                    recorder=recorder,
+                    model_args=model_args,
+                    plan=plan,
+                    score=score,
+                    **kwargs,
+                )
             )
+            # exit the loop if there was a cancellation
+            if any([result.status == "cancelled" for result in results]):
+                break
+
+        # return list of eval logs
+        return EvalLogs(results)
+    finally:
+        _eval_async_running = False
+
+
+# single call to eval_async at a time
+_eval_async_running = False
+
+
+async def eval_parallel(
+    run_id: str,
+    tasks: list[ResolvedTask],
+    eval_config: EvalConfig,
+    recorder: Recorder,
+    model_args: dict[str, Any],
+    plan: Plan | Solver | list[Solver] | None = None,
+    score: bool = True,
+    **kwargs: Unpack[GenerateConfigArgs],
+) -> list[EvalLog]:
+    # we rely on the run_dir and toolenv being the same across all tasks
+    # alias these and then confirm that the rest of the tasks conform
+    run_dir = task_run_dir(tasks[0].task)
+    if any([task_run_dir(task.task) != run_dir for task in tasks]):
+        raise RuntimeError(
+            "Tasks passed to eval_parallel must have the same working directory."
+        )
+    toolenv = next((task.toolenv for task in tasks if task.toolenv is not None), None)
+    if any([task.toolenv is not None and task.toolenv != toolenv for task in tasks]):
+        raise RuntimeError(
+            "Tasks passed to eval_parallel must have the same tool environment."
         )
 
-        # mark completed and append result
-        results.append(result)
+    # if we have a toolenv then we need to enforce sample concurrency at
+    # this level of the eval (so we don't explode the # of toolenvs)
+    sample_semaphore: asyncio.Semaphore | None = (
+        create_sample_semaphore(eval_config, GenerateConfig(**kwargs), toolenv)
+        if toolenv
+        else None
+    )
 
-        # notify the view module that an eval just completed
-        # (in case we have a view polling for new evals)
-        view_notify_eval(logger.location)
+    # switch to task directory context
+    with chdir_python(run_dir), dotenv_environ():
+        # run startup pass for the tool_environment
+        shutdown_tool_environments: Callable[[], Awaitable[None]] | None = None
+        if toolenv:
+            cleanup = eval_config.toolenv_cleanup is not False
+            shutdown_tool_environments = await startup_tool_environments(
+                "startup", toolenv, cleanup
+            )
 
-        # exit the loop if this was a cancellation
-        if result.status == "cancelled":
-            break
+        try:
+            # create asyncio tasks
+            asyncio_tasks: list[asyncio.Task[EvalLog]] = []
+            for resolved_task in tasks:
+                # tasks can provide their own epochs and max_messages
+                task = resolved_task.task
+                task_eval_config = eval_config.model_copy()
+                if task.epochs is not None:
+                    task_eval_config.epochs = task.epochs
+                if task.max_messages is not None:
+                    task_eval_config.max_messages = task.max_messages
 
-    # return list of eval logs
-    return EvalLogs(results)
+                # create and track the logger
+                logger = TaskLogger(
+                    task_name=task.name,
+                    task_version=task.version,
+                    task_file=resolved_task.task_file,
+                    task_id=resolved_task.id if resolved_task.id else uuid(),
+                    run_id=run_id,
+                    model=resolved_task.model,
+                    dataset=task.dataset,
+                    tool_environment=resolved_task.toolenv,
+                    task_attribs=task.attribs,
+                    task_args=resolved_task.task_args,
+                    model_args=model_args,
+                    eval_config=task_eval_config,
+                    recorder=recorder,
+                )
+
+                # append task
+                asyncio_tasks.append(
+                    asyncio.create_task(
+                        task_run(
+                            task=task,
+                            model=resolved_task.model,
+                            toolenv=toolenv,
+                            logger=logger,
+                            config=task_eval_config,
+                            plan=plan,
+                            score=score,
+                            sample_source=resolved_task.sample_source,
+                            sample_semaphore=sample_semaphore,
+                            **kwargs,
+                        )
+                    )
+                )
+
+            # run all of the tasks in parallel
+            with display().live_task_status():
+                return await asyncio.gather(*asyncio_tasks)
+
+        finally:
+            # shutdown tool environments
+            if shutdown_tool_environments:
+                try:
+                    await shutdown_tool_environments()
+                except BaseException as ex:
+                    log.warning(
+                        f"Error occurred shutting down tool environments: {exception_message(ex)}"
+                    )
 
 
 def eval_retry(
@@ -457,7 +524,7 @@ async def eval_retry_async(
         task_file = eval_log.eval.task_file
         if task_file:
             if not Path(task_file).exists():
-                raise FileNotFoundError("Task file '{task_file}' not found")
+                raise FileNotFoundError(f"Task file '{task_file}' not found")
             task = f"{task_file}@{task_name}"
         else:
             if registry_lookup("task", task_name) is None:

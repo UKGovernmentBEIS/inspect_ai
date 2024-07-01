@@ -41,7 +41,6 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     "--model",
     type=str,
     required=True,
-    envvar=["INSPECT_EVAL_MODEL", "INSPECT_MODEL_NAME"],
     help="Model used to evaluate tasks.",
 )
 @click.option(

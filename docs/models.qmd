@@ -118,7 +118,7 @@ Use `inspect eval --help` to learn about all of the available generation config 
 
 Inspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.
 
-If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Eval Tuning](eval-tuning.qmd) includes additional documentation on how to do this). Note that the next section describes how you can set a model-provider specific value for `max_connections` as well as other generation options.
+If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.qmd) includes additional documentation on how to do this). Note that the next section describes how you can set a model-provider specific value for `max_connections` as well as other generation options.
 
 ### Model Specific Configuration
 

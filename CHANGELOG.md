@@ -2,7 +2,12 @@
 
 ## Unreleased
 
+- Evaluate multiple models in parallel by passing a list of models to `eval()`.
 - Add `api_key` to `get_model()` for explicitly specifying an API key for a model.
+- Improved handling of very large (> 100MB) log files in Inspect View.
+- Use `network_mode: none` for disabling networking by default in Docker tool environments.
+- Allow tool environent providers to specify a default `max_samples` (set to 25 for the Docker provider).
+- Prevent concurrent calls to `eval_async()` (unsafe because of need to change directories for tasks). Parallel task evaluation will instead be implemented as a top-level feature of `eval()` and `eval_async()`
 
 ## v0.3.17 (25 June 2024)
 

@@ -1,11 +1,13 @@
 import ast
 import inspect
+from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
 
+from inspect_ai._eval.task.util import task_file
 from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import (
@@ -15,27 +17,87 @@ from inspect_ai._util.registry import (
     registry_lookup,
 )
 from inspect_ai.model import Model, ModelName
+from inspect_ai.solver._tool.environment.environment import ToolEnvironmentSpec
 
 from .list import task_files
 from .registry import task_create
-from .task import Task, TaskInfo, Tasks
+from .task import PreviousTask, Task, TaskInfo, Tasks
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+from .task.run import EvalSampleSource, eval_log_sample_source
+
+
+@dataclass
+class ResolvedTask:
+    task: Task
+    task_args: dict[str, Any]
+    task_file: str | None
+    model: Model
+    toolenv: tuple[str, str | None] | None
+    sequence: int
+    id: str | None = field(default=None)
+    sample_source: EvalSampleSource | None = field(default=None)
 
 
 def resolve_tasks(
     tasks: Tasks,
-    model: Model,
     task_args: dict[str, Any],
-) -> list[Task]:
+    model: Model,
+    toolenv: ToolEnvironmentSpec | None,
+) -> list[ResolvedTask]:
+    def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
+        return [
+            ResolvedTask(
+                task=task,
+                task_args=task_args,
+                task_file=task_file(task, relative=True),
+                model=model,
+                toolenv=(
+                    (toolenv, None)
+                    if isinstance(toolenv, str)
+                    else toolenv
+                    if toolenv is not None
+                    else task.tool_environment
+                ),
+                sequence=sequence,
+            )
+            for sequence, task in enumerate(tasks)
+        ]
+
     # take empty lists out of play
     if isinstance(tasks, list) and len(tasks) == 0:
-        return load_tasks(None, model, task_args)
+        return as_resolved_tasks(load_tasks(None, model, task_args))
 
     # simple cases of passing us Task objects
     if isinstance(tasks, Task):
-        return [tasks]
+        return as_resolved_tasks([tasks])
     elif isinstance(tasks, list) and isinstance(tasks[0], Task):
-        return cast(list[Task], tasks)
+        return as_resolved_tasks(cast(list[Task], tasks))
+
+    # simple case of passing us PreviousTask
+    if isinstance(tasks, PreviousTask):
+        tasks = [tasks]
+    if isinstance(tasks, list) and isinstance(tasks[0], PreviousTask):
+        previous_tasks = cast(list[PreviousTask], tasks)
+        loaded_tasks = load_tasks(
+            [task.task for task in previous_tasks], model, task_args
+        )
+        return [
+            ResolvedTask(
+                task=loaded_task,
+                task_args=task_args,
+                task_file=previous_task.log.eval.task_file,
+                model=model,
+                toolenv=previous_task.log.eval.tool_environment,
+                sequence=sequence,
+                id=previous_task.id,
+                sample_source=eval_log_sample_source(
+                    previous_task.log, loaded_task.dataset
+                ),
+            )
+            for sequence, loaded_task, previous_task in zip(
+                range(0, len(loaded_tasks)), loaded_tasks, previous_tasks
+            )
+        ]
 
     # convert TaskInfo to str
     if isinstance(tasks, TaskInfo):
@@ -54,7 +116,9 @@ def resolve_tasks(
         tasks = [tasks]
 
     # done! let's load the tasks
-    return load_tasks(cast(list[str] | None, tasks), model, task_args)
+    return as_resolved_tasks(
+        load_tasks(cast(list[str] | None, tasks), model, task_args)
+    )
 
 
 def load_tasks(

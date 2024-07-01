@@ -126,6 +126,7 @@ Tasks = (
     | Callable[..., Task]
     | type[Task]
     | list[str]
+    | list[PreviousTask]
     | list[TaskInfo]
     | list[Task]
     | list[Callable[..., Task]]
