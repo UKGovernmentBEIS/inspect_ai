@@ -1,4 +1,10 @@
-import { DebugConfiguration, ExtensionContext, debug, window, workspace } from "vscode";
+import {
+  DebugConfiguration,
+  ExtensionContext,
+  debug,
+  window,
+  workspace,
+} from "vscode";
 import { inspectEvalCommands } from "./inspect-eval-commands";
 import { Command } from "../../core/command";
 import {
@@ -20,7 +26,6 @@ export async function activateEvalManager(
   // Activate the manager
   const inspectEvalMgr = new InspectEvalManager(stateManager);
 
-
   // Set up our terminal environment
   // Update the workspace id used in our terminal environments
   await stateManager.initializeWorkspaceId();
@@ -32,15 +37,14 @@ export async function activateEvalManager(
 
   log.append(`new: ${workspaceId}`);
 
-  env.delete('INSPECT_WORKSPACE_ID');
-  env.append('INSPECT_WORKSPACE_ID', workspaceId);
+  env.delete("INSPECT_WORKSPACE_ID");
+  env.append("INSPECT_WORKSPACE_ID", workspaceId);
 
   return [inspectEvalCommands(inspectEvalMgr), inspectEvalMgr];
 }
 
 export class InspectEvalManager {
-  constructor(private readonly stateManager_: WorkspaceStateManager) {
-  }
+  constructor(private readonly stateManager_: WorkspaceStateManager) { }
 
   public async startEval(file: AbsolutePath, task?: string, debug = false) {
     // if we don't have inspect bail and let the user know
@@ -113,7 +117,6 @@ export class InspectEvalManager {
 
     // If we're debugging, launch using the debugger
     if (debug) {
-
       // Handle debugging
       let debugPort = 5678;
       if (debug === true) {
@@ -124,7 +127,19 @@ export class InspectEvalManager {
         args.push(debugPort.toString());
       }
 
-      await runDebugger(inspectBinPath()?.path || "inspect", args, workspaceDir.path, debugPort);
+      // Pass the workspace ID to the debug environment so we'll 
+      // properly target the workspace window when showing the logview
+      const env = {
+        INSPECT_WORKSPACE_ID: this.stateManager_.getWorkspaceInstance(),
+      };
+
+      await runDebugger(
+        inspectBinPath()?.path || "inspect",
+        args,
+        workspaceDir.path,
+        debugPort,
+        env
+      );
     } else {
       // Run the command
       runEvalCmd(args, workspaceDir.path);
@@ -146,7 +161,13 @@ const runEvalCmd = (args: string[], cwd: string) => {
   terminal.sendText(["inspect", ...args].join(" "));
 };
 
-const runDebugger = async (program: string, args: string[], cwd: string, port: number) => {
+const runDebugger = async (
+  program: string,
+  args: string[],
+  cwd: string,
+  port: number,
+  env?: Record<string, string>
+) => {
   const name = "Inspect Eval";
   const debugConfiguration: DebugConfiguration = {
     name,
@@ -157,7 +178,8 @@ const runDebugger = async (program: string, args: string[], cwd: string, port: n
     console: "internalConsole",
     cwd,
     port,
-    "justMyCode": false
+    env,
+    justMyCode: false,
   };
   await debug.startDebugging(activeWorkspaceFolder(), debugConfiguration);
 };
