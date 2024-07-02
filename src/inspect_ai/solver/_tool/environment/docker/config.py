@@ -75,6 +75,7 @@ services:
     image: "python:3.12-bookworm"
     command: "tail -f /dev/null"
     network_mode: none
+    stop_grace_period: 1s
 """
 
 COMPOSE_DOCKERFILE_YAML = f"""{COMPOSE_COMMENT}
@@ -84,6 +85,7 @@ services:
       context: "."
     command: "tail -f /dev/null"
     network_mode: none
+    stop_grace_period: 1s
 """
 
 

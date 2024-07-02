@@ -9,16 +9,23 @@ from ._scorer import Scorer, scorer
 from ._target import Target
 
 
+def match_target(match: str, target: Target, ignore_case: bool) -> bool:
+    if ignore_case:
+        match = match.lower()
+        target = Target([t.lower() for t in target])
+
+    return match in target
+
+
 def match_first(
     matches: tuple[str | Any, ...], target: Target, ignore_case: bool
 ) -> str | None:
     for match in matches:
-        if isinstance(match, str):
-            if ignore_case:
-                match = match.lower()
+        if not isinstance(match, str):
+            continue
 
-            if match in target:
-                return match
+        if match_target(match, target, ignore_case):
+            return match
 
     return None
 
@@ -27,12 +34,11 @@ def match_all_groups(
     matches: tuple[str | Any, ...], target: Target, ignore_case: bool
 ) -> str | None:
     for match in matches:
-        if isinstance(match, str):
-            if ignore_case:
-                match = match.lower()
+        if not isinstance(match, str):
+            continue
 
-            if match not in target:
-                return None
+        if not match_target(match, target, ignore_case):
+            return None
 
     return target.text
 
@@ -64,21 +70,29 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
         )
 
         if match:
-            if ignore_case:
-                target = Target([t.lower() for t in target])
-
+            groups = match.groups()
             if match_all:
                 found_match = match_all_groups(
-                    matches=match.groups(), target=target, ignore_case=ignore_case
+                    matches=groups, target=target, ignore_case=ignore_case
                 )
+                answer = found_match
             else:
                 found_match = match_first(
-                    matches=match.groups(), target=target, ignore_case=ignore_case
+                    matches=groups, target=target, ignore_case=ignore_case
                 )
+
+                if found_match is None and len(groups) == 1:
+                    # A common use of a pattern is to extract a single answer
+                    # from some templated text. If we fail to match in that
+                    # scenario, it's worth returning the failed match because
+                    # this is useful information for the user.
+                    answer = groups[0]
+                else:
+                    answer = found_match
 
             return Score(
                 value=CORRECT if found_match else INCORRECT,
-                answer=found_match,
+                answer=answer,
                 explanation=state.output.completion,
             )
         else:
