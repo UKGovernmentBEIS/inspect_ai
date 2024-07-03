@@ -43,8 +43,8 @@ from dataset import read_dataset
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.solver import (
-    Generate, TaskState, bash, generate, python, solver,
-    system_message, tool_environment, use_tools
+    Generate, TaskState, generate, solver,
+    system_message, use_tools, bash, python
 )
 
 CMD_TIMEOUT = 180  # max seconds to run bash/python cmds
@@ -105,23 +105,23 @@ The default behaviour is `loop`, which along with a ReAct prompt is a sound base
 ``` python
 @solver
 def agent_loop():
-    async def solve(state: TaskState, generate: Generate):         
-        
-        while not state.completed: # <1>
+    async def solve(state: TaskState, generate: Generate):
+        while not state.completed:  # <1>
             state = await generate(state, tool_calls="none")  # <2>
-            if not state.tool_calls_pending:   # <3>
-                break                          # <3>
-            state = await call_tools(state)  # <4> 
-
+            if not state.output.message.tool_calls: # <3>
+                break                               # <3>
+            state.messages.extend(   # <4> 
+                await call_tools(state.output.message, state.tools)  # <4> 
+            )  # <4> 
         return state
-           
+
     return solve
 ```
 
 1.  The `state.completed` property will be set to `True` whenever `max_messages` is exceeded.
 2.  By specifying `tool_calls="none"`, we prevent `generate()` from actually calling any tools (this is now our responsibility via the `call_tools()` function.
 3.  It's possible that the model has chosen not to make any tool calls, and in that case we want to terminate the loop.
-4.  Explicitly resolve tool calls by invoking `call_tools()` on the state.
+4.  Explicitly resolve tool calls by invoking `call_tools()` on the assistant message and appending the returned tool messages to the history.
 
 You can imagine several ways you might want to customise this loop:
 
@@ -309,7 +309,7 @@ The examples shown above execute tool code within the main process running the e
 Let's take a look at a simple example to illustrate. First, we'll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the `tool_environment()` function to get access to the `ToolEnvironment` instance for the currently executing `Sample`:
 
 ``` python
-from inspect_ai.solver import ToolError, tool, tool_environment
+from inspect_ai.tool import ToolError, tool, tool_environment
 
 @tool(prompt="Use the list_files function to enumerate files.")
 def list_files():

@@ -4,13 +4,11 @@ from inspect_ai.model import (
     CachePolicy,
     GenerateConfig,
     Model,
-    ToolFunction,
-    ToolInfo,
+    call_tools,
 )
 from inspect_ai.model._cache import epoch
-from inspect_ai.solver import TaskState, Tool
-from inspect_ai.solver._tool.call_tools import call_tools
-from inspect_ai.solver._tool.tool_def import tool_defs
+from inspect_ai.solver import TaskState
+from inspect_ai.tool import ToolFunction
 
 
 async def task_generate(
@@ -32,14 +30,14 @@ async def task_generate(
         # call the model
         state.output = await model.generate(
             input=state.messages,
-            tools=tools_info(state.tools),
+            tools=state.tools,
             tool_choice=tool_choice,
             config=config,
             cache=cache,
         )
 
         # append the assistant message
-        message = state.output.choices[0].message
+        message = state.output.message
         state.messages.append(message)
 
         # check for completed
@@ -47,9 +45,9 @@ async def task_generate(
             return state
 
         # resolve tool calls if necessary
-        if tool_calls != "none" and state.tool_calls_pending:
-            # call tools
-            state = await call_tools(state)
+        if tool_calls != "none" and message.tool_calls:
+            # call tools and append messages to state
+            state.messages.extend(await call_tools(message, state.tools))
 
             # check for completed or only executing a single tool call
             if state.completed or tool_calls == "single":
@@ -63,11 +61,3 @@ async def task_generate(
         # no tool calls or not resolving tool calls, we are done!
         else:
             return state
-
-
-def tools_info(tools: list[Tool]) -> list[ToolInfo]:
-    tdefs = tool_defs(tools)
-    return [
-        ToolInfo(name=tool.name, description=tool.description, params=tool.params)
-        for tool in tdefs
-    ]

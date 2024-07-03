@@ -3,9 +3,8 @@ from inspect_ai.model import (
     GenerateConfig,
     ModelAPI,
     ModelOutput,
-    ToolChoice,
-    ToolInfo,
 )
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 
 class CustomModelAPI(ModelAPI):

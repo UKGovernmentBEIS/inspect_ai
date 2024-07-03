@@ -14,7 +14,8 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-from inspect_ai.model import Content
+
+from . import Content
 
 ToolResult = str | int | float | bool | list[Content]
 
@@ -31,7 +32,7 @@ class Tool(Protocol):
         self,
         *args: Any,
         **kwargs: Any,
-    ) -> ToolResult | tuple[ToolResult, dict[str, Any]]:
+    ) -> ToolResult:
         r"""Additional tool that an agent can use to solve a task.
 
         Args:
@@ -39,8 +40,7 @@ class Tool(Protocol):
             **kwargs (Any): Keyword arguments for the tool.
 
         Returns:
-            Single value or a tuple containing the value and
-            metadata to add to the task state
+            Result of tool call.
         """
         ...
 
@@ -75,7 +75,6 @@ def tool_register(tool: ToolType, name: str) -> ToolType:
 
 def tool(
     prompt: str | None = None,
-    params: dict[str, str] = {},
     name: str | None = None,
 ) -> Callable[[Callable[..., Tool]], Callable[..., Tool]]:
     r"""Decorator for registering tools.
@@ -88,22 +87,6 @@ def tool(
             Optional name for tool. If the decorator has no name
             argument then the name of the underlying ToolType
             object will be used to automatically assign a name.
-        params (params): Parameters to be passed automatically to
-            the tool. This currently allows only for mapping metadata
-            fields from the input / task state onto parameters. These
-            models precede other parameters that are used by the
-            model.
-            For example:
-
-            ```python
-            @tool(params = dict(color = "metadata.color"))
-            def mytool():
-                async def execute(color: str, cut: str):
-                    ...
-
-                return execute
-
-            ```
 
     Returns:
         Tool with registry attributes.
@@ -128,7 +111,7 @@ def tool(
                 RegistryInfo(
                     type="tool",
                     name=tool_name,
-                    metadata={TOOL_PROMPT: prompt, TOOL_PARAMS: params},
+                    metadata={TOOL_PROMPT: prompt},
                 ),
                 *args,
                 **kwargs,
@@ -142,4 +125,3 @@ def tool(
 
 
 TOOL_PROMPT = "prompt"
-TOOL_PARAMS = "params"

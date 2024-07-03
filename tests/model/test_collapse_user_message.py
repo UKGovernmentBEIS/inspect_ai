@@ -7,12 +7,10 @@ from inspect_ai.model import (
     ChatMessageUser,
     ContentImage,
     ContentText,
-    ToolCall,
-    ToolInfo,
-    ToolParam,
     get_model,
 )
 from inspect_ai.model._model import collapse_consecutive_user_messages
+from inspect_ai.tool import ToolCall, ToolInfo, ToolParam
 
 
 @pytest.fixture

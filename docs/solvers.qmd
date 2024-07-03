@@ -209,7 +209,6 @@ Finally, task states also include available tools as well as guidance for the mo
 |------------------|-------------------|-----------------------------------|
 | `tools` | list\[Tool\] | Tools available to the model |
 | `tool_choice` | ToolChoice | Tool choice directive. |
-| `tool_calls_pending` | bool | Convenience property for determining whether the last assistant message includes unresolved tool calls. |
 
 These fields are typically modified via the `use_tools()` solver, but they can also be modified directly for more advanced use cases.
 

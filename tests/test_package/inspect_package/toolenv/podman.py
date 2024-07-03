@@ -2,7 +2,7 @@ from typing import Literal, Union, overload
 
 from typing_extensions import override
 
-from inspect_ai.solver import ToolEnvironment, toolenv
+from inspect_ai.tool import ToolEnvironment, toolenv
 from inspect_ai.util import ExecResult
 
 

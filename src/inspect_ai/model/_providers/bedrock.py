@@ -12,6 +12,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import (
     ChatMessage,
@@ -23,7 +24,6 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, simple_input_messages
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
-from .._tool import ToolChoice, ToolInfo
 from .util import as_stop_reason, model_base_url
 
 

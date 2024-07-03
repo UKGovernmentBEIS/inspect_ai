@@ -140,7 +140,7 @@ def _model_graded_qa_single(
                 metadata=dict(
                     grading=[
                         ChatMessageUser(content=score_prompt),
-                        result.choices[0].message,
+                        result.message,
                     ]
                 ),
             )

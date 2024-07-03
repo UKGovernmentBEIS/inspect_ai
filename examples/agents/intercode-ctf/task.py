@@ -10,9 +10,9 @@ from inspect_ai.solver import (
     python,
     solver,
     system_message,
-    tool_environment,
     use_tools,
 )
+from inspect_ai.tool import tool_environment
 
 # maximum chat messages before giving up
 MAX_MESSAGES = 30

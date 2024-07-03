@@ -2,8 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from inspect_ai.tool import ToolCall
+
 from ._chat_message import ChatMessageAssistant
-from ._tool import ToolCall
 
 
 class ModelUsage(BaseModel):
@@ -80,6 +81,11 @@ class ModelOutput(BaseModel):
 
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
+
+    @property
+    def message(self) -> ChatMessageAssistant:
+        """First message choice."""
+        return self.choices[0].message
 
     @property
     def completion(self) -> str:

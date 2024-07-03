@@ -7,7 +7,7 @@ from typing_extensions import override
 
 from inspect_ai.util import ExecResult, subprocess
 
-from ..tool import ToolError
+from .._tool import ToolError
 from .environment import ToolEnvironment
 from .registry import toolenv
 

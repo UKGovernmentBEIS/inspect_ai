@@ -17,10 +17,15 @@ from inspect_ai._util.registry import registry_lookup
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
 from inspect_ai.log._file import JSONRecorder
 from inspect_ai.log._log import Recorder
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
+from inspect_ai.model import (
+    GenerateConfig,
+    GenerateConfigArgs,
+    Model,
+)
 from inspect_ai.model._model import resolve_models
-from inspect_ai.solver import Plan, Solver, ToolEnvironmentSpec
-from inspect_ai.solver._tool.environment.context import startup_tool_environments
+from inspect_ai.solver import Plan, Solver
+from inspect_ai.tool import ToolEnvironmentSpec
+from inspect_ai.tool._environment.context import startup_tool_environments
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
