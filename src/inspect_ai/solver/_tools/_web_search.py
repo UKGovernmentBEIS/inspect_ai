@@ -1,14 +1,13 @@
 import asyncio
 import os
-from typing import Any, Literal, Protocol, cast, runtime_checkable
+from typing import Literal, Protocol, cast, runtime_checkable
 
 import httpx
 from bs4 import BeautifulSoup, NavigableString
 
 from inspect_ai.model import Model, get_model
+from inspect_ai.tool import Tool, ToolResult, tool
 from inspect_ai.util import concurrency
-
-from .tool import Tool, ToolResult, tool
 
 DEFAULT_RELEVANCE_PROMPT = """I am trying to answer the following question and need to find the most relevant information on the web. Please let me know if the following content is relevant to the question or not. You should just respond with "yes" or "no".
 
@@ -59,7 +58,7 @@ def web_search(
     # resolve model
     relevance_model = get_model(model)
 
-    async def execute(query: str) -> tuple[ToolResult, dict[str, Any]]:
+    async def execute(query: str) -> ToolResult:
         """
         Tool for searching the web.
 
@@ -103,14 +102,7 @@ def web_search(
                 + all_page_contents
             )
 
-        results = [
-            dict(
-                url=url,
-                snippet=snippet,
-            )
-            for url, snippet in zip(urls, snippets)
-        ]
-        return response, {"web_search": {"query": query, "results": results}}
+        return response
 
     return execute
 
@@ -155,14 +147,10 @@ async def page_if_relevant(
         )
 
     is_relevant = (
-        (
-            await relevance_model.generate(
-                DEFAULT_RELEVANCE_PROMPT.format(question=query, text=full_text)
-            )
+        await relevance_model.generate(
+            DEFAULT_RELEVANCE_PROMPT.format(question=query, text=full_text)
         )
-        .choices[0]
-        .message.text
-    )
+    ).message.text
 
     if "yes" in is_relevant.lower():
         return full_text

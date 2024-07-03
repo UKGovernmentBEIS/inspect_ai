@@ -1,12 +1,13 @@
 from typing import Any, Iterable, Iterator
 
+from inspect_ai.tool import ToolChoice, ToolInfo
+
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
     ModelOutput,
 )
-from .._tool import ToolChoice, ToolInfo
 
 
 class MockLLM(ModelAPI):

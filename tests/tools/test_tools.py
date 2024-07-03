@@ -18,8 +18,6 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     Model,
-    ToolCall,
-    ToolFunction,
     get_model,
 )
 from inspect_ai.scorer import match
@@ -28,9 +26,9 @@ from inspect_ai.solver import (
     TaskState,
     generate,
     solver,
-    tool,
     use_tools,
 )
+from inspect_ai.tool import ToolCall, ToolFunction, tool
 
 # we define 3 versions of addition so we can test the ability to force the
 # the model to use a certain tool via tool_choice=ToolFunction()

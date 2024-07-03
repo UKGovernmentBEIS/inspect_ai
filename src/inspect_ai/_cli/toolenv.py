@@ -2,7 +2,7 @@ import asyncio
 
 import click
 
-from inspect_ai.solver._tool.environment.registry import registry_find_toolenv
+from inspect_ai.tool._environment.registry import registry_find_toolenv
 
 
 @click.group("toolenv")

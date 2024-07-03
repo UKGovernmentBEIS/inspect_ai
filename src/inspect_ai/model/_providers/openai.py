@@ -24,11 +24,12 @@ from openai.types.shared_params.function_definition import FunctionDefinition
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
+from inspect_ai._util.content import Content
 from inspect_ai._util.images import image_as_data_uri
 from inspect_ai._util.url import is_data_uri, is_http_url
+from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
-from .._content import Content
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
@@ -37,7 +38,6 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
 )
-from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
 from .util import (
     as_stop_reason,

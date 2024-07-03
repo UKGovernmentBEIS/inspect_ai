@@ -204,7 +204,7 @@ The `ToolEnvironment` instance methods provide access to process execution and f
 
 2.  The `read_file()` method raise a `FileNotFoundError` if the specified `file` does not exist in the tool environment, as tools calling `read_file()` will often want to catch the `FileNotFoundError` and re-throw a `ToolError` (since models will frequently attempt to read files that do not exist).
 
-The best way to learn about writing tool environments is to look at the source code for the built in environments, [LocalToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/local.py) and [DockerToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_tool/environment/docker/docker.py).
+The best way to learn about writing tool environments is to look at the source code for the built in environments, [LocalToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_environment/local.py) and [DockerToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_environment/docker/docker.py).
 
 ### Environment Registration
 

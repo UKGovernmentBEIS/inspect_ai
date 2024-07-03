@@ -29,8 +29,10 @@ from google.protobuf.json_format import ParseDict
 from google.protobuf.struct_pb2 import Struct
 from typing_extensions import override
 
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data
+from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
 
 from .._chat_message import (
     ChatMessage,
@@ -39,11 +41,9 @@ from .._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from .._content import Content, ContentImage, ContentText
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import ChatCompletionChoice, ModelOutput, StopReason
-from .._tool import ToolCall, ToolChoice, ToolInfo
 from .._util import chat_api_tool
 from .util import model_base_url
 

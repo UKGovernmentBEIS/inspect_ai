@@ -29,12 +29,17 @@ from anthropic.types.tool_param import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data_uri
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
+from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
-from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
-from .._content import Content, ContentText
+from .._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+)
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
@@ -43,7 +48,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
 from .util import model_base_url
 

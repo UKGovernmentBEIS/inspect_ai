@@ -1,5 +1,8 @@
 # ruff: noqa: F401 F403 F405
 
+from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.deprecation import relocated_module_attribute
+
 from ._cache import (
     CachePolicy,
     cache_clear,
@@ -8,6 +11,7 @@ from ._cache import (
     cache_prune,
     cache_size,
 )
+from ._call_tools import call_tools
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -15,7 +19,6 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._content import Content, ContentImage, ContentText
 from ._generate_config import GenerateConfig, GenerateConfigArgs
 from ._model import (
     Model,
@@ -34,7 +37,6 @@ from ._model_output import (
 )
 from ._providers.providers import *
 from ._registry import modelapi
-from ._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo, ToolParam
 
 __all__ = [
     "GenerateConfig",
@@ -58,12 +60,7 @@ __all__ = [
     "ModelName",
     "ModelUsage",
     "StopReason",
-    "ToolCall",
-    "ToolChoice",
-    "ToolFunction",
-    "ToolInfo",
-    "ToolParam",
-    "ToolType",
+    "call_tools",
     "cache_clear",
     "cache_list_expired",
     "cache_path",
@@ -72,3 +69,21 @@ __all__ = [
     "get_model",
     "modelapi",
 ]
+
+_TOOL_MODULE_VERSION = "0.3.18"
+_REMOVED_IN = "0.4"
+relocated_module_attribute(
+    "ToolCall", "inspect_ai.tool.ToolCall", _TOOL_MODULE_VERSION, _REMOVED_IN
+)
+relocated_module_attribute(
+    "ToolChoice", "inspect_ai.tool.ToolChoice", _TOOL_MODULE_VERSION, _REMOVED_IN
+)
+relocated_module_attribute(
+    "ToolFunction", "inspect_ai.tool.ToolFunction", _TOOL_MODULE_VERSION, _REMOVED_IN
+)
+relocated_module_attribute(
+    "ToolParam", "inspect_ai.tool.ToolParam", _TOOL_MODULE_VERSION, _REMOVED_IN
+)
+relocated_module_attribute(
+    "ToolInfo", "inspect_ai.tool.ToolInfo", _TOOL_MODULE_VERSION, _REMOVED_IN
+)

@@ -2,13 +2,11 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes, match
 from inspect_ai.solver import (
-    ToolError,
     generate,
     system_message,
-    tool,
-    tool_environment,
     use_tools,
 )
+from inspect_ai.tool import ToolError, tool, tool_environment
 
 
 @tool(

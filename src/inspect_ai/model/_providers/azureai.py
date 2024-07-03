@@ -7,6 +7,7 @@ import httpx
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
@@ -17,7 +18,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._tool import ToolChoice, ToolInfo
 from .._util import (
     chat_api_input,
     chat_api_request,

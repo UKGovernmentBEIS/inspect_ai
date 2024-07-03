@@ -17,7 +17,7 @@ from inspect_ai._util.registry import (
     registry_lookup,
 )
 from inspect_ai.model import Model, ModelName
-from inspect_ai.solver._tool.environment.environment import ToolEnvironmentSpec
+from inspect_ai.tool import ToolEnvironmentSpec
 
 from .list import task_files
 from .registry import task_create

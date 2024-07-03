@@ -45,12 +45,13 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.scorer import Score, Scorer, Target
-from inspect_ai.solver import Generate, Plan, Solver, TaskState, ToolEnvironment
-from inspect_ai.solver._tool.environment.context import (
+from inspect_ai.solver import Generate, Plan, Solver, TaskState
+from inspect_ai.tool import ToolEnvironment
+from inspect_ai.tool._environment.context import (
     cleanup_tool_environments_sample,
     init_tool_environments_sample,
 )
-from inspect_ai.solver._tool.environment.registry import registry_find_toolenv
+from inspect_ai.tool._environment.registry import registry_find_toolenv
 
 from ..context import init_task_context
 from ..task import Task

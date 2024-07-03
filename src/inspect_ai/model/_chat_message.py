@@ -2,8 +2,8 @@ from typing import Literal, Union
 
 from pydantic import BaseModel, Field
 
-from ._content import Content, ContentText
-from ._tool import ToolCall
+from inspect_ai._util.content import Content, ContentText
+from inspect_ai.tool import ToolCall
 
 
 class ChatMessageBase(BaseModel):

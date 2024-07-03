@@ -7,7 +7,7 @@ from typing import Literal, Union, cast, overload
 import aiofiles
 from typing_extensions import override
 
-from inspect_ai.solver._tool.tool import ToolError
+from inspect_ai.tool._tool import ToolError
 from inspect_ai.util._subprocess import ExecResult
 
 from ..environment import ToolEnvironment

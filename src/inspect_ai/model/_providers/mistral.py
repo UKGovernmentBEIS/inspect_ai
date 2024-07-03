@@ -27,6 +27,7 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT,
 )
+from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
@@ -37,7 +38,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
 from .util import model_base_url, parse_tool_call
 

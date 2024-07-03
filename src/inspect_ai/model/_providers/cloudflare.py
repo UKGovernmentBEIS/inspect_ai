@@ -6,8 +6,8 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
+from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._tool import ToolChoice, ToolInfo
 from .._util import (
     chat_api_input,
     chat_api_request,

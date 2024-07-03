@@ -17,6 +17,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
@@ -26,19 +27,19 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
+from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util import concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
+from ._call_tools import tools_info
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
 )
-from ._content import Content, ContentText
 from ._generate_config import GenerateConfig
 from ._model_output import ModelOutput, ModelUsage
-from ._tool import ToolChoice, ToolFunction, ToolInfo
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +145,7 @@ class Model:
     async def generate(
         self,
         input: str | list[ChatMessage],
-        tools: list[ToolInfo] = [],
+        tools: list[Tool] | list[ToolInfo] = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
@@ -155,7 +156,7 @@ class Model:
           input (str | list[ChatMessage]): Chat message
             input (if a `str` is passed it is converted
             to a `ChatMessageUser`).
-          tools (list[ToolInfo]): Tools available for the
+          tools (list[Tool] | list[ToolInfo]): Tools available for the
             model to call.
           tool_choice (ToolChoice): Directives to the model
             as to which tools to prefer.
@@ -186,7 +187,7 @@ class Model:
         async with self._connection_concurrency(config):
             return await self._generate(
                 input=input,
-                tools=tools,
+                tools=tools_info(tools),
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache,

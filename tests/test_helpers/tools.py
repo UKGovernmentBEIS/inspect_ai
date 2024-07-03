@@ -1,20 +1,17 @@
-from inspect_ai.model import ContentText
-from inspect_ai.solver import ToolError, tool, tool_environment
+from inspect_ai.tool import ContentText, ToolError, tool, tool_environment
 
 
 # define tool
 @tool(
     prompt="""If you are given a math problem of any kind,
-    please use the addition tool to compute the result.""",
-    params={"color": "metadata.color"},
+    please use the addition tool to compute the result."""
 )
 def addition():
-    async def add(color: str, x: int, y: int):
+    async def add(x: int, y: int):
         """
         Tool for adding two numbers.
 
         Args:
-            color (str): Color
             x (int): First number to add.
             y (int): Second number to add.
 

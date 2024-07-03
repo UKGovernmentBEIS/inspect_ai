@@ -34,13 +34,10 @@ from inspect_ai.model import (
     GenerateConfig,
     ModelName,
     ModelOutput,
-    ToolCall,
-    ToolChoice,
-    ToolInfo,
-    ToolParam,
     get_model,
 )
 from inspect_ai.solver import Generate, Solver, TaskState
+from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam
 
 
 @runtime_checkable
@@ -135,7 +132,7 @@ class InspectChatModel(BaseChatModel):
 
         # track last messages / model output
         self.messages = input
-        self.messages.append(result.choices[0].message)
+        self.messages.append(result.message)
         self.output = result
 
         # extract choices

@@ -5,16 +5,14 @@ from typing import Any, Union, overload
 
 from inspect_ai.model import (
     ChatMessage,
-    ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
     ModelName,
     ModelOutput,
-    ToolChoice,
 )
-from inspect_ai.solver._tool.tool_def import tool_defs
+from inspect_ai.model._call_tools import tool_defs
+from inspect_ai.tool import Tool, ToolChoice
 
-from ._tool.tool import Tool
 from ._util import append_system_message
 
 
@@ -269,13 +267,3 @@ class TaskState:
 
         # set the tools
         self._tools = tools
-
-    @property
-    def tool_calls_pending(self) -> bool:
-        if (
-            isinstance(self.messages[-1], ChatMessageAssistant)
-            and self.messages[-1].tool_calls
-        ):
-            return True
-        else:
-            return False
