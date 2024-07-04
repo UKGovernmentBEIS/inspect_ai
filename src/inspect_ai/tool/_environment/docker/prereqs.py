@@ -25,14 +25,14 @@ async def validate_prereqs() -> None:
     await validate_docker_compose()
 
 
-# Version that corresponds to Docker Desktop w/ Compose v2.22.0
-# (which we require for the pull '--policy' option)
+# Version that corresponds to Docker Desktop w/ Compose v2.21.0
 # Linux versions of Docker Engine (docker-ce) also include
 # Docker Compose as a dependency as of this version
 # https://docs.docker.com/engine/release-notes/24.0/#2407
-async def validate_docker_engine() -> None:
-    DOCKER_ENGINE_REQUIRED_VERSION = "24.0.7"
+DOCKER_ENGINE_REQUIRED_VERSION = "24.0.6"
 
+
+async def validate_docker_engine(version: str = DOCKER_ENGINE_REQUIRED_VERSION) -> None:
     def parse_version(stdout: str) -> semver.Version:
         version = DockerVersion(**json.loads(stdout)).Client.Version
         return semver.Version.parse(version)
@@ -40,15 +40,21 @@ async def validate_docker_engine() -> None:
     await validate_version(
         cmd=["docker", "version", "--format", "json"],
         parse_fn=parse_version,
-        required_version=DOCKER_ENGINE_REQUIRED_VERSION,
+        required_version=version,
         feature="Docker Engine",
     )
 
 
-# We require Compose v2.22.0 for the pull '--policy' option
-async def validate_docker_compose() -> None:
-    DOCKER_COMPOSE_REQUIRED_VERSION = "2.22.0"
+# We require Compose v2.21.0, however if we are going to use
+# the pull '--policy' option we call this again with 2.22.0
 
+DOCKER_COMPOSE_REQUIRED_VERSION = "2.21.0"
+DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY = "2.22.0"
+
+
+async def validate_docker_compose(
+    version: str = DOCKER_COMPOSE_REQUIRED_VERSION,
+) -> None:
     def parse_version(stdout: str) -> semver.Version:
         version = json.loads(stdout)["version"].removeprefix("v")
         return semver.Version.parse(version)
@@ -56,7 +62,7 @@ async def validate_docker_compose() -> None:
     await validate_version(
         cmd=["docker", "compose", "version", "--format", "json"],
         parse_fn=parse_version,
-        required_version=DOCKER_COMPOSE_REQUIRED_VERSION,
+        required_version=version,
         feature="Docker Compose",
     )
 
