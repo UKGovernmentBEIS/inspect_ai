@@ -394,6 +394,18 @@
           "default": null,
           "title": "Max Subprocesses"
         },
+        "toolenv_cleanup": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Toolenv Cleanup"
+        },
         "log_samples": {
           "anyOf": [
             {
@@ -439,6 +451,7 @@
         "max_messages",
         "max_samples",
         "max_subprocesses",
+        "toolenv_cleanup",
         "log_samples",
         "log_images",
         "log_buffer"
