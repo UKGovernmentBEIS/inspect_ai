@@ -24,6 +24,7 @@ from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
+from inspect_ai._util.telemetry import send_telemetry
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri
 from inspect_ai._view.view import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
@@ -35,6 +36,7 @@ from inspect_ai.log import (
     EvalSample,
     EvalStats,
 )
+from inspect_ai.log._file import eval_log_json
 from inspect_ai.log._log import eval_error
 from inspect_ai.model import (
     CachePolicy,
@@ -272,6 +274,8 @@ async def task_run(
     # notify the view module that an eval just completed
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
+
+    await send_telemetry("eval_log", eval_log_json(eval_log))
 
     # return eval log
     return eval_log

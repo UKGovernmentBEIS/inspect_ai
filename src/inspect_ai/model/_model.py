@@ -27,6 +27,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
+from inspect_ai._util.telemetry import send_telemetry
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util import concurrency
 
@@ -304,6 +305,7 @@ class Model:
         # record usage
         if model_output.usage:
             record_model_usage(f"{self}", model_output.usage)
+            await send_telemetry("model_usage", model_output.usage.model_dump_json())
 
         # return results
         return model_output

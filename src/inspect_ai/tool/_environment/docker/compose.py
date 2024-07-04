@@ -9,6 +9,10 @@ from pydantic import BaseModel
 
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
+from .prereqs import (
+    DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
+    validate_docker_compose,
+)
 from .util import ComposeProject, is_inspect_project, tools_log
 
 logger = getLogger(__name__)
@@ -112,6 +116,8 @@ async def compose_build(project: ComposeProject, capture_output: bool = False) -
 async def compose_pull(
     service: str, project: ComposeProject, capture_output: bool = False
 ) -> ExecResult[str]:
+    await validate_docker_compose(DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY)
+
     return await compose_command(
         ["pull", "--ignore-buildable", "--policy", "missing", service],
         project=project,
