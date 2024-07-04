@@ -1,6 +1,7 @@
 import abc
 import asyncio
 import functools
+import json
 import logging
 import os
 from contextvars import ContextVar
@@ -27,7 +28,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
-from inspect_ai._util.telemetry import send_telemetry
+from inspect_ai._util.telemetry import init_telemetry, send_telemetry
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util import concurrency
 
@@ -294,6 +295,14 @@ class Model:
                 config=config,
             )
 
+            # record usage
+            if output.usage:
+                record_model_usage(f"{self}", output.usage)
+                await send_telemetry(
+                    "model_usage",
+                    json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
+                )
+
             if cache:
                 cache_store(entry=cache_entry, output=output)
 
@@ -301,11 +310,6 @@ class Model:
 
         # call the model
         model_output = await generate()
-
-        # record usage
-        if model_output.usage:
-            record_model_usage(f"{self}", model_output.usage)
-            await send_telemetry("model_usage", model_output.usage.model_dump_json())
 
         # return results
         return model_output
@@ -455,6 +459,9 @@ def get_model(
     # find a matching model type
     modelapi_types = registry_find(match_modelapi_type)
     if len(modelapi_types) > 0:
+        # create the model (init_telemetry here in case the model api
+        # is being used as a stadalone model interface outside of evals)
+        init_telemetry()
         modelapi_type = cast(type[ModelAPI], modelapi_types[0])
         modelapi_instance = modelapi_type(
             model_name=model,

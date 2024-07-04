@@ -25,6 +25,7 @@ export type Epochs = number | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
 export type MaxSubprocesses = number | null;
+export type ToolenvCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogImages = boolean | null;
 export type LogBuffer = number | null;
@@ -199,6 +200,7 @@ export interface EvalConfig {
   max_messages: MaxMessages;
   max_samples: MaxSamples;
   max_subprocesses: MaxSubprocesses;
+  toolenv_cleanup: ToolenvCleanup;
   log_samples: LogSamples;
   log_images: LogImages;
   log_buffer: LogBuffer;

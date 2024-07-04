@@ -61,6 +61,9 @@ async def score(
     if eval_log.samples is None or len(eval_log.samples) == 0:
         raise ValueError(f"{log_file} does not include samples to score")
 
+    # init eval context
+    init_eval_context()
+
     # get the model then initialize the async context
     model = get_model(
         model=eval_log.eval.model,
@@ -69,7 +72,6 @@ async def score(
     )
 
     # initialize active model
-    init_eval_context()
     init_task_context(model)
 
     # instantiate the task so we can get its scorer and metrics
