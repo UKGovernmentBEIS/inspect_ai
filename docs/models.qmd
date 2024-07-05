@@ -275,7 +275,7 @@ You can also pass a fully instantiated `Model` object (for example, if you wante
 ``` python
 from inspect_ai import Task, task
 from inspect_ai.dataset import json_dataset
-from inspect_ai.model import GenerationConfig, get_model
+from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import chain_of_thought, generate, self_critique
 
@@ -284,7 +284,7 @@ def theory_of_mind():
 
   critique_model = get_model("google/gemini-1.0-pro")
 
-  grader_model = get_model("anthropic/claude-2.1", config = GenerationConfig(
+  grader_model = get_model("anthropic/claude-2.1", config = GenerateConfig(
     temperature = 0.9,
     max_connections = 10
   ))
@@ -302,7 +302,7 @@ def theory_of_mind():
 
 ## Model Args
 
-The section above illustrates passing model specific arguments to local models on the command line, in `eval()`, and in `get_model()`. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn't covered by the `GenerationConfig`, you can use this method to do it. For example, here we specify the `transport` option for a Google Gemini model:
+The section above illustrates passing model specific arguments to local models on the command line, in `eval()`, and in `get_model()`. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use this method to do it. For example, here we specify the `transport` option for a Google Gemini model:
 
 ``` bash
 inspect eval popularity --model google/gemini-1.0-pro -M transport:grpc
