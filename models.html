@@ -694,7 +694,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>You can also pass a fully instantiated <code>Model</code> object (for example, if you wanted to override its default configuration) by using the <code>get_model()</code> function. For example, here we’ll provide custom models for both critique and scoring:</p>
 <div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> GenerationConfig, get_model</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> GenerateConfig, get_model</span>
 <span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
 <span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> chain_of_thought, generate, self_critique</span>
 <span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a></span>
@@ -703,7 +703,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>  critique_model <span class="op">=</span> get_model(<span class="st">"google/gemini-1.0-pro"</span>)</span>
 <span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>  grader_model <span class="op">=</span> get_model(<span class="st">"anthropic/claude-2.1"</span>, config <span class="op">=</span> GenerationConfig(</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>  grader_model <span class="op">=</span> get_model(<span class="st">"anthropic/claude-2.1"</span>, config <span class="op">=</span> GenerateConfig(</span>
 <span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>    temperature <span class="op">=</span> <span class="fl">0.9</span>,</span>
 <span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>    max_connections <span class="op">=</span> <span class="dv">10</span></span>
 <span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>  ))</span>
@@ -720,7 +720,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="model-args" class="level2">
 <h2 class="anchored" data-anchor-id="model-args">Model Args</h2>
-<p>The section above illustrates passing model specific arguments to local models on the command line, in <code>eval()</code>, and in <code>get_model()</code>. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn’t covered by the <code>GenerationConfig</code>, you can use this method to do it. For example, here we specify the <code>transport</code> option for a Google Gemini model:</p>
+<p>The section above illustrates passing model specific arguments to local models on the command line, in <code>eval()</code>, and in <code>get_model()</code>. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn’t covered by the <code>GenerateConfig</code>, you can use this method to do it. For example, here we specify the <code>transport</code> option for a Google Gemini model:</p>
 <div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity <span class="at">--model</span> google/gemini-1.0-pro <span class="at">-M</span> transport:grpc</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The additional <code>model_args</code> are forwarded as follows for the various providers:</p>
 <table class="table">

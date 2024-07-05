@@ -361,8 +361,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
 <span id="annotated-cell-2-4"><a href="#annotated-cell-2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> (</span>
-<span id="annotated-cell-2-5"><a href="#annotated-cell-2-5" aria-hidden="true" tabindex="-1"></a>    Generate, TaskState, bash, generate, python, solver,</span>
-<span id="annotated-cell-2-6"><a href="#annotated-cell-2-6" aria-hidden="true" tabindex="-1"></a>    system_message, tool_environment, use_tools</span>
+<span id="annotated-cell-2-5"><a href="#annotated-cell-2-5" aria-hidden="true" tabindex="-1"></a>    Generate, TaskState, generate, solver,</span>
+<span id="annotated-cell-2-6"><a href="#annotated-cell-2-6" aria-hidden="true" tabindex="-1"></a>    system_message, use_tools, bash, python</span>
 <span id="annotated-cell-2-7"><a href="#annotated-cell-2-7" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="annotated-cell-2-8"><a href="#annotated-cell-2-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="annotated-cell-2-9"><a href="#annotated-cell-2-9" aria-hidden="true" tabindex="-1"></a>CMD_TIMEOUT <span class="op">=</span> <span class="dv">180</span>  <span class="co"># max seconds to run bash/python cmds</span></span>
@@ -450,33 +450,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The default behaviour is <code>loop</code>, which along with a ReAct prompt is a sound baseline choice for many agents. More sophisticated agents though will often want to use a custom solver that goes well beyond a simple loop. As a starting point, here is a solver that emulates the default <code>loop</code> behaviour:</p>
 <div class="sourceCode" id="annotated-cell-3"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-3-1"><a href="#annotated-cell-3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="annotated-cell-3-2"><a href="#annotated-cell-3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_loop():</span>
-<span id="annotated-cell-3-3"><a href="#annotated-cell-3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):         </span>
-<span id="annotated-cell-3-4"><a href="#annotated-cell-3-4" aria-hidden="true" tabindex="-1"></a>        </span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="1">1</button><span id="annotated-cell-3-5" class="code-annotation-target"><a href="#annotated-cell-3-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="kw">not</span> state.completed:</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="2">2</button><span id="annotated-cell-3-6" class="code-annotation-target"><a href="#annotated-cell-3-6" aria-hidden="true" tabindex="-1"></a>            state <span class="op">=</span> <span class="cf">await</span> generate(state, tool_calls<span class="op">=</span><span class="st">"none"</span>)</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="3">3</button><span id="annotated-cell-3-7" class="code-annotation-target"><a href="#annotated-cell-3-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> state.tool_calls_pending:</span>
-<span id="annotated-cell-3-8"><a href="#annotated-cell-3-8" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="4">4</button><span id="annotated-cell-3-9" class="code-annotation-target"><a href="#annotated-cell-3-9" aria-hidden="true" tabindex="-1"></a>            state <span class="op">=</span> <span class="cf">await</span> call_tools(state)</span>
-<span id="annotated-cell-3-10"><a href="#annotated-cell-3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-3-3"><a href="#annotated-cell-3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="1">1</button><span id="annotated-cell-3-4" class="code-annotation-target"><a href="#annotated-cell-3-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="kw">not</span> state.completed:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="2">2</button><span id="annotated-cell-3-5" class="code-annotation-target"><a href="#annotated-cell-3-5" aria-hidden="true" tabindex="-1"></a>            state <span class="op">=</span> <span class="cf">await</span> generate(state, tool_calls<span class="op">=</span><span class="st">"none"</span>)</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="3">3</button><span id="annotated-cell-3-6" class="code-annotation-target"><a href="#annotated-cell-3-6" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> state.output.message.tool_calls:</span>
+<span id="annotated-cell-3-7"><a href="#annotated-cell-3-7" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="4">4</button><span id="annotated-cell-3-8" class="code-annotation-target"><a href="#annotated-cell-3-8" aria-hidden="true" tabindex="-1"></a>            state.messages.extend(</span>
+<span id="annotated-cell-3-9"><a href="#annotated-cell-3-9" aria-hidden="true" tabindex="-1"></a>                <span class="cf">await</span> call_tools(state.output.message, state.tools)</span>
+<span id="annotated-cell-3-10"><a href="#annotated-cell-3-10" aria-hidden="true" tabindex="-1"></a>            )</span>
 <span id="annotated-cell-3-11"><a href="#annotated-cell-3-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="annotated-cell-3-12"><a href="#annotated-cell-3-12" aria-hidden="true" tabindex="-1"></a>           </span>
+<span id="annotated-cell-3-12"><a href="#annotated-cell-3-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="annotated-cell-3-13"><a href="#annotated-cell-3-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
 <dt data-target-cell="annotated-cell-3" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="5" data-code-annotation="1">The <code>state.completed</code> property will be set to <code>True</code> whenever <code>max_messages</code> is exceeded.</span>
+<span data-code-cell="annotated-cell-3" data-code-lines="4" data-code-annotation="1">The <code>state.completed</code> property will be set to <code>True</code> whenever <code>max_messages</code> is exceeded.</span>
 </dd>
 <dt data-target-cell="annotated-cell-3" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="6" data-code-annotation="2">By specifying <code>tool_calls="none"</code>, we prevent <code>generate()</code> from actually calling any tools (this is now our responsibility via the <code>call_tools()</code> function.</span>
+<span data-code-cell="annotated-cell-3" data-code-lines="5" data-code-annotation="2">By specifying <code>tool_calls="none"</code>, we prevent <code>generate()</code> from actually calling any tools (this is now our responsibility via the <code>call_tools()</code> function.</span>
 </dd>
 <dt data-target-cell="annotated-cell-3" data-target-annotation="3">3</dt>
 <dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="7,8" data-code-annotation="3">It’s possible that the model has chosen not to make any tool calls, and in that case we want to terminate the loop.</span>
+<span data-code-cell="annotated-cell-3" data-code-lines="6,7" data-code-annotation="3">It’s possible that the model has chosen not to make any tool calls, and in that case we want to terminate the loop.</span>
 </dd>
 <dt data-target-cell="annotated-cell-3" data-target-annotation="4">4</dt>
 <dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="9" data-code-annotation="4">Explicitly resolve tool calls by invoking <code>call_tools()</code> on the state.</span>
+<span data-code-cell="annotated-cell-3" data-code-lines="8,9,10" data-code-annotation="4">Explicitly resolve tool calls by invoking <code>call_tools()</code> on the assistant message and appending the returned tool messages to the history.</span>
 </dd>
 </dl>
 <p>You can imagine several ways you might want to customise this loop:</p>
@@ -661,7 +661,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="example-file-listing" class="level3">
 <h3 class="anchored" data-anchor-id="example-file-listing">Example: File Listing</h3>
 <p>Let’s take a look at a simple example to illustrate. First, we’ll define a <code>list_files()</code> tool. This tool need to access the <code>ls</code> command—it does so by calling the <code>tool_environment()</code> function to get access to the <code>ToolEnvironment</code> instance for the currently executing <code>Sample</code>:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> ToolError, tool, tool_environment</span>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> ToolError, tool, tool_environment</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(prompt<span class="op">=</span><span class="st">"Use the list_files function to enumerate files."</span>)</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> list_files():</span>
