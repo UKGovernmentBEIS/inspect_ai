@@ -408,7 +408,7 @@ def get_model(
          if `None` is passed then the model currently being
          evaluated is returned (or if there is no evaluation
          then the model referred to by `INSPECT_EVAL_MODEL`).
-       config (GenerationConfig): Configuration for model.
+       config (GenerateConfig): Configuration for model.
        base_url (str | None): Optional. Alternate base URL for model.
        api_key (str | None): Optional. API key for model.
        **model_args (dict[str,Any]): Additional args to
