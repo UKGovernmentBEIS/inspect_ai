@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from inspect_ai._util.json import JSONType
 
@@ -16,6 +17,11 @@ class ToolParam:
 
     optional: bool
     """Is the parameter optional"""
+
+    properties: dict[str, Any] = field(default_factory=dict)
+    """Additional properties for tool param.
+
+    For example: properties={"items": {"type": "string"}} for a list of strings as tool param."""
 
 
 @dataclass
