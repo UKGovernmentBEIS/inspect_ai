@@ -6,8 +6,8 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
+from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._tool import ToolChoice, ToolInfo
 from .._util import (
     chat_api_input,
     chat_api_request,
@@ -24,16 +24,20 @@ class CloudFlareAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+        )
         self.account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
         if not self.account_id:
             raise RuntimeError("CLOUDFLARE_ACCOUNT_ID environment variable not set")
-        self.api_token = os.getenv("CLOUDFLARE_API_TOKEN")
-        if not self.api_token:
-            raise RuntimeError("CLOUDFLARE_API_TOKEN environment variable not set")
+        if not self.api_key:
+            self.api_key = os.getenv("CLOUDFLARE_API_TOKEN")
+            if not self.api_key:
+                raise RuntimeError("CLOUDFLARE_API_TOKEN environment variable not set")
         self.client = httpx.AsyncClient()
         base_url = model_base_url(base_url, "CLOUDFLARE_BASE_URL")
         self.base_url = (
@@ -62,7 +66,7 @@ class CloudFlareAPI(ModelAPI):
             self.client,
             model_name=self.model_name,
             url=f"{chat_url}/{self.model_name}",
-            headers={"Authorization": f"Bearer {self.api_token}"},
+            headers={"Authorization": f"Bearer {self.api_key}"},
             json=json,
             config=config,
         )

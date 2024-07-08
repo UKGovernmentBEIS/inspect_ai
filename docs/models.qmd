@@ -118,7 +118,7 @@ Use `inspect eval --help` to learn about all of the available generation config 
 
 Inspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.
 
-If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Eval Tuning](eval-tuning.qmd) includes additional documentation on how to do this). Note that the next section describes how you can set a model-provider specific value for `max_connections` as well as other generation options.
+If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.qmd) includes additional documentation on how to do this). Note that the next section describes how you can set a model-provider specific value for `max_connections` as well as other generation options.
 
 ### Model Specific Configuration
 
@@ -275,7 +275,7 @@ You can also pass a fully instantiated `Model` object (for example, if you wante
 ``` python
 from inspect_ai import Task, task
 from inspect_ai.dataset import json_dataset
-from inspect_ai.model import GenerationConfig, get_model
+from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import chain_of_thought, generate, self_critique
 
@@ -284,7 +284,7 @@ def theory_of_mind():
 
   critique_model = get_model("google/gemini-1.0-pro")
 
-  grader_model = get_model("anthropic/claude-2.1", config = GenerationConfig(
+  grader_model = get_model("anthropic/claude-2.1", config = GenerateConfig(
     temperature = 0.9,
     max_connections = 10
   ))
@@ -302,7 +302,7 @@ def theory_of_mind():
 
 ## Model Args
 
-The section above illustrates passing model specific arguments to local models on the command line, in `eval()`, and in `get_model()`. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn't covered by the `GenerationConfig`, you can use this method to do it. For example, here we specify the `transport` option for a Google Gemini model:
+The section above illustrates passing model specific arguments to local models on the command line, in `eval()`, and in `get_model()`. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use this method to do it. For example, here we specify the `transport` option for a Google Gemini model:
 
 ``` bash
 inspect eval popularity --model google/gemini-1.0-pro -M transport:grpc

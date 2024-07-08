@@ -33,10 +33,10 @@ from inspect_ai.model import (
     Model,
     ModelName,
 )
-from inspect_ai.model._model import collect_model_usage
+from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
-from inspect_ai.solver import Plan, Solver, TaskState, ToolEnvironmentSpec
-from inspect_ai.util._context.logger import collect_logger_records
+from inspect_ai.solver import Plan, Solver, TaskState
+from inspect_ai.util._logger import logger_records
 
 
 class TaskLogger:
@@ -45,12 +45,11 @@ class TaskLogger:
         task_name: str,
         task_version: int,
         task_file: str | None,
-        task_run_dir: str,
         task_id: str | None,
         run_id: str,
         model: Model,
         dataset: Dataset,
-        tool_environment: ToolEnvironmentSpec | None,
+        tool_environment: tuple[str, str | None] | None,
         task_attribs: dict[str, Any],
         task_args: dict[str, Any],
         model_args: dict[str, Any],
@@ -58,7 +57,7 @@ class TaskLogger:
         recorder: Recorder,
     ) -> None:
         # determine versions
-        git = git_context(task_run_dir)
+        git = git_context()
         revision = (
             EvalRevision(type="git", origin=git.origin, commit=git.commit)
             if git
@@ -82,11 +81,7 @@ class TaskLogger:
                 samples=len(dataset),
                 shuffled=dataset.shuffled,
             ),
-            tool_environment=(
-                (tool_environment, None)
-                if isinstance(tool_environment, str)
-                else tool_environment
-            ),
+            tool_environment=tool_environment,
             task_attribs=task_attribs,
             task_args=task_args,
             model_args=model_args,
@@ -188,10 +183,10 @@ def log_plan(
 def collect_eval_data(stats: EvalStats, logger: TaskLogger) -> None:
     # collect stats
     stats.completed_at = iso_now()
-    stats.model_usage = collect_model_usage()
+    stats.model_usage = model_usage()
 
     # collect log output
-    log_logger_records(logger, collect_logger_records())
+    log_logger_records(logger, logger_records())
 
 
 def log_logger_records(logger: TaskLogger, records: list[LogRecord]) -> None:

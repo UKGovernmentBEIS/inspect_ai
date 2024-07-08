@@ -1,6 +1,9 @@
+import sys
+
 import click
 
 from inspect_ai._util.dotenv import init_dotenv
+from inspect_ai._util.error import exception_hook
 
 from .. import __version__
 from .cache import cache_command
@@ -8,6 +11,7 @@ from .eval import eval_command, eval_retry_command
 from .info import info_command
 from .list import list_command
 from .score import score_command
+from .toolenv import toolenv_command
 from .view import view_command
 
 
@@ -40,9 +44,11 @@ inspect.add_command(info_command)
 inspect.add_command(list_command)
 inspect.add_command(score_command)
 inspect.add_command(view_command)
+inspect.add_command(toolenv_command)
 
 
 def main() -> None:
+    sys.excepthook = exception_hook()
     init_dotenv()
     inspect(auto_envvar_prefix="INSPECT")
 

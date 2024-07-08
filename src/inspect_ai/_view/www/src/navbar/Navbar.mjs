@@ -9,6 +9,7 @@ import { CopyButton } from "./../components/CopyButton.mjs";
 export const Navbar = ({
   file,
   task,
+  logs,
   model,
   status,
   samples,
@@ -22,7 +23,9 @@ export const Navbar = ({
   if (status === "success") {
     statusPanel = html`<${ResultsPanel} results="${metrics}" />`;
   } else if (status === "cancelled") {
-    statusPanel = html`<${CanceledPanel} sampleCount=${samples?.length || 0} />`;
+    statusPanel = html`<${CanceledPanel}
+      sampleCount=${samples?.length || 0}
+    />`;
   } else if (status === "started") {
     statusPanel = html`<${RunningPanel} />`;
   }
@@ -31,25 +34,26 @@ export const Navbar = ({
   const navbarContents = logFileName
     ? html` <div
           class="navbar-brand navbar-text mb-0"
-          style=${{ display: "flex", paddingTop: 0 }}
+          style=${{ display: "flex", paddingTop: 0, marginLeft: "0.5rem" }}
         >
-          <button
-            id="sidebarToggle"
-            class="btn${toggleOffCanClass}"
-            type="button"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#sidebarOffCanvas"
-            aria-controls="sidebarOffCanvas"
-            style=${{
-              padding: "0rem 0.1rem 0.1rem 0rem",
-              marginTop: "-8px",
-              marginRight: "0.2rem",
-              lineHeight: "16px",
-              marginLeft: "0.3em",
-            }}
-          >
-            <i class=${icons.menu}></i>
-          </button>
+          ${logs.files.length > 1 || logs.log_dir
+            ? html`<button
+                id="sidebarToggle"
+                class="btn${toggleOffCanClass}"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#sidebarOffCanvas"
+                aria-controls="sidebarOffCanvas"
+                style=${{
+                  padding: "0rem 0.1rem 0.1rem 0rem",
+                  marginTop: "-8px",
+                  marginRight: "0.2rem",
+                  lineHeight: "16px",
+                }}
+              >
+                <i class=${icons.menu}></i>
+              </button> `
+            : ""}
           <div style=${{ display: "flex", flexDirection: "column" }}>
             <div
               style=${{
@@ -114,7 +118,13 @@ export const Navbar = ({
     : "";
 
   return html`
-    <nav class="navbar sticky-top" style=${{ flexWrap: "nowrap", borderBottom: "solid var(--bs-border-color) 1px" }}>
+    <nav
+      class="navbar sticky-top"
+      style=${{
+        flexWrap: "nowrap",
+        borderBottom: "solid var(--bs-border-color) 1px",
+      }}
+    >
       <div
         style=${{
           display: "grid",
@@ -143,10 +153,19 @@ const CanceledPanel = ({ sampleCount }) => {
 };
 
 const RunningPanel = () => {
-  return html`<div style=${{marginTop: "0.5em", display: "inline-grid", gridTemplateColumns: "auto auto"}}>
-  <div class="spinner-border spinner-border-sm" role="status"></div>
-  <div style=${{marginLeft: "0.3em", paddingTop: "0.2em", fontSize: "0.7em"}}>Running</div>
-
+  return html`<div
+    style=${{
+      marginTop: "0.5em",
+      display: "inline-grid",
+      gridTemplateColumns: "auto auto",
+    }}
+  >
+    <div class="spinner-border spinner-border-sm" role="status"></div>
+    <div
+      style=${{ marginLeft: "0.3em", paddingTop: "0.2em", fontSize: "0.7em" }}
+    >
+      Running
+    </div>
   </div>`;
 };
 

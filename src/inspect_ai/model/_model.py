@@ -1,6 +1,7 @@
 import abc
 import asyncio
 import functools
+import json
 import logging
 import os
 from contextvars import ContextVar
@@ -17,6 +18,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
@@ -26,20 +28,20 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
+from inspect_ai._util.telemetry import init_telemetry, send_telemetry
+from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util import concurrency
-from inspect_ai.util._context.concurrency import using_concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
+from ._call_tools import tools_info
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
 )
-from ._content import Content, ContentText
 from ._generate_config import GenerateConfig
 from ._model_output import ModelOutput, ModelUsage
-from ._tool import ToolChoice, ToolFunction, ToolInfo
 
 logger = logging.getLogger(__name__)
 
@@ -48,17 +50,23 @@ class ModelAPI(abc.ABC):
     """Model API provider."""
 
     def __init__(
-        self, model_name: str, base_url: str | None, config: GenerateConfig
+        self,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
     ) -> None:
         """Create a model API provider.
 
         Args:
            model_name (str): Model name.
            base_url (str | None): Alternate base URL for model.
+           api_key (str | None): API key for model.
            config (GenerateConfig): Model configuration.
         """
         self.model_name = model_name
         self.base_url = base_url
+        self.api_key = api_key
         self.config = config
 
     @abc.abstractmethod
@@ -139,7 +147,7 @@ class Model:
     async def generate(
         self,
         input: str | list[ChatMessage],
-        tools: list[ToolInfo] = [],
+        tools: list[Tool] | list[ToolInfo] = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
@@ -150,7 +158,7 @@ class Model:
           input (str | list[ChatMessage]): Chat message
             input (if a `str` is passed it is converted
             to a `ChatMessageUser`).
-          tools (list[ToolInfo]): Tools available for the
+          tools (list[Tool] | list[ToolInfo]): Tools available for the
             model to call.
           tool_choice (ToolChoice): Directives to the model
             as to which tools to prefer.
@@ -177,24 +185,11 @@ class Model:
         if config.system_message:
             input = [ChatMessageSystem(content=config.system_message)] + input
 
-        # see if we have a connection semaphore (we won't if we
-        # are running outside of an eval()). this is how we enforce
-        # concurrency limits (max_connections) for the model
-        if using_concurrency():
-            async with self._connection_concurrency(config):
-                return await self._generate(
-                    input=input,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    config=config,
-                    cache=cache,
-                )
-
-        # no connection semaphore, just proceed straight to the call
-        else:
+        # enforce concurrency limits
+        async with self._connection_concurrency(config):
             return await self._generate(
                 input=input,
-                tools=tools,
+                tools=tools_info(tools),
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache,
@@ -300,6 +295,14 @@ class Model:
                 config=config,
             )
 
+            # record usage
+            if output.usage:
+                record_model_usage(f"{self}", output.usage)
+                await send_telemetry(
+                    "model_usage",
+                    json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
+                )
+
             if cache:
                 cache_store(entry=cache_entry, output=output)
 
@@ -307,10 +310,6 @@ class Model:
 
         # call the model
         model_output = await generate()
-
-        # record usage
-        if model_output.usage:
-            record_model_usage(f"{self}", model_output.usage)
 
         # return results
         return model_output
@@ -398,6 +397,7 @@ def get_model(
     model: str | Model | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
+    api_key: str | None = None,
     **model_args: Any,
 ) -> Model:
     """Get an instance of a model.
@@ -407,9 +407,10 @@ def get_model(
          If `Model` is passed it is returned unmodified,
          if `None` is passed then the model currently being
          evaluated is returned (or if there is no evaluation
-         then the model referred to by `INSPECT_MODEL_NAME`).
-       config (GenerationConfig): Configuration for model.
+         then the model referred to by `INSPECT_EVAL_MODEL`).
+       config (GenerateConfig): Configuration for model.
        base_url (str | None): Optional. Alternate base URL for model.
+       api_key (str | None): Optional. API key for model.
        **model_args (dict[str,Any]): Additional args to
          pass to model constructor.
 
@@ -417,22 +418,24 @@ def get_model(
         Model instance.
 
     """
-    # if the model is None then use the current model from our async
-    # context, else try to use INSPECT_EVAL_MODEL (or the legacy INSPECT_MODEL_NAME)
-    model = (
-        model
-        or active_model()
-        or os.getenv("INSPECT_EVAL_MODEL", None)
-        or os.getenv("INSPECT_MODEL_NAME", None)
-    )
-    if model is None:
-        raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
-
-    # reflect back model -- we take model as a convenience so that
-    # function that accept str | Model can always call get_model and
-    # have it resolve correctly (even if trivially)
+    # start with seeing if a model was passed
     if isinstance(model, Model):
         return model
+
+    # now try finding an 'ambient' model (active or env var)
+    if model is None:
+        # return active_model if there is one
+        active = active_model()
+        if active:
+            return active
+
+        # return based on env var if there is one
+        # (handle lists by taking the first model)
+        model = os.getenv("INSPECT_EVAL_MODEL", None)
+        if model is not None:
+            model = model.split(",")[0]
+        else:
+            raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
 
     # ensure that inspect model provider extensions are loaded
     ensure_entry_points()
@@ -456,15 +459,52 @@ def get_model(
     # find a matching model type
     modelapi_types = registry_find(match_modelapi_type)
     if len(modelapi_types) > 0:
+        # create the model (init_telemetry here in case the model api
+        # is being used as a stadalone model interface outside of evals)
+        init_telemetry()
         modelapi_type = cast(type[ModelAPI], modelapi_types[0])
         modelapi_instance = modelapi_type(
-            model_name=model, base_url=base_url, config=config, **model_args
+            model_name=model,
+            base_url=base_url,
+            api_key=api_key,
+            config=config,
+            **model_args,
         )
         return Model(modelapi_instance, config)
 
     else:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
+
+
+def resolve_models(
+    model: str | Model | list[str] | list[Model] | None,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] = dict(),
+    config: GenerateConfig = GenerateConfig(),
+) -> list[Model]:
+    # reflect back a plain model
+    if isinstance(model, Model):
+        return [model]
+
+    # helper to resolve model of various types
+    def resolve_model(m: str | Model | None) -> Model:
+        return get_model(
+            model=m,
+            base_url=model_base_url,
+            config=config,
+            **model_args,
+        )
+
+    # resolve None and str to list
+    if model is None or isinstance(model, str):
+        model = model or os.getenv("INSPECT_EVAL_MODEL", None)
+        if model is None:
+            raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
+        model = [m.strip() for m in model.split(",")]
+
+    # resolve models
+    return [resolve_model(m) for m in model]
 
 
 def simple_input_messages(
@@ -564,7 +604,7 @@ def combine_messages(
         return message_type(content=content)
 
 
-def init_async_context_model(model: Model) -> None:
+def init_active_model(model: Model) -> None:
     active_model_context_var.set(model)
     init_model_usage()
 
@@ -598,10 +638,10 @@ def record_model_usage(model: str, usage: ModelUsage) -> None:
         model_usage[model] = total_usage
 
 
-def collect_model_usage() -> dict[str, ModelUsage]:
-    usage = model_usage_context_var.get()
-    model_usage_context_var.set({})
-    return usage
+def model_usage() -> dict[str, ModelUsage]:
+    return model_usage_context_var.get()
 
 
-model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar("model_usage")
+model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "model_usage", default={}
+)

@@ -29,8 +29,10 @@ from google.protobuf.json_format import ParseDict
 from google.protobuf.struct_pb2 import Struct
 from typing_extensions import override
 
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data
+from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
 
 from .._chat_message import (
     ChatMessage,
@@ -39,11 +41,9 @@ from .._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from .._content import Content, ContentImage, ContentText
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import ChatCompletionChoice, ModelOutput, StopReason
-from .._tool import ToolCall, ToolChoice, ToolInfo
 from .._util import chat_api_tool
 from .util import model_base_url
 
@@ -60,14 +60,18 @@ class GoogleAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None,
+        api_key: str | None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+        )
 
         # configure genai client
         base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
         configure(
+            api_key=self.api_key,
             client_options=dict(api_endpoint=base_url),
             **model_args,
         )

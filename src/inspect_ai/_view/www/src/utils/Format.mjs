@@ -46,8 +46,8 @@ export const answerForSample = (sample) => {
         return content;
       } else {
         // TODO: Support image completions.
-        return content.length > 0 ? content[0].text : "";  
-      }  
+        return content.length > 0 ? content[0].text : "";
+      }
     }
   } else {
     return undefined;
@@ -65,29 +65,29 @@ export const inputString = (input) => {
       } else {
         return inp.content;
       }
-    })
+    });
   }
-}
+};
 
 export const formatDataset = (name, samples, epochs) => {
   const perEpochSamples = epochs > 0 ? samples / epochs : samples;
   return `${name ? "— " : ""}${perEpochSamples + " "}${epochs > 1 ? `x ${epochs} ` : ""}${samples === 1 ? "sample" : "samples"}`;
-}
+};
 
 export const userPromptForSample = (sample) => {
   if (sample) {
-    if (typeof (sample.input) == "string") {
+    if (typeof sample.input == "string") {
       return sample.input.trim();
     } else if (Array.isArray(sample.input)) {
-      const userPrompt = sample.input.find(message => message.role == "user");
+      const userPrompt = sample.input.find((message) => message.role == "user");
       if (userPrompt) {
         return userPrompt.content.trim();
       }
     }
   }
 
-  return ''
-}
+  return "";
+};
 
 export const formatScore = (score) => {
   // Circle with single letter
@@ -107,7 +107,7 @@ export const formatTime = (seconds) => {
     return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
   } else {
     return `${Math.floor((seconds / 60) * 60 * 24)} days ${Math.floor(
-      seconds / 60
+      seconds / 60,
     )} min ${seconds % 60} sec`;
   }
 };
@@ -127,9 +127,14 @@ export function formatPrettyDecimal(num) {
 }
 
 export function formatDecimalNoTrailingZeroes(num) {
+  // This isn't a number, continue
+  if (typeof num !== "number") {
+    return num;
+  }
+
   if (num.toString().includes(".")) {
     const decimal = num.toString().split(".")[1];
-    const trimmed = decimal.replace(/\.?0+$/, '');
+    const trimmed = decimal.replace(/\.?0+$/, "");
     return num.toFixed(trimmed.length);
   } else {
     return num.toFixed(0);

@@ -121,7 +121,7 @@ async def score(state: TaskState, target: Target):
 First we'll talk about the core `Score` and `Value` objects, then provide some examples of custom scorers to make things more concrete.
 
 ::: {.callout-note appearance="simple"}
-Note that `score()` above is declared as an `async` function. When creating custom scorers, it's critical that you understand Inspect's concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Eval Tuning](#sec-eval-tuning) before proceeding.
+Note that `score()` above is declared as an `async` function. When creating custom scorers, it's critical that you understand Inspect's concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](#sec-parallel-solvers-and-scorers) before proceeding.
 :::
 
 ### Score

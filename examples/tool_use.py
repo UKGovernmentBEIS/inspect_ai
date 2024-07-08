@@ -4,10 +4,9 @@ from inspect_ai.scorer import includes, match
 from inspect_ai.solver import (
     generate,
     system_message,
-    tool,
-    tool_environment,
     use_tools,
 )
+from inspect_ai.tool import ToolError, tool, tool_environment
 
 
 @tool(
@@ -62,7 +61,7 @@ def list_files():
         if result.success:
             return result.stdout
         else:
-            return f"Error: {result.stderr}"
+            raise ToolError(result.stderr)
 
     return execute
 
@@ -93,4 +92,33 @@ def bash():
         ],
         tool_environment="local",
         scorer=includes(),
+    )
+
+
+@tool(prompt="If you need to read a file, use the read_file tool.")
+def read_file():
+    async def execute(file: str):
+        """Read a file
+
+        Args:
+            file (str): File to read
+
+        Returns:
+            File contents
+        """
+        try:
+            return await tool_environment().read_file(file)
+        except FileNotFoundError:
+            raise ToolError(f"File {file} not found.")
+
+    return execute
+
+
+@task
+def read():
+    return Task(
+        dataset=[Sample(input="Please read the file 'foo.txt'")],
+        plan=[use_tools([read_file()]), generate()],
+        scorer=match(),
+        tool_environment="local",
     )

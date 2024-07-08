@@ -45,9 +45,10 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       options.push(
         ...descriptor.scoreDescriptor.categories.map((cat) => {
           return { text: cat.text, value: cat.val };
-        })
+        }),
       );
       return html`<${SelectFilter}
+        value=${filter.value || "all"}
         options=${options}
         filterFn=${filterCategory}
       />`;
@@ -58,9 +59,10 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       options.push(
         ...descriptor.scoreDescriptor.categories.map((cat) => {
           return { text: cat, value: cat };
-        })
+        }),
       );
       return html`<${SelectFilter}
+        value=${filter.value || "all"}
         options=${options}
         filterFn=${filterCategory}
       />`;
@@ -81,18 +83,17 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
 
     case kScoreTypeObject: {
       if (!descriptor.scoreDescriptor.categories) {
-        return  "";
+        return "";
       }
       const options = [{ text: "All", value: "all" }];
       options.push(
         ...descriptor.scoreDescriptor.categories.map((cat) => {
-          return { text: cat.text, value: cat.value};
-        })
+          return { text: cat.text, value: cat.value };
+        }),
       );
 
-
-      
       return html`<${SelectFilter}
+        value=${filter.value || "all"}
         options=${options}
         filterFn=${filterCategory}
       />`;
@@ -104,7 +105,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
   }
 };
 
-const SelectFilter = ({ options, filterFn }) => {
+const SelectFilter = ({ value, options, filterFn }) => {
   return html`
     <div style=${{ display: "flex" }}>
       <span
@@ -116,6 +117,7 @@ const SelectFilter = ({ options, filterFn }) => {
         class="form-select form-select-sm"
         aria-label=".sample-label"
         style=${{ fontSize: "0.7rem" }}
+        value=${value}
         onChange=${filterFn}
       >
         ${options.map((option) => {

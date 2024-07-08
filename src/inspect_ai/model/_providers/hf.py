@@ -18,6 +18,7 @@ from transformers import (  # type: ignore
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
@@ -30,7 +31,6 @@ from .._model_output import (
     ModelUsage,
     TopLogprob,
 )
-from .._tool import ToolChoice, ToolInfo
 from .._util import chat_api_input
 
 
@@ -39,10 +39,13 @@ class HuggingFaceAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+        )
 
         # set random seeds
         if config.seed is not None:
@@ -76,11 +79,11 @@ class HuggingFaceAPI(ModelAPI):
         # model
         if model_path:
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_path, device_map=self.device, **model_args
+                model_path, device_map=self.device, token=self.api_key, **model_args
             )
         else:
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_name, device_map=self.device, **model_args
+                model_name, device_map=self.device, token=self.api_key, **model_args
             )
 
         # tokenizer
@@ -138,7 +141,7 @@ class HuggingFaceAPI(ModelAPI):
         response = await batched_generate(
             GenerateInput(
                 input=chat,
-                device=self.device,
+                device=self.model.device,
                 tokenizer=tokenizer,
                 generator=generator,
                 decoder=decoder,

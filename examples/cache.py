@@ -80,3 +80,17 @@ def cache_example_scoped():
         ],
         scorer=match(),
     )
+
+
+@task
+def cache_example_ignore_epochs():
+    return Task(
+        dataset=_dataset(),
+        plan=[
+            # Ignore the epoch when caching. Running this with (for example)
+            # `--epochs 20` will still be fast as the first generate call will
+            # get cached and re-used by subsequent calls
+            solver_with_cache(cache=CachePolicy(per_epoch=False)),
+        ],
+        scorer=match(),
+    )

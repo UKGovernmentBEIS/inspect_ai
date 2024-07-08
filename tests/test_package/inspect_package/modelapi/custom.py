@@ -3,9 +3,8 @@ from inspect_ai.model import (
     GenerateConfig,
     ModelAPI,
     ModelOutput,
-    ToolChoice,
-    ToolInfo,
 )
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 
 class CustomModelAPI(ModelAPI):
@@ -13,9 +12,10 @@ class CustomModelAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
     ) -> None:
-        super().__init__(model_name, base_url, config)
+        super().__init__(model_name, base_url, api_key, config)
 
     async def generate(
         self,

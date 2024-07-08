@@ -29,12 +29,17 @@ from anthropic.types.tool_param import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data_uri
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
+from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
-from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
-from .._content import Content, ContentText
+from .._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+)
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
@@ -43,7 +48,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
 from .util import model_base_url
 
@@ -54,12 +58,15 @@ class AnthropicAPI(ModelAPI):
     def __init__(
         self,
         model_name: str,
-        base_url: str | None,
+        base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         bedrock: bool = False,
         **model_args: Any,
     ):
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+        )
 
         # create client
         if bedrock:
@@ -76,10 +83,10 @@ class AnthropicAPI(ModelAPI):
             )
         else:
             # resolve api_key
-            api_key = os.environ.get(ANTHROPIC_API_KEY, None)
-            if api_key is None:
+            if not self.api_key:
+                self.api_key = os.environ.get(ANTHROPIC_API_KEY, None)
+            if self.api_key is None:
                 raise ValueError(f"{ANTHROPIC_API_KEY} environment variable not found.")
-            self.api_key = api_key
             base_url = model_base_url(base_url, "ANTHROPIC_BASE_URL")
             self.client = AsyncAnthropic(
                 base_url=base_url,
@@ -146,7 +153,7 @@ class AnthropicAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return self.api_key
+        return str(self.api_key)
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:

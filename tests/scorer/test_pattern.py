@@ -105,3 +105,31 @@ async def test_only_returns_exact_target_matches():
     result = await scorer(state, Target(["bar"]))
 
     assert result.text == INCORRECT
+
+
+@pytest.mark.asyncio
+async def test_one_match_group_returns_incorrect_match():
+    scorer = pattern(
+        "ANSWER: (A|B)",
+        ignore_case=False,
+        match_all=False,
+    )
+    state = simple_task_state(model_output="ANSWER: A")
+    result = await scorer(state, Target(["B"]))
+
+    assert result.answer == "A"
+    assert result.text == INCORRECT
+
+
+@pytest.mark.asyncio
+async def test_multiple_match_group_returns_none():
+    scorer = pattern(
+        "ANSWER: (A|B) ALTERNATE_ANSWER: (A|B)",
+        ignore_case=False,
+        match_all=False,
+    )
+    state = simple_task_state(model_output="ANSWER: A ALTERNATE_ANSWER: A")
+    result = await scorer(state, Target(["B"]))
+
+    assert result.answer is None
+    assert result.text == INCORRECT

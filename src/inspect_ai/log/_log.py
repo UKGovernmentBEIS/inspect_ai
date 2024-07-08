@@ -40,6 +40,9 @@ class EvalConfig(BaseModel):
     max_subprocesses: int | None = Field(default=None)
     """Maximum number of subprocesses to run concurrently."""
 
+    toolenv_cleanup: bool | None = Field(default=None)
+    """Cleanup tool environments after task completes."""
+
     log_samples: bool | None = Field(default=None)
     """Log detailed information on each sample."""
 
@@ -242,7 +245,7 @@ def eval_error(
 
     with open(os.devnull, "w") as f:
         console = Console(record=True, file=f, legacy_windows=True)
-        console.print(rich_traceback(exc_type, exc_value, exc_traceback, False))
+        console.print(rich_traceback(exc_type, exc_value, exc_traceback))
         traceback_ansi = console.export_text(styles=True)
 
     # return error
@@ -254,18 +257,14 @@ def eval_error(
 
 
 def rich_traceback(
-    exc_type: Type[Any],
-    exc_value: BaseException,
-    exc_traceback: TracebackType | None,
-    show_locals: bool,
+    exc_type: Type[Any], exc_value: BaseException, exc_traceback: TracebackType | None
 ) -> RenderableType:
     rich_tb = Traceback.from_exception(
         exc_type=exc_type,
         exc_value=exc_value,
         traceback=exc_traceback,
         suppress=[click, asyncio, tenacity, sys.modules[PKG_NAME]],
-        show_locals=show_locals,
-        max_frames=10,
+        show_locals=False,
     )
     return rich_tb
 

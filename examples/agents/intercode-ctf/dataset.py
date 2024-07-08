@@ -45,9 +45,28 @@ def read_dataset(shuffle=False, force_download=False):
             files=files,
         )
 
-    # read dataset (filtering out selected samples)
+    # read dataset. we filter out samples that required internet access, as
+    # is also done in the GDM paper (https://arxiv.org/pdf/2403.13793)
     excluded = [
-        43  # models often go over token limits
+        9,
+        16,
+        20,
+        28,
+        29,
+        35,
+        39,
+        41,
+        42,
+        43,
+        54,
+        57,
+        62,
+        66,
+        73,
+        87,
+        88,
+        89,
+        95,
     ]
     return json_dataset(
         json_file=f"{DATA_DIR}/ic_ctf.json",

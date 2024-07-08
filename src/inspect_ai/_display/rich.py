@@ -2,17 +2,16 @@ import asyncio
 import contextlib
 import datetime
 from dataclasses import dataclass
-from types import TracebackType
-from typing import Any, Callable, Iterator, Type
+from typing import Callable, Iterator
 
-from rich.align import Align
-from rich.console import Console, RenderableType
+from rich.console import Console, Group, RenderableType
 from rich.live import Live
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     SpinnerColumn,
     TaskProgressColumn,
+    TextColumn,
     TimeElapsedColumn,
 )
 from rich.progress import Progress as RProgress
@@ -20,13 +19,23 @@ from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
 
+from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
-from inspect_ai.log import EvalError, EvalResults, EvalStats
+from inspect_ai.log import EvalResults, EvalStats
 from inspect_ai.log._log import rich_traceback
-from inspect_ai.util._context.concurrency import concurrency_status
-from inspect_ai.util._context.logger import logger_http_rate_limit_count
+from inspect_ai.util._concurrency import concurrency_status
+from inspect_ai.util._logger import logger_http_rate_limit_count
 
-from ._display import Display, Progress, TaskDisplay, TaskProfile
+from ._display import (
+    Display,
+    Progress,
+    TaskCancelled,
+    TaskDisplay,
+    TaskError,
+    TaskProfile,
+    TaskResult,
+    TaskSuccess,
+)
 
 
 @dataclass
@@ -38,56 +47,106 @@ class Theme:
     error: str = "red"
 
 
+@dataclass
+class TaskStatus:
+    profile: TaskProfile
+    result: TaskResult | None
+    progress: RProgress
+
+
 class RichDisplay(Display):
     def __init__(self) -> None:
-        self.console = rich_console()
-        self.theme = Theme()
+        self.tasks: list[TaskStatus] | None = None
+        self.progress_ui: RProgress | None = None
 
     @override
     def print(self, message: str) -> None:
-        self.console.print(message, markup=False, highlight=False)
+        rich_console().print(message, markup=False, highlight=False)
 
     @override
     @contextlib.contextmanager
     def progress(self, total: int) -> Iterator[Progress]:
-        with rich_progress(self.console) as progress:
+        with rich_progress() as progress:
             yield RichProgress(total, progress)
 
     @override
     @contextlib.contextmanager
+    def live_task_status(self) -> Iterator[None]:
+        if self.tasks is None:
+            # initialise tasks
+            self.tasks = []
+            self.progress_ui = rich_progress()
+
+            with Live(None, console=rich_console(), auto_refresh=False) as live:
+                # setup some timed updates
+                loop = asyncio.get_event_loop()
+                handle: asyncio.TimerHandle | None
+
+                def update_display() -> None:
+                    if self.tasks is not None and self.progress_ui is not None:
+                        r = tasks_live_status(self.tasks, self.progress_ui)
+                        live.update(r, refresh=True)
+                    nonlocal handle
+                    handle = loop.call_later(1, update_display)
+
+                handle = loop.call_later(1, update_display)
+
+                # yield
+                yield
+
+                # cleanup handle if we need to
+                if handle:
+                    handle.cancel()
+
+                # render task results
+                live.update(tasks_results(self.tasks), refresh=True)
+
+            # clear tasks and progress
+            self.tasks = None
+            self.progress_ui = None
+
+        else:
+            yield
+
+    @override
+    @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
-        with Live(None, console=self.console) as live:
-            # create task display
-            display = RichTaskDisplay(
-                profile,
-                self.console,
-                self.theme,
-                lambda r: live.update(r, refresh=True),
-            )
+        # for typechekcer
+        if self.tasks is None:
+            self.tasks = []
+        if self.progress_ui is None:
+            self.progress_ui = rich_progress()
 
-            # setup some timed updates (for when no progress ticks are occurring)
-            loop = asyncio.get_event_loop()
-            handle: asyncio.TimerHandle | None
+        status = TaskStatus(profile, None, self.progress_ui)
+        self.tasks.append(status)
+        yield RichTaskDisplay(status)
 
-            def update_display() -> None:
-                display.on_update()
-                nonlocal handle
-                handle = loop.call_later(5, update_display)
 
-            handle = loop.call_later(5, update_display)
+class RichTaskDisplay(TaskDisplay):
+    def __init__(self, status: TaskStatus) -> None:
+        self.status = status
 
-            # yield the display
-            yield display
+    @override
+    @contextlib.contextmanager
+    def progress(self) -> Iterator[Progress]:
+        model = str(self.status.profile.model)
+        p = RichProgress(
+            total=self.status.profile.steps,
+            progress=self.status.progress,
+            description=model,
+        )
+        yield p
+        p.complete()
 
-            # cleanup handle if we need to
-            if handle:
-                handle.cancel()
+    @override
+    def complete(self, result: TaskResult) -> None:
+        self.status.result = result
 
 
 # Note that use of rich progress seems to result in an extra
-# empty cell after execution, see:
-# https://github.com/Textualize/rich/issues/3211
-# https://github.com/Textualize/rich/issues/3168
+# empty cell after execution, see: https://github.com/Textualize/rich/issues/3274
+
+PROGRESS_TOTAL = 102
 
 
 class RichProgress(Progress):
@@ -95,130 +154,110 @@ class RichProgress(Progress):
         self,
         total: int,
         progress: RProgress,
-        on_update: Callable[[], None] | None = None,
+        description: str = "",
+        meta: Callable[[], str] | None = None,
     ) -> None:
         self.total = total
         self.progress = progress
-        self.task_id = progress.add_task("", total=102)
-        self.on_update = on_update
-
-    @override
-    def update(self, n: float = 1) -> None:
-        advance = (n / self.total) * 100
-        self.progress.update(task_id=self.task_id, advance=advance, refresh=True)
-        if self.on_update:
-            self.on_update()
-
-
-class RichTaskDisplay(TaskDisplay):
-    def __init__(
-        self,
-        profile: TaskProfile,
-        console: Console,
-        theme: Theme,
-        render: Callable[[RenderableType], None],
-    ) -> None:
-        self.profile = profile
-        self.console = console
-        self.theme = theme
-        self.progress_ui = rich_progress(console)
-        self.render = render
-        self.on_update()
-
-    @override
-    @contextlib.contextmanager
-    def progress(self, total: int) -> Iterator[Progress]:
-        yield RichProgress(total, self.progress_ui, self.on_update)
-
-    @override
-    def cancelled(self, samples_logged: int, stats: EvalStats) -> None:
-        panel = self.task_panel(
-            body=task_stats(self.profile, stats, self.theme),
-            config=None,
-            footer=task_interrupted(
-                self.profile.log_location, samples_logged, self.theme
-            ),
-            log_location=self.profile.log_location,
-        )
-        self.render(panel)
-
-    @override
-    def summary(self, results: EvalResults, stats: EvalStats) -> None:
-        panel = self.task_panel(
-            body=task_stats(self.profile, stats, self.theme),
-            config=None,
-            footer=task_results(results, self.theme),
-            log_location=self.profile.log_location,
-        )
-        self.render(panel)
-
-    @override
-    def error(
-        self,
-        samples_logged: int,
-        error: EvalError,
-        exc_type: Type[Any],
-        exc_value: BaseException,
-        traceback: TracebackType | None,
-    ) -> None:
-        panel = self.task_panel(
-            body=rich_traceback(exc_type, exc_value, traceback, True),
-            config=None,
-            footer=task_interrupted(
-                self.profile.log_location, samples_logged, self.theme
-            ),
-            log_location=self.profile.log_location,
-        )
-        self.render(panel)
-
-    def on_update(self) -> None:
-        panel = self.task_panel(
-            body=Align(self.progress_ui, vertical="middle"),
-            config=task_config(self.profile, self.theme),
-            footer=live_task_footer(self.theme),
-            log_location=None,
-        )
-        self.render(panel)
-
-    def task_panel(
-        self,
-        body: RenderableType,
-        config: str | None,
-        footer: tuple[RenderableType, RenderableType] | None,
-        log_location: str | None,
-    ) -> Panel:
-        return task_panel(
-            profile=self.profile,
-            body=body,
-            config=config,
-            footer=footer,
-            log_location=log_location,
-            options=TaskPanelOptions(
-                theme=self.theme,
-                # rich doesn't detect vs code width properly
-                width=(80 if is_vscode_notebook(self.console) else None),
-                jupyter=self.console.is_jupyter,
-            ),
+        self.meta = meta if meta else lambda: ""
+        self.task_id = progress.add_task(
+            description, total=PROGRESS_TOTAL, meta=self.meta()
         )
 
+    @override
+    def update(self, n: int = 1) -> None:
+        advance = (float(n) / float(self.total)) * 100
+        self.progress.update(
+            task_id=self.task_id, advance=advance, refresh=True, meta=self.meta()
+        )
 
-@dataclass
-class TaskPanelOptions:
-    theme: Theme
-    width: int | None
-    jupyter: bool
+    @override
+    def complete(self) -> None:
+        self.progress.update(task_id=self.task_id, completed=PROGRESS_TOTAL)
+
+
+def tasks_live_status(tasks: list[TaskStatus], progress: RProgress) -> RenderableType:
+    return task_live_status(tasks, progress)
+
+
+def tasks_results(tasks: list[TaskStatus]) -> RenderableType:
+    def render_task(task: TaskStatus) -> RenderableType:
+        if isinstance(task.result, TaskCancelled):
+            return task_result_cancelled(task.profile, task.result)
+        elif isinstance(task.result, TaskError):
+            return task_result_error(task.profile, task.result)
+        elif isinstance(task.result, TaskSuccess):
+            return task_result_summary(task.profile, task.result)
+        else:
+            return ""
+
+    return Group(*[render_task(task) for task in tasks])
+
+
+def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> RenderableType:
+    body: list[RenderableType] = ["", progress]
+    config = task_config(tasks[0].profile)
+    if config:
+        body = [config] + body
+
+    return task_panel(
+        profile=tasks[0].profile,
+        show_model=len(tasks) == 1,
+        body=Group(*body),
+        config=None,
+        footer=live_task_footer(),
+        log_location=None,
+    )
+
+
+def task_result_cancelled(
+    profile: TaskProfile, cancelled: TaskCancelled
+) -> RenderableType:
+    return task_panel(
+        profile=profile,
+        show_model=True,
+        body=task_stats(profile, cancelled.stats),
+        config=None,
+        footer=task_interrupted(profile.log_location, cancelled.samples_logged),
+        log_location=profile.log_location,
+    )
+
+
+def task_result_summary(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
+    return task_panel(
+        profile=profile,
+        show_model=True,
+        body=task_stats(profile, success.stats),
+        config=None,
+        footer=task_results(success.results),
+        log_location=profile.log_location,
+    )
+
+
+def task_result_error(profile: TaskProfile, error: TaskError) -> RenderableType:
+    return task_panel(
+        profile=profile,
+        show_model=True,
+        body=rich_traceback(error.exc_type, error.exc_value, error.traceback),
+        config=None,
+        footer=task_interrupted(profile.log_location, error.samples_logged),
+        log_location=profile.log_location,
+    )
 
 
 def task_panel(
     profile: TaskProfile,
+    show_model: bool,
     body: RenderableType,
     config: str | None,
     footer: tuple[RenderableType, RenderableType] | None,
     log_location: str | None,
-    options: TaskPanelOptions,
 ) -> Panel:
-    # alias theme
-    theme = options.theme
+    # rendering context
+    theme = rich_theme()
+    console = rich_console()
+    width = 100 if is_vscode_notebook(console) else None
+    jupyter = console.is_jupyter
 
     # setup table
     table = Table.grid(expand=True)
@@ -244,8 +283,14 @@ def task_panel(
     root = table
     if log_location:
         # if we are in jupyter then use a real hyperlink
-        if options.jupyter:
+        if jupyter:
             log_location = f"[link={log_location}]{log_location}[/link]"
+
+        # Print a cwd relative path
+        try:
+            log_location_relative = cwd_relative_path(log_location, walk_up=True)
+        except ValueError:
+            log_location_relative = log_location
 
         root = Table.grid(expand=True)
         root.add_column()
@@ -253,41 +298,38 @@ def task_panel(
         root.add_row()
         root.add_row(
             f"[bold][{theme.light}]Log:[/{theme.light}][/bold] "
-            + f"[{theme.link}]{log_location}[/{theme.link}]"
+            + f"[{theme.link}]{log_location_relative}[/{theme.link}]"
         )
 
     # create panel w/ title
     panel = Panel(
         root,
-        title=f"[bold][{theme.meta}]{task_title(profile)}[/{theme.meta}][/bold]",
+        title=f"[bold][{theme.meta}]{task_title(profile, show_model)}[/{theme.meta}][/bold]",
         title_align="left",
-        width=options.width,
+        width=width,
         expand=True,
     )
     return panel
 
 
-def task_title(profile: TaskProfile) -> str:
-    sequence = (
-        f"task {profile.sequence[0]}/{profile.sequence[1]}: "
-        if profile.sequence[1] > 1
-        else ""
-    )
+def task_title(profile: TaskProfile, show_model: bool) -> str:
     eval_epochs = profile.eval_config.epochs or 1
     epochs = f" x {profile.eval_config.epochs}" if eval_epochs > 1 else ""
     samples = f"{profile.samples//eval_epochs:,}{epochs} sample{'s' if profile.samples > 1 else ''}"
-    title = f"{sequence}{profile.name} ({samples})"
+    title = f"{profile.name} ({samples})"
+    if show_model:
+        title = f"{title}: {profile.model}"
     return title
 
 
 def task_targets(profile: TaskProfile) -> str:
-    return "   " + "\n   ".join(
-        [str(profile.model), f"dataset: {profile.dataset}", f"scorer: {profile.scorer}"]
-    )
+    targets = [f"dataset: {profile.dataset}", f"scorer: {profile.scorer}"]
+    return "   " + "\n   ".join(targets)
 
 
-def task_config(profile: TaskProfile, theme: Theme) -> str:
+def task_config(profile: TaskProfile) -> str:
     # merge config
+    theme = rich_theme()
     config = (
         dict(profile.task_args)
         | dict(profile.eval_config.model_dump(exclude_none=True))
@@ -307,11 +349,14 @@ def task_config(profile: TaskProfile, theme: Theme) -> str:
 def task_resources() -> str:
     resources: dict[str, str] = {}
     for model, resource in concurrency_status().items():
+        if "/" in model:
+            model = model.split("/", 1)[1]
         resources[model] = f"{resource[0]}/{resource[1]}"
     return task_dict(resources)
 
 
-def live_task_footer(theme: Theme) -> tuple[RenderableType, RenderableType]:
+def live_task_footer() -> tuple[RenderableType, RenderableType]:
+    theme = rich_theme()
     return (
         f"[{theme.light}]{task_resources()}[/{theme.light}]",
         Text(task_http_rate_limits(), style=theme.light),
@@ -319,8 +364,9 @@ def live_task_footer(theme: Theme) -> tuple[RenderableType, RenderableType]:
 
 
 def task_interrupted(
-    log_location: str, samples_logged: int, theme: Theme
+    log_location: str, samples_logged: int
 ) -> tuple[RenderableType, RenderableType]:
+    theme = rich_theme()
     return (
         f"[bold][{theme.error}]Task interrupted ({samples_logged} "
         + "completed samples logged before interruption). "
@@ -330,9 +376,8 @@ def task_interrupted(
     )
 
 
-def task_results(
-    results: EvalResults, theme: Theme
-) -> tuple[RenderableType, RenderableType]:
+def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
+    theme = rich_theme()
     output: dict[str, str] = {}
     for name, metric in results.metrics.items():
         value = (
@@ -350,10 +395,11 @@ def task_results(
     return (metrics, "")
 
 
-def task_stats(profile: TaskProfile, stats: EvalStats, theme: Theme) -> RenderableType:
+def task_stats(profile: TaskProfile, stats: EvalStats) -> RenderableType:
+    theme = rich_theme()
     panel = Table.grid(expand=True)
     panel.add_column()
-    config = task_config(profile, theme)
+    config = task_config(profile)
     if config:
         panel.add_row(config)
         panel.add_row()
@@ -393,20 +439,15 @@ def task_dict(d: dict[str, str], bold_value: bool = False) -> str:
     )
 
 
-def rich_progress(console: Console) -> RProgress:
-    return RProgress(
-        SpinnerColumn(finished_text="✓"),
-        BarColumn(bar_width=40 if is_vscode_notebook(console) else None),
-        TaskProgressColumn(),
-        TimeElapsedColumn(),
-        transient=True,
-        console=console,
-        expand=not is_vscode_notebook(console),
-    )
-
-
 def is_vscode_notebook(console: Console) -> bool:
     return console.is_jupyter and is_running_in_vscode()
+
+
+def rich_theme() -> Theme:
+    global _theme
+    if _theme is None:
+        _theme = Theme()
+    return _theme
 
 
 def rich_console() -> Console:
@@ -426,5 +467,21 @@ def rich_display() -> RichDisplay:
     return _display
 
 
+def rich_progress() -> RProgress:
+    console = rich_console()
+    return RProgress(
+        SpinnerColumn(finished_text="✓"),
+        TextColumn("{task.description}"),
+        TextColumn("{task.fields[meta]}"),
+        BarColumn(bar_width=40 if is_vscode_notebook(console) else None),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        transient=True,
+        console=console,
+        expand=not is_vscode_notebook(console),
+    )
+
+
+_theme: Theme | None = None
 _console: Console | None = None
 _display: RichDisplay | None = None

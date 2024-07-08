@@ -44,7 +44,7 @@ export class LogViewFileWatcher implements Disposable {
           if (evalLogPath) {
             if (!workspaceId || workspaceId === this.workspaceStateManager_.getWorkspaceInstance()) {
               log.appendLine(`New log: ${workspaceRelativePath(toAbsolutePath(evalLogPath))}`);
-              this.logviewManager_.showLogFile(Uri.file(evalLogPath)).catch(async (err: Error) => {
+              this.logviewManager_.showLogFile(Uri.parse(evalLogPath)).catch(async (err: Error) => {
                 await showError("Unable to preview log file - failed to start Inspect View", err);
               });
             }

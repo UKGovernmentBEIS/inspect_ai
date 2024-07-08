@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.23
+
+- Ensure the log view only opens in the correct window when debugging a task
+- Changes to improve performance and usability of large log files
+
+## 0.3.22
+
+- Improve reliability of opening and viewing log files upon completion of evaluations
+- Right click on log files in the Explorer sidebar and select `Open with Inspect View` to view a log file
+- Improve reliability of viewing log files when clicking links in the terminal
+
 ## 0.3.21
 
 - Properly reactivate log viewer when is has been activated but isn't visible (e.g another tab is visible in its column)

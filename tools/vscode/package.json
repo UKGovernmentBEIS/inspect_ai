@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.21",
+  "version": "0.3.23",
   "license": "MIT",
   "homepage": "https://ukgovernmentbeis.github.io/inspect_ai/",
   "repository": {
@@ -130,6 +130,11 @@
         "command": "inspect.debugConfigTask",
         "icon": "$(debug-alt)",
         "title": "Debug Task",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.openInInspectView",
+        "title": "Open with Inspect View",
         "enablement": "workspaceFolderCount != 0"
       }
     ],
@@ -254,6 +259,13 @@
           "command": "inspect.runConfigTask",
           "when": "view == inspect_ai.task-configuration && inspect_ai.activeTask",
           "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "inspect.openInInspectView",
+          "group": "navigation@100",
+          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^\\d{4}-\\d{2}-\\d{2}T\\d{2}[:-]\\d{2}[:-]\\d{2}.*\\.json/"
         }
       ],
       "view/item/context": [

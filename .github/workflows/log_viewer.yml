@@ -1,0 +1,41 @@
+name: Build Log Viewer
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  prettier:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/inspect_ai/_view/www
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - name: Install dependencies
+        run: yarn install
+      - name: Check prettier
+        run: yarn prettier:check
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/inspect_ai/_view/www
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - name: Install dependencies
+        run: yarn install
+      - name: Run eslint
+        run: yarn eslint

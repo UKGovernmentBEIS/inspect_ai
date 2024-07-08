@@ -1,20 +1,17 @@
-from inspect_ai.model import ContentText
-from inspect_ai.solver import tool, tool_environment
+from inspect_ai.tool import ContentText, ToolError, tool, tool_environment
 
 
 # define tool
 @tool(
     prompt="""If you are given a math problem of any kind,
-    please use the addition tool to compute the result.""",
-    params={"color": "metadata.color"},
+    please use the addition tool to compute the result."""
 )
 def addition():
-    async def add(color: str, x: int, y: int):
+    async def add(x: int, y: int):
         """
         Tool for adding two numbers.
 
         Args:
-            color (str): Color
             x (int): First number to add.
             y (int): Second number to add.
 
@@ -39,7 +36,10 @@ def read_file():
         Returns:
           File contents
         """
-        return await tool_environment().read_file(file)
+        try:
+            return await tool_environment().read_file(file)
+        except FileNotFoundError:
+            raise ToolError(f"File {file} not found.")
 
     return execute
 
@@ -64,6 +64,26 @@ def list_files():
         if result.success:
             return result.stdout
         else:
-            return f"Error: {result.stderr}"
+            raise ToolError(result.stderr)
+
+    return execute
+
+
+@tool(prompt="Use the exec tool to run programs")
+def exec():
+    async def execute(program: str):
+        """Run a program
+
+        Args:
+            program (str): Program to run
+
+        Returns:
+            Program output
+        """
+        result = await tool_environment().exec([program])
+        if result.success:
+            return result.stdout
+        else:
+            raise ToolError(result.stderr)
 
     return execute

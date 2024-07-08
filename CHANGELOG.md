@@ -1,8 +1,33 @@
 # Changelog
 
-## v0.3.16 (Unreleased)
+## Unreleased
+
+- Evaluate multiple models in parallel by passing a list of models to `eval()`.
+- Add `api_key` to `get_model()` for explicitly specifying an API key for a model.
+- Improved handling of very large (> 100MB) log files in Inspect View.
+- Use `network_mode: none` for disabling networking by default in Docker tool environments.
+- Shorten the default shutdown grace period for Docker container cleanup to 1 second.
+- Allow tool environent providers to specify a default `max_samples` (set to 25 for the Docker provider).
+- Prevent concurrent calls to `eval_async()` (unsafe because of need to change directories for tasks). Parallel task evaluation will instead be implemented as a top-level feature of `eval()` and `eval_async()`
+- Match scorers now return answers consistently even when there is no match.
+- Relocate tool related types into a new top-level `inspect_ai.tool` module (previous imports still work fow now, but result in a runtime deprecation warning)
+- Decouple tools entirely from solvers and task state (previously they had ways to interact with metadata, removing this coupling will enable tool use in lower level interactions with models). Accordingly, the `call_tools()` function now operates directly on messages rather than task state.
+
+## v0.3.17 (25 June 2024)
+
+- Optional increased control over the tool use loop via the `call_tools()` function and new `tool_calls` parameter for `generate()`.
+- New `per_epoch` option for `CachePolicy` to allow caching to ignore epochs.
+- Correctly handle `choices` and `files` when converting `Sample` images to base64. 
+
+## v0.3.16 (24 June 2024)
 
 -   Various fixes for the use of Docker tool environments on Windows.
+-   Ability to disable cleanup of tool environments via `--no-toolenv-cleanup`
+-   New `inspect toolenv cleanup` command for manually cleaning up tool environments.
+-   `ToolError` exception type for explicitly raising tool errors to the model. Formerly, any exception would be surfaced as a tool error to the model. Now, the `ToolError` exception is required for reporting to the model (otherwise other exception types go through the call stack and result in an eval error).
+-   Resolve `INSPECT_LOG_DIR` in `.env` file relative to `.env` file parent directory.
+-   Use `-` for delimiting `--limit` ranges rather than `,`
+-   Use HF model device for generate (compatibility with multi-GPU)
 
 ## v0.3.15 (15 June 2024)
 

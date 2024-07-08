@@ -2,7 +2,6 @@
   --bs-border-radius: 0;
   --bs-border-radius-lg: 0;
   --bs-popover-max-width: 50%;
-   
 }
 
 .modal {
@@ -10,7 +9,7 @@
 }
 
 .modal-backdrop {
-  --bs-backdrop-opacity: 0.2;
+  --bs-backdrop-opacity: 0.4;
 }
 
 body[class^="vscode-"] {
@@ -18,6 +17,7 @@ body[class^="vscode-"] {
   --bs-card-bg: var(--vscode-editor-background);
   --bs-table-bg: var(--vscode-editor-background);
   --bs-light-bg-subtle: var(--vscode-editor-selectionHighlightBackground);
+  --bs-light-border-subtle: var(--vscode-sideBarSectionHeader-border);
   --bs-body-color: var(--vscode-editor-foreground);
   --bs-table-color: var(--vscode-editor-foreground);
   --bs-accordion-btn-color: var(--vscode-editor-foreground);
@@ -35,6 +35,11 @@ body[class^="vscode-"] {
   --bs-card-border-color: var(--vscode-editorGroup-border);
 }
 
+body[class^="vscode-"] .modal-backdrop {
+  --bs-backdrop-opacity: 0.15;
+  --bs-backdrop-bg: var(--vscode-editor-foreground);
+}
+
 body[class^="vscode-"] code {
   background-color: transparent;
 }
@@ -47,7 +52,6 @@ body[class^="vscode-"] .modal-dialog {
 body[class^="vscode-"] .popover-arrow::before {
   border-left-color: var(--bs-border-color) !important;
 }
-
 
 body[class^="vscode-"] .modal-content {
   background-clip: unset;
@@ -75,7 +79,7 @@ body[class^="vscode-"] .navbar #sidebarToggle > i.bi {
 }
 
 body[class^="vscode-"] .accordion-button::after {
-  --bs-accordion-btn-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='black'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");      
+  --bs-accordion-btn-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='black'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
   background: white;
   mask-image: var(--bs-accordion-btn-icon);
 }
@@ -87,7 +91,7 @@ body[class^="vscode-"] .navbar-text i.bi {
 body[class^="vscode-"] .btn-tools {
   --bs-btn-hover-bg: var(--vscode-peekViewTitle-background);
   --bs-btn-bg: var(--vscode-peekViewTitle-background);
-  --bs-btn-border-color: var(--vscode-peekViewTitle-background); 
+  --bs-btn-border-color: var(--vscode-peekViewTitle-background);
   --bs-btn-hover-border-color: var(--vscode-peekViewTitle-background);
   --bs-btn-color: var(--vscode-peekViewTitleDescription-foreground);
   --bs-btn-hover-color: var(--vscode-peekViewTitleDescription-foreground);
@@ -95,7 +99,7 @@ body[class^="vscode-"] .btn-tools {
 
 body[class^="vscode-"] .btn-primary {
   --bs-btn-bg: var(--vscode-button-background);
-  --bs-btn-border-color: var(--vscode-button-background); 
+  --bs-btn-border-color: var(--vscode-button-background);
   --bs-btn-hover-bg: var(--vscode-button-hoverBackground);
   --bs-btn-hover-border-color: var(--vscode-button-hoverBackground);
   --bs-btn-color: var(--vscode-button-foreground);
@@ -103,7 +107,7 @@ body[class^="vscode-"] .btn-primary {
   --bs-btn-disabled-color: var(--vscode-button-foreground);
   --bs-btn-disabled-bg: var(--vscode-button-background);
   --bs-btn-disabled-border-color: var(--vscode-button-background);
-  --bs-btn-disabled-opacity: 0.8
+  --bs-btn-disabled-opacity: 0.8;
 }
 
 body[class^="vscode-"] .navbar-brand {
@@ -142,7 +146,9 @@ body[class^="vscode-"] .nav-link {
 body[class^="vscode-"] .nav-link:hover {
   --bs-nav-link-color: var(--vscode-editor-selectionForeground);
   --bs-nav-link-hover-color: var(--vscode-editor-selectionForeground);
-  --bs-nav-tabs-link-hover-border-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-tabs-link-hover-border-color: var(
+    --vscode-editor-selectionForeground
+  );
 }
 
 body[class^="vscode-"] .ansi-display {
@@ -168,8 +174,12 @@ body[class^="vscode-"] .sidebar .list-group {
   --bs-tertiary-bg: var(--vscode-list-hoverBackground);
   --bs-secondary-color: var(--vscode-foreground);
   --bs-list-group-active-bg: var(--vscode-sideBarSectionHeader-background);
-  --bs-list-group-active-border-color: var(--vscode-sideBarSectionHeader-background);
-  --bs-list-group-action-active-bg: var(--vscode-sideBarSectionHeader-background);
+  --bs-list-group-active-border-color: var(
+    --vscode-sideBarSectionHeader-background
+  );
+  --bs-list-group-action-active-bg: var(
+    --vscode-sideBarSectionHeader-background
+  );
   --bs-list-group-active-color: var(--vscode-sideBarSectionHeader-foreground);
 }
 
@@ -237,7 +247,6 @@ body {
   .workspace.off-canvas {
     left: 0;
   }
-
 }
 
 .no-last-para-padding > p:last-of-type {
@@ -329,7 +338,7 @@ code:not(.sourceCode) {
   background: inherit;
 }
 
-pre[class*=language-] {
+pre[class*="language-"] {
   border: unset;
   border-radius: unset;
   box-shadow: unset;
@@ -399,13 +408,12 @@ pre[class*=language-] {
   height: 0px !important;
 }
 
-
 .accordion-item:not(.no-highlight) .accordion-button:not(.collapsed) {
-    border-left: solid var(--bs-accordion-active-bg) 2px;
-    border-right: solid var(--bs-accordion-active-bg) 2px;
-    border-top: solid var(--bs-accordion-active-bg) 2px;
-    background-color: var(--bs-body-background);
-    color: var(--bs-body-color);
+  border-left: solid var(--bs-accordion-active-bg) 2px;
+  border-right: solid var(--bs-accordion-active-bg) 2px;
+  border-top: solid var(--bs-accordion-active-bg) 2px;
+  background-color: var(--bs-body-background);
+  color: var(--bs-body-color);
 }
 
 .accordion-item .accordion-button {
@@ -441,7 +449,6 @@ pre[class*=language-] {
   margin-bottom: 0.75em;
 }
 
-
 .sample-answer .markdown-content h1,
 .sample-answer .markdown-content h2,
 .sample-answer .markdown-content h3,
@@ -454,10 +461,10 @@ pre[class*=language-] {
   margin-bottom: 0em;
 }
 
-
 .accordion-item:not(.no-highlight) .collapse.show.highlight-when-expanded,
 .accordion-item:not(.no-highlight) .collapsing.highlight-when-expanded,
-.accordion-item:not(.no-highlight)  .accordion-button[aria-expanded="true"].highlight-when-expanded {
+.accordion-item:not(.no-highlight)
+  .accordion-button[aria-expanded="true"].highlight-when-expanded {
   border-left: solid var(--bs-accordion-active-bg) 2px;
   border-right: solid var(--bs-accordion-active-bg) 2px;
   border-bottom: solid var(--bs-accordion-active-bg) 2px;
@@ -474,7 +481,7 @@ pre[class*=language-] {
 }
 
 .accordion-header > :last-child::after,
-.accordion-button:last-child:after { 
+.accordion-button:last-child:after {
   color: white !important;
 }
 
@@ -518,7 +525,7 @@ table.table.table-sm td {
 
 .popover.rendered-content {
   display: flex;
-  flex-direction: column; 
+  flex-direction: column;
   max-height: 80%;
   max-width: 80%;
   /** Do not define an overflow on the wrapper or your arrow to the element will disapear */
@@ -591,14 +598,13 @@ table.table.table-sm td {
   }
 }
 
-
 .tab-tools .form-select {
   background-position: right 0.3rem center;
   background-size: 10px 10px;
-  padding: .1rem 20px .1rem 10px;
+  padding: 0.1rem 20px 0.1rem 10px;
 }
 
-.tab-content>.active {
+.tab-content > .active {
   display: flex;
 }
 
@@ -609,10 +615,10 @@ table.table.table-sm td {
 
 @keyframes moveLeftToRight {
   from {
-      margin-left: 0;
+    margin-left: 0;
   }
   to {
-      margin-left: 100%;
+    margin-left: 100%;
   }
 }
 

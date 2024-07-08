@@ -24,11 +24,12 @@ from openai.types.shared_params.function_definition import FunctionDefinition
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
+from inspect_ai._util.content import Content
 from inspect_ai._util.images import image_as_data_uri
 from inspect_ai._util.url import is_data_uri, is_http_url
+from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
-from .._content import Content
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
@@ -37,7 +38,6 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
 )
-from .._tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._util import chat_api_tool
 from .util import (
     as_stop_reason,
@@ -55,30 +55,29 @@ class OpenAIAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None = None,
-        config: GenerateConfig = GenerateConfig(),
         api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
         # call super
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+        )
 
         # resolve api_key
         is_azure = False
-        if not api_key:
-            api_key = os.environ.get(
+        if not self.api_key:
+            self.api_key = os.environ.get(
                 AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
             )
-            if api_key:
+            if self.api_key:
                 is_azure = True
             else:
-                api_key = os.environ.get(OPENAI_API_KEY, None)
-                if not api_key:
+                self.api_key = os.environ.get(OPENAI_API_KEY, None)
+                if not self.api_key:
                     raise ValueError(
                         f"No {OPENAI_API_KEY} or {AZUREAI_OPENAI_API_KEY} found."
                     )
-
-        # save api_key for connection_key
-        self.api_key = api_key
 
         # azure client
         if is_azure:
@@ -189,7 +188,7 @@ class OpenAIAPI(ModelAPI):
     @override
     def connection_key(self) -> str:
         """Scope for enforcing max_connections (could also use endpoint)."""
-        return self.api_key
+        return str(self.api_key)
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
         return dict(

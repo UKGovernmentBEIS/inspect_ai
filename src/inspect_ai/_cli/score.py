@@ -5,14 +5,13 @@ from typing_extensions import Unpack
 
 from inspect_ai._display import display
 from inspect_ai._display.logger import init_logger
+from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.loader import load_tasks
 from inspect_ai._eval.score import task_score
 from inspect_ai._util.constants import SCORED_SUFFIX
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai.log._file import JSONRecorder
 from inspect_ai.model import get_model
-from inspect_ai.model._model import init_async_context_model
-from inspect_ai.util._context import init_async_context
 
 from .common import CommonOptions, common_options, resolve_common_options
 
@@ -62,6 +61,9 @@ async def score(
     if eval_log.samples is None or len(eval_log.samples) == 0:
         raise ValueError(f"{log_file} does not include samples to score")
 
+    # init eval context
+    init_eval_context()
+
     # get the model then initialize the async context
     model = get_model(
         model=eval_log.eval.model,
@@ -69,9 +71,8 @@ async def score(
         **eval_log.eval.model_args,
     )
 
-    # initialize async contexts
-    init_async_context()
-    init_async_context_model(model)
+    # initialize active model
+    init_task_context(model)
 
     # instantiate the task so we can get its scorer and metrics
     score_task = load_tasks([task], model)[0]

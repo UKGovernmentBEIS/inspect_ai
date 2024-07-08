@@ -389,7 +389,7 @@ $ inspect eval arc.py --limit 500
 This will draw 500 random samples from the dataset (because we defined `shuffle=True` in our call to load the dataset). The task lets you override this with a task parameter (e.g. in case you wanted to evaluate a specific sample or range of samples):
 
 ``` bash
-$ inspect eval arc.py --limit 100,200 -T shuffle=false
+$ inspect eval arc.py --limit 100-200 -T shuffle=false
 ```
 
 ::: content-hidden
@@ -648,8 +648,9 @@ from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes, match
 from inspect_ai.solver import (
-    generate, system_message, tool, use_tools
+    generate, system_message, use_tools
 )
+from inspect_ai.tool import tool
 from inspect_ai.util import subprocess
 
 @tool(prompt="""
@@ -728,7 +729,7 @@ def list_files():
         if result.success:
             return result.stdout
         else:
-            return f"Error: {result.stderr}"
+            raise ToolError(result.stderr)
 
     return execute
 ```

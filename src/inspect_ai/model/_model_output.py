@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from inspect_ai.tool import ToolCall
+
 from ._chat_message import ChatMessageAssistant
 
 
@@ -81,6 +83,11 @@ class ModelOutput(BaseModel):
     """Error message in the case of content moderation refusals."""
 
     @property
+    def message(self) -> ChatMessageAssistant:
+        """First message choice."""
+        return self.choices[0].message
+
+    @property
     def completion(self) -> str:
         """Text of first message choice text."""
         if len(self.choices) > 0:
@@ -121,4 +128,40 @@ class ModelOutput(BaseModel):
                 )
             ],
             error=error,
+        )
+
+    @staticmethod
+    def for_tool_call(
+        model: str, tool_name: str, tool_arguments: dict[str, str]
+    ) -> "ModelOutput":
+        """
+        Returns a ModelOutput for requesting a tool call.
+
+        Args:
+            model: model name
+            tool_name: The name of the tool.
+            tool_arguments: The arguments passed to the tool.
+
+        Returns:
+            A ModelOutput corresponding to the tool call
+        """
+        return ModelOutput(
+            model=model,
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=f"tool call for tool {tool_name}",
+                        source="generate",
+                        tool_calls=[
+                            ToolCall(
+                                id="tool_call_id",
+                                function=tool_name,
+                                arguments=tool_arguments,
+                                type="function",
+                            )
+                        ],
+                    ),
+                    stop_reason="tool_calls",
+                )
+            ],
         )

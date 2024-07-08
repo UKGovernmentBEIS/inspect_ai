@@ -1,25 +1,44 @@
 import { readFileSync } from "fs";
 
 import {
+  Disposable,
   ExtensionContext,
-  WebviewPanel,
-  ViewColumn,
+  MessageItem,
   Uri,
+  ViewColumn,
+  WebviewPanel,
   env,
-  Disposable
+  window
 } from "vscode";
 
 import {
   InspectWebview,
   InspectWebviewManager,
 } from "../../components/webview";
-import { LogviewState } from "./commands";
-import { inspectViewPath } from "../../inspect/props";
-import { InspectChangedEvent, InspectManager } from "../inspect/inspect-manager";
+import {
+  JsonRpcPostMessageTarget,
+  JsonRpcServerMethod,
+  jsonRpcPostMessageServer,
+  kMethodEvalLog,
+  kMethodEvalLogHeaders,
+  kMethodEvalLogs,
+} from "../../core/jsonrpc";
 import { getNonce } from "../../core/nonce";
-import { JsonRpcPostMessageTarget, JsonRpcServerMethod, jsonRpcPostMessageServer, kMethodEvalLog, kMethodEvalLogHeaders, kMethodEvalLogs } from "../../core/jsonrpc";
-import { inspectEvalLog, inspectEvalLogHeaders, inspectEvalLogs } from "../../inspect/logs";
-import { activeWorkspacePath } from "../../core/path";
+import { activeWorkspacePath, workspacePath } from "../../core/path";
+import { dirname } from "../../core/uri";
+import {
+  inspectEvalLog,
+  inspectEvalLogHeaders,
+  inspectEvalLogs,
+} from "../../inspect/logs";
+import { inspectViewPath } from "../../inspect/props";
+import { withMinimumInspectVersion } from "../../inspect/version";
+import { kInspectOpenInspectViewVersion } from "../inspect/inspect-constants";
+import {
+  InspectChangedEvent,
+  InspectManager,
+} from "../inspect/inspect-manager";
+import { LogviewState } from "./commands";
 
 const kLogViewId = "inspect.logview";
 
@@ -28,13 +47,14 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
   LogviewState
 > {
   constructor(inspectManager: InspectManager, context: ExtensionContext) {
-
     // If the interpreter changes, refresh the tasks
-    context.subscriptions.push(inspectManager.onInspectChanged((e: InspectChangedEvent) => {
-      if (!e.available && this.activeView_) {
-        this.activeView_?.dispose();
-      }
-    }));
+    context.subscriptions.push(
+      inspectManager.onInspectChanged((e: InspectChangedEvent) => {
+        if (!e.available && this.activeView_) {
+          this.activeView_?.dispose();
+        }
+      })
+    );
 
     // register view dir as local resource root
     const localResourceRoots: Uri[] = [];
@@ -42,32 +62,57 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
     if (viewDir) {
       localResourceRoots.push(Uri.file(viewDir.path));
     }
-    super(context, kLogViewId, "Inspect View", localResourceRoots, InspectLogviewWebview);
-    this.lastState_ = {};
+    super(
+      context,
+      kLogViewId,
+      "Inspect View",
+      localResourceRoots,
+      InspectLogviewWebview
+    );
+    this.lastState_;
+  }
+  private activeLogDir_: Uri | null = null;
+
+  public showLogFile(uri: Uri) {
+    // Get the directory name using posix path methods
+    const log_dir = dirname(uri);
+
+    this.showLogview({ log_file: uri, log_dir });
   }
 
-  public showLogFile(uri: Uri, onClose?: () => void) {
-    this.showLogview({ url: uri.toString() }, onClose, true);
-  }
-
-  public showLogview(state: LogviewState = {}, onClose?: () => void, activate = true) {
-    if (!this.activeView_ && !activate) {
-      return;
+  public showLogview(state: LogviewState) {
+    // Determine whether we are showing a log viewer for this directory
+    // If we aren't close the log viewer so a fresh one can be opened.
+    if (
+      this.activeLogDir_ !== null &&
+      state.log_dir.toString() !== this.activeLogDir_.toString()
+    ) {
+      // Close it
+      this.activeView_?.dispose();
+      this.activeView_ = undefined;
     }
 
+    // Note the log directory that we are showing
+    this.activeLogDir_ = state.log_dir || null;
+
+    // Update the view state
+    this.updateViewState(state);
+
+    // Ensure that we send the state once the view is loaded
     this.setOnShow(() => {
-      this.updateViewState(state);
       this.updateVisibleView().catch(() => { });
     });
-    if (onClose) {
-      this.setOnClose(onClose);
-    }
 
+    // If the view is closed, clear the state
+    this.setOnClose(() => {
+      this.lastState_ = undefined;
+      this.activeLogDir_ = null;
+    });
 
+    // Actually reveal or show the webview
     if (this.activeView_) {
       this.revealWebview();
     } else {
-      this.updateViewState({});
       this.showWebview(state, {
         preserveFocus: true,
         viewColumn: ViewColumn.Beside,
@@ -86,19 +131,34 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
   }
 
   private async updateVisibleView() {
-    if (this.isVisible()) {
-      await this.activeView_?.update(this.lastState_);
+    if (this.activeView_ && this.isVisible() && this.lastState_) {
+      await this.activeView_.update(this.lastState_);
     }
   }
 
   private updateViewState(state: LogviewState) {
-    if (this.lastState_ !== state) {
+    if (!this.lastState_ || !logStateEquals(state, this.lastState_)) {
       this.lastState_ = state;
     }
   }
 
-  private lastState_: LogviewState;
+  private lastState_: LogviewState | undefined;
 }
+
+const logStateEquals = (a: LogviewState, b: LogviewState) => {
+  if (a.log_dir.toString() !== b.log_dir.toString()) {
+    return false;
+  }
+
+  if (!a.log_file && b.log_file) {
+    return false;
+  } else if (a.log_file && !b.log_file) {
+    return false;
+  } else if (a.log_file && b.log_file) {
+    return a.log_file.toString() === b.log_file.toString();
+  }
+  return true;
+};
 
 class InspectLogviewWebview extends InspectWebview<LogviewState> {
   public constructor(
@@ -110,45 +170,65 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
 
     // this isn't currently used by we might want to in the future we leave it in
     this._register(
-      this._webviewPanel.webview.onDidReceiveMessage(async (e: { type: string, url: string }) => {
-        switch (e.type) {
-          case "openExternal":
-            try {
-              const url = Uri.parse(e.url);
-              await env.openExternal(url);
-            } catch {
-              // Noop
-            }
-            break;
+      this._webviewPanel.webview.onDidReceiveMessage(
+        async (e: { type: string; url: string }) => {
+          switch (e.type) {
+            case "openExternal":
+              try {
+                const url = Uri.parse(e.url);
+                await env.openExternal(url);
+              } catch {
+                // Noop
+              }
+              break;
+            case "openWorkspaceFile":
+              {
+                if (e.url) {
+                  const file = workspacePath(e.url);
+                  try {
+                    await window.showTextDocument(Uri.file(file.path));
+                  } catch (err) {
+                    if (err instanceof Error && err.name === "CodeExpectedError") {
+                      const close: MessageItem = { title: "Close" };
+                      await window.showInformationMessage<MessageItem>(
+                        "This file is too large to be opened by the viewer.",
+                        close
+                      );
+                    } else {
+                      throw err;
+                    }
+                  }
+                }
+              }
+              break;
+          }
         }
-      })
+      )
     );
 
-
+    // Note that when the logview is torn down, the state could be undefined
+    // even though the type system says otherwise
     const disconnect = webviewPanelJsonRpcServer(this._webviewPanel, {
-      [kMethodEvalLogs]: evalLogs,
-      [kMethodEvalLog]: (params: unknown[]) => evalLog(params[0] as string, params[1] as boolean),
-      [kMethodEvalLogHeaders]: (params: unknown[]) => evalLogHeaders(params[0] as string[])
+      [kMethodEvalLogs]: evalLogs(state?.log_dir),
+      [kMethodEvalLog]: (params: unknown[]) =>
+        evalLog(params[0] as string, params[1] as boolean),
+      [kMethodEvalLogHeaders]: (params: unknown[]) =>
+        evalLogHeaders(params[0] as string[]),
     });
     this._register(new Disposable(disconnect));
-
   }
-
-
 
   public async update(state: LogviewState) {
     await this._webviewPanel.webview.postMessage({
       type: "updateState",
-      ...state,
+      url: state.log_file?.toString(),
     });
   }
 
-  protected getHtml(): string {
-
+  protected getHtml(state: LogviewState): string {
     // read the index.html from the log view directory
     const viewDir = inspectViewPath();
     if (viewDir) {
-
       // get nonce
       const nonce = getNonce();
 
@@ -159,40 +239,67 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       let indexHtml = readFileSync(viewDir.child("index.html").path, "utf-8");
 
       // Add a stylesheet to further customize the view appearance
-      const overrideCssPath = this.extensionResourceUrl(["assets",
+      const overrideCssPath = this.extensionResourceUrl([
+        "assets",
         "www",
         "view",
-        "view-overrides.css"]);
+        "view-overrides.css",
+      ]);
 
+      // If there is a log file selected in state, embed the startup message
+      // within the view itself. This will allow the log to be set immediately
+      // which avoids timing issues when first opening the view (e.g. the updateState
+      // message being sent before the view itself is configured to receive messages)
+      const stateMsg = {
+        type: "updateState",
+        url: state?.log_file?.toString(),
+      };
+      const stateScript = state && state.log_file ? `<script id="logview-state" type="application/json">${JSON.stringify(stateMsg)}</script>` : "";
 
       // add content security policy
-      indexHtml = indexHtml.replace("<head>\n", `<head>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._webviewPanel.webview.cspSource} data:; font-src ${this._webviewPanel.webview.cspSource}; style-src ${this._webviewPanel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+      indexHtml = indexHtml.replace(
+        "<head>\n",
+        `<head>
+          <meta name="inspect-extension:version" content="${this.getExtensionVersion()}">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._webviewPanel.webview.cspSource
+        } data:; font-src ${this._webviewPanel.webview.cspSource}; style-src ${this._webviewPanel.webview.cspSource
+        } 'unsafe-inline'; worker-src 'self' ${this._webviewPanel.webview.cspSource} blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this._webviewPanel.webview.cspSource
+        };">
+    ${stateScript}
     <link rel="stylesheet" type ="text/css" href="${overrideCssPath.toString()}" >
-    `);
+
+    `
+      );
 
       // function to resolve resource uri
-      const resourceUri = (path: string) => this._webviewPanel.webview.asWebviewUri(
-        Uri.joinPath(viewDirUri, path)
-      ).toString();
+      const resourceUri = (path: string) =>
+        this._webviewPanel.webview
+          .asWebviewUri(Uri.joinPath(viewDirUri, path))
+          .toString();
 
       // fixup css references
       indexHtml = indexHtml.replace(/href="\.([^"]+)"/g, (_, p1: string) => {
         return `href="${resourceUri(p1)}"`;
       });
 
-      // fixup js references 
+      // fixup js references
       indexHtml = indexHtml.replace(/src="\.([^"]+)"/g, (_, p1: string) => {
         return `src="${resourceUri(p1)}"`;
       });
 
       // nonces for scripts
-      indexHtml = indexHtml.replace(/<script([ >])/g, `<script nonce="${nonce}"$1`);
+      indexHtml = indexHtml.replace(
+        /<script([ >])/g,
+        `<script nonce="${nonce}"$1`
+      );
 
       // fixup import maps
-      indexHtml = indexHtml.replace(/": "\.([^?"]+)(["?])/g, (_, p1: string, p2: string) => {
-        return `": "${resourceUri(p1)}${p2}`;
-      });
+      indexHtml = indexHtml.replace(
+        /": "\.([^?"]+)(["?])/g,
+        (_, p1: string, p2: string) => {
+          return `": "${resourceUri(p1)}${p2}`;
+        }
+      );
 
       // fixup App.mjs
       indexHtml = indexHtml.replace(/"\.(\/App\.mjs)"/g, (_, p1: string) => {
@@ -200,7 +307,6 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       });
 
       return indexHtml;
-
     } else {
       return `
 <!DOCTYPE html>
@@ -214,42 +320,67 @@ Inspect not available.
 </html>
 `;
     }
-
   }
 }
 
-
-function evalLogs(): Promise<string | undefined> {
-  const workspacePath = activeWorkspacePath();
-  return Promise.resolve(inspectEvalLogs(workspacePath));
+// The eval commands below need to be coordinated in terms of their working directory
+// The evalLogs() call will return log files with relative paths to the working dir (if possible)
+// and subsequent calls like evalLog() need to be able to deal with these relative paths
+// by using the same working directory.
+//
+// So, we always use the workspace root as the working directory and will resolve
+// paths that way. Note that paths can be S3 urls, for example, in which case the paths
+// will be absolute (so cwd doesn't really matter so much in this case).
+function evalLogs(log_dir: Uri): () => Promise<string | undefined> {
+  // Return both the log_dir and the logs
+  return (): Promise<string | undefined> => {
+    const response = withMinimumInspectVersion<string | undefined>(
+      kInspectOpenInspectViewVersion,
+      () => {
+        const logs = inspectEvalLogs(activeWorkspacePath(), log_dir);
+        const logsJson = logs ? (JSON.parse(logs) as unknown) : [];
+        return JSON.stringify({ log_dir: log_dir.toString(), files: logsJson });
+      },
+      () => {
+        // Return the original log content
+        return inspectEvalLogs(activeWorkspacePath());
+      }
+    );
+    return Promise.resolve(response);
+  };
 }
 
-function evalLog(file: string, headerOnly: boolean): Promise<string | undefined> {
-  const workspacePath = activeWorkspacePath();
-  return Promise.resolve(inspectEvalLog(workspacePath, file, headerOnly));
+function evalLog(
+  file: string,
+  headerOnly: boolean
+): Promise<string | undefined> {
+  return Promise.resolve(
+    inspectEvalLog(activeWorkspacePath(), file, headerOnly)
+  );
 }
 
 function evalLogHeaders(files: string[]) {
-  const workspacePath = activeWorkspacePath();
-  return Promise.resolve(inspectEvalLogHeaders(workspacePath, files));
+  return Promise.resolve(inspectEvalLogHeaders(activeWorkspacePath(), files));
 }
-
 
 export function webviewPanelJsonRpcServer(
   webviewPanel: WebviewPanel,
-  methods: Record<string, JsonRpcServerMethod> | ((name: string) => JsonRpcServerMethod | undefined)): () => void {
+  methods:
+    | Record<string, JsonRpcServerMethod>
+    | ((name: string) => JsonRpcServerMethod | undefined)
+): () => void {
   const target: JsonRpcPostMessageTarget = {
     postMessage: (data: unknown) => {
       void webviewPanel.webview.postMessage(data);
     },
     onMessage: (handler: (data: unknown) => void) => {
-      const disposable = webviewPanel.webview.onDidReceiveMessage(ev => {
+      const disposable = webviewPanel.webview.onDidReceiveMessage((ev) => {
         handler(ev);
       });
       return () => {
         disposable.dispose();
       };
-    }
+    },
   };
   return jsonRpcPostMessageServer(target, methods);
 }

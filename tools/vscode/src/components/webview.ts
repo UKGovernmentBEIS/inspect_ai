@@ -211,6 +211,10 @@ export abstract class InspectWebview<T> extends Disposable {
 
   protected abstract getHtml(state: T): string;
 
+  protected getExtensionVersion(): string {
+    return (this.context.extension.packageJSON as Record<string, unknown>).version as string;
+  }
+
   protected webviewHTML(
     js: Array<string[]>,
     css: string[],

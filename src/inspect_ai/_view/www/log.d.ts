@@ -25,6 +25,7 @@ export type Epochs = number | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
 export type MaxSubprocesses = number | null;
+export type ToolenvCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogImages = boolean | null;
 export type LogBuffer = number | null;
@@ -72,7 +73,14 @@ export type TracebackAnsi = string;
 export type Samples1 = EvalSample[] | null;
 export type Id = number | string;
 export type Epoch = number;
-export type Input = string | (ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool)[];
+export type Input =
+  | string
+  | (
+      | ChatMessageSystem
+      | ChatMessageUser
+      | ChatMessageAssistant
+      | ChatMessageTool
+    )[];
 export type Content = string | (ContentText | ContentImage)[];
 export type Type1 = "text";
 export type Text = string;
@@ -100,9 +108,19 @@ export type ToolCallId = string | null;
 export type ToolError = string | null;
 export type Choices = string[] | null;
 export type Target = string | string[];
-export type Messages = (ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool)[];
+export type Messages = (
+  | ChatMessageSystem
+  | ChatMessageUser
+  | ChatMessageAssistant
+  | ChatMessageTool
+)[];
 export type Model1 = string;
-export type StopReason = "stop" | "length" | "tool_calls" | "content_filter" | "unknown";
+export type StopReason =
+  | "stop"
+  | "length"
+  | "tool_calls"
+  | "content_filter"
+  | "unknown";
 export type Token = string;
 export type Logprob1 = number;
 export type Bytes = number[] | null;
@@ -125,7 +143,14 @@ export type Value1 =
 export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata4 = {} | null;
-export type Level = "debug" | "http" | "tools" | "info" | "warning" | "error" | "critical";
+export type Level =
+  | "debug"
+  | "http"
+  | "tools"
+  | "info"
+  | "warning"
+  | "error"
+  | "critical";
 export type Message1 = string;
 export type Created1 = number;
 export type Logging = LoggingMessage[];
@@ -175,6 +200,7 @@ export interface EvalConfig {
   max_messages: MaxMessages;
   max_samples: MaxSamples;
   max_subprocesses: MaxSubprocesses;
+  toolenv_cleanup: ToolenvCleanup;
   log_samples: LogSamples;
   log_images: LogImages;
   log_buffer: LogBuffer;

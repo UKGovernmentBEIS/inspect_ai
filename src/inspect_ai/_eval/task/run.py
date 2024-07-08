@@ -4,23 +4,29 @@ import contextlib
 import sys
 from copy import deepcopy
 from logging import getLogger
-from typing import AsyncGenerator, Awaitable, Callable
+from typing import AsyncGenerator, Callable, Literal, cast
 
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
-from inspect_ai._display._display import TaskProfile
-from inspect_ai._util.constants import DEFAULT_EPOCHS
+from inspect_ai._display._display import (
+    TaskCancelled,
+    TaskError,
+    TaskProfile,
+    TaskSuccess,
+)
+from inspect_ai._eval.task.util import sample_messages
+from inspect_ai._util.constants import DEFAULT_EPOCHS, DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.datetime import iso_now
-from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.file import file, filesystem
-from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
+from inspect_ai._util.telemetry import send_telemetry
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri
+from inspect_ai._view.view import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
     EvalConfig,
@@ -30,6 +36,7 @@ from inspect_ai.log import (
     EvalSample,
     EvalStats,
 )
+from inspect_ai.log._file import eval_log_json
 from inspect_ai.log._log import eval_error
 from inspect_ai.model import (
     CachePolicy,
@@ -40,19 +47,20 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.scorer import Score, Scorer, Target
-from inspect_ai.solver import Generate, Plan, Solver, TaskState, ToolEnvironment
-from inspect_ai.solver._tool.environment.context import (
+from inspect_ai.solver import Generate, Plan, Solver, TaskState
+from inspect_ai.tool import ToolEnvironment
+from inspect_ai.tool._environment.context import (
     cleanup_tool_environments_sample,
     init_tool_environments_sample,
-    startup_tool_environments,
 )
+from inspect_ai.tool._environment.registry import registry_find_toolenv
 
+from ..context import init_task_context
 from ..task import Task
 from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
-from .util import has_max_messages, sample_messages, task_run_dir
 
 py_logger = getLogger(__name__)
 
@@ -62,13 +70,14 @@ EvalSampleSource = Callable[[int | str, int], EvalSample | None]
 
 async def task_run(
     task: Task,
-    sequence: tuple[int, int],
     model: Model,
+    toolenv: tuple[str, str | None] | None,
     logger: TaskLogger,
     config: EvalConfig = EvalConfig(),
     plan: Plan | Solver | list[Solver] | None = None,
     score: bool = True,
     sample_source: EvalSampleSource | None = None,
+    sample_semaphore: asyncio.Semaphore | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> EvalLog:
     r"""Run the task.
@@ -78,8 +87,8 @@ async def task_run(
 
     Args:
         task (Task): Task to run.
-        sequence (int): Sequence of the run within a larger set of runs
         model (Model): Model used to generate output
+        toolenv (tuple[str, str | None] | None): Tool environment
         logger (TaskLogger): Logger for recording results.
         config (EvalConfig): Config (sample range/epochs, logging options)
         plan:(Plan | Solver | list[Solver] | None): Override of
@@ -89,195 +98,184 @@ async def task_run(
           has a solver and metrics defined.
         sample_source (EvalSampleSource | None): Source from which
           previously executed samples can be found/returned
+        sample_semaphore (Semphonre | None): Semaphore for limiting
+          number of concurrent samples.
         **kwargs (GenerateConfigArgs): Generation config options
 
     Returns:
       EvalLog for executed task.
 
     """
-    with chdir_python(task_run_dir(task)), dotenv_environ():
-        # track stats and error
-        stats = EvalStats(started_at=iso_now())
-        error: EvalError | None = None
-        cancelled = False
+    # init task context
+    init_task_context(model)
 
-        # resolve some config
-        model_name = ModelName(model)
-        epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
-        log_images = config.log_images is not False
-        log_samples = config.log_samples is not False
-        generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
+    # track stats and error
+    stats = EvalStats(started_at=iso_now())
+    error: EvalError | None = None
+    cancelled = False
 
-        # resolve dataset
-        _, samples, states = await resolve_dataset(
-            dataset=task.dataset,
-            model_name=model_name,
-            limit=config.limit,
-            epochs=epochs,
-            log_images=log_images,
-        )
+    # resolve some config
+    model_name = ModelName(model)
+    epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
+    toolenv_cleanup = config.toolenv_cleanup is not False
+    log_images = config.log_images is not False
+    log_samples = config.log_samples is not False
+    generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
-        # resolve tool_environment
-        if task.tool_environment:
-            tool_environment = (
-                logger.eval.tool_environment
-                if logger.eval.tool_environment
-                else task.tool_environment
-            )
-        else:
-            tool_environment = None
+    # resolve dataset
+    _, samples, states = await resolve_dataset(
+        dataset=task.dataset,
+        model_name=model_name,
+        limit=config.limit,
+        epochs=epochs,
+        log_images=log_images,
+        max_messages=config.max_messages,
+    )
 
-        # resolve the plan and scorer
-        plan = (
-            plan
-            if isinstance(plan, Plan)
-            else Plan(plan)
-            if plan is not None
-            else task.plan
-        )
-        score = score and task.scorer is not None
-        scorer: Scorer | None = task.scorer if (score and task.scorer) else None
+    # resolve the plan and scorer
+    plan = (
+        plan
+        if isinstance(plan, Plan)
+        else Plan(plan)
+        if plan is not None
+        else task.plan
+    )
+    score = score and task.scorer is not None
+    scorer: Scorer | None = task.scorer if (score and task.scorer) else None
 
-        # create task profile for display
-        profile = TaskProfile(
-            name=task.name,
-            sequence=sequence,
-            model=model_name,
-            dataset=task.dataset.name or "(samples)",
-            scorer=(
-                registry_log_name(scorer) if is_registry_object(scorer) else "(none)"
-            ),
-            samples=len(samples),
-            eval_config=config,
-            task_args=logger.eval.task_args,
-            generate_config=generate_config,
-            log_location=logger.location,
-        )
+    # compute steps (steps = samples * steps in plan + 1 for scorer)
+    steps = len(samples) * (
+        len(plan.steps) + (1 if plan.finish else 0) + (1)  # scorer
+    )
 
-        # run startup pass for the tool_environment
-        shutdown_tool_environments: Callable[[], Awaitable[None]] | None = None
-        if tool_environment:
-            shutdown_tool_environments = await startup_tool_environments(
-                task.name, tool_environment
-            )
+    # create task profile for display
+    profile = TaskProfile(
+        name=task.name,
+        model=model_name,
+        dataset=task.dataset.name or "(samples)",
+        scorer=(registry_log_name(scorer) if is_registry_object(scorer) else "(none)"),
+        samples=len(samples),
+        steps=steps,
+        eval_config=config,
+        task_args=logger.eval.task_args,
+        generate_config=generate_config,
+        log_location=logger.location,
+    )
 
-        with display().task(profile) as td:
-            try:
-                # log the plan
-                log_plan(logger, plan, generate_config)
+    with display().task(profile) as td:
+        try:
+            # log the plan
+            log_plan(logger, plan, generate_config)
 
-                # run w/ progress (steps = samples * steps in plan + 1 for scorer)
-                total_steps = len(samples) * (
-                    len(plan.steps) + (1 if plan.finish else 0) + (1)  # scorer
-                )
-                with td.progress(total=total_steps) as p:
-                    # forward progress
-                    def progress() -> None:
-                        p.update(1)
+            with td.progress() as p:
+                # forward progress
+                def progress() -> None:
+                    p.update(1)
 
-                    # provide solvers a function that they can use to generate output
-                    async def generate(
-                        state: TaskState,
-                        cache: bool | CachePolicy = False,
-                        **kwargs: Unpack[GenerateConfigArgs],
-                    ) -> TaskState:
-                        return await task_generate(
-                            model=model,
-                            state=state,
-                            cache=cache,
-                            config=generate_config.merge(kwargs),
-                            max_messages=config.max_messages,
-                        )
-
-                    # semaphore to limit concurrency
-                    task_semaphore = create_task_semaphone(
-                        config, generate_config, model.api
+                # provide solvers a function that they can use to generate output
+                async def generate(
+                    state: TaskState,
+                    tool_calls: Literal["loop", "single", "none"] = "loop",
+                    cache: bool | CachePolicy = False,
+                    **kwargs: Unpack[GenerateConfigArgs],
+                ) -> TaskState:
+                    return await task_generate(
+                        model=model,
+                        state=state,
+                        tool_calls=tool_calls,
+                        cache=cache,
+                        config=generate_config.merge(kwargs),
                     )
 
-                    # create tasks
-                    tasks = [
-                        task_run_sample(
-                            task_name=task.name,
-                            sample=sample,
-                            state=state,
-                            tool_environment=tool_environment,
-                            plan=plan,
-                            max_messages=config.max_messages,
-                            scorer=scorer,
-                            generate=generate,
-                            progress=progress,
-                            logger=logger if log_samples else None,
-                            log_images=log_images,
-                            sample_source=sample_source,
-                            semaphore=task_semaphore,
-                        )
-                        for (sample, state) in zip(samples, states)
-                    ]
+                # semaphore to limit concurrency
+                sample_semaphore = (
+                    sample_semaphore
+                    if sample_semaphore
+                    else create_sample_semaphore(
+                        config, generate_config, toolenv, model.api
+                    )
+                )
 
-                    # run them in parallel (subject to config.max_samples)
-                    scores = await asyncio.gather(*tasks)
-
-                # compute and record metrics if we have scores
-                completed_scores = [
-                    score for score in scores if isinstance(score, Score)
-                ]
-                if len(completed_scores) > 0:
-                    results = eval_results(
-                        scores=completed_scores,
+                # create sample coroutines
+                sample_coroutines = [
+                    task_run_sample(
+                        task_name=task.name,
+                        sample=sample,
+                        state=state,
+                        tool_environment=toolenv,
+                        toolenv_cleanup=toolenv_cleanup,
+                        plan=plan,
+                        max_messages=config.max_messages,
                         scorer=scorer,
-                        metrics=task.metrics,
+                        generate=generate,
+                        progress=progress,
+                        logger=logger if log_samples else None,
+                        log_images=log_images,
+                        sample_source=sample_source,
+                        semaphore=sample_semaphore,
                     )
-                    logger.log_results(results)
-                else:
-                    results = EvalResults()
+                    for (sample, state) in zip(samples, states)
+                ]
 
-                # collect eval data
-                collect_eval_data(stats, logger)
+                # run them in parallel (subject to config.max_samples)
+                scores = await asyncio.gather(*sample_coroutines)
 
-                # display task summary
-                td.summary(results, stats)
-
-            except (asyncio.CancelledError, KeyboardInterrupt):
-                # flag as cancelled
-                cancelled = True
-
-                # collect eval data
-                collect_eval_data(stats, logger)
-
-                # display task cancelled
-                td.cancelled(logger.samples_logged, stats)
-
-            except BaseException as ex:
-                # get exception info
-                type, value, traceback = sys.exc_info()
-                type = type if type else BaseException
-                value = value if value else ex
-
-                # build eval error
-                error = eval_error(ex, type, value, traceback)
-
-                # collect eval data
-                collect_eval_data(stats, logger)
-
-                # display it
-                td.error(logger.samples_logged, error, type, value, traceback)
-
-        # log as appropriate
-        if cancelled:
-            eval_log = logger.log_cancelled(stats)
-        elif error:
-            eval_log = logger.log_failure(stats, error)
-        else:
-            eval_log = logger.log_success(stats)
-
-        # run tool environment shutdown if we have it
-        if shutdown_tool_environments:
-            try:
-                await shutdown_tool_environments()
-            except BaseException as ex:
-                py_logger.warning(
-                    f"Error occurred shutting down tool environments: {exception_message(ex)}"
+            # compute and record metrics if we have scores
+            completed_scores = [score for score in scores if isinstance(score, Score)]
+            if len(completed_scores) > 0:
+                results = eval_results(
+                    scores=completed_scores,
+                    scorer=scorer,
+                    metrics=task.metrics,
                 )
+                logger.log_results(results)
+            else:
+                results = EvalResults()
+
+            # collect eval data
+            collect_eval_data(stats, logger)
+
+            # display task summary
+            td.complete(TaskSuccess(stats, results))
+
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            # flag as cancelled
+            cancelled = True
+
+            # collect eval data
+            collect_eval_data(stats, logger)
+
+            # display task cancelled
+            td.complete(TaskCancelled(logger.samples_logged, stats))
+
+        except BaseException as ex:
+            # get exception info
+            type, value, traceback = sys.exc_info()
+            type = type if type else BaseException
+            value = value if value else ex
+
+            # build eval error
+            error = eval_error(ex, type, value, traceback)
+
+            # collect eval data
+            collect_eval_data(stats, logger)
+
+            # display it
+            td.complete(TaskError(logger.samples_logged, type, value, traceback))
+
+    # log as appropriate
+    if cancelled:
+        eval_log = logger.log_cancelled(stats)
+    elif error:
+        eval_log = logger.log_failure(stats, error)
+    else:
+        eval_log = logger.log_success(stats)
+
+    # notify the view module that an eval just completed
+    # (in case we have a view polling for new evals)
+    view_notify_eval(logger.location)
+
+    await send_telemetry("eval_log", eval_log_json(eval_log))
 
     # return eval log
     return eval_log
@@ -288,6 +286,7 @@ async def task_run_sample(
     sample: Sample,
     state: TaskState,
     tool_environment: tuple[str, str | None] | None,
+    toolenv_cleanup: bool,
     plan: Plan,
     max_messages: int | None,
     scorer: Scorer | None,
@@ -319,7 +318,7 @@ async def task_run_sample(
 
     # use toolenv if provided
     toolenv_cm = (
-        toolenv_context(task_name, tool_environment, sample)
+        toolenv_context(task_name, tool_environment, toolenv_cleanup, sample)
         if tool_environment
         else contextlib.nullcontext()
     )
@@ -334,7 +333,7 @@ async def task_run_sample(
                 progress()
 
                 # check for early termination (tick remaining progress)
-                if state.completed or has_max_messages(state, max_messages):
+                if state.completed:
                     for _ in range(index + 1, len(plan.steps)):
                         progress()
                     break
@@ -379,6 +378,7 @@ async def resolve_dataset(
     limit: int | tuple[int, int] | None,
     epochs: int,
     log_images: bool,
+    max_messages: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # apply limit to dataset
     dataset_limit = (
@@ -415,6 +415,7 @@ async def resolve_dataset(
                 input=sample.input,
                 choices=sample.choices,
                 messages=sample_messages(sample),
+                max_messages=max_messages,
                 completed=False,
                 metadata=sample.metadata if sample.metadata else {},
             )
@@ -478,25 +479,43 @@ def eval_log_sample_source(
 # semaphore to limit concurrency. default max_samples to
 # max_connections + 1 if not explicitly specified (this is
 # to make sure it always saturates the connection pool)
-def create_task_semaphone(
-    config: EvalConfig, generate_config: GenerateConfig, modelapi: ModelAPI
+def create_sample_semaphore(
+    config: EvalConfig,
+    generate_config: GenerateConfig,
+    toolenv: tuple[str, str | None] | None = None,
+    modelapi: ModelAPI | None = None,
 ) -> asyncio.Semaphore:
+    # if the user set max_samples then use that
+    if config.max_samples is not None:
+        return asyncio.Semaphore(config.max_samples)
+
+    # use max_connections
     max_samples = (
-        config.max_samples
-        if config.max_samples is not None
-        else (
-            generate_config.max_connections
-            if generate_config.max_connections is not None
-            else modelapi.max_connections()
-        )
-        + 1
+        generate_config.max_connections
+        if generate_config.max_connections is not None
+        else modelapi.max_connections()
+        if modelapi
+        else DEFAULT_MAX_CONNECTIONS
     )
+
+    # if a toolenv is in play then it can cap max_samples
+    if toolenv:
+        toolenv_type = registry_find_toolenv(toolenv[0])
+        toolenv_max_samples = cast(int | None, getattr(toolenv_type, "max_samples")())
+        if toolenv_max_samples is not None:
+            if max_samples > toolenv_max_samples:
+                max_samples = toolenv_max_samples
+
+    # return the semaphore
     return asyncio.Semaphore(max_samples)
 
 
 @contextlib.asynccontextmanager
 async def toolenv_context(
-    task_name: str, tool_environment: tuple[str, str | None], sample: Sample
+    task_name: str,
+    tool_environment: tuple[str, str | None],
+    cleanup: bool,
+    sample: Sample,
 ) -> AsyncGenerator[None, None]:
     # read files from sample
     files: dict[str, bytes] = {}
@@ -542,7 +561,7 @@ async def toolenv_context(
 
     finally:
         # cleanup tool environment
-        if environments:
+        if environments and cleanup:
             await cleanup_tool_environments_sample(
                 type=tool_environment[0],
                 task_name=task_name,

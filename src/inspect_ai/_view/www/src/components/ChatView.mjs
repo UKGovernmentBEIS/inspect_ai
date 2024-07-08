@@ -45,7 +45,7 @@ export const ChatView = ({ id, messages, style }) => {
       reduced.content.push(...systemContents.map(normalizeContent));
       return reduced;
     },
-    { role: "system", content: [] }
+    { role: "system", content: [] },
   );
 
   // Converge them
@@ -55,7 +55,7 @@ export const ChatView = ({ id, messages, style }) => {
 
   return html`
     <div style=${{ paddingTop: "0.5em", ...style }}>
-      ${collapsedMessages.map((msg, index) => {
+      ${collapsedMessages.map((msg) => {
         return html`<${ChatMessage}
           id=${`${id}-chat-messages`}
           message=${msg}
@@ -139,7 +139,7 @@ const MessageContents = ({ message, toolMessages }) => {
       result.push(
         html`<div style=${{ marginBottom: "1em" }}>
           <${MessageContent} contents=${message.content} />
-        </div>`
+        </div>`,
       );
     }
 

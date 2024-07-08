@@ -1,14 +1,11 @@
 from random import randint
 
-from test_helpers.utils import skip_if_no_openai
-
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, solver
 
 
-@skip_if_no_openai
 def test_max_messages_complete():
     @solver
     def max_messages_solver():
@@ -30,5 +27,5 @@ def test_max_messages_complete():
         max_messages=max_messages,
     )
 
-    log = eval(task, model="openai/gpt-4")[0]
+    log = eval(task, model="mockllm/model")[0]
     assert len(log.samples[0].messages) == max_messages

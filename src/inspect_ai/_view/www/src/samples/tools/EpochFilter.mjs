@@ -6,22 +6,21 @@ export const EpochFilter = ({ epochs, epoch, setEpoch }) => {
     options.push(i + "");
   }
   return html`
-    <div style=${{ display: "flex"}}>
-      <span
-        class="epoch-filter-label"
-        style=${{ alignSelf: "center"}}
+    <div style=${{ display: "flex" }}>
+      <span class="epoch-filter-label" style=${{ alignSelf: "center" }}
         >Epochs:</span
       >
       <select
         class="form-select form-select-sm"
         aria-label=".epoch-filter-label"
         style=${{ fontSize: "0.7rem" }}
+        value=${epoch}
         onChange=${(e) => {
           setEpoch(e.target.value);
         }}
       >
         ${options.map((option) => {
-          return html`<option value="${option}" ${epoch === option ? "selected" : ""}>${option}</option>`;
+          return html`<option value="${option}">${option}</option>`;
         })}
       </select>
     </div>

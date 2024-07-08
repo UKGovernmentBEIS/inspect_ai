@@ -7,6 +7,7 @@ import httpx
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
@@ -17,7 +18,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._tool import ToolChoice, ToolInfo
 from .._util import (
     chat_api_input,
     chat_api_request,
@@ -41,10 +41,13 @@ class AzureAIAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None = None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+        )
 
         # required for some deployments
         if (
@@ -54,10 +57,12 @@ class AzureAIAPI(ModelAPI):
             allowSelfSignedHttps(True)
 
         # resolve api_key
-        api_key = os.environ.get(AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, ""))
-        if not api_key:
-            raise ValueError(f"{AZURE_API_KEY} environment variable not found.")
-        self.api_key = api_key
+        if not self.api_key:
+            self.api_key = os.environ.get(
+                AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, "")
+            )
+            if not self.api_key:
+                raise ValueError(f"{AZURE_API_KEY} environment variable not found.")
 
         # resolve base url
         endpoint_url = model_base_url(

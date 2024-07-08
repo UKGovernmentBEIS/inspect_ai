@@ -7,7 +7,7 @@ export const icons = {
   },
   "collapse-all": "bi bi-arrows-collapse",
   "collapse-up": "bi bi-chevron-up",
-  "close": "bi bi-x",
+  close: "bi bi-x",
   config: "bi bi-gear",
   confirm: "bi bi-check",
   copy: "bi bi-copy",
@@ -90,8 +90,8 @@ export const sharedStyles = {
     return {
       whiteSpace: "nowrap",
       textOverflow: "ellipsis",
-      overflow: "hidden"
-    }
+      overflow: "hidden",
+    };
   },
   scoreFills: {
     green: {

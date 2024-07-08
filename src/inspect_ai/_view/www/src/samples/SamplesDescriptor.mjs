@@ -1,6 +1,12 @@
 import { html } from "htm/preact";
 import { sharedStyles } from "../Constants.mjs";
-import { formatPrettyDecimal,formatDecimalNoTrailingZeroes, inputString, arrayToString, answerForSample } from "../utils/Format.mjs";
+import {
+  formatPrettyDecimal,
+  formatDecimalNoTrailingZeroes,
+  inputString,
+  arrayToString,
+  answerForSample,
+} from "../utils/Format.mjs";
 import { RenderedContent } from "../components/RenderedContent.mjs";
 import { isNumeric } from "../utils/Type.mjs";
 
@@ -24,11 +30,11 @@ export const samplesDescriptor = (samples, epochs, context) => {
   const uniqScoreValues = [
     ...new Set(
       samples
-        .filter(sample => !!sample.score)
+        .filter((sample) => !!sample.score)
         .map((sample) => sample.score.value)
         .filter((value) => {
           return value !== null;
-        })
+        }),
     ),
   ];
   const uniqScoreTypes = [
@@ -40,7 +46,7 @@ export const samplesDescriptor = (samples, epochs, context) => {
     scoreDescriptor = categorizer.describe(
       uniqScoreValues,
       uniqScoreTypes,
-      context
+      context,
     );
     if (scoreDescriptor) {
       break;
@@ -48,19 +54,25 @@ export const samplesDescriptor = (samples, epochs, context) => {
   }
 
   // Find the total length of the value so we can compute an average
-  const sizes = samples.reduce((previous, current) => {
-    previous[0] = Math.max(previous[0], inputString(current.input).length);
-    previous[1] = Math.max(previous[1], arrayToString(current.target).length);
-    previous[2] = Math.max(previous[2], answerForSample(current)?.length || 0);
-    return previous;
-  }, [0,0,0])
+  const sizes = samples.reduce(
+    (previous, current) => {
+      previous[0] = Math.max(previous[0], inputString(current.input).length);
+      previous[1] = Math.max(previous[1], arrayToString(current.target).length);
+      previous[2] = Math.max(
+        previous[2],
+        answerForSample(current)?.length || 0,
+      );
+      return previous;
+    },
+    [0, 0, 0],
+  );
 
   // normalize to base 1
-  const base = (sizes[0] + sizes[1] + sizes[2]) || 1;
+  const base = sizes[0] + sizes[1] + sizes[2] || 1;
   const messageShape = {
     input: sizes[0] / base,
-    target: sizes[1]/ base,
-    answer: sizes[2]/ base,
+    target: sizes[1] / base,
+    answer: sizes[2] / base,
   };
   return { scoreDescriptor, epochs, messageShape };
 };
@@ -74,7 +86,7 @@ const scoreCategorizers = [
     },
   },
   {
-    describe: (values, types) => {
+    describe: (values) => {
       if (
         (values.length === 1 || values.length === 2) &&
         values.every((val) => {
@@ -124,7 +136,7 @@ const scoreCategorizers = [
           },
           render: (score) => {
             return formatDecimalNoTrailingZeroes(score);
-          }
+          },
         };
       }
     },
@@ -132,16 +144,17 @@ const scoreCategorizers = [
   {
     describe: (values, types) => {
       if (types.length !== 0 && types[0] === "object") {
-
-        const buckets = values.map((val) => { return JSON.stringify(val); });
+        const buckets = values.map((val) => {
+          return JSON.stringify(val);
+        });
         const vals = new Set(buckets);
         let categories = undefined;
         if (vals.size < 10) {
           categories = Array.from(vals).map((val) => {
             return {
               val,
-              text: val
-            }
+              text: val,
+            };
           });
         }
 
@@ -165,7 +178,7 @@ const scoreCategorizers = [
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                marginLeft: "0.5rem"
+                marginLeft: "0.5rem",
               };
               if (index + 1 < keys.length) {
                 style["paddingBottom"] = "1em";
@@ -219,7 +232,7 @@ const booleanScoreCategorizer = () => {
   return {
     scoreType: "boolean",
     render: (score) => {
-      const scoreColorStyle = !!score
+      const scoreColorStyle = score
         ? sharedStyles.scoreFills.green
         : sharedStyles.scoreFills.red;
 

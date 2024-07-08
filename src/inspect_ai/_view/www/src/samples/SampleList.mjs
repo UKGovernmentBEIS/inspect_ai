@@ -11,7 +11,7 @@ import {
 } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
-import { inputString } from "../utils/Format.mjs"
+import { inputString } from "../utils/Format.mjs";
 
 const kSampleHeight = 82;
 const kSeparatorHeight = 20;
@@ -60,26 +60,28 @@ export const SampleList = (props) => {
     if (listEl) {
       // Decide if we need to scroll the element into position
       const selected = rowMap[selectedIndex];
-      const itemTop = selected.start;
-      const itemBottom = selected.start + selected.height;
+      if (selected) {
+        const itemTop = selected.start;
+        const itemBottom = selected.start + selected.height;
 
-      const scrollTop = listEl.base.scrollTop;
-      const scrollBottom = scrollTop + listEl.base.offsetHeight;
+        const scrollTop = listEl.base.scrollTop;
+        const scrollBottom = scrollTop + listEl.base.offsetHeight;
 
-      // It is visible
-      if (itemTop >= scrollTop && itemBottom <= scrollBottom) {
-        return;
-      }
+        // It is visible
+        if (itemTop >= scrollTop && itemBottom <= scrollBottom) {
+          return;
+        }
 
-      if (itemTop < scrollTop) {
-        // Top is scrolled off
-        listEl.base.scrollTo({ top: itemTop });
-        return;
-      }
+        if (itemTop < scrollTop) {
+          // Top is scrolled off
+          listEl.base.scrollTo({ top: itemTop });
+          return;
+        }
 
-      if (itemBottom > scrollBottom) {
-        listEl.base.scrollTo({ top: itemBottom - listEl.base.offsetHeight });
-        return;
+        if (itemBottom > scrollBottom) {
+          listEl.base.scrollTo({ top: itemBottom - listEl.base.offsetHeight });
+          return;
+        }
       }
     }
   }, [selectedIndex, rowMap, listRef]);
@@ -284,8 +286,8 @@ const SampleRow = ({
         ${sampleDescriptor?.scoreDescriptor.render
           ? sampleDescriptor.scoreDescriptor.render(sample?.score?.value)
           : sample?.score?.value === null
-          ? "null"
-          : sample?.score?.value}
+            ? "null"
+            : sample?.score?.value}
       </div>
     </div>
   `;
