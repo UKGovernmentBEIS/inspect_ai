@@ -652,24 +652,13 @@
     },
     "EvalResults": {
       "properties": {
-        "scorer": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/EvalScorer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "metrics": {
-          "additionalProperties": {
-            "$ref": "#/$defs/EvalMetric"
+        "scores": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EvalScore"
           },
-          "default": {},
-          "title": "Metrics",
-          "type": "object"
+          "title": "Scores",
+          "type": "array"
         },
         "metadata": {
           "anyOf": [
@@ -686,7 +675,7 @@
       },
       "title": "EvalResults",
       "type": "object",
-      "required": ["scorer", "metrics", "metadata"],
+      "required": ["scores", "metadata"],
       "additionalProperties": false
     },
     "EvalRevision": {
@@ -807,16 +796,20 @@
         "output": {
           "$ref": "#/$defs/ModelOutput"
         },
-        "score": {
+        "scores": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Score"
+              "additionalProperties": {
+                "$ref": "#/$defs/Score"
+              },
+              "type": "object"
             },
             {
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "title": "Scores"
         },
         "metadata": {
           "title": "Metadata",
@@ -831,22 +824,34 @@
         "target",
         "messages",
         "output",
-        "score",
+        "scores",
         "metadata"
       ],
       "title": "EvalSample",
       "type": "object",
       "additionalProperties": false
     },
-    "EvalScorer": {
+    "EvalScore": {
       "properties": {
         "name": {
           "title": "Name",
           "type": "string"
         },
+        "scorer": {
+          "title": "Scorer",
+          "type": "string"
+        },
         "params": {
           "default": {},
           "title": "Params",
+          "type": "object"
+        },
+        "metrics": {
+          "additionalProperties": {
+            "$ref": "#/$defs/EvalMetric"
+          },
+          "default": [],
+          "title": "Metrics",
           "type": "object"
         },
         "metadata": {
@@ -862,8 +867,8 @@
           "title": "Metadata"
         }
       },
-      "required": ["name", "params", "metadata"],
-      "title": "EvalScorer",
+      "required": ["name", "scorer", "params", "metrics", "metadata"],
+      "title": "EvalScore",
       "type": "object",
       "additionalProperties": false
     },
@@ -1633,7 +1638,7 @@
   },
   "properties": {
     "version": {
-      "default": 1,
+      "default": 2,
       "title": "Version",
       "type": "integer"
     },

@@ -141,7 +141,12 @@ async def task_run(
         else task.plan
     )
     score = score and task.scorer is not None
-    scorer: Scorer | None = task.scorer if (score and task.scorer) else None
+    scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
+    scorer_profiles = (
+        [registry_log_name(scorer) for scorer in scorers if is_registry_object(scorer)]
+        if scorers is not None
+        else ["(none)"]
+    )
 
     # compute steps (steps = samples * steps in plan + 1 for scorer)
     steps = len(samples) * (
@@ -153,7 +158,7 @@ async def task_run(
         name=task.name,
         model=model_name,
         dataset=task.dataset.name or "(samples)",
-        scorer=(registry_log_name(scorer) if is_registry_object(scorer) else "(none)"),
+        scorer=", ".join(scorer_profiles),
         samples=len(samples),
         steps=steps,
         eval_config=config,
@@ -206,7 +211,7 @@ async def task_run(
                         toolenv_cleanup=toolenv_cleanup,
                         plan=plan,
                         max_messages=config.max_messages,
-                        scorer=scorer,
+                        scorers=scorers,
                         generate=generate,
                         progress=progress,
                         logger=logger if log_samples else None,
@@ -221,11 +226,14 @@ async def task_run(
                 scores = await asyncio.gather(*sample_coroutines)
 
             # compute and record metrics if we have scores
-            completed_scores = [score for score in scores if isinstance(score, Score)]
+            completed_scores = [
+                score_dict for score_dict in scores if isinstance(score_dict, dict)
+            ]
+
             if len(completed_scores) > 0:
                 results = eval_results(
                     scores=completed_scores,
-                    scorer=scorer,
+                    scorers=scorers,
                     metrics=task.metrics,
                 )
                 logger.log_results(results)
@@ -289,14 +297,14 @@ async def task_run_sample(
     toolenv_cleanup: bool,
     plan: Plan,
     max_messages: int | None,
-    scorer: Scorer | None,
+    scorers: list[Scorer] | None,
     generate: Generate,
     progress: Callable[..., None],
     logger: TaskLogger | None,
     log_images: bool,
     sample_source: EvalSampleSource | None,
     semaphore: asyncio.Semaphore | None,
-) -> Score | None:
+) -> dict[str, Score] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
         previous_sample = sample_source(sample.id, state.epoch)
@@ -309,7 +317,7 @@ async def task_run_sample(
                 logger.log_event("sample", previous_sample, False)
 
             # return score
-            return previous_sample.score
+            return previous_sample.scores
 
     # use semaphore if provided
     semaphore_cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
@@ -356,7 +364,15 @@ async def task_run_sample(
                     )
 
         # score it
-        result = await scorer(state, Target(sample.target)) if scorer else None
+        results: dict[str, Score] = {}
+        if scorers:
+            for scorer in scorers:
+                scorer_name = registry_log_name(scorer)
+                score_result = (
+                    await scorer(state, Target(sample.target)) if scorer else None
+                )
+                if score_result is not None:
+                    results[scorer_name] = score_result
         progress()
 
         # log it
@@ -366,10 +382,10 @@ async def task_run_sample(
                 state = (await states_with_base64_images([state]))[0]
 
             # log the sample
-            logger.log_sample(state.epoch, sample, state, result, True)
+            logger.log_sample(state.epoch, sample, state, results, True)
 
         # return
-        return result
+        return results
 
 
 async def resolve_dataset(

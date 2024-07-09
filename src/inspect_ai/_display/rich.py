@@ -379,17 +379,19 @@ def task_interrupted(
 def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
     theme = rich_theme()
     output: dict[str, str] = {}
-    for name, metric in results.metrics.items():
-        value = (
-            "1.0"
-            if metric.value == 1
-            else (
-                str(metric.value)
-                if isinstance(metric.value, int)
-                else f"{metric.value:.3g}"
+    for score in results.scores:
+        for name, metric in score.metrics.items():
+            value = (
+                "1.0"
+                if metric.value == 1
+                else (
+                    str(metric.value)
+                    if isinstance(metric.value, int)
+                    else f"{metric.value:.3g}"
+                )
             )
-        )
-        output[name] = value
+            key = f"{score.name}/{name}" if len(results.scores) > 1 else name
+            output[key] = value
     metrics = f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
 
     return (metrics, "")

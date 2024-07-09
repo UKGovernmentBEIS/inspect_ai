@@ -57,10 +57,12 @@ export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
 export type Name2 = string;
-export type Metadata1 = {} | null;
+export type Scorer = string;
 export type Name3 = string;
 export type Value = number;
+export type Metadata1 = {} | null;
 export type Metadata2 = {} | null;
+export type Scores = EvalScore[];
 export type Metadata3 = {} | null;
 export type StartedAt = string;
 export type CompletedAt = string;
@@ -131,14 +133,16 @@ export type Bytes1 = number[] | null;
 export type Content4 = Logprob[];
 export type Choices1 = ChatCompletionChoice[];
 export type Error = string | null;
+export type Scores1 = {
+  [k: string]: Score;
+} | null;
 export type Value1 =
   | string
   | number
-  | number
   | boolean
-  | (string | number | number | boolean)[]
+  | (string | number | boolean)[]
   | {
-      [k: string]: string | number | number | boolean | null;
+      [k: string]: string | number | boolean | null;
     };
 export type Answer = string | null;
 export type Explanation = string | null;
@@ -248,14 +252,15 @@ export interface GenerateConfig {
   top_logprobs: TopLogprobs;
 }
 export interface EvalResults {
-  scorer: EvalScorer | null;
-  metrics: Metrics;
+  scores: Scores;
   metadata: Metadata3;
 }
-export interface EvalScorer {
+export interface EvalScore {
   name: Name2;
+  scorer: Scorer;
   params: Params1;
-  metadata: Metadata1;
+  metrics: Metrics;
+  metadata: Metadata2;
 }
 export interface Params1 {}
 export interface Metrics {
@@ -265,7 +270,7 @@ export interface EvalMetric {
   name: Name3;
   value: Value;
   options: Options;
-  metadata: Metadata2;
+  metadata: Metadata1;
 }
 export interface Options {}
 export interface EvalStats {
@@ -294,7 +299,7 @@ export interface EvalSample {
   target: Target;
   messages: Messages;
   output: ModelOutput;
-  score: Score | null;
+  scores: Scores1;
   metadata: Metadata5;
 }
 export interface ChatMessageSystem {

@@ -8,6 +8,7 @@ from inspect_ai._util.path import chdir_python
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
     registry_create,
+    registry_log_name,
 )
 from inspect_ai.log import (
     EvalLog,
@@ -22,12 +23,12 @@ from .task.results import eval_results
 from .task.util import task_run_dir
 
 
-def score(log: EvalLog, scorer: Scorer) -> EvalLog:
+def score(log: EvalLog, scorers: Scorer | list[Scorer]) -> EvalLog:
     """Score an evaluation log.
 
     Args:
        log (EvalLog): Evaluation log.
-       scorer (Scorer): Scorer to apply to log
+       scorers (Scorer): List of Scorers to apply to log
        metrics: (list[Metric]): Additional metrics to compute
          (Scorer built-in metrics are always computed).
 
@@ -37,15 +38,18 @@ def score(log: EvalLog, scorer: Scorer) -> EvalLog:
     # standard platform init for top level entry points
     platform_init()
 
-    return asyncio.run(score_async(log, scorer))
+    # resolve scorers into a list
+    scorers = [scorers] if isinstance(scorers, Scorer) else scorers
+
+    return asyncio.run(score_async(log, scorers))
 
 
-async def score_async(log: EvalLog, scorer: Scorer) -> EvalLog:
+async def score_async(log: EvalLog, scorers: list[Scorer]) -> EvalLog:
     """Score an evaluation log.
 
     Args:
        log (EvalLog): Evaluation log.
-       scorer (Scorer): Scorer to apply to log
+       scorers (list[Scorer]): Scorers to apply to log
 
     Returns:
        Log with scores yielded by scorer.
@@ -78,23 +82,23 @@ async def score_async(log: EvalLog, scorer: Scorer) -> EvalLog:
             p.update(1)
 
         tasks = [
-            run_score_task(state, Target(sample.target), scorer, progress)
+            run_score_task(state, Target(sample.target), scorers, progress)
             for (sample, state) in zip(log.samples, states)
         ]
 
         # do scoring
-        scores = await asyncio.gather(*tasks)
+        scores: list[dict[str, Score]] = await asyncio.gather(*tasks)
 
         # write them back (gather ensures that they come back in the same order)
         for index, score in enumerate(scores):
-            log.samples[index].score = score
+            log.samples[index].scores = score
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
         log_metrics = metrics_from_log(log)
 
         # compute metrics
-        log.results = eval_results(scores, scorer, log_metrics)
+        log.results = eval_results(scores, scorers, log_metrics)
 
     return log
 
@@ -119,7 +123,7 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
     display().print(f"Aggregating scores for task: {task_name}")
     if task.scorer and log.samples:
         log.results = eval_results(
-            [sample.score for sample in log.samples if isinstance(sample.score, Score)],
+            [sample.scores for sample in log.samples if sample.scores is not None],
             task.scorer,
             task.metrics,
         )
@@ -129,17 +133,25 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
 async def run_score_task(
     state: TaskState,
     target: Target,
-    scorer: Scorer,
+    scorers: list[Scorer],
     progress: Callable[..., None],
-) -> Score:
-    result = await scorer(state, target)
+) -> dict[str, Score]:
+    results: dict[str, Score] = {}
+    for scorer in scorers:
+        result = await scorer(state, target)
+        results[registry_log_name(scorer)] = result
+
     progress()
-    return result
+    return results
 
 
 def metrics_from_log(log: EvalLog) -> list[Metric]:
     return (
-        [metric_from_log(metric) for metric in log.results.metrics.values()]
+        [
+            metric_from_log(metric)
+            for score in log.results.scores
+            for metric in score.metrics.values()
+        ]
         if log.results
         else []
     )

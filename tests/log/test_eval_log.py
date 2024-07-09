@@ -59,7 +59,7 @@ def test_fail_invalid():
 
 
 def test_fail_version():
-    check_log_raises(log_path("log_version_2"))
+    check_log_raises(log_path("log_version_3"))
 
 
 def check_log_raises(log_file):

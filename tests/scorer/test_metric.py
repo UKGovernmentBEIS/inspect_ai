@@ -96,7 +96,7 @@ def test_extra_metrics() -> None:
     check_log(log)
 
     # eval log w/ different scorer (that still uses accuracy)
-    log = score(log, scorer=includes())
+    log = score(log, scorers=[includes()])
     check_log(log)
 
 

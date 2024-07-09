@@ -27,6 +27,8 @@ from ._log import (
     Recorder,
 )
 
+LOG_SCHEMA_VERSION = 2
+
 
 class EvalLogInfo(FileInfo):
     task: str
@@ -120,7 +122,7 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
 
     # verify we know about this version of the log file format
     def validate_version(ver: int) -> None:
-        if ver > 1:
+        if ver > LOG_SCHEMA_VERSION:
             raise ValueError(f"Unable to read version {ver} of log format.")
 
     # header-only uses json-stream
@@ -136,8 +138,10 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
                         return None
 
                 # fail for unknown version
-                version = read_field("version")
-                validate_version(version)
+                validate_version(read_field("version"))
+
+                # set the version to the schema version we'll be returning
+                version = LOG_SCHEMA_VERSION
 
                 results = read_field("results")
                 error = read_field("error")
@@ -170,6 +174,9 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
 
         # fail for unknown version
         validate_version(log.version)
+
+        # set the version to the schema version we'll be returning
+        log.version = LOG_SCHEMA_VERSION
 
         # prune if header_only
         if header_only:

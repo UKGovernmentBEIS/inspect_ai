@@ -10,7 +10,7 @@ const kScoreDescVal = "score-desc";
 
 export const kDefaultSort = kSampleAscVal;
 
-export const SortFilter = ({ sort, setSort, epochs }) => {
+export const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
   const options = [
     { label: "sample asc", val: kSampleAscVal },
     { label: "sample desc", val: kSampleDescVal },
@@ -25,14 +25,16 @@ export const SortFilter = ({ sort, setSort, epochs }) => {
       val: kEpochDescVal,
     });
   }
-  options.push({
-    label: "score asc",
-    val: kScoreAscVal,
-  });
-  options.push({
-    label: "score desc",
-    val: kScoreDescVal,
-  });
+  if (sampleDescriptor?.scoreDescriptor?.compare) {
+    options.push({
+      label: "score asc",
+      val: kScoreAscVal,
+    });
+    options.push({
+      label: "score desc",
+      val: kScoreDescVal,
+    });
+  }
   return html`
     <div style=${{ display: "flex" }}>
       <span
@@ -86,13 +88,13 @@ export const sort = (sort, samples, sampleDescriptor) => {
         return b.epoch - a.epoch;
       case kScoreAscVal:
         return sampleDescriptor.scoreDescriptor.compare(
-          a.score.value,
-          b.score.value,
+          sampleDescriptor.selectedScore(a).value,
+          sampleDescriptor.selectedScore(b).value,
         );
       case kScoreDescVal:
         return sampleDescriptor.scoreDescriptor.compare(
-          b.score.value,
-          a.score.value,
+          sampleDescriptor.selectedScore(b).value,
+          sampleDescriptor.selectedScore(a).value,
         );
     }
   });

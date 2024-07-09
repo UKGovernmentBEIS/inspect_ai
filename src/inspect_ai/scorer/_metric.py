@@ -153,7 +153,7 @@ class Metric(Protocol):
         Metric value
     """
 
-    def __call__(self, scores: list[Score]) -> int | float: ...
+    def __call__(self, scores: list[Score]) -> Value: ...
 
 
 MetricType = TypeVar("MetricType", Callable[..., Metric], type[Metric])

@@ -4,7 +4,12 @@ import { icons } from "../Constants.mjs";
 export const CopyButton = ({ value }) => {
   return html`<button
     class="copy-button"
-    style=${{ border: "none", backgroundColor: "inherit", opacity: "0.5" }}
+    style=${{
+      border: "none",
+      backgroundColor: "inherit",
+      opacity: "0.5",
+      paddingTop: "0px",
+    }}
     data-clipboard-text=${value}
     onclick=${(e) => {
       const iEl = e.target;

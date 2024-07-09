@@ -122,7 +122,7 @@ class TaskLogger:
         epoch: int,
         sample: Sample,
         state: TaskState,
-        score: Score | None,
+        scores: dict[str, Score] | None,
         flush: bool = False,
     ) -> None:
         # log
@@ -137,7 +137,7 @@ class TaskLogger:
                 metadata=state.metadata if state.metadata else {},
                 messages=state.messages,
                 output=state.output,
-                score=score,
+                scores=scores,
             ),
             flush,
         )

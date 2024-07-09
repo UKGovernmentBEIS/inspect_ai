@@ -46,6 +46,5 @@ body[class^="vscode-"] code:not(.sourceCode) {
    to truly fix, remove 'navbar-brand' from metrics div and use `navbar-metrics` 
    to properly style it */
 body[class^="vscode-"] .navbar > div > .navbar-text:not(.navbar-brand) > div > div > div:last-of-type {
-  margin-top: -10px;
   transform: scale(0.7);
 }
