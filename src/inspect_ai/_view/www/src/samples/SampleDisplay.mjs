@@ -7,12 +7,8 @@ import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/Format.mjs";
 
-import { sharedStyles } from "../Constants.mjs";
-import {
-  arrayToString,
-  shortenCompletion,
-  answerForSample,
-} from "../utils/Format.mjs";
+import { icons, sharedStyles } from "../Constants.mjs";
+import { arrayToString, shortenCompletion } from "../utils/Format.mjs";
 
 import { SampleScoreView } from "./SampleScoreView.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
@@ -67,24 +63,44 @@ export const SampleDisplay = ({
   // The core tabs
   const tabs = [
     html`
-    <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${
+    <${TabPanel} id=${msgTabId} title="Messages" icon=${icons.messages} onSelected=${onSelectedTab} selected=${
       selectedTab === msgTabId || selectedTab === undefined
     }>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
         sample.messages
       }/>
     </${TabPanel}>`,
-    html`
-    <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${
-      selectedTab === scoringTabId
-    }>
-      <${SampleScoreView}
-        sample=${sample}
-        context=${context}
-        sampleDescriptor=${sampleDescriptor}
-      />
-    </${TabPanel}>`,
   ];
+
+  const scorerNames = Object.keys(sample.scores);
+  if (scorerNames.length === 1) {
+    tabs.push(html`
+      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${
+        selectedTab === scoringTabId
+      }>
+        <${SampleScoreView}
+          sample=${sample}
+          context=${context}
+          sampleDescriptor=${sampleDescriptor}
+          scorer=${Object.keys(sample.scores)[0]}
+        />
+      </${TabPanel}>`);
+  } else {
+    for (const scorer of Object.keys(sample.scores)) {
+      const tabId = `score-${scorer}`;
+      tabs.push(html`
+        <${TabPanel} id="${tabId}" title="${scorer}" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${
+          selectedTab === tabId
+        }>
+          <${SampleScoreView}
+            sample=${sample}
+            context=${context}
+            sampleDescriptor=${sampleDescriptor}
+            scorer=${scorer}
+          />
+        </${TabPanel}>`);
+    }
+  }
 
   const sampleMetadatas = metadataViewsForSample(baseId, sample, context);
   if (sampleMetadatas.length > 0) {
@@ -93,6 +109,7 @@ export const SampleDisplay = ({
       <${TabPanel} 
           id=${metdataTabId} 
           title="Metadata" 
+          icon=${icons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
         ${sampleMetadatas}
@@ -201,7 +218,9 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
     });
   }
 
-  const fullAnswer = sample ? answerForSample(sample) : undefined;
+  const fullAnswer = sample
+    ? sampleDescriptor.selectedScorer(sample).answer()
+    : undefined;
   if (fullAnswer) {
     columns.push({
       label: "Answer",
@@ -219,11 +238,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
 
   columns.push({
     label: "Score",
-    value: sampleDescriptor?.scoreDescriptor.render
-      ? sampleDescriptor.scoreDescriptor.render(sample?.score?.value)
-      : sample?.score?.value === null
-        ? "null"
-        : sample?.score?.value,
+    value: sampleDescriptor?.selectedScore(sample).render(),
     size: "minmax(2em, auto)",
     center: true,
   });

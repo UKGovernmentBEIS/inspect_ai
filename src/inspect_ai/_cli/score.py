@@ -89,6 +89,7 @@ async def score(
     # print results
     display().print(f"\n{eval_log.eval.task}")
     if eval_log.results:
-        for name, metric in eval_log.results.metrics.items():
-            display().print(f"{name}: {metric.value}")
+        for score in eval_log.results.scores:
+            for name, metric in score.metrics.items():
+                display().print(f"{name}: {metric.value}")
     display().print(f"log: {log_file}\n")

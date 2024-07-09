@@ -16,6 +16,8 @@ export const SamplesTab = (props) => {
     sort,
     epoch,
     context,
+    selectedScore,
+    //setSelectedScore,
   } = props;
 
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -169,6 +171,7 @@ export const SamplesTab = (props) => {
         sampleDescriptor=${sampleDescriptor}
         selectedIndex=${selectedIndex}
         setSelectedIndex=${setSelectedIndex}
+        selectedScore=${selectedScore}
         nextSample=${nextSample}
         prevSample=${previousSample}
         showSample=${showSample}

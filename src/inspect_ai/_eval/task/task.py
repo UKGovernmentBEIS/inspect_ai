@@ -25,7 +25,7 @@ class Task:
         dataset (Dataset | Sequence[Sample]): Dataset to evaluate
         plan: (Plan | Solver | list[Solver]): Default plan. If not specified
           defaults to generate(), a normal call to the model.
-        scorer: (Scorer | None): Scorer used to evaluate model output.
+        scorer: (Scorer | list[Scorer] | None): Scorer used to evaluate model output.
         metrics (list[Metric]): Additional metrics to compute beyond
           the base metrics provided by the scorer.
         config (GenerateConfig): Model generation config.
@@ -45,7 +45,7 @@ class Task:
         self,
         dataset: Dataset | Sequence[Sample],
         plan: Plan | Solver | list[Solver] = generate(),
-        scorer: Scorer | None = None,
+        scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] = [],
         config: GenerateConfig = GenerateConfig(),
         tool_environment: str | tuple[str, str] | None = None,
@@ -58,7 +58,13 @@ class Task:
             dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
         )
         self.plan = plan if isinstance(plan, Plan) else Plan(plan)
-        self.scorer = scorer
+        self.scorer = (
+            scorer
+            if isinstance(scorer, list)
+            else [scorer]
+            if scorer is not None
+            else None
+        )
         self.metrics = metrics
         self.config = config
         self.tool_environment = (

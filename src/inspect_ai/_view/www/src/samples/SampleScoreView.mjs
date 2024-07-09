@@ -2,10 +2,10 @@ import { html } from "htm/preact";
 import {
   arrayToString,
   shortenCompletion,
-  answerForSample,
   inputString,
 } from "../utils/Format.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { SampleScores } from "./SampleScores.mjs";
 
 const labelStyle = {
   paddingRight: "2em",
@@ -13,7 +13,12 @@ const labelStyle = {
   paddingBottom: "0",
 };
 
-export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
+export const SampleScoreView = ({
+  sample,
+  sampleDescriptor,
+  style,
+  scorer,
+}) => {
   const scoreInput = [inputString(sample.input)];
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
@@ -23,6 +28,10 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
       }),
     );
   }
+
+  const scorerDescriptor = sampleDescriptor.scorer(sample, scorer);
+  const explanation = scorerDescriptor.explanation() || "(No Explanation)";
+  const answer = scorerDescriptor.answer();
 
   return html`
     <div
@@ -54,7 +63,13 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
         </thead>
         <tbody style=${{ borderBottomColor: "#00000000" }}>
           <tr>
-            <td style=${{ paddingRight: "2em", paddingLeft: "0" }}>
+            <td
+              style=${{
+                paddingRight: "2em",
+                paddingLeft: "0",
+                paddingTop: "0",
+              }}
+            >
               <${MarkdownDiv}
                 markdown=${arrayToString(
                   arrayToString(sample?.target || "none"),
@@ -63,26 +78,25 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
                 class="no-last-para-padding"
               />
             </td>
-            <td>
+            <td style=${{ paddingTop: "0" }}>
               <${MarkdownDiv}
                 class="no-last-para-padding"
-                markdown=${shortenCompletion(answerForSample(sample))}
+                markdown=${shortenCompletion(answer)}
                 style=${{ paddingLeft: "0" }}
               />
             </td>
-            <td style=${{ paddingLeft: "2em" }}>
-              ${sampleDescriptor?.scoreDescriptor.render
-                ? sampleDescriptor.scoreDescriptor.render(sample?.score?.value)
-                : sample?.score?.value === null
-                  ? "null"
-                  : sample?.score?.value}
+            <td style=${{ paddingLeft: "2em", paddingTop: "0" }}>
+              <${SampleScores}
+                sample=${sample}
+                sampleDescriptor=${sampleDescriptor}
+                scorer=${scorer}
+              />
             </td>
           </tr>
         </tbody>
       </table>
 
-      ${sample?.score?.explanation &&
-      sample?.score?.explanation !== answerForSample(sample)
+      ${explanation && explanation !== answer
         ? html`
         <table class="table" style=${{ width: "100%", marginBottom: "0" }}>
               <thead>
@@ -95,9 +109,7 @@ export const SampleScoreView = ({ sample, sampleDescriptor, style }) => {
               </thead>
               <tbody>
                 <td style=${{ paddingLeft: "0" }}>
-                  <${MarkdownDiv} markdown=${arrayToString(
-                    sample?.score?.explanation,
-                  )} style=${{ paddingLeft: "0" }} class="no-last-para-padding"/>
+                  <${MarkdownDiv} markdown=${arrayToString(explanation)} style=${{ paddingLeft: "0" }} class="no-last-para-padding"/>
                 </td>
               </tbody>
             </table

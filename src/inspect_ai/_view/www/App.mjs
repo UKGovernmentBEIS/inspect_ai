@@ -107,8 +107,9 @@ export function App() {
           capabilities,
         );
         if (logContents) {
+          const log = logContents.parsed;
           setCurrentLog({
-            contents: logContents.parsed,
+            contents: log,
             name: targetLog.name,
             raw: logContents.raw,
           });
@@ -265,39 +266,39 @@ export function App() {
   // if there are no log files, then don't show sidebar
   const fullScreen = filteredLogs.files.length === 1 && !filteredLogs.log_dir;
 
-  const appEnvelope = [
-    html` <${Navbar}
-      file=${currentLog.name}
-      logs=${filteredLogs}
-      task=${currentLog.contents?.eval?.task}
-      model=${currentLog.contents?.eval?.model}
-      metrics=${currentLog.contents?.results?.metrics}
-      samples=${currentLog.contents?.samples}
-      status=${currentLog.contents?.status}
-      offcanvas=${offcanvas}
-    />`,
-  ];
-  if (!fullScreen) {
-    appEnvelope.push(html`
-      <${Sidebar}
-        logs=${filteredLogs}
-        logHeaders=${logHeaders}
-        loading=${headersLoading}
-        offcanvas=${offcanvas}
-        selectedIndex=${selected}
-        onSelectedIndexChanged=${(index) => {
-          setSelected(index);
+  const navbar = html` <${Navbar}
+    file=${currentLog.name}
+    logs=${filteredLogs}
+    task=${currentLog.contents?.eval?.task}
+    model=${currentLog.contents?.eval?.model}
+    results=${currentLog.contents?.results}
+    samples=${currentLog.contents?.samples}
+    status=${currentLog.contents?.status}
+    offcanvas=${offcanvas}
+  />`;
 
-          // hide the sidebar offcanvas
-          var myOffcanvas = document.getElementById("sidebarOffCanvas");
-          var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
-          if (bsOffcanvas) {
-            bsOffcanvas.hide();
-          }
-        }}
-      />
-    `);
-  }
+  const sidebar =
+    !fullScreen && currentLog.contents
+      ? html`
+          <${Sidebar}
+            logs=${filteredLogs}
+            logHeaders=${logHeaders}
+            loading=${headersLoading}
+            offcanvas=${offcanvas}
+            selectedIndex=${selected}
+            onSelectedIndexChanged=${(index) => {
+              setSelected(index);
+
+              // hide the sidebar offcanvas
+              var myOffcanvas = document.getElementById("sidebarOffCanvas");
+              var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
+              if (bsOffcanvas) {
+                bsOffcanvas.hide();
+              }
+            }}
+          />
+        `
+      : "";
 
   const workspace = useMemo(() => {
     if (status.error) {
@@ -317,10 +318,14 @@ export function App() {
     }
   }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
 
+  const fullScreenClz = fullScreen ? " full-screen" : "";
+  const offcanvasClz = offcanvas ? " off-canvas" : "";
+
   return html`
     <${AppErrorBoundary}>
-    <div>
-      ${appEnvelope}
+    ${sidebar}
+    <div class="app-main-grid${fullScreenClz}${offcanvasClz}">
+      ${navbar}
       <${ProgressBar} animating=${status.loading} />
       ${workspace}
     </div>

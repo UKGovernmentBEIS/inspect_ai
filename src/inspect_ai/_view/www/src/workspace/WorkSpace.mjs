@@ -36,23 +36,21 @@ export const WorkSpace = (props) => {
   const divRef = useRef();
   const codeRef = useRef();
 
+  // alias the log for the workspace
   const workspaceLog = props.log;
+
+  // State tracking for the view
   const [currentTaskId, setCurrentTaskId] = useState(
     workspaceLog?.contents?.eval?.run_id,
   );
-
-  // State tracking for the view
-  const [state, setState] = useState({
-    logFiltered: undefined,
-    viewState: {
-      selectedTab: kEvalTabId,
-      openSamples: [],
-      filter: {},
-      epoch: "all",
-      sort: kDefaultSort,
-      renderedCode: false,
-    },
-  });
+  const [selectedTab, setSelectedTab] = useState(kEvalTabId);
+  const [scores, setScores] = useState([]);
+  const [score, setScore] = useState(undefined);
+  const [samplesDesc, setSamplesDesc] = useState(undefined);
+  const [filter, setFilter] = useState({});
+  const [epoch, setEpoch] = useState("all");
+  const [sort, setSort] = useState(kDefaultSort);
+  const [renderedCode, setRenderedCode] = useState(false);
 
   // Context is shared with most/all components and
   // allows for global information to pass between components
@@ -63,12 +61,68 @@ export const WorkSpace = (props) => {
     },
   };
 
-  const sampleDescriptor = useMemo(() => {
-    return samplesDescriptor(
+  const clearSampleTools = useCallback(() => {
+    setEpoch("all");
+    setFilter({});
+    setSort(kDefaultSort);
+  }, [setEpoch, setFilter, setSort]);
+
+  // Display the log
+  useEffect(() => {
+    if (
+      workspaceLog.contents &&
+      workspaceLog.contents.eval?.run_id !== currentTaskId
+    ) {
+      const defaultTab =
+        workspaceLog.contents?.status !== "error" ? kEvalTabId : kInfoTabId;
+      setSelectedTab(defaultTab);
+      if (divRef.current) {
+        divRef.current.scrollTop = 0;
+      }
+    }
+  }, [workspaceLog, divRef, currentTaskId, setSelectedTab]);
+
+  useEffect(() => {
+    // Select the default scorer to use
+    const scorer = workspaceLog?.contents?.results?.scores[0]
+      ? {
+          name: workspaceLog.contents.results.scores[0].name,
+          scorer: workspaceLog.contents.results.scores[0].scorer,
+        }
+      : undefined;
+    const scorers = (workspaceLog.contents?.results?.scores || []).map(
+      (score) => {
+        return {
+          name: score.name,
+          scorer: score.scorer,
+        };
+      },
+    );
+
+    // Reset state
+    setScores(scorers);
+    setScore(scorer);
+    clearSampleTools();
+    setRenderedCode(false);
+  }, [workspaceLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
+
+  useEffect(() => {
+    clearSampleTools();
+  }, [score]);
+
+  useEffect(() => {
+    const sampleDescriptor = samplesDescriptor(
+      score,
+      scores,
       workspaceLog.contents?.samples,
       workspaceLog.contents?.eval?.config?.epochs || 1,
       context,
     );
+    setSamplesDesc(sampleDescriptor);
+  }, [workspaceLog, score, scores, setSamplesDesc]);
+
+  useEffect(() => {
+    setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
   }, [workspaceLog]);
 
   // Tabs that are available within the app
@@ -89,28 +143,33 @@ export const WorkSpace = (props) => {
           return html` <${SamplesTab}
             task=${workspaceLog.contents?.eval?.task}
             model=${workspaceLog.contents?.eval?.model}
+            selectedScore=${score}
+            setSelectedScore=${setScore}
             samples=${workspaceLog.contents?.samples}
-            sampleDescriptor=${sampleDescriptor}
-            filter=${state.viewState.filter}
-            sort=${state.viewState.sort}
-            epoch=${state.viewState.epoch}
+            sampleDescriptor=${samplesDesc}
+            filter=${filter}
+            sort=${sort}
+            epoch=${epoch}
             context=${context}
           />`;
         },
-        tools: (state) => {
+        tools: () => {
           // Don't show tools if there is a sample sample
           if (workspaceLog.contents?.samples?.length <= 1) {
             return "";
           }
           return html`<${SampleTools}
-            epoch=${state.viewState.epoch}
+            epoch=${epoch}
             epochs=${workspaceLog.contents?.eval?.config?.epochs}
             setEpoch=${setEpoch}
-            filter=${state.viewState.filter}
-            filterChanged=${filterChanged}
-            sort=${state.viewState.sort}
+            filter=${filter}
+            filterChanged=${setFilter}
+            sort=${sort}
             setSort=${setSort}
-            sampleDescriptor=${sampleDescriptor}
+            score=${score}
+            setScore=${setScore}
+            scores=${scores}
+            sampleDescriptor=${samplesDesc}
           />`;
         },
       };
@@ -190,7 +249,7 @@ export const WorkSpace = (props) => {
             />`,
           );
         } else {
-          if (codeRef.current && !state.viewState.renderedCode) {
+          if (codeRef.current && !renderedCode) {
             if (workspaceLog.raw.length < kPrismRenderMaxSize) {
               codeRef.current.innerHTML = Prism.highlight(
                 workspaceLog.raw,
@@ -203,9 +262,7 @@ export const WorkSpace = (props) => {
               codeRef.current.appendChild(textNode);
             }
 
-            const viewState = state.viewState;
-            viewState.renderedCode = true;
-            setState({ viewState });
+            setRenderedCode(true);
           }
           renderedContent.push(
             html`<pre>
@@ -248,40 +305,18 @@ export const WorkSpace = (props) => {
     };
 
     return resolvedTabs;
-  }, [state, workspaceLog]);
-
-  const setSelectedTab = (currentState, selectedTab) => {
-    const viewState = currentState.viewState;
-    viewState.selectedTab = selectedTab;
-    setState({ viewState });
-  };
-
-  const filterChanged = useCallback(
-    (filter) => {
-      const viewState = state.viewState;
-      viewState.filter = filter;
-      setState({ viewState });
-    },
-    [state, setState],
-  );
-
-  const setEpoch = useCallback(
-    (epoch) => {
-      const viewState = state.viewState;
-      viewState.epoch = epoch;
-      setState({ viewState });
-    },
-    [state],
-  );
-
-  const setSort = useCallback(
-    (sort) => {
-      const viewState = state.viewState;
-      viewState.sort = sort;
-      setState({ viewState });
-    },
-    [state],
-  );
+  }, [
+    samplesDesc,
+    workspaceLog,
+    filter,
+    setFilter,
+    epoch,
+    setEpoch,
+    sort,
+    setSort,
+    renderedCode,
+    setRenderedCode,
+  ]);
 
   const copyFeedback = useCallback(
     (e) => {
@@ -301,35 +336,8 @@ export const WorkSpace = (props) => {
         }, 1250);
       }
     },
-    [state],
+    [renderedCode],
   );
-
-  // Display the log
-  useEffect(() => {
-    if (workspaceLog.contents && workspaceLog.eval?.run_id !== currentTaskId) {
-      const defaultTab =
-        workspaceLog.contents?.status !== "error" ? kEvalTabId : kInfoTabId;
-      setSelectedTab(state, defaultTab);
-      if (divRef.current) {
-        divRef.current.scrollTop = 0;
-      }
-    }
-
-    // Reset state
-    const newState = {
-      openSamples: [],
-      filter: {},
-      epoch: "all",
-      sort: kDefaultSort,
-      renderedCode: false,
-    };
-
-    setState({ viewState: { ...state.viewState, ...newState } });
-  }, [workspaceLog, divRef, currentTaskId]);
-
-  useEffect(() => {
-    setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
-  }, [workspaceLog]);
 
   // Compute the tools for this tab
   const tabTools = Object.keys(tabs)
@@ -338,32 +346,27 @@ export const WorkSpace = (props) => {
       return tab;
     })
     .filter((tab) => {
-      return tab.id === state.viewState.selectedTab;
+      return tab.id === selectedTab;
     })
     .map((tab) => {
       if (tab.tools) {
-        const tools = tab.tools(state);
+        const tools = tab.tools();
         return tools;
       } else {
         return "";
       }
     });
 
-  const selectTab = (event) => {
-    const id = event.currentTarget.id;
-    setSelectedTab(state, id);
-  };
-
   return html`<${WorkspaceDisplay}
     divRef=${divRef}
     tabs=${tabs}
     tabTools=${tabTools}
     log=${workspaceLog}
-    selectedTab=${state.viewState.selectedTab}
+    selectedTab=${selectedTab}
     fullScreen=${props.fullScreen}
     offcanvas=${props.offcanvas}
     context=${context}
-    selectTab=${selectTab}
+    setSelectedTab=${setSelectedTab}
     afterBodyElements=${afterBodyElements}
   />`;
 };
@@ -373,9 +376,7 @@ const WorkspaceDisplay = ({
   selectedTab,
   tabs,
   tabTools,
-  selectTab,
-  fullScreen,
-  offcanvas,
+  setSelectedTab,
   divRef,
   context,
   afterBodyElements,
@@ -383,11 +384,9 @@ const WorkspaceDisplay = ({
   if (log.contents === undefined) {
     return html`<${EmptyPanel} />`;
   } else {
-    const fullScreenClz = fullScreen ? " full-screen" : "";
-    const offcanvasClz = offcanvas ? " off-canvas" : "";
-
-    return html`<div ref=${divRef} class="workspace${fullScreenClz}${offcanvasClz}" style=${{
+    return html`<div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
+      overflowY: "hidden",
     }}>
             <${TitleBlock}
               created=${log.contents?.eval.created}
@@ -426,7 +425,10 @@ const WorkspaceDisplay = ({
                 return html`<${TabPanel}
                 id=${tab.id}
                 title="${tab.label}"
-                onSelected="${selectTab}"
+                onSelected=${(e) => {
+                  const id = e.currentTarget.id;
+                  setSelectedTab(id);
+                }}
                 selected=${selectedTab === tab.id}
                 scrollable=${!!tab.scrollable}>
                   ${tab.content()}

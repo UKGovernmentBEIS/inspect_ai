@@ -35,11 +35,12 @@ export const TitleBlock = ({ log, status }) => {
 `,
   });
 
+  const label = log?.results?.scores.length > 1 ? "Scorers" : "Scorer";
   values.push({
     size: "auto",
-    value: html`<${LabeledValue} label="Scorer" style=${staticColStyle}>
+    value: html`<${LabeledValue} label="${label}" style=${staticColStyle}>
     <${ScorerSummary} 
-    scorer=${log?.results?.scorer} />
+      scorers=${log?.results?.scores} />
   </${LabeledValue}>`,
   });
 
@@ -90,13 +91,19 @@ const DatasetSummary = ({ dataset, samples, epochs, style }) => {
   `;
 };
 
-const ScorerSummary = ({ scorer }) => {
-  if (!scorer) {
+const ScorerSummary = ({ scorers }) => {
+  if (!scorers) {
     return "";
   }
 
   const summary = [];
-  summary.push(scorer.name);
+  summary.push(
+    scorers
+      .map((scorer) => {
+        return scorer.name;
+      })
+      .join(", "),
+  );
   return summary;
 };
 

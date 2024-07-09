@@ -20,12 +20,13 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       filterChanged({
         value: val,
         filterFn: (sample, value) => {
-          if (typeof sample.score.value === "string") {
-            return sample.score.value.toLowerCase() === value?.toLowerCase();
-          } else if (typeof sample.score.value === "object") {
-            return JSON.stringify(sample.score.value) == value;
+          const score = descriptor.selectedScore(sample);
+          if (typeof score.value === "string") {
+            return score.value.toLowerCase() === value?.toLowerCase();
+          } else if (typeof score.value === "object") {
+            return JSON.stringify(score.value) == value;
           } else {
-            return sample.score.value === value;
+            return score.value === value;
           }
         },
       });
@@ -35,7 +36,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
   const filterInput = (e) => {
     filterChanged({
       value: e.currentTarget.value,
-      filterFn: filterText,
+      filterFn: filterText(descriptor),
     });
   };
 
@@ -76,6 +77,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
           class="form-control"
           value=${filter.value}
           placeholder="Filter Samples (score)"
+          style=${{ width: "150px" }}
           onInput=${filterInput}
         />
       `;
@@ -128,72 +130,75 @@ const SelectFilter = ({ value, options, filterFn }) => {
   `;
 };
 
-const filterText = (sample, value) => {
-  if (!value) {
-    return true;
-  } else {
-    if (isNumeric(value)) {
-      if (typeof sample.score.value === "number") {
-        return sample.score.value === Number(value);
-      } else {
-        return Number(sample.score.value) === Number(value);
-      }
+const filterText = (descriptor) => {
+  return (sample, value) => {
+    const score = descriptor.selectedScore(sample);
+    if (!value) {
+      return true;
     } else {
-      const filters = [
-        {
-          prefix: ">=",
-          fn: (score, val) => {
-            return score >= val;
+      if (isNumeric(value)) {
+        if (typeof score.value === "number") {
+          return score.value === Number(value);
+        } else {
+          return Number(score.value) === Number(value);
+        }
+      } else {
+        const filters = [
+          {
+            prefix: ">=",
+            fn: (score, val) => {
+              return score >= val;
+            },
           },
-        },
-        {
-          prefix: "<=",
-          fn: (score, val) => {
-            return score <= val;
+          {
+            prefix: "<=",
+            fn: (score, val) => {
+              return score <= val;
+            },
           },
-        },
-        {
-          prefix: ">",
-          fn: (score, val) => {
-            return score > val;
+          {
+            prefix: ">",
+            fn: (score, val) => {
+              return score > val;
+            },
           },
-        },
-        {
-          prefix: "<",
-          fn: (score, val) => {
-            return score < val;
+          {
+            prefix: "<",
+            fn: (score, val) => {
+              return score < val;
+            },
           },
-        },
-        {
-          prefix: "=",
-          fn: (score, val) => {
-            return score === val;
+          {
+            prefix: "=",
+            fn: (score, val) => {
+              return score === val;
+            },
           },
-        },
-        {
-          prefix: "!=",
-          fn: (score, val) => {
-            return score !== val;
+          {
+            prefix: "!=",
+            fn: (score, val) => {
+              return score !== val;
+            },
           },
-        },
-      ];
+        ];
 
-      for (const filter of filters) {
-        if (value?.startsWith(filter.prefix)) {
-          const val = value.slice(filter.prefix.length).trim();
-          if (!val) {
-            return true;
+        for (const filter of filters) {
+          if (value?.startsWith(filter.prefix)) {
+            const val = value.slice(filter.prefix.length).trim();
+            if (!val) {
+              return true;
+            }
+
+            const num = Number(val);
+            return filter.fn(score.value, num);
           }
-
-          const num = Number(val);
-          return filter.fn(sample.score.value, num);
+        }
+        if (typeof score.value === "string") {
+          return score.value.toLowerCase() === value?.toLowerCase();
+        } else {
+          return score.value === value;
         }
       }
-      if (typeof sample.score.value === "string") {
-        return sample.score.value.toLowerCase() === value?.toLowerCase();
-      } else {
-        return sample.score.value === value;
-      }
     }
-  }
+  };
 };

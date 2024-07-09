@@ -1,5 +1,6 @@
 import abc
 import asyncio
+import logging
 import os
 import sys
 import traceback
@@ -9,7 +10,7 @@ from typing import Any, Literal, Type, cast
 
 import click
 import tenacity
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
@@ -22,6 +23,8 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.scorer import Score
+
+SCORER_PLACEHOLDER = "88F74D2C"
 
 
 class EvalConfig(BaseModel):
@@ -75,11 +78,40 @@ class EvalSample(BaseModel):
     output: ModelOutput
     """Model output from sample."""
 
-    score: Score | None = Field(default=None)
-    """Score for sample."""
+    @property
+    def score(self) -> Score | None:
+        """Score for sample (deprecated)."""
+        logging.warning(
+            "The 'score' field is deprecated. Access sample scores through 'scores' instead."
+        )
+        return list(self.scores.values())[0] if self.scores else None
+
+    scores: dict[str, Score] | None = Field(default=None)
+    """Scores for sample."""
 
     metadata: dict[str, Any]
     """Additional sample metadata."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_score_to_scores(
+        cls: Type["EvalSample"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        if "score" in values:
+            # There cannot be a scorers property too
+            if "scores" in values:
+                raise TypeError(
+                    "Unexpected value `scores` present when `score` has already been specified."
+                )
+
+            # Convert the scorer to the new schema
+            score = values["score"]
+            values["scores"] = {SCORER_PLACEHOLDER: score}
+
+            # Get rid of the 'scorer' property
+            del values["score"]
+
+        return values
 
 
 class EvalPlanStep(BaseModel):
@@ -88,17 +120,6 @@ class EvalPlanStep(BaseModel):
 
     params: dict[str, Any] = Field(default={})
     """Parameters used to instantiate solver."""
-
-
-class EvalScorer(BaseModel):
-    name: str
-    """Scorer name."""
-
-    params: dict[str, Any] = Field(default={})
-    """Parameters specified when creating scorer."""
-
-    metadata: dict[str, Any] | None = Field(default=None)
-    """Additional scorer metadata."""
 
 
 class EvalPlan(BaseModel):
@@ -129,15 +150,73 @@ class EvalMetric(BaseModel):
     """Additional metadata associated with metric."""
 
 
-class EvalResults(BaseModel):
-    scorer: EvalScorer | None = Field(default=None)
-    """Scorer used to compute results"""
+class EvalScore(BaseModel):
+    name: str
+    """Score name."""
 
-    metrics: dict[str, EvalMetric] = Field(default={})
-    """Metrics computed."""
+    scorer: str
+    """Scorer name."""
+
+    params: dict[str, Any] = Field(default={})
+    """Parameters specified when creating scorer."""
+
+    metrics: dict[str, EvalMetric] = Field(default=[])
+    """Metrics computed for this scorer."""
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Additional scorer metadata."""
+
+
+class EvalResults(BaseModel):
+    @property
+    def scorer(self) -> EvalScore | None:
+        """Scorer used to compute results (deprecated)."""
+        logging.warning(
+            "The 'scorer' field is deprecated. Use 'scorers' instead.",
+        )
+        return self.scores[0] if self.scores else None
+
+    @property
+    def metrics(self) -> dict[str, EvalMetric]:
+        """Metrics computed (deprecated)."""
+        logging.warning(
+            "The 'metrics' field is deprecated. Access metrics through 'scorers' instead."
+        )
+        return self.scores[0].metrics if self.scores else {}
+
+    scores: list[EvalScore] = Field(default=[])
+    """Scorers used to compute results"""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional results metadata."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_scorer_to_scorers(
+        cls: Type["EvalResults"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        if "scorer" in values:
+            # There cannot be a scorers property too
+            if "scores" in values:
+                raise TypeError(
+                    "Unexpected value `scores` present when `scorer` has already been specified."
+                )
+
+            # Gather metrics
+            if "metrics" in values:
+                metrics = values["metrics"]
+                del values["metrics"]
+            # Convert the scorer to the new schema
+            score = values["scorer"]
+            if metrics:
+                score["metrics"] = metrics
+            score["scorer"] = score["name"]
+            values["scores"] = [score]
+
+            # Get rid of the 'scorer' property
+            del values["scorer"]
+
+        return values
 
 
 class EvalDataset(BaseModel):
@@ -316,7 +395,7 @@ class LoggingMessage(BaseModel):
 
 
 class EvalLog(BaseModel):
-    version: int = Field(default=1)
+    version: int = Field(default=2)
     """Eval log file format version."""
 
     status: Literal["started", "success", "cancelled", "error"] = Field(
@@ -344,6 +423,17 @@ class EvalLog(BaseModel):
 
     logging: list[LoggingMessage] = Field(default=[])
     """Logging message captured during eval."""
+
+    @model_validator(mode="after")
+    def populate_scorer_name_for_samples(self) -> "EvalLog":
+        if self.samples and self.results and self.results.scores:
+            scorer_name = self.results.scores[0].name
+            for sample in self.samples:
+                if sample.scores and SCORER_PLACEHOLDER in sample.scores:
+                    sample.scores[scorer_name] = sample.scores[SCORER_PLACEHOLDER]
+                    del sample.scores[SCORER_PLACEHOLDER]
+
+        return self
 
 
 LogEvent = Literal["plan", "sample", "score", "results", "scorer", "logging"]

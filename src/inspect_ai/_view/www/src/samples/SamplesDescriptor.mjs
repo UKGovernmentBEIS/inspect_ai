@@ -5,7 +5,6 @@ import {
   formatDecimalNoTrailingZeroes,
   inputString,
   arrayToString,
-  answerForSample,
 } from "../utils/Format.mjs";
 import { RenderedContent } from "../components/RenderedContent.mjs";
 import { isNumeric } from "../utils/Type.mjs";
@@ -22,16 +21,99 @@ export const kScoreTypeOther = "other";
 export const kScoreTypeObject = "object";
 export const kScoreTypeBoolean = "boolean";
 
-export const samplesDescriptor = (samples, epochs, context) => {
+export const samplesDescriptor = (
+  selectedScore,
+  scorers,
+  samples,
+  epochs,
+  context,
+) => {
   if (!samples) {
     return undefined;
   }
 
+  const score = (sample, scorer = selectedScore?.scorer) => {
+    if (sample.scores[scorer]) {
+      return sample.scores[scorer];
+    } else {
+      return undefined;
+    }
+  };
+
+  // function for retrieving the sample score value
+  const scoreValue = (sample) => {
+    // no scores, no value
+    if (Object.keys(sample.scores).length === 0 || !selectedScore) {
+      return undefined;
+    }
+
+    if (
+      selectedScore.scorer !== selectedScore.name &&
+      sample.scores[selectedScore.scorer] &&
+      sample.scores[selectedScore.scorer].value
+    ) {
+      return sample.scores[selectedScore.scorer].value[selectedScore.name];
+    } else if (sample.scores[selectedScore.name]) {
+      return sample.scores[selectedScore.name].value;
+    } else {
+      return undefined;
+    }
+  };
+
+  // Retrieve the answer for a sample
+  const scoreAnswer = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.answer) {
+        return sampleScore.answer;
+      } else if (sample.output.choices && sample.output.choices.length > 0) {
+        const content = sample.output.choices[0].message.content;
+        if (typeof content === "string") {
+          return content;
+        } else {
+          // TODO: Support image completions.
+          return content.length > 0 ? content[0].text : "";
+        }
+      }
+    } else {
+      return undefined;
+    }
+  };
+
+  const scoreExplanation = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.explanation) {
+        return sampleScore.explanation;
+      }
+    }
+    return undefined;
+  };
+
   const uniqScoreValues = [
     ...new Set(
       samples
-        .filter((sample) => !!sample.score)
-        .map((sample) => sample.score.value)
+        .filter((sample) => !!sample.scores)
+        .filter((sample) => {
+          // There is no selected scorer, so include this value
+          if (!selectedScore) {
+            return true;
+          }
+
+          if (selectedScore.scorer !== selectedScore.name) {
+            return (
+              Object.keys(sample.scores).includes(selectedScore.scorer) &&
+              Object.keys(sample.scores[selectedScore.scorer].value).includes(
+                selectedScore.name,
+              )
+            );
+          } else {
+            return Object.keys(sample.scores).includes(selectedScore.name);
+          }
+        })
+        .map((sample) => {
+          return scoreValue(sample);
+        })
         .filter((value) => {
           return value !== null;
         }),
@@ -58,10 +140,7 @@ export const samplesDescriptor = (samples, epochs, context) => {
     (previous, current) => {
       previous[0] = Math.max(previous[0], inputString(current.input).length);
       previous[1] = Math.max(previous[1], arrayToString(current.target).length);
-      previous[2] = Math.max(
-        previous[2],
-        answerForSample(current)?.length || 0,
-      );
+      previous[2] = Math.max(previous[2], scoreAnswer(current)?.length || 0);
       return previous;
     },
     [0, 0, 0],
@@ -74,7 +153,103 @@ export const samplesDescriptor = (samples, epochs, context) => {
     target: sizes[1] / base,
     answer: sizes[2] / base,
   };
-  return { scoreDescriptor, epochs, messageShape };
+
+  const scoreRendered = (sample) => {
+    const score = scoreValue(sample);
+    if (score === null || score === "undefined") {
+      return "null";
+    } else if (scoreDescriptor.render) {
+      return scoreDescriptor.render(score);
+    } else {
+      return score;
+    }
+  };
+
+  const scorerDescriptor = (sample, scorer) => {
+    return {
+      explanation: () => {
+        return scoreExplanation(sample, scorer);
+      },
+      answer: () => {
+        return scoreAnswer(sample, scorer);
+      },
+      scores: () => {
+        if (!sample || !sample.scores) {
+          return [];
+        }
+
+        // Make a list of all the valid score names (this is
+        // used to distinguish between dictionaries that contain
+        // scores that should be treated as standlone scores and
+        // dictionaries that just contain random values, which is allowed)
+        const scoreNames = scorers.map((score) => {
+          return score.name;
+        });
+        const sampleScorer = sample.scores[scorer];
+        const scoreVal = sampleScorer.value;
+        if (typeof scoreVal === "object") {
+          const names = Object.keys(scoreVal);
+          if (
+            names.find((name) => {
+              return !scoreNames.includes(name);
+            })
+          ) {
+            // Since this dictionary contains keys which are not scores
+            // we just treat it like an opaque dictionary
+            return [
+              {
+                name: scorer,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal);
+                },
+              },
+            ];
+          } else {
+            // Since this dictionary contains keys which are  scores
+            // we actually render the individual scores
+            const scores = names.map((name) => {
+              return {
+                name,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal[name]);
+                },
+              };
+            });
+            return scores;
+          }
+        } else {
+          return [
+            {
+              name: scorer,
+              rendered: () => {
+                return scoreDescriptor.render(scoreVal);
+              },
+            },
+          ];
+        }
+      },
+    };
+  };
+
+  return {
+    scoreDescriptor,
+    epochs,
+    messageShape,
+    selectedScore: (sample) => {
+      return {
+        value: scoreValue(sample),
+        render: () => {
+          return scoreRendered(sample);
+        },
+      };
+    },
+    scorer: (sample, scorer) => {
+      return scorerDescriptor(sample, scorer);
+    },
+    selectedScorer: (sample) => {
+      return scorerDescriptor(sample, selectedScore?.scorer);
+    },
+  };
 };
 
 const scoreCategorizers = [
@@ -162,12 +337,11 @@ const scoreCategorizers = [
           scoreType: kScoreTypeObject,
           categories,
           render: (score) => {
-            if (score === null) {
+            if (score === null || score === undefined) {
               return "[null]";
             }
 
             const scores = [];
-
             const keys = Object.keys(score);
             keys.forEach((key, index) => {
               const value = score[key];

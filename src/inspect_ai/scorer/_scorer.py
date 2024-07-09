@@ -87,12 +87,14 @@ def scorer_create(name: str, **kwargs: Any) -> Scorer:
 
 
 def scorer(
-    metrics: list[Metric], name: str | None = None, **metadata: Any
+    metrics: list[Metric] | dict[str, list[Metric]],
+    name: str | None = None,
+    **metadata: Any,
 ) -> Callable[[Callable[..., Scorer]], Callable[..., Scorer]]:
     r"""Decorator for registering scorers.
 
     Args:
-        metrics (list[Metric]): One or more metrics to calculate
+        metrics (list[Metric] | dict[str, list[Metric]]): One or more metrics to calculate
             over the scores.
         name (str | None):
             Optional name for scorer. If the decorator has no name
@@ -144,8 +146,12 @@ def scorer(
     return wrapper
 
 
-def scorer_metrics(scorer: Scorer) -> list[Metric]:
-    return cast(list[Metric], registry_info(scorer).metadata[SCORER_METRICS])
+def scorer_metrics(scorer: Scorer) -> list[Metric] | dict[str, list[Metric]]:
+    metrics_raw = registry_info(scorer).metadata[SCORER_METRICS]
+    if isinstance(metrics_raw, dict):
+        return cast(dict[str, list[Metric]], metrics_raw)
+    else:
+        return cast(list[Metric], metrics_raw)
 
 
 SCORER_METRICS = "metrics"

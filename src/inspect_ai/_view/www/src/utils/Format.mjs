@@ -36,24 +36,6 @@ export const shortenCompletion = (completion) => {
   return shortened || completion;
 };
 
-export const answerForSample = (sample) => {
-  if (sample) {
-    if (sample.score?.answer) {
-      return sample.score.answer;
-    } else if (sample.output.choices && sample.output.choices.length > 0) {
-      const content = sample.output.choices[0].message.content;
-      if (typeof content === "string") {
-        return content;
-      } else {
-        // TODO: Support image completions.
-        return content.length > 0 ? content[0].text : "";
-      }
-    }
-  } else {
-    return undefined;
-  }
-};
-
 // Gets a string for a sample input
 export const inputString = (input) => {
   if (typeof input === "string") {

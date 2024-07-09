@@ -29,6 +29,8 @@ export const icons = {
     critical: "bi bi-fire",
   },
   menu: "bi bi-list",
+  messages: "bi bi-chat-right-text",
+  metadata: "bi bi-table",
   model: "bi bi-cpu",
   "toggle-right": "bi bi-chevron-right",
   more: "bi bi-zoom-in",

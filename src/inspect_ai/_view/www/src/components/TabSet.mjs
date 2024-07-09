@@ -100,6 +100,12 @@ const Tab = ({ type, tab, index, style }) => {
           },
         }}
       >
+        ${tab.props.icon
+          ? html`<i
+              class="${tab.props.icon}"
+              style=${{ marginRight: "0.5em" }}
+            ></i>`
+          : ""}
         ${tab.props.title}
       </button>
     </li>

@@ -4,12 +4,28 @@
   --bs-popover-max-width: 50%;
 }
 
+#app {
+  height: 100vh;
+  overflow-y: hidden;
+}
+
+.app-main-grid {
+  display: grid;
+  height: 100vh;
+  overflow-y: hidden;
+  grid-template-rows: minmax(65px, max-content) max-content 1fr;
+}
+
 .modal {
   --bs-modal-margin: 0.5rem;
 }
 
 .modal-backdrop {
   --bs-backdrop-opacity: 0.4;
+}
+
+body[class^="vscode-"] .app-main-grid {
+  grid-template-rows: minmax(55px, max-content) max-content 1fr;
 }
 
 body[class^="vscode-"] {
@@ -57,21 +73,20 @@ body[class^="vscode-"] .modal-content {
   background-clip: unset;
 }
 
+body[class^="vscode-"] .multi-score-label {
+  margin-bottom: 5px;
+}
+
 body[class^="vscode-"] {
   min-width: 400px;
 }
 
 body[class^="vscode-"] .navbar-brand {
-  font-size: 0.9em;
+  font-size: 1em;
 }
 
-body[class^="vscode-"] .navbar-brand > div {
-  margin-top: 0.3em;
-}
-
-body[class^="vscode-"] .navbar-metrics {
-  margin-top: -0.4em;
-  font-size: 0.7em;
+body[class^="vscode-"] .navbar-brand .navbar-secondary-text {
+  font-size: 0.8em;
 }
 
 body[class^="vscode-"] .navbar #sidebarToggle > i.bi {
@@ -186,7 +201,6 @@ body[class^="vscode-"] .sidebar .list-group {
 :root {
   --bs-navbar-padding-y: 0;
   --bs-navbar-brand-padding-y: 0;
-  --navbar-height: 50px;
   --sidebar-width: 500px;
 }
 
@@ -199,7 +213,6 @@ body {
 .navbar {
   padding-top: 0;
   padding-bottom: 0;
-  height: var(--navbar-height);
   background-color: var(--bs-light);
 }
 
@@ -209,7 +222,12 @@ body {
 
 .navbar-brand {
   font-weight: 400;
-  font-size: 1.2em;
+  font-size: 1.4em;
+}
+
+.navbar-text {
+  padding-top: 0px;
+  padding-bottom: 0px;
 }
 
 #sidebarToggle > i.bi {
@@ -230,7 +248,6 @@ body {
 .workspace {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
 }
 
 .workspace.full-screen {
@@ -548,7 +565,6 @@ table.table.table-sm td {
 .tab-tools > * {
   flex: 0 1 auto;
   height: 1.5rem;
-  max-width: 150px;
   margin-left: 0.5rem;
 }
 

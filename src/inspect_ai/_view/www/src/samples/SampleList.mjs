@@ -4,11 +4,7 @@ import { useEffect, useMemo } from "preact/hooks";
 import { sharedStyles } from "../Constants.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 
-import {
-  shortenCompletion,
-  arrayToString,
-  answerForSample,
-} from "../utils/Format.mjs";
+import { shortenCompletion, arrayToString } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
 import { inputString } from "../utils/Format.mjs";
@@ -25,6 +21,7 @@ export const SampleList = (props) => {
     style,
     selectedIndex,
     setSelectedIndex,
+    selectedScore,
     nextSample,
     prevSample,
     showSample,
@@ -97,6 +94,7 @@ export const SampleList = (props) => {
           sampleDescriptor=${sampleDescriptor}
           selected=${selectedIndex === index}
           setSelected=${setSelectedIndex}
+          selectedScore=${selectedScore}
           showSample=${showSample}
         />
       `;
@@ -268,7 +266,9 @@ const SampleRow = ({
         ${sample
           ? html`
               <${MarkdownDiv}
-                markdown=${shortenCompletion(answerForSample(sample))}
+                markdown=${shortenCompletion(
+                  sampleDescriptor.selectedScorer(sample).answer(),
+                )}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"
               />
@@ -283,11 +283,7 @@ const SampleRow = ({
           display: "flex",
         }}
       >
-        ${sampleDescriptor?.scoreDescriptor.render
-          ? sampleDescriptor.scoreDescriptor.render(sample?.score?.value)
-          : sample?.score?.value === null
-            ? "null"
-            : sample?.score?.value}
+        ${sampleDescriptor?.selectedScore(sample).render()}
       </div>
     </div>
   `;

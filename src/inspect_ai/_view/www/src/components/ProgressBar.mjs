@@ -18,8 +18,7 @@ export const ProgressBar = ({ style, animating }) => {
 
   const progressContainerStyle = {
     width: "100%",
-    height: "6px",
-    marginBottom: "-6px",
+    height: "4px",
     background: "none",
   };
 

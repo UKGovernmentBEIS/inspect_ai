@@ -23,7 +23,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.file import FileSystem, file, filesystem
+from inspect_ai._util.file import FileSystem, filesystem
 from inspect_ai._util.http import InspectHTTPRequestHandler
 from inspect_ai.log._file import (
     eval_log_json,
@@ -180,9 +180,8 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
                     pass
 
             if contents is None:  # normal read
-                with file(path, "rb") as f:
-                    # read file and determine its length
-                    contents = f.read()
+                log = read_eval_log(path, header_only=False)
+                contents = eval_log_json(log).encode()
 
             # respond with the log
             length = len(contents)

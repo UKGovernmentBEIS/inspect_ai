@@ -53,10 +53,13 @@ export const Sidebar = ({
           <i class=${icons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "43px" }}>
-        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
+      <div style=${{ marginTop: "41px", zIndex: 3 }}>
+        <${ProgressBar} animating=${loading} />
       </div>
-      <ul class="list-group" style=${{ flexGrow: 1, overflowY: "auto" }}>
+      <ul
+        class="list-group"
+        style=${{ flexGrow: 1, overflowY: "auto", marginTop: "-3px" }}
+      >
         ${logs.files.map((file, index) => {
           const active = index === selectedIndex ? " active" : "";
           const logHeader = logHeaders[file.name];
@@ -69,7 +72,15 @@ export const Sidebar = ({
 
           const model = logHeader?.eval?.model;
           const dataset = logHeader?.eval?.dataset;
-          const scorer = logHeader?.results?.scorer?.name;
+          const scorer = logHeader?.results?.scores
+            ?.map((scorer) => {
+              return scorer.name;
+            })
+            .join(",");
+          const scorerLabel =
+            Object.keys(logHeader?.results?.scores || {}).length === 1
+              ? "scorer"
+              : "scorers";
 
           const completed = logHeader?.stats?.completed_at;
           const time = completed ? new Date(completed) : undefined;
@@ -114,57 +125,7 @@ export const Sidebar = ({
                       </div>`
                     : ""}
                 </div>
-                ${logHeader?.results?.metrics
-                  ? html`<div
-                      style=${{
-                        display: "flex",
-                        flexDirection: "row",
-                        flexWrap: "wrap",
-                        justifyContent: "flex-end",
-                      }}
-                    >
-                      ${Object.keys(logHeader?.results.metrics).map(
-                        (metric) => {
-                          return html`
-                            <div
-                              style=${{
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                marginLeft: "1em",
-                              }}
-                            >
-                              <div style=${{ fontWeight: 300 }}>
-                                ${logHeader?.results.metrics[metric].name}
-                              </div>
-                              <div
-                                style=${{ fontWeight: 600, fontSize: "1.5em" }}
-                              >
-                                ${formatPrettyDecimal(
-                                  logHeader?.results.metrics[metric].value,
-                                )}
-                              </div>
-                            </div>
-                          `;
-                        },
-                      )}
-                    </div>`
-                  : logHeader?.status === "error"
-                    ? html`<div style=${{ color: "var(--bs-danger)" }}>
-                        Eval Error
-                      </div>`
-                    : logHeader?.status === "cancelled"
-                      ? html`<div style=${{ color: "var(--bs-secondary)" }}>
-                          Cancelled
-                        </div>`
-                      : logHeader?.status === "started"
-                        ? html`<div
-                            class="spinner-border spinner-border-sm"
-                            role="status"
-                          >
-                            <span class="visually-hidden">Loading...</span>
-                          </div>`
-                        : ""}
+                <${EvalStatus} logHeader=${logHeader} />
               </div>
               <div style=${{ marginTop: "0.4em" }}>
                 <small class="mb-1 text-muted">
@@ -186,7 +147,7 @@ export const Sidebar = ({
                     }}
                   >
                     <span>dataset: ${dataset.name || "(samples)"}</span
-                    ><span>scorer: ${scorer}</span>
+                    ><span>${scorerLabel}: ${scorer}</span>
                   </div>`
                 : ""}
             </li>
@@ -210,6 +171,129 @@ const prettyDir = (path) => {
   } catch {
     return path;
   }
+};
+
+const EvalStatus = ({ logHeader }) => {
+  switch (logHeader.status) {
+    case "error":
+      return html`<${StatusError} message="Error" />`;
+
+    case "cancelled":
+      return html`<${StatusCancelled} message="Cancelled" />`;
+
+    case "started":
+      return html`<${StatusRunning} message="Running" />`;
+
+    default:
+      if (logHeader?.results?.scores && logHeader.results.scores.length > 0) {
+        if (logHeader.results.scores.length === 1) {
+          return html`<${SidebarScore}
+            scorer=${logHeader.results.scores[0]}
+          />`;
+        } else {
+          return html`<${SidebarScores} scores=${logHeader.results.scores} />`;
+        }
+      } else {
+        return "";
+      }
+  }
+};
+
+const SidebarScore = ({ scorer }) => {
+  return html`<div
+    style=${{
+      display: "flex",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "flex-end",
+    }}
+  >
+    ${Object.keys(scorer.metrics).map((metric) => {
+      return html`
+        <div
+          style=${{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            marginLeft: "1em",
+          }}
+        >
+          <div style=${{ fontWeight: 300 }}>${scorer.metrics[metric].name}</div>
+          <div style=${{ fontWeight: 600, fontSize: "1.5em" }}>
+            ${formatPrettyDecimal(scorer.metrics[metric].value)}
+          </div>
+        </div>
+      `;
+    })}
+  </div>`;
+};
+
+const SidebarScores = ({ scores }) => {
+  return html`<div
+    style=${{
+      display: "flex",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "flex-end",
+      rowGap: "1em",
+    }}
+  >
+    ${scores.map((score) => {
+      const name = score.name;
+      return html`
+        <div
+          style=${{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            marginLeft: "1em",
+          }}
+        >
+          <div
+            style=${{
+              fontSize: "0.6rem",
+              width: "100%",
+              fontWeight: 300,
+              borderBottom: "solid var(--bs-border-color) 1px",
+              textTransform: "uppercase",
+            }}
+          >
+            ${name}
+          </div>
+          <div
+            style=${{
+              fontSize: "0.7rem",
+              display: "grid",
+              gridTemplateColumns: "max-content max-content",
+              gridGap: "0 0.3rem",
+            }}
+          >
+            ${Object.keys(score.metrics).map((key) => {
+              const metric = score.metrics[key];
+              return html` <div>${metric.name}</div>
+                <div style=${{ fontWeight: "600" }}>
+                  ${formatPrettyDecimal(metric.value)}
+                </div>`;
+            })}
+          </div>
+        </div>
+      `;
+    })}
+  </div>`;
+};
+
+const StatusCancelled = ({ message }) => {
+  return html`<div style=${{ color: "var(--bs-secondary)" }}>${message}</div>`;
+};
+
+const StatusRunning = ({ message }) => {
+  return html`<div class="spinner-border spinner-border-sm" role="status">
+    <span class="visually-hidden">${message}</span>
+  </div>`;
+};
+
+const StatusError = ({ message }) => {
+  return html`<div style=${{ color: "var(--bs-danger)" }}>${message}</div>`;
 };
 
 const LogDirectoryTitle = ({ log_dir, offcanvas }) => {

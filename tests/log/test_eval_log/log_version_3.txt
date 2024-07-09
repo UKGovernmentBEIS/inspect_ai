@@ -1,5 +1,5 @@
 {
-    "version": 2,
+    "version": 3,
     "status": "success",
     "eval": {
         "task": "wikipedia",
@@ -31,22 +31,22 @@
         "config": {}
     },
     "results": {
-        "scorer": {
+        "scorers": [{
             "name": "model_graded_fact",
             "params": {}
-        },
-        "metrics": {
-            "accuracy": {
-                "name": "accuracy",
-                "value": 1,
-                "options": {}
-            },
-            "bootstrap_std": {
-                "name": "bootstrap_std",
-                "value": 0.0,
-                "options": {}
+            "metrics": {
+                "accuracy": {
+                    "name": "accuracy",
+                    "value": 1,
+                    "options": {}
+                },
+                "bootstrap_std": {
+                    "name": "bootstrap_std",
+                    "value": 0.0,
+                    "options": {}
+                }
             }
-        }
+        }]
     },
     "stats": {
         "started_at": "2024-05-05T07:59:35",
