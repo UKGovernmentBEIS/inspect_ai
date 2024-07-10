@@ -11,7 +11,8 @@ from inspect_ai._display import display
 from inspect_ai._display.logger import init_logger
 from inspect_ai._util.dotenv import dotenv_environ, init_dotenv
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.path import chdir_python, cwd_relative_path
+from inspect_ai._util.file import absolute_file_path
+from inspect_ai._util.path import chdir_python
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
@@ -234,7 +235,7 @@ async def eval_async(
 
         # resolve recorder
         log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
-        log_dir = cwd_relative_path(log_dir)
+        log_dir = absolute_file_path(log_dir)
         recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
 
         # create config

@@ -13,6 +13,7 @@ from inspect_ai._util.registry import (
     registry_add,
     registry_create,
     registry_info,
+    registry_log_name,
     registry_name,
     registry_tag,
 )
@@ -152,6 +153,16 @@ def scorer_metrics(scorer: Scorer) -> list[Metric] | dict[str, list[Metric]]:
         return cast(dict[str, list[Metric]], metrics_raw)
     else:
         return cast(list[Metric], metrics_raw)
+
+
+def unique_scorer_name(scorer: Scorer, already_used_names: list[str]) -> str:
+    base_name = registry_log_name(scorer)
+    scorer_name = base_name
+    count = 1
+    while scorer_name in already_used_names:
+        scorer_name = f"{scorer_name}{count}"
+        count = count + 1
+    return scorer_name
 
 
 SCORER_METRICS = "metrics"

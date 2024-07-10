@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Evaluate multiple models in parallel by passing a list of models to `eval()`.
+- [Multiple Scorers](https://ukgovernmentbeis.github.io/inspect_ai/scorers.html#sec-multiple-scorers) are now supported for evaluation tasks.
+- [Multiple Models](https://ukgovernmentbeis.github.io/inspect_ai/parallelism.html#sec-multiple-models) can now be evaluated in parallel by passing a list of models to `eval()`.
 - Add `api_key` to `get_model()` for explicitly specifying an API key for a model.
 - Improved handling of very large (> 100MB) log files in Inspect View.
 - Use `network_mode: none` for disabling networking by default in Docker tool environments.
@@ -12,8 +13,6 @@
 - Match scorers now return answers consistently even when there is no match.
 - Relocate tool related types into a new top-level `inspect_ai.tool` module (previous imports still work fow now, but result in a runtime deprecation warning)
 - Decouple tools entirely from solvers and task state (previously they had ways to interact with metadata, removing this coupling will enable tool use in lower level interactions with models). Accordingly, the `call_tools()` function now operates directly on messages rather than task state.
-- Use multiple scorers to score a task (by passing a list of scorers rather than a single scorer).
-- Support for complex scorers that return multiple scores and metrics (use a dictionary in the `@scorer` declaration to map metrics to the score value to apply the metrics to).
 
 ## v0.3.17 (25 June 2024)
 

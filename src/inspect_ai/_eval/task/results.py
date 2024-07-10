@@ -14,7 +14,7 @@ from inspect_ai.log import (
     EvalScore,
 )
 from inspect_ai.scorer import Metric, Score, Scorer
-from inspect_ai.scorer._scorer import SCORER_METRICS, scorer_metrics
+from inspect_ai.scorer._scorer import SCORER_METRICS, scorer_metrics, unique_scorer_name
 
 
 def eval_results(
@@ -25,14 +25,16 @@ def eval_results(
     # record scorer
     results = EvalResults()
     if scorers:
-        result_scores = []
+        result_scores: list[EvalScore] = []
         for scorer in scorers:
             # extract non-metrics metadata
             metadata = deepcopy(registry_info(scorer).metadata)
             del metadata[SCORER_METRICS]
 
             # this scorer
-            scorer_name = registry_log_name(scorer)
+            scorer_name = unique_scorer_name(
+                scorer, [eval_score.name for eval_score in result_scores]
+            )
 
             # scores for this scorer
             resolved_scores = [
