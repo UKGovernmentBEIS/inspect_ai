@@ -218,9 +218,10 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
     });
   }
 
-  const fullAnswer = sample
-    ? sampleDescriptor.selectedScorer(sample).answer()
-    : undefined;
+  const fullAnswer =
+    sample && sampleDescriptor
+      ? sampleDescriptor.selectedScorer(sample).answer()
+      : undefined;
   if (fullAnswer) {
     columns.push({
       label: "Answer",

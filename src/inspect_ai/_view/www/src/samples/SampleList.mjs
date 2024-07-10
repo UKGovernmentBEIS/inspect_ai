@@ -267,7 +267,7 @@ const SampleRow = ({
           ? html`
               <${MarkdownDiv}
                 markdown=${shortenCompletion(
-                  sampleDescriptor.selectedScorer(sample).answer(),
+                  sampleDescriptor?.selectedScorer(sample).answer(),
                 )}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"

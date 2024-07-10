@@ -18,10 +18,11 @@ export const PlanCard = ({ log, context }) => {
         paddingBottom: "0",
         borderTop: "solid var(--bs-border-color) 1px",
       }}>
+      
         <${PlanDetailView}
           evaluation=${log?.eval}
           plan=${log?.plan}
-          scorer=${log?.results?.scorer}
+          scores=${log?.results?.scores}
           context=${context}
         />
       </${CardBody}>
@@ -41,11 +42,16 @@ const planSepStyle = {
   marginBottom: "-0.1em",
 };
 
-const ScorerDetailVew = ({ scorer, context }) => {
+const ScorerDetailView = ({ name, scores, params, context }) => {
+  // Merge scores into params
+  if (scores.length > 1) {
+    params["scores"] = scores;
+  }
+
   return html`<${DetailStep}
     icon=${icons.scorer}
-    name=${scorer?.name}
-    params=${scorer?.params}
+    name=${name}
+    params=${params}
     context=${context}
     style=${planItemStyle}
   />`;
@@ -116,7 +122,7 @@ const DetailStep = ({ icon, name, params, style, context }) => {
   `;
 };
 
-const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
+const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   if (!evaluation) {
     return "";
   }
@@ -209,22 +215,40 @@ const PlanDetailView = ({ evaluation, plan, context, scorer }) => {
     title: "Plan",
     style: wideColumnStyle,
     contents: html`
-      <${SolversDetailView}
-        steps=${steps}
-        context=${context}
-        scorer=${scorer}
-      />
+      <${SolversDetailView} steps=${steps} context=${context} />
     `,
   });
 
-  if (scorer) {
-    taskColumns.push({
-      title: "Scorer",
-      style: floatingColumnStyle,
-      contents: html`
-        <${ScorerDetailVew} context=${context} scorer=${scorer} />
-      `,
-    });
+  if (scores) {
+    const scorers = scores.reduce((accum, score) => {
+      if (!accum[score.scorer]) {
+        accum[score.scorer] = {
+          scores: [score.name],
+          params: score.params,
+        };
+      } else {
+        accum[score.scorer].scores.push(score.name);
+      }
+      return accum;
+    }, {});
+
+    if (Object.keys(scorers).length > 0) {
+      const label = Object.keys(scorers).length === 1 ? "Scorer" : "Scorers";
+      const scorerPanels = Object.keys(scorers).map((key) => {
+        return html`<${ScorerDetailView}
+          name=${key}
+          scores=${scorers[key].scores}
+          params=${scorers[key].params}
+          context=${context}
+        />`;
+      });
+
+      taskColumns.push({
+        title: label,
+        style: floatingColumnStyle,
+        contents: scorerPanels,
+      });
+    }
   }
 
   // Compute the column style for the remaining (either 1 or 2 columns wide)

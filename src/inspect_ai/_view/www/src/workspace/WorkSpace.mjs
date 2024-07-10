@@ -141,7 +141,7 @@ export const WorkSpace = (props) => {
           workspaceLog.contents?.samples?.length > 1 ? "Samples" : "Sample",
         content: () => {
           return html` <${SamplesTab}
-            task=${workspaceLog.contents?.eval?.task}
+            task=${workspaceLog.contents?.eval?.task_id}
             model=${workspaceLog.contents?.eval?.model}
             selectedScore=${score}
             setSelectedScore=${setScore}

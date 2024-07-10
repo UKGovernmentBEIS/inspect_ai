@@ -13,6 +13,7 @@
 - Match scorers now return answers consistently even when there is no match.
 - Relocate tool related types into a new top-level `inspect_ai.tool` module (previous imports still work fow now, but result in a runtime deprecation warning)
 - Decouple tools entirely from solvers and task state (previously they had ways to interact with metadata, removing this coupling will enable tool use in lower level interactions with models). Accordingly, the `call_tools()` function now operates directly on messages rather than task state.
+- Support token usage for Google models (Inspect now requires `google-generativeai` v0.5.3)
 
 ## v0.3.17 (25 June 2024)
 
