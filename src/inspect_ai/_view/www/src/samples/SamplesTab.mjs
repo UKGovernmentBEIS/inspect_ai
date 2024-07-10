@@ -158,7 +158,7 @@ export const SamplesTab = (props) => {
         index="0"
         key=${`${task}-single-sample`}
         id="sample-display"
-        sample=${items[0].data}
+        sample=${samples[0]}
         sampleDescriptor=${sampleDescriptor}
         context=${context}
       />`,

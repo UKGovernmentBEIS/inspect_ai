@@ -19,6 +19,9 @@ export const SampleScoreView = ({
   style,
   scorer,
 }) => {
+  if (!sampleDescriptor) {
+    return "";
+  }
   const scoreInput = [inputString(sample.input)];
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
