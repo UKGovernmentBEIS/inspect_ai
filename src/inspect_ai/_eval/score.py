@@ -6,16 +6,14 @@ from inspect_ai._display import display
 from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.platform import platform_init
-from inspect_ai._util.registry import (
-    registry_create,
-    registry_log_name,
-)
+from inspect_ai._util.registry import registry_create
 from inspect_ai.log import (
     EvalLog,
     EvalMetric,
 )
 from inspect_ai.model import ModelName
 from inspect_ai.scorer import Metric, Score, Scorer, Target
+from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import TaskState
 
 from .task import Task
@@ -139,7 +137,8 @@ async def run_score_task(
     results: dict[str, Score] = {}
     for scorer in scorers:
         result = await scorer(state, target)
-        results[registry_log_name(scorer)] = result
+        scorer_name = unique_scorer_name(scorer, list(results.keys()))
+        results[scorer_name] = result
 
     progress()
     return results

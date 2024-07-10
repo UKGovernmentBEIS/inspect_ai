@@ -47,6 +47,7 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.scorer import Score, Scorer, Target
+from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.tool import ToolEnvironment
 from inspect_ai.tool._environment.context import (
@@ -367,7 +368,7 @@ async def task_run_sample(
         results: dict[str, Score] = {}
         if scorers:
             for scorer in scorers:
-                scorer_name = registry_log_name(scorer)
+                scorer_name = unique_scorer_name(scorer, list(results.keys()))
                 score_result = (
                     await scorer(state, Target(sample.target)) if scorer else None
                 )
