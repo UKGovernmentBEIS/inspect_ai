@@ -61,7 +61,11 @@ class OpenAIAPI(ModelAPI):
     ) -> None:
         # call super
         super().__init__(
-            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            api_key_vars=[OPENAI_API_KEY, AZURE_OPENAI_API_KEY, AZUREAI_OPENAI_API_KEY],
+            config=config,
         )
 
         # resolve api_key

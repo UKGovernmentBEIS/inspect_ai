@@ -24,6 +24,7 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, simple_input_messages
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .anthropic import ANTHROPIC_API_KEY
 from .util import as_stop_reason, model_base_url
 
 
@@ -35,7 +36,12 @@ class BedrockAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
-        super().__init__(model_name=model_name, base_url=base_url, config=config)
+        super().__init__(
+            model_name=model_name,
+            base_url=base_url,
+            api_key_vars=[ANTHROPIC_API_KEY],
+            config=config,
+        )
 
         # we can optionally proxy to another ModelAPI
         self.model_api: ModelAPI | None = None

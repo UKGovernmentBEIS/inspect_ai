@@ -10,7 +10,7 @@ import { isEqual } from "lodash";
 import { workspaceEnvCommands } from "./workspace-env-commands";
 import { activeWorkspaceFolder } from "../../core/workspace";
 import { log } from "../../core/log";
-import { statSync } from "fs";
+import { existsSync, statSync } from "fs";
 import { toAbsolutePath, workspaceRelativePath } from "../../core/path";
 
 export function activateWorkspaceEnv(): [Command[], WorkspaceEnvManager] {
@@ -31,14 +31,16 @@ export class WorkspaceEnvManager implements Disposable {
     const envRelativePath = workspaceRelativePath(toAbsolutePath(envUri.fsPath));
     log.appendLine(`Watching ${envRelativePath}`);
     this.envWatcher_ = setInterval(() => {
-      const envUpdated = statSync(envUri.fsPath).mtime.getTime();
-      if (envUpdated > this.lastUpdated_) {
-        this.lastUpdated_ = envUpdated;
-        const newEnv = readEnv(envUri);
-        if (!isEqual(this.env, newEnv)) {
-          log.appendLine(`${envRelativePath} changed`);
-          this.env = newEnv;
-          this.onEnvironmentChanged_.fire({});
+      if (existsSync(envUri.fsPath)) {
+        const envUpdated = statSync(envUri.fsPath).mtime.getTime();
+        if (envUpdated > this.lastUpdated_) {
+          this.lastUpdated_ = envUpdated;
+          const newEnv = readEnv(envUri);
+          if (!isEqual(this.env, newEnv)) {
+            log.appendLine(`${envRelativePath} changed`);
+            this.env = newEnv;
+            this.onEnvironmentChanged_.fire({});
+          }
         }
       }
     }, 1000);

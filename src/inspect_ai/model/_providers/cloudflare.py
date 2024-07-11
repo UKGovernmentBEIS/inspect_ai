@@ -19,6 +19,9 @@ from .util import model_base_url
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
 
 
+CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
+
+
 class CloudFlareAPI(ModelAPI):
     def __init__(
         self,
@@ -29,15 +32,21 @@ class CloudFlareAPI(ModelAPI):
         **model_args: Any,
     ):
         super().__init__(
-            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            api_key_vars=[CLOUDFLARE_API_TOKEN],
+            config=config,
         )
         self.account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
         if not self.account_id:
             raise RuntimeError("CLOUDFLARE_ACCOUNT_ID environment variable not set")
         if not self.api_key:
-            self.api_key = os.getenv("CLOUDFLARE_API_TOKEN")
+            self.api_key = os.getenv(CLOUDFLARE_API_TOKEN)
             if not self.api_key:
-                raise RuntimeError("CLOUDFLARE_API_TOKEN environment variable not set")
+                raise RuntimeError(
+                    f"{CLOUDFLARE_API_TOKEN} environment variable not set"
+                )
         self.client = httpx.AsyncClient()
         base_url = model_base_url(base_url, "CLOUDFLARE_BASE_URL")
         self.base_url = (

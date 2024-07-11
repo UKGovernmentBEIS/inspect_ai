@@ -20,6 +20,7 @@ from tenacity import (
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.entrypoints import ensure_entry_points
+from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -28,7 +29,6 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
-from inspect_ai._util.telemetry import init_telemetry, send_telemetry
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util import concurrency
 
@@ -54,6 +54,7 @@ class ModelAPI(abc.ABC):
         model_name: str,
         base_url: str | None = None,
         api_key: str | None = None,
+        api_key_vars: list[str] = [],
         config: GenerateConfig = GenerateConfig(),
     ) -> None:
         """Create a model API provider.
@@ -62,12 +63,33 @@ class ModelAPI(abc.ABC):
            model_name (str): Model name.
            base_url (str | None): Alternate base URL for model.
            api_key (str | None): API key for model.
+           api_key_vars (list[str]): Environment variables that
+              may contain keys for this provider (used for override)
            config (GenerateConfig): Model configuration.
         """
         self.model_name = model_name
         self.base_url = base_url
-        self.api_key = api_key
         self.config = config
+
+        # apply api key override
+        for key in api_key_vars:
+            # if there is an explicit api_key passed then it
+            # overrides anything in the environment so use it
+            if api_key is not None:
+                override = override_api_key(key, api_key)
+                if override is not None:
+                    api_key = override
+            # otherwise look it up in the environment and
+            # override it if it has a value
+            else:
+                value = os.environ.get(key, None)
+                if value is not None:
+                    override = override_api_key(key, value)
+                    if override is not None:
+                        os.environ[key] = override
+
+        # set any explicitly specified api key
+        self.api_key = api_key
 
     @abc.abstractmethod
     async def generate(
@@ -459,9 +481,9 @@ def get_model(
     # find a matching model type
     modelapi_types = registry_find(match_modelapi_type)
     if len(modelapi_types) > 0:
-        # create the model (init_telemetry here in case the model api
+        # create the model (init_hooks here in case the model api
         # is being used as a stadalone model interface outside of evals)
-        init_telemetry()
+        init_hooks()
         modelapi_type = cast(type[ModelAPI], modelapi_types[0])
         modelapi_instance = modelapi_type(
             model_name=model,

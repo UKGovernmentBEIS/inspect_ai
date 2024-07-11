@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.24
+
+- Properly deal with URI encoded characters in log directories when opening a log file
+
 ## 0.3.23
 
 - Ensure the log view only opens in the correct window when debugging a task
