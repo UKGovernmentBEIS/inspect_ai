@@ -588,6 +588,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sec-multiple-scorers" class="level2">
 <h2 class="anchored" data-anchor-id="sec-multiple-scorers">Multiple Scorers</h2>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The multiple scorers feature described below is available in only the development version of Inspect (it is not yet published to PyPI). You can install the development version with:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
 <p>There are several ways to use multiple scorers in an evaluation:</p>
 <ol type="1">
 <li>You can provide a list of scorers in a <code>Task</code> definition (this is the best option when scorers are entirely independent)</li>
@@ -597,17 +608,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="list-of-scorers" class="level3">
 <h3 class="anchored" data-anchor-id="list-of-scorers">List of Scorers</h3>
 <p><code>Task</code> definitions can specify multiple scorers. For example, the below task will use two different models to grade the results, storing two scores with each sample, one for each of the two models:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    plan<span class="op">=</span>[</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        system_message(SYSTEM_MESSAGE),</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        generate()</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>[</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        model_graded_qa(model<span class="op">=</span><span class="st">"openai/gpt-4"</span>), </span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        model_graded_qa(model<span class="op">=</span><span class="st">"google/gemini-1.5-pro"</span>)</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    plan<span class="op">=</span>[</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>        system_message(SYSTEM_MESSAGE),</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        generate()</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>[</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        model_graded_qa(model<span class="op">=</span><span class="st">"openai/gpt-4"</span>), </span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        model_graded_qa(model<span class="op">=</span><span class="st">"google/gemini-1.5-pro"</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>This is useful when there is more than one way to score a result and you would like preserve the individual score values with each sample (versus reducing the multiple scores to a single value).</p>
 </section>
 <section id="scorer-with-multiple-values" class="level3">
@@ -650,42 +661,42 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="reducing-multiple-scores" class="level3">
 <h3 class="anchored" data-anchor-id="reducing-multiple-scores">Reducing Multiple Scores</h3>
 <p>It’s possible to use multiple scorers in parallel, then reduce their output into a final overall score. This is done using the <code>multi_scorer()</code> function. For example, this is roughly how the built in model graders use multiple models for grading:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>multi_scorer(</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    scorers <span class="op">=</span> [model_graded_qa(model<span class="op">=</span>model) <span class="cf">for</span> model <span class="kw">in</span> models],</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    reducer <span class="op">=</span> majority_vote</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>multi_scorer(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    scorers <span class="op">=</span> [model_graded_qa(model<span class="op">=</span>model) <span class="cf">for</span> model <span class="kw">in</span> models],</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    reducer <span class="op">=</span> majority_vote</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Use of <code>multi_scorer()</code> requires both a list of scorers as well as a <em>reducer</em> which is a function that takes a list of scores and turns it into a single score. In this case we use the built in <code>majority_vote()</code> reducer which returns the score that appeared most frequently in the answers.</p>
 <p>You can imagine a variety of different strategies for reducing scores (take the average, take the high or low, majority vote, etc.). For example, here’s a reducer that computes the average score:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> average_score(scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Score:</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    values <span class="op">=</span> [score.as_float() <span class="cf">for</span> score <span class="kw">in</span> scores]</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    avg <span class="op">=</span> np.mean(values).item()</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Score(</span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        value<span class="op">=</span>avg,</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        explanation<span class="op">=</span><span class="ss">f"average of </span><span class="sc">{</span><span class="st">', '</span><span class="sc">.</span>join(values)<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> average_score(scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Score:</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    values <span class="op">=</span> [score.as_float() <span class="cf">for</span> score <span class="kw">in</span> scores]</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    avg <span class="op">=</span> np.mean(values).item()</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Score(</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        value<span class="op">=</span>avg,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>        explanation<span class="op">=</span><span class="ss">f"average of </span><span class="sc">{</span><span class="st">', '</span><span class="sc">.</span>join(values)<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Further, you will need to wrap your use of <code>multi_scorer()</code> inside a <code>@scorer</code> decorated function (with the requisite <code>metrics</code> specified). For example:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[mean()])</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multi_model_graded(models)</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> multi_scorer(</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>        scorers <span class="op">=</span> [model_graded_qa(model<span class="op">=</span>model) <span class="cf">for</span> model <span class="kw">in</span> models],</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        reducer <span class="op">=</span> average_score</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[mean()])</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multi_model_graded(models)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> multi_scorer(</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>        scorers <span class="op">=</span> [model_graded_qa(model<span class="op">=</span>model) <span class="cf">for</span> model <span class="kw">in</span> models],</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        reducer <span class="op">=</span> average_score</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="metrics" class="level2">
 <h2 class="anchored" data-anchor-id="metrics">Metrics</h2>
 <p>Each scorer provides one or more built-in metrics (typically <code>accuracy</code> and <code>bootstrap_std</code>). In addition, you can specify other metrics (either built-in or custom) to compute when defining a <code>Task</code>:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    plan<span class="op">=</span>[</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>        system_message(SYSTEM_MESSAGE),</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        multiple_choice()</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>match(),</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    metrics<span class="op">=</span>[custom_metric()]</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    plan<span class="op">=</span>[</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>        system_message(SYSTEM_MESSAGE),</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        multiple_choice()</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>match(),</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    metrics<span class="op">=</span>[custom_metric()]</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="built-in-metrics" class="level3">
 <h3 class="anchored" data-anchor-id="built-in-metrics">Built-In Metrics</h3>
 <p>Inspect includes some simple built in metrics for calculating accuracy, mean, etc. Built in metrics can be imported from the <code>inspect_ai.scorer</code> module. Below is a summary of these metrics. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the <strong>Go to Definition</strong> command in your source editor.</p>
@@ -703,17 +714,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="custom-metrics" class="level3">
 <h3 class="anchored" data-anchor-id="custom-metrics">Custom Metrics</h3>
 <p>You can also add your own metrics with <code>@metric</code> decorated functions. For example, here is the implementation of the variance metric:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> Metric, Score, metric</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> var() <span class="op">-&gt;</span> Metric:</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Compute variance over all scores."""</span></span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> metric(scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> np.var([score.as_float() <span class="cf">for</span> score <span class="kw">in</span> scores]).item()</span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> Metric, Score, metric</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> var() <span class="op">-&gt;</span> Metric:</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Compute variance over all scores."""</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> metric(scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> np.var([score.as_float() <span class="cf">for</span> score <span class="kw">in</span> scores]).item()</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that the <code>Score</code> class contains a <code>Value</code> that is a union over several scalar and collection types. As a convenience, <code>Score</code> includes a set of accessor methods to treat the value as a simpler form (e.g.&nbsp;above we use the <code>score.as_float()</code> accessor).</p>
 </section>
 </section>
@@ -722,13 +733,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="score-command" class="level3">
 <h3 class="anchored" data-anchor-id="score-command">Score Command</h3>
 <p>By default, model output in evaluations is automatically scored. However, you can separate generation and scoring by using the <code>--no-score</code> option. For example:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity.py <span class="at">--model</span> openai/gpt-4 <span class="at">--no-score</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity.py <span class="at">--model</span> openai/gpt-4 <span class="at">--no-score</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can score an evaluation previously run this way using the <code>inspect score</code> command:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># score last eval</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co"># score specific log file</span></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># score last eval</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># score specific log file</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -746,27 +757,27 @@ Tip
 <section id="log-overwriting" class="level3">
 <h3 class="anchored" data-anchor-id="log-overwriting">Log Overwriting</h3>
 <p>By default, <code>inspect score</code> overwrites the file it scores. If don’t want to overwrite target files, pass the <code>--no-overwrite</code> flag:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py <span class="at">--no-overwrite</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py <span class="at">--no-overwrite</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>When specifying <code>--no-overwrite</code>, a <code>-scored</code> suffix will be added to the original log file name:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./logs/2024-02-23_task_gpt-4_TUhnCn473c6-scored.json</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./logs/2024-02-23_task_gpt-4_TUhnCn473c6-scored.json</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that the <code>--no-overwrite</code> flag does not apply to log files that already have the <code>-scored</code> suffix—those files are always overwritten by <code>inspect score</code>. If you plan on scoring multiple times and you want to save each scoring output, you will want to copy the log to another location before re-scoring.</p>
 </section>
 <section id="python-api" class="level3">
 <h3 class="anchored" data-anchor-id="python-api">Python API</h3>
 <p>If you are exploring the performance of different scorers, you might find it more useful to call the <code>score()</code> function using varying scorers or scorer options. For example:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)[<span class="dv">0</span>]</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>grader_models <span class="op">=</span> [</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"openai/gpt-4"</span>,</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"anthropic/claude-3-opus-20240229"</span>,</span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google/gemini-1.0-pro"</span>,</span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mistral/mistral-large-latest"</span></span>
-<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>scoring_logs <span class="op">=</span> [score(log, model_graded_qa(model<span class="op">=</span>model)) </span>
-<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> model <span class="kw">in</span> grader_models]</span>
-<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>plot_results(scoring_logs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)[<span class="dv">0</span>]</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>grader_models <span class="op">=</span> [</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"openai/gpt-4"</span>,</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"anthropic/claude-3-opus-20240229"</span>,</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google/gemini-1.0-pro"</span>,</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mistral/mistral-large-latest"</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>scoring_logs <span class="op">=</span> [score(log, model_graded_qa(model<span class="op">=</span>model)) </span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> model <span class="kw">in</span> grader_models]</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>plot_results(scoring_logs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
