@@ -15,7 +15,7 @@ class CustomModelAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
     ) -> None:
-        super().__init__(model_name, base_url, api_key, config)
+        super().__init__(model_name, base_url, api_key, [], config)
 
     async def generate(
         self,

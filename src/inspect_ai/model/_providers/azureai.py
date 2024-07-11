@@ -46,7 +46,11 @@ class AzureAIAPI(ModelAPI):
         **model_args: Any,
     ):
         super().__init__(
-            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            api_key_vars=[AZURE_API_KEY],
+            config=config,
         )
 
         # required for some deployments

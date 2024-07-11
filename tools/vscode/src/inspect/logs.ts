@@ -13,7 +13,7 @@ export function inspectEvalLogs(cwd: AbsolutePath, log_dir?: Uri): string | unde
     const cmdArgs = ["list", "logs", "--json"];
     if (log_dir) {
       cmdArgs.push("--log-dir");
-      cmdArgs.push(log_dir.toString());
+      cmdArgs.push(log_dir.toString(true));
     }
     const output = runProcess(inspectBin, cmdArgs, cwd);
     return output;

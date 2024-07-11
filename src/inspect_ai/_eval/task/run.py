@@ -20,11 +20,11 @@ from inspect_ai._util.constants import DEFAULT_EPOCHS, DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.file import file, filesystem
+from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
-from inspect_ai._util.telemetry import send_telemetry
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri
 from inspect_ai._view.view import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample

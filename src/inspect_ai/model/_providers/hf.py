@@ -33,6 +33,8 @@ from .._model_output import (
 )
 from .._util import chat_api_input
 
+HF_TOKEN = "HF_TOKEN"
+
 
 class HuggingFaceAPI(ModelAPI):
     def __init__(
@@ -44,7 +46,11 @@ class HuggingFaceAPI(ModelAPI):
         **model_args: Any,
     ):
         super().__init__(
-            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            api_key_vars=[HF_TOKEN],
+            config=config,
         )
 
         # set random seeds

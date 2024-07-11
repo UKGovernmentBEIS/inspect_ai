@@ -59,6 +59,8 @@ VERTEX_SAFETY_SETTINGS = {
     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
 }
 
+GOOGLE_API_KEY = "GOOGLE_API_KEY"
+
 
 class GoogleAPI(ModelAPI):
     def __init__(
@@ -70,7 +72,11 @@ class GoogleAPI(ModelAPI):
         **model_args: Any,
     ) -> None:
         super().__init__(
-            model_name=model_name, base_url=base_url, api_key=api_key, config=config
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            api_key_vars=[GOOGLE_API_KEY],
+            config=config,
         )
 
         # configure genai client
