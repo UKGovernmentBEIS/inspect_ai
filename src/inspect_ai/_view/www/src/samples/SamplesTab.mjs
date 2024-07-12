@@ -230,6 +230,10 @@ const noGrouping = (samples, order) => {
 
 // Groups by sample (showing separators for Epochs)
 const groupBySample = (samples, sampleDescriptor, order) => {
+  // ensure that we are sorted by id
+  samples = samples.sort((a, b) => {
+    return ("" + a.id).localeCompare(b.id);
+  });
   const groupCount = samples.length / sampleDescriptor.epochs;
   const itemCount = samples.length / groupCount;
   const counter = getCounter(itemCount, groupCount, order);
