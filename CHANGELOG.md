@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.18 (14 July 2024)
 
 - [Multiple Scorers](https://ukgovernmentbeis.github.io/inspect_ai/scorers.html#sec-multiple-scorers) are now supported for evaluation tasks.
 - [Multiple Models](https://ukgovernmentbeis.github.io/inspect_ai/parallelism.html#sec-multiple-models) can now be evaluated in parallel by passing a list of models to `eval()`.

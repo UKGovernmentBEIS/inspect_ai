@@ -59,10 +59,10 @@ Note that max connections is applied per-model. This means that if you use a gra
 ## Multiple Models {#sec-multiple-models}
 
 ::: {.callout-note appearance="simple"}
-The multiple models feature described below is available in only the development version of Inspect (it is not yet published to PyPI). You can install the development version with:
+The multiple models feature described below is available in only the very latest version of Inspect (v0.3.18). You can updgrade to the latest version with:
 
 ```bash
-$ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+$ pip install --upgrade inspect-ai
 ```
 :::
 

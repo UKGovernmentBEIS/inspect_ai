@@ -258,12 +258,13 @@ Note also we use the `input_text` property of the `TaskState` to access a string
 ## Multiple Scorers {#sec-multiple-scorers}
 
 ::: {.callout-note appearance="simple"}
-The multiple scorers feature described below is available in only the development version of Inspect (it is not yet published to PyPI). You can install the development version with:
+The multiple scorers feature described below is available in only the very latest version of Inspect (v0.3.18). You can updgrade to the latest version with:
 
 ```bash
-$ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+$ pip install --upgrade inspect-ai
 ```
 :::
+
 
 There are several ways to use multiple scorers in an evaluation:
 
