@@ -9,11 +9,11 @@
 - Use `network_mode: none` for disabling networking by default in Docker tool environments.
 - Shorten the default shutdown grace period for Docker container cleanup to 1 second.
 - Allow tool environent providers to specify a default `max_samples` (set to 25 for the Docker provider).
-- Prevent concurrent calls to `eval_async()` (unsafe because of need to change directories for tasks). Parallel task evaluation will instead be implemented as a top-level feature of `eval()` and `eval_async()`
+- Prevent concurrent calls to `eval_async()` (unsafe because of need to change directories for tasks). Parallel task evaluation will instead be implemented as a top-level feature of `eval()` and `eval_async()`.
 - Match scorers now return answers consistently even when there is no match.
-- Relocate tool related types into a new top-level `inspect_ai.tool` module (previous imports still work fow now, but result in a runtime deprecation warning)
+- Relocate tool related types into a new top-level `inspect_ai.tool` module (previous imports still work fow now, but result in a runtime deprecation warning).
 - Decouple tools entirely from solvers and task state (previously they had ways to interact with metadata, removing this coupling will enable tool use in lower level interactions with models). Accordingly, the `call_tools()` function now operates directly on messages rather than task state.
-- Support token usage for Google models (Inspect now requires `google-generativeai` v0.5.3)
+- Support token usage for Google models (Inspect now requires `google-generativeai` v0.5.3).
 
 ## v0.3.17 (25 June 2024)
 
