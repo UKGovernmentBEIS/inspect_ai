@@ -44,7 +44,7 @@
 -   The `use_tools()` function now uses the `TaskState.tools` setter, so replaces the current set of tools entirely rather than appending to it.
 -   Set `state.completed = False` when `max_messages` is reached.
 -   Allow tools to be declared with no parameters.
--   Allow for null `bytes` field in `Logprobs` and `TopLogprobs`
+-   Allow for null `bytes` field in `Logprobs` and `TopLogprobs`.
 -   Support all Llama series models on Bedrock.
 -   Added `truthfulqa` benchmark.
 -   Added `intercode-ctf` example.
@@ -58,7 +58,7 @@
 -   New `inspect eval-retry` command to retry a log file from a task that ended in error or cancellation.
 -   New `retryable_eval_logs()` function and `--retryable` option for `inspect list logs` to query for tasks not yet completed within a log directory.
 -   Add `shuffled` property to datasets to determine if they were shuffled.
--   Remove unused `extensions` argument from `list_eval_logs()`
+-   Remove unused `extensions` argument from `list_eval_logs()`.
 
 ## v0.3.13 (31 May 2024)
 
