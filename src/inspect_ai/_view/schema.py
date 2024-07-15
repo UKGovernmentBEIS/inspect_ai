@@ -29,6 +29,7 @@ def sync_view_schema() -> None:
         # generate types w/ json-schema-to-typescript
         subprocess.run(
             [
+                "yarn",
                 "json2ts",
                 "--input",
                 schema_path,

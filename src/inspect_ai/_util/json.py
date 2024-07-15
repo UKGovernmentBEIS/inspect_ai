@@ -1,4 +1,7 @@
-from typing import Literal
+from typing import Any, Literal, cast
+
+import jsonpatch
+from pydantic import BaseModel, Field, JsonValue
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 
@@ -50,3 +53,31 @@ def json_type_to_python_type(json_type: str) -> PythonType:
             raise ValueError(
                 f"Unsupported type: {json_type} for JSON to Python conversion."
             )
+
+
+class JsonChange(BaseModel):
+    """Describes a change to data using JSON Patch format."""
+
+    op: Literal["remove", "add", "replace", "move", "test", "copy"]
+    """Change operation."""
+
+    path: str
+    """Path within object that was changed (uses / to delimit levels)."""
+
+    from_: str | None = Field(default=None, alias="from")
+    """Location from which data was moved or copied."""
+
+    value: JsonValue = Field(default=None)
+    """Changed value."""
+
+    model_config = {"populate_by_name": True}
+
+
+def json_changes(
+    before: dict[str, Any], after: dict[str, Any]
+) -> list[JsonChange] | None:
+    patch = jsonpatch.make_patch(before, after)
+    if patch:
+        return [JsonChange(**change) for change in cast(list[Any], patch)]
+    else:
+        return None

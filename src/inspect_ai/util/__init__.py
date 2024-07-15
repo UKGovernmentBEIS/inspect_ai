@@ -5,9 +5,4 @@ from ._subprocess import (
     subprocess,
 )
 
-__all__ = [
-    "ExecResult",
-    "concurrency",
-    "resource",
-    "subprocess",
-]
+__all__ = ["ExecResult", "concurrency", "resource", "subprocess"]

@@ -23,6 +23,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.scorer import Score
+from inspect_ai.solver import Event
 
 SCORER_PLACEHOLDER = "88F74D2C"
 
@@ -91,6 +92,12 @@ class EvalSample(BaseModel):
 
     metadata: dict[str, Any]
     """Additional sample metadata."""
+
+    store: dict[str, Any] = Field(default={})
+    """State at end of sample execution."""
+
+    transcript: list[Event] = Field(default=[])
+    """Transcript of sample events."""
 
     @model_validator(mode="before")
     @classmethod

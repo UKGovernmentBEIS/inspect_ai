@@ -147,7 +147,76 @@ export type Value1 =
 export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata4 = {} | null;
-export type Level =
+export type Timestamp = string;
+export type Event = "state";
+export type Op = "remove" | "add" | "replace" | "move" | "test" | "copy";
+export type Path = string;
+export type From = string | null;
+export type Changes = JsonChange[];
+export type Timestamp1 = string;
+export type Event1 = "store";
+export type Changes1 = JsonChange[];
+export type Timestamp2 = string;
+export type Event2 = string;
+export type Model2 = string;
+export type Input1 = (
+  | ChatMessageSystem
+  | ChatMessageUser
+  | ChatMessageAssistant
+  | ChatMessageTool
+)[];
+export type Name4 = string;
+export type Description = string;
+export type Name5 = string;
+export type Type4 =
+  | "string"
+  | "integer"
+  | "number"
+  | "boolean"
+  | "array"
+  | "object"
+  | "null";
+export type Description1 = string;
+export type Optional = boolean;
+export type Params2 = ToolParam[];
+export type Tools = ToolInfo[];
+export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
+export type Name6 = string;
+export type Timestamp3 = string;
+export type Event3 = "logger";
+export type Level = string;
+export type Message1 = string;
+export type Timestamp4 = string;
+export type Event4 = "info";
+export type JsonValue = unknown;
+export type Timestamp5 = string;
+export type Event5 = "step";
+export type Action = "begin" | "end";
+export type Type5 = string | null;
+export type Name7 = string;
+export type Timestamp6 = string;
+export type Event6 = "subtask";
+export type Name8 = string;
+export type Name9 = string;
+export type Events = (
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent
+)[];
+export type Transcript = (
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent
+)[];
+export type Level1 =
   | "debug"
   | "http"
   | "tools"
@@ -155,7 +224,7 @@ export type Level =
   | "warning"
   | "error"
   | "critical";
-export type Message1 = string;
+export type Message2 = string;
 export type Created1 = number;
 export type Logging = LoggingMessage[];
 
@@ -301,6 +370,8 @@ export interface EvalSample {
   output: ModelOutput;
   scores: Scores1;
   metadata: Metadata5;
+  store: Store;
+  transcript: Transcript;
 }
 export interface ChatMessageSystem {
   content: Content;
@@ -393,8 +464,83 @@ export interface Score {
   metadata: Metadata4;
 }
 export interface Metadata5 {}
-export interface LoggingMessage {
+export interface Store {}
+export interface StateEvent {
+  timestamp: Timestamp;
+  event: Event;
+  changes: Changes;
+}
+export interface JsonChange {
+  op: Op;
+  path: Path;
+  from: From;
+  value: unknown;
+}
+export interface StoreEvent {
+  timestamp: Timestamp1;
+  event: Event1;
+  changes: Changes1;
+}
+export interface ModelEvent {
+  timestamp: Timestamp2;
+  event: Event2;
+  model: Model2;
+  input: Input1;
+  tools: Tools;
+  tool_choice: ToolChoice;
+  config: GenerateConfig;
+  output: ModelOutput;
+}
+export interface ToolInfo {
+  name: Name4;
+  description: Description;
+  params: Params2;
+}
+export interface ToolParam {
+  name: Name5;
+  type: Type4;
+  description: Description1;
+  optional: Optional;
+}
+export interface ToolFunction {
+  name: Name6;
+}
+export interface LoggerEvent {
+  timestamp: Timestamp3;
+  event: Event3;
   level: Level;
   message: Message1;
+}
+export interface InfoEvent {
+  timestamp: Timestamp4;
+  event: Event4;
+  data: JsonValue;
+}
+export interface StepEvent {
+  timestamp: Timestamp5;
+  event: Event5;
+  action: Action;
+  type: Type5;
+  name: Name7;
+}
+export interface SubtaskEvent {
+  timestamp: Timestamp6;
+  event: Event6;
+  name: Name8;
+  input: Input2;
+  result: Result;
+  transcript: Transcript1;
+}
+export interface Input2 {}
+export interface Result {
+  [k: string]: unknown;
+}
+export interface Transcript1 {
+  name: Name9;
+  events: Events;
+}
+export interface LoggingMessage {
+  level: Level1;
+  message: Message2;
   created: Created1;
 }

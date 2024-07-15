@@ -8,6 +8,7 @@ fsspec
 httpx
 json-stream
 jsonlines
+jsonpatch
 nest_asyncio
 numpy
 platformdirs

@@ -67,9 +67,7 @@
         "role": {
           "const": "assistant",
           "default": "assistant",
-          "enum": ["assistant"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         },
         "tool_calls": {
           "anyOf": [
@@ -131,9 +129,7 @@
         "role": {
           "const": "system",
           "default": "system",
-          "enum": ["system"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         },
         "tool": {
           "anyOf": [
@@ -192,9 +188,7 @@
         "role": {
           "const": "tool",
           "default": "tool",
-          "enum": ["tool"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         },
         "tool_call_id": {
           "anyOf": [
@@ -265,9 +259,7 @@
         "role": {
           "const": "user",
           "default": "user",
-          "enum": ["user"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         }
       },
       "required": ["content", "source", "role"],
@@ -280,9 +272,7 @@
         "type": {
           "const": "image",
           "default": "image",
-          "enum": ["image"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "image": {
           "title": "Image",
@@ -305,9 +295,7 @@
         "type": {
           "const": "text",
           "default": "text",
-          "enum": ["text"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "text": {
           "title": "Text",
@@ -682,9 +670,7 @@
       "properties": {
         "type": {
           "const": "git",
-          "enum": ["git"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "origin": {
           "title": "Origin",
@@ -814,6 +800,41 @@
         "metadata": {
           "title": "Metadata",
           "type": "object"
+        },
+        "store": {
+          "default": {},
+          "title": "Store",
+          "type": "object"
+        },
+        "transcript": {
+          "default": [],
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Transcript",
+          "type": "array"
         }
       },
       "required": [
@@ -825,7 +846,9 @@
         "messages",
         "output",
         "scores",
-        "metadata"
+        "metadata",
+        "store",
+        "transcript"
       ],
       "title": "EvalSample",
       "type": "object",
@@ -1306,6 +1329,91 @@
       ],
       "additionalProperties": false
     },
+    "InfoEvent": {
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "info",
+          "default": "info",
+          "title": "Event"
+        },
+        "data": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "required": ["timestamp", "event", "data"],
+      "title": "InfoEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "JsonChange": {
+      "properties": {
+        "op": {
+          "enum": ["remove", "add", "replace", "move", "test", "copy"],
+          "title": "Op",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
+        },
+        "value": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": ["op", "path", "from", "value"],
+      "title": "JsonChange",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "JsonValue": {},
+    "LoggerEvent": {
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "logger",
+          "default": "logger",
+          "title": "Event"
+        },
+        "level": {
+          "title": "Level",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": ["timestamp", "event", "level", "message"],
+      "title": "LoggerEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "LoggingMessage": {
       "properties": {
         "level": {
@@ -1393,6 +1501,82 @@
       },
       "required": ["content"],
       "title": "Logprobs",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ModelEvent": {
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "default": "model",
+          "title": "Event",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "input": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ChatMessageSystem"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageUser"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageAssistant"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageTool"
+              }
+            ]
+          },
+          "title": "Input",
+          "type": "array"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolInfo"
+          },
+          "title": "Tools",
+          "type": "array"
+        },
+        "tool_choice": {
+          "anyOf": [
+            {
+              "enum": ["auto", "any", "none"],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/ToolFunction"
+            }
+          ],
+          "title": "Tool Choice"
+        },
+        "config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
+        "output": {
+          "$ref": "#/$defs/ModelOutput"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "model",
+        "input",
+        "tools",
+        "tool_choice",
+        "config",
+        "output"
+      ],
+      "title": "ModelEvent",
       "type": "object",
       "additionalProperties": false
     },
@@ -1566,6 +1750,134 @@
       "type": "object",
       "additionalProperties": false
     },
+    "StateEvent": {
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "state",
+          "default": "state",
+          "title": "Event"
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/JsonChange"
+          },
+          "title": "Changes",
+          "type": "array"
+        }
+      },
+      "required": ["timestamp", "event", "changes"],
+      "title": "StateEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "StepEvent": {
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "step",
+          "default": "step",
+          "title": "Event"
+        },
+        "action": {
+          "enum": ["begin", "end"],
+          "title": "Action",
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": ["timestamp", "event", "action", "type", "name"],
+      "title": "StepEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "StoreEvent": {
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "store",
+          "default": "store",
+          "title": "Event"
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/JsonChange"
+          },
+          "title": "Changes",
+          "type": "array"
+        }
+      },
+      "required": ["timestamp", "event", "changes"],
+      "title": "StoreEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "SubtaskEvent": {
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "subtask",
+          "default": "subtask",
+          "title": "Event"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "input": {
+          "title": "Input",
+          "type": "object"
+        },
+        "result": {
+          "title": "Result"
+        },
+        "transcript": {
+          "$ref": "#/$defs/Transcript"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "name",
+        "input",
+        "result",
+        "transcript"
+      ],
+      "title": "SubtaskEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ToolCall": {
       "properties": {
         "id": {
@@ -1582,9 +1894,7 @@
         },
         "type": {
           "const": "function",
-          "enum": ["function"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "parse_error": {
           "anyOf": [
@@ -1601,6 +1911,74 @@
       },
       "required": ["id", "function", "arguments", "type", "parse_error"],
       "title": "ToolCall",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolFunction": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": ["name"],
+      "title": "ToolFunction",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolInfo": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "params": {
+          "items": {
+            "$ref": "#/$defs/ToolParam"
+          },
+          "title": "Params",
+          "type": "array"
+        }
+      },
+      "required": ["name", "description", "params"],
+      "title": "ToolInfo",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolParam": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "array",
+            "object",
+            "null"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "optional": {
+          "title": "Optional",
+          "type": "boolean"
+        }
+      },
+      "required": ["name", "type", "description", "optional"],
+      "title": "ToolParam",
       "type": "object",
       "additionalProperties": false
     },
@@ -1633,6 +2011,49 @@
       "required": ["token", "logprob", "bytes"],
       "title": "TopLogprob",
       "type": "object",
+      "additionalProperties": false
+    },
+    "Transcript": {
+      "properties": {
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "events": {
+          "default": [],
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
+        }
+      },
+      "title": "Transcript",
+      "type": "object",
+      "required": ["name", "events"],
       "additionalProperties": false
     }
   },
