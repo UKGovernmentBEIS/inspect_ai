@@ -2,11 +2,11 @@ import random
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Score, Target, bootstrap_std, mean, scorer
+from inspect_ai.scorer import Score, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 
 
-@scorer(metrics=[mean(), bootstrap_std()])
+@scorer(metrics=[mean(), stderr()])
 def rand_score():
     async def score(state: TaskState, target: Target):
         answer = state.output.completion
@@ -15,7 +15,7 @@ def rand_score():
     return score
 
 
-@scorer(metrics=[mean(), bootstrap_std()])
+@scorer(metrics=[mean(), stderr()])
 def another_rand_score():
     async def score(state: TaskState, target: Target):
         answer = state.output.completion
@@ -24,9 +24,7 @@ def another_rand_score():
     return score
 
 
-@scorer(
-    metrics={"a_count": [mean(), bootstrap_std()], "e_count": [mean(), bootstrap_std()]}
-)
+@scorer(metrics={"a_count": [mean(), stderr()], "e_count": [mean(), stderr()]})
 def letter_count():
     async def score(state: TaskState, target: Target):
         answer = state.output.completion
@@ -64,7 +62,7 @@ def test_single_scorer() -> None:
 
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
-    check_log(log, ["rand_score"], ["mean", "bootstrap_std"])
+    check_log(log, ["rand_score"], ["mean", "stderr"])
 
 
 # test two scorers
@@ -76,7 +74,7 @@ def test_multi_scorer() -> None:
 
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
-    check_log(log, ["rand_score", "another_rand_score"], ["mean", "bootstrap_std"])
+    check_log(log, ["rand_score", "another_rand_score"], ["mean", "stderr"])
 
 
 # test dictionary scorer
@@ -88,7 +86,7 @@ def test_dict_scorer() -> None:
 
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
-    check_log(log, ["a_count", "e_count"], ["mean", "bootstrap_std"])
+    check_log(log, ["a_count", "e_count"], ["mean", "stderr"])
 
 
 # test blend of dictionary and simple scorers
@@ -100,4 +98,4 @@ def test_blend_scorer() -> None:
 
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
-    check_log(log, ["a_count", "e_count", "rand_score"], ["mean", "bootstrap_std"])
+    check_log(log, ["a_count", "e_count", "rand_score"], ["mean", "stderr"])
