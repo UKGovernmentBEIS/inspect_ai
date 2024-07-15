@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 cd ../UKGovernmentBEIS/inspect_ai
+git pull
 git rm -r .
 cd ../../inspect_ai
 git ls-files > listing.txt
