@@ -35,7 +35,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
-from inspect_ai.solver import Plan, Solver, TaskState
+from inspect_ai.solver import Plan, Solver, TaskState, transcript
 from inspect_ai.util._logger import logger_records
 
 
@@ -138,6 +138,8 @@ class TaskLogger:
                 messages=state.messages,
                 output=state.output,
                 scores=scores,
+                store=dict(state.store.items()),
+                transcript=transcript().events,
             ),
             flush,
         )

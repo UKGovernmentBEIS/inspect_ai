@@ -10,9 +10,10 @@ from inspect_ai.model import (
     ModelName,
     ModelOutput,
 )
-from inspect_ai.model._call_tools import tool_defs
 from inspect_ai.tool import Tool, ToolChoice
+from inspect_ai.tool._tool_def import tool_defs
 
+from ._subtask.store import Store
 from ._util import append_system_message
 
 
@@ -142,6 +143,9 @@ class TaskState:
         or `input_text` only
         """
 
+        self.metadata = metadata
+        """Metadata from the `Sample` for this `TaskState`"""
+
         self.messages = messages
         """
         Chat conversation history for sample.
@@ -169,8 +173,8 @@ class TaskState:
         self._max_messages = max_messages
         self._completed = completed
 
-        self.metadata = metadata
-        """Additional task state metadata."""
+        """Store for shared data"""
+        self.store = Store()
 
         if choices:
             self.choices = Choices(choices)

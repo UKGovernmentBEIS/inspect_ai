@@ -1,11 +1,14 @@
 import asyncio
 import os
+from dataclasses import dataclass
 from typing import Literal, Protocol, cast, runtime_checkable
 
 import httpx
 from bs4 import BeautifulSoup, NavigableString
 
 from inspect_ai.model import Model, get_model
+from inspect_ai.solver._subtask.store import store
+from inspect_ai.solver._subtask.subtask import subtask
 from inspect_ai.tool import Tool, ToolResult, tool
 from inspect_ai.util import concurrency
 
@@ -58,6 +61,7 @@ def web_search(
     # resolve model
     relevance_model = get_model(model)
 
+    @subtask(name="web_search")
     async def execute(query: str) -> ToolResult:
         """
         Tool for searching the web.
@@ -75,6 +79,9 @@ def web_search(
         while len(page_contents) < num_results and search_calls < max_provider_calls:
             async with concurrency(f"{provider}_web_search", max_connections):
                 links = await search_provider(query, start_idx=search_calls * 10)
+
+            # log the links in the store
+            store().set("links", links)
 
             # Extract and summarize each page individually
             pages = await asyncio.gather(
@@ -158,10 +165,10 @@ async def page_if_relevant(
         return None
 
 
+@dataclass
 class SearchLink:
-    def __init__(self, url: str, snippet: str) -> None:
-        self.url = url
-        self.snippet = snippet
+    url: str
+    snippet: str
 
 
 @runtime_checkable
@@ -191,7 +198,10 @@ def google_search_provider(client: httpx.AsyncClient) -> SearchProvider:
         result = await client.get(search_url)
         data = result.json()
         if "items" in data:
-            return [SearchLink(item["link"], item["snippet"]) for item in data["items"]]
+            return [
+                SearchLink(url=item["link"], snippet=item["snippet"])
+                for item in data["items"]
+            ]
         else:
             return []
 

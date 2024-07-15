@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from inspect_ai.tool import ToolCall
+from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessageAssistant
 

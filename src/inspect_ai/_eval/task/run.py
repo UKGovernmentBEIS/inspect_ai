@@ -49,6 +49,7 @@ from inspect_ai.model import (
 from inspect_ai.scorer import Score, Scorer, Target
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
+from inspect_ai.solver._subtask.subtask import init_subtask
 from inspect_ai.tool import ToolEnvironment
 from inspect_ai.tool._environment.context import (
     cleanup_tool_environments_sample,
@@ -62,6 +63,7 @@ from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
+from .transcript import solver_transcript
 
 py_logger = getLogger(__name__)
 
@@ -107,8 +109,11 @@ async def task_run(
       EvalLog for executed task.
 
     """
+    # resolve default generate_config for task
+    generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
+
     # init task context
-    init_task_context(model)
+    init_task_context(model, generate_config)
 
     # track stats and error
     stats = EvalStats(started_at=iso_now())
@@ -121,7 +126,6 @@ async def task_run(
     toolenv_cleanup = config.toolenv_cleanup is not False
     log_images = config.log_images is not False
     log_samples = config.log_samples is not False
-    generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
     # resolve dataset
     _, samples, states = await resolve_dataset(
@@ -211,7 +215,6 @@ async def task_run(
                         tool_environment=toolenv,
                         toolenv_cleanup=toolenv_cleanup,
                         plan=plan,
-                        max_messages=config.max_messages,
                         scorers=scorers,
                         generate=generate,
                         progress=progress,
@@ -297,7 +300,6 @@ async def task_run_sample(
     tool_environment: tuple[str, str | None] | None,
     toolenv_cleanup: bool,
     plan: Plan,
-    max_messages: int | None,
     scorers: list[Scorer] | None,
     generate: Generate,
     progress: Callable[..., None],
@@ -325,6 +327,9 @@ async def task_run_sample(
         semaphore if semaphore else contextlib.nullcontext()
     )
 
+    # initialise subtask
+    init_subtask("sample", state.store)
+
     # use toolenv if provided
     toolenv_cm = (
         toolenv_context(task_name, tool_environment, toolenv_cleanup, sample)
@@ -338,7 +343,9 @@ async def task_run_sample(
             # run plan steps (checking for early termination)
             for index, solver in enumerate(plan.steps):
                 # run the solver
-                state = await solver(state, generate)
+                with solver_transcript(solver, state) as st:
+                    state = await solver(state, generate)
+                    st.complete(state)
                 progress()
 
                 # check for early termination (tick remaining progress)
@@ -349,7 +356,9 @@ async def task_run_sample(
 
             # run finishing step them mark completed
             if plan.finish:
-                state = await plan.finish(state, generate)
+                with solver_transcript(plan.finish, state) as st:
+                    state = await plan.finish(state, generate)
+                    st.complete(state)
                 progress()
             state.completed = True
 
