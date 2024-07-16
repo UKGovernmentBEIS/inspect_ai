@@ -1,3 +1,5 @@
+from test_helpers.utils import skip_if_no_openai
+
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes, match
@@ -28,6 +30,7 @@ def test_sample_store():
     assert log.samples[1].store["data"] == 2
 
 
+@skip_if_no_openai
 def test_tool_store():
     @tool(prompt="If you are asked to get a cookie, call the get_cookie function.")
     def get_cookie():
