@@ -6,8 +6,6 @@ This document describes some new features aimed at improving the development and
 
 Our goal is to identify the lower level capabilities common to agent frameworks and provide an inspect-native implementation of them. The hope is that this will enable both "bare metal" agent development (just using Inspect w/ no extra libraries) as well as free higher level agent frameworks from many lower level concerns (e.g. state-tracking, observability, managing sub-agents, etc.). Ideally, core agents could be implemented using Inspect primitives only, and then be re-used in both bare-metal evals as well as evals that use additional abstractions from an agent framework.
 
-You can find the initial implementation of these features on the [feature/subtasks](https://github.com/AI-Safety-Institute/inspect_ai/tree/feature/subtasks) branch.
-
 ## Tool Use
 
 Previously, tool use in Inspect required the use of the higher level `generate()` function passed to solvers. We've now refactored things so that its easy to code the equivalent of the `generate()` function even when using lower-level direct interactions w/ LLMs. For example:
@@ -70,7 +68,7 @@ def web_browser_back():
 
 While there is no formal namespacing mechanism for the `Store`, this can be informally achieved using key prefixes as demonstrated above.
 
-See [store.py](https://github.com/AI-Safety-Institute/inspect_ai/blob/feature/subtasks/src/inspect_ai/solver/_subtask/store.py) for the full implementation of `Store`.
+See [store.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/subtasks/src/inspect_ai/solver/_subtask/store.py) for the full implementation of `Store`.
 
 ## Transcripts
 
@@ -112,7 +110,7 @@ There are two reasons that you might want to create steps:
 1.  Any changes to the store which occur during a step will be collected into a `StoreEvent` that records the changes (in [JSON Patch](https://jsonpatch.com/) format) that occurred.
 2.  The Inspect log viewer will create a visual delination for the step, which will make it easier to see the flow of activity within the transcript.
 
-See [transcript.py](https://github.com/AI-Safety-Institute/inspect_ai/blob/feature/subtasks/src/inspect_ai/solver/_subtask/transcript.py) for the full implementation of `Transcript`.
+See [transcript.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/subtasks/src/inspect_ai/solver/_subtask/transcript.py) for the full implementation of `Transcript`.
 
 ## Subtasks
 
@@ -186,4 +184,4 @@ def web_search(model: str | Model | None = None):
 
 Note that we've added the `name="web_search"` argument to `@subtask`—this is because we've declared our function using the generic name `execute()` and want to provide an alternative that is more readily understandable.
 
-See [subtask.py](https://github.com/AI-Safety-Institute/inspect_ai/blob/feature/subtasks/src/inspect_ai/solver/_subtask/subtask.py) for the full implementation of the `@subtask` decorator.
+See [subtask.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/subtasks/src/inspect_ai/solver/_subtask/subtask.py) for the full implementation of the `@subtask` decorator.
