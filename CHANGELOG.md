@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.19 (Unreleased)
+
+- Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
+
 ## v0.3.18 (14 July 2024)
 
 - [Multiple Scorers](https://ukgovernmentbeis.github.io/inspect_ai/scorers.html#sec-multiple-scorers) are now supported for evaluation tasks.
