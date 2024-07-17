@@ -73,15 +73,16 @@ export const SampleDisplay = ({
         sample.messages
       }/>
     </${TabPanel}>`,
-    html`
-    <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
-      selectedTab === transcriptTabId
-    }>
-      <${SampleTranscript} transcript=${sample.transcript}/>
-    </${TabPanel}>`,
   ];
 
-
+  if (sample.transcript && sample.transcript.length > 0) {
+    tabs.push(html`
+      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
+        selectedTab === transcriptTabId
+      }>
+        <${SampleTranscript} transcript=${sample.transcript}/>
+      </${TabPanel}>`);
+  }
 
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
@@ -124,7 +125,7 @@ export const SampleDisplay = ({
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
         ${sampleMetadatas}
-      </${TabPanel}>`,
+      </${TabPanel}>`
     );
   }
 
@@ -156,7 +157,7 @@ const metadataViewsForSample = (id, sample, context) => {
         entries="${sample?.metadata}"
         style=${{ marginTop: "1em" }}
         context=${context}
-      />`,
+      />`
     );
   }
 
@@ -171,7 +172,7 @@ const metadataViewsForSample = (id, sample, context) => {
         entries="${sample?.score?.metadata}"
         style=${{ marginTop: "1em" }}
         context=${context}
-      />`,
+      />`
     );
   }
   return sampleMetadatas;
@@ -197,7 +198,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
     scoreInput.push(
       ...sample.choices.map((choice, index) => {
         return `${String.fromCharCode(65 + index)}) ${choice}`;
-      }),
+      })
     );
   }
 
