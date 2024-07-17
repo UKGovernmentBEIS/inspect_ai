@@ -17,7 +17,9 @@ def init_logger_records() -> None:
 def notify_logger_record(record: LogRecord, write: bool) -> None:
     if write:
         _logger_records_context_var.get().append(record)
-        transcript()._event(LoggerEvent(level=record.levelname, message=record.message))
+        transcript()._event(
+            LoggerEvent(level=record.levelname, message=record.getMessage())
+        )
     if record.levelno <= INFO and "429" in record.getMessage():
         _rate_limit_records_context_var.get().append(record)
 
