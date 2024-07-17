@@ -76,6 +76,7 @@
  * @property {string} scorer
  * @property {string} search
  * @property {SolverIcons} solvers
+ * @property {string} step
  * @property {string} transcript
  * @property {string} usage
  */
@@ -137,6 +138,7 @@ export const ApplicationIcons = {
     system_message: "bi bi-cpu",
     use_tools: "bi bi-tools",
   },
+  step: "bi bi-fast-forward-btn",
   transcript: "bi bi-list-columns-reverse",
   usage: "bi bi-stopwatch",
 };

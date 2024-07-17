@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { ChatView } from "../components/ChatView.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 /**
  * Renders the SampleTranscript component.
@@ -86,12 +87,26 @@ const getRenderer = (event, index) => {
 
     case "state":
       return () => {
+        const renderValue = (change) => {
+          if (typeof change.value === "object") {
+            if (change.value.content && change.value.source) {
+              return html`<${ChatView}
+                id="model-input-${index}"
+                messages=${[change.value]}
+              />`;
+            }
+            return change.value;
+          } else {
+            return change.value;
+          }
+        };
+
         const mutations = event.changes.map((change) => {
           return html`
             <div>${change.op}</div>
             <div>${change.path}</div>
             <div>${change.from}</div>
-            <div>${change.value}</div>
+            <div>${renderValue(change)}</div>
           `;
         });
 
@@ -108,25 +123,66 @@ const getRenderer = (event, index) => {
 
     case "step":
       return () => {
-        return html`<div
-          style=${{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            marginBottom: event.action === "end" ? "2em" : "initial",
-            borderBottom:
-              event.action === "end"
-                ? "1px solid var(--bs-light-border-subtle)"
-                : "initial",
-            borderTop:
-              event.action === "begin"
-                ? "1px solid var(--bs-light-border-subtle)"
-                : "initial",
-          }}
-        >
-          <div>${event.action}</div>
-          <div>${event.type}</div>
-          <div>${event.name}</div>
-        </div>`;
+        if (event.action === "begin") {
+          const icon = () => {
+            if (event.type === "solver") {
+              switch (event.name) {
+                case "chain_of_thought":
+                  return ApplicationIcons.solvers.chain_of_thought;
+                case "generate":
+                  return ApplicationIcons.solvers.generate;
+                case "self_critique":
+                  return ApplicationIcons.solvers.self_critique;
+                case "system_message":
+                  return ApplicationIcons.solvers.system_message;
+                case "use_tools":
+                  return ApplicationIcons.solvers.use_tools;
+                default:
+                  return ApplicationIcons.solvers.default;
+              }
+            } else {
+              return ApplicationIcons.step;
+            }
+          };
+
+          return html`<div
+            style=${{
+              display: "grid",
+              gridTemplateRows: "auto auto",
+              paddingBottom: "0.5em",
+            }}
+          >
+            <div
+              style=${{
+                display: "inline-block",
+                justifySelf: "left",
+                borderTop: "1px solid var(--bs-light-border-subtle)",
+                borderLeft: "1px solid var(--bs-light-border-subtle)",
+                borderRight: "1px solid var(--bs-light-border-subtle)",
+                padding: "0.1em 0.3em",
+                fontWeight: 600,
+              }}
+            >
+              <i
+                class=${icon()}
+                style=${{ marginRight: "0.2em" }}
+              />${event.name}
+            </div>
+            <div
+              style=${{
+                width: "100%",
+                borderBottom: "1px solid var(--bs-light-border-subtle)",
+              }}
+            ></div>
+          </div>`;
+        } else {
+          return html`<div
+            style=${{
+              width: "100%",
+              borderBottom: "1px solid var(--bs-light-border-subtle)",
+            }}
+          ></div>`;
+        }
       };
 
     case "store":
