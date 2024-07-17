@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { sharedStyles } from "../Constants.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
 import {
   formatPrettyDecimal,
   formatDecimalNoTrailingZeroes,
@@ -407,8 +407,8 @@ const booleanScoreCategorizer = () => {
     scoreType: "boolean",
     render: (score) => {
       const scoreColorStyle = score
-        ? sharedStyles.scoreFills.green
-        : sharedStyles.scoreFills.red;
+        ? ApplicationStyles.scoreFills.green
+        : ApplicationStyles.scoreFills.red;
 
       return html`<span
         style=${{
@@ -456,7 +456,7 @@ const passFailScoreCategorizer = (values) => {
       if (score === "C") {
         return html`<span
           style=${{
-            ...sharedStyles.scoreFills.green,
+            ...ApplicationStyles.scoreFills.green,
             ...filledCircleStyle,
           }}
           >C</span
@@ -464,7 +464,7 @@ const passFailScoreCategorizer = (values) => {
       } else if (score === "I") {
         return html`<span
           style=${{
-            ...sharedStyles.scoreFills.red,
+            ...ApplicationStyles.scoreFills.red,
             ...filledCircleStyle,
           }}
           >I</span
@@ -472,7 +472,7 @@ const passFailScoreCategorizer = (values) => {
       } else if (score === "P") {
         return html`<span
           style=${{
-            ...sharedStyles.scoreFills.orange,
+            ...ApplicationStyles.scoreFills.orange,
             ...filledCircleStyle,
           }}
           >P</span
@@ -480,7 +480,7 @@ const passFailScoreCategorizer = (values) => {
       } else if (score === "N") {
         return html`<span
           style=${{
-            ...sharedStyles.scoreFills.red,
+            ...ApplicationStyles.scoreFills.red,
             ...filledCircleStyle,
           }}
           >N</span

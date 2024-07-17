@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 import { useEffect, useMemo } from "preact/hooks";
 
-import { sharedStyles } from "../Constants.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 
 import { shortenCompletion, arrayToString } from "../utils/Format.mjs";
@@ -236,7 +236,7 @@ const SampleRow = ({
       <div
         class="sample-input"
         style=${{
-          ...sharedStyles.threeLineClamp,
+          ...ApplicationStyles.threeLineClamp,
           wordWrap: "anywhere",
           ...cellStyle,
         }}
@@ -246,7 +246,7 @@ const SampleRow = ({
       <div
         class="sample-target"
         style=${{
-          ...sharedStyles.threeLineClamp,
+          ...ApplicationStyles.threeLineClamp,
           ...cellStyle,
         }}
       >
@@ -259,7 +259,7 @@ const SampleRow = ({
       <div
         class="sample-answer"
         style=${{
-          ...sharedStyles.threeLineClamp,
+          ...ApplicationStyles.threeLineClamp,
           ...cellStyle,
         }}
       >

@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 export const ErrorPanel = ({ id, classes, title, error }) => {
   const emptyStyle = {
@@ -24,7 +24,7 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
       <div style=${{ ...emptyStyle, fontSize: "1.3rem" }}>
         <div>
           <i
-            class="${icons.error}"
+            class="${ApplicationIcons.error}"
             style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
           ></i>
         </div>

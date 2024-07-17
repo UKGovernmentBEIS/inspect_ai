@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 import { useMemo, useRef } from "preact/hooks";
 
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
@@ -220,13 +220,13 @@ export const ToolInput = ({ type, contents }) => {
 };
 
 export const iconForMsg = (msg) => {
-  let iconCls = icons.role.assistant;
+  let iconCls = ApplicationIcons.role.assistant;
   if (msg.role === "user") {
-    iconCls = icons.role.user;
+    iconCls = ApplicationIcons.role.user;
   } else if (msg.role === "system") {
-    iconCls = icons.role.system;
+    iconCls = ApplicationIcons.role.system;
   } else if (msg.role === "tool") {
-    iconCls = icons.role.tool;
+    iconCls = ApplicationIcons.role.tool;
   }
   return iconCls;
 };

@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 
-import { icons, sharedStyles } from "./../Constants.mjs";
+import { ApplicationIcons } from "./../appearance/Icons.mjs";
+import { ApplicationStyles } from "./../appearance/Styles.mjs";
 import { filename } from "./../utils/Path.mjs";
 import { formatPrettyDecimal } from "../utils/Format.mjs";
 
@@ -54,7 +55,7 @@ export const Navbar = ({
                   display: "flex",
                 }}
               >
-                <i class=${icons.menu}></i>
+                <i class=${ApplicationIcons.menu}></i>
               </button> `
             : ""}
           <div
@@ -76,7 +77,7 @@ export const Navbar = ({
                 style=${{
                   fontWeight: 600,
                   marginRight: "0.3rem",
-                  ...sharedStyles.wrapText(),
+                  ...ApplicationStyles.wrapText(),
                 }}
                 title=${task}
               >
@@ -87,7 +88,7 @@ export const Navbar = ({
                   fontWeight: 300,
                   fontSize: "0.9em",
                   paddingTop: "0.15em",
-                  ...sharedStyles.wrapText(),
+                  ...ApplicationStyles.wrapText(),
                 }}
                 title=${model}
               >
@@ -108,7 +109,7 @@ export const Navbar = ({
               <div
                 class="navbar-secondary-text"
                 style=${{
-                  ...sharedStyles.wrapText(),
+                  ...ApplicationStyles.wrapText(),
                 }}
               >
                 ${logFileName}
@@ -160,7 +161,7 @@ const CanceledPanel = ({ sampleCount }) => {
       fontSize: "0.7em",
     }}
   >
-    <i class="${icons.logging.info}" style=${{ fontSize: "1.1em" }} /> cancelled
+    <i class="${ApplicationIcons.logging.info}" style=${{ fontSize: "1.1em" }} /> cancelled
     (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
   </div>`;
 };

@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 
 import { toTitleCase } from "../utils/Format.mjs";
 import { ghCommitUrl } from "../utils/Git.mjs";
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { Card, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { CardHeader } from "../components/Card.mjs";
@@ -12,7 +12,7 @@ const kPlanCardBodyId = "task-plan-card-body";
 export const PlanCard = ({ log, context }) => {
   return html`
     <${Card}>
-      <${CardHeader} icon=${icons.config} label="Config"/>
+      <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
       <${CardBody} id="${kPlanCardBodyId}" style=${{
         paddingTop: "0",
         paddingBottom: "0",
@@ -49,7 +49,7 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
   }
 
   return html`<${DetailStep}
-    icon=${icons.scorer}
+    icon=${ApplicationIcons.scorer}
     name=${name}
     params=${params}
     context=${context}
@@ -74,7 +74,7 @@ const DatasetDetailView = ({ dataset, context, style }) => {
 
 const SolversDetailView = ({ steps, context }) => {
   const separator = html` <div style=${{ ...planItemStyle, ...planSepStyle }}>
-    <i class="${icons.arrows.right}"></i>
+    <i class="${ApplicationIcons.arrows.right}"></i>
   </div>`;
 
   const details = steps?.map((step, index) => {

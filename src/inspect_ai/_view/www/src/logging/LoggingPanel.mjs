@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 
-import { icons, colors } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationColors } from "../appearance/Colors.mjs";
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { RenderedContent } from "../components/RenderedContent.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -101,11 +102,11 @@ ${val}</pre
 };
 
 const icon = (level) => {
-  const icon = icons.logging[level.toLowerCase()];
-  return icon || icons.logging.notset;
+  const icon = ApplicationIcons.logging[level.toLowerCase()];
+  return icon || ApplicationIcons.logging.notset;
 };
 
 const color = (level) => {
-  const color = colors.logging[level.toLowerCase()];
-  return color || colors.debug;
+  const color = ApplicationColors.logging[level.toLowerCase()];
+  return color || ApplicationColors.debug;
 };

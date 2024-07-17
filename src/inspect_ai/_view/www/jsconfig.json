@@ -1,0 +1,7 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "strict": true
+  },
+  "include": ["**/src/*.mjs","**/src/*.js"] 
+}

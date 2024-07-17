@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 
-import { icons } from "./../Constants.mjs";
+import { ApplicationIcons } from "./../appearance/Icons.mjs";
 import { formatPrettyDecimal } from "./../utils/Format.mjs";
 import { ProgressBar } from "../components/ProgressBar.mjs";
 
@@ -50,7 +50,7 @@ export const Sidebar = ({
             flex: "0 0 content",
           }}
         >
-          <i class=${icons.close}></i>
+          <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
       <div style=${{ marginTop: "41px", zIndex: 3 }}>

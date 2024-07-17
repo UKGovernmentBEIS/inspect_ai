@@ -7,7 +7,7 @@ import {
   useState,
 } from "preact/hooks";
 
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
@@ -294,7 +294,7 @@ export const WorkSpace = (props) => {
           return [
             html`<${ToolButton}
               name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
-              icon="${icons.copy}"
+              icon="${ApplicationIcons.copy}"
               classes="task-btn-json-copy clipboard-button"
               data-clipboard-target="#task-json-contents"
               onclick="${copyFeedback}"
@@ -326,7 +326,7 @@ export const WorkSpace = (props) => {
         const oldText = textEl.innerText;
         const oldIconClz = iconEl.className;
         textEl.innerText = "Copied!";
-        iconEl.className = `${icons.confirm}`;
+        iconEl.className = `${ApplicationIcons.confirm}`;
         setTimeout(() => {
           window.getSelection().removeAllRanges();
         }, 50);

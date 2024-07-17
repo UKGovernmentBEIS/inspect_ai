@@ -7,7 +7,8 @@ import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/Format.mjs";
 
-import { icons, sharedStyles } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { arrayToString, shortenCompletion } from "../utils/Format.mjs";
 
 import { SampleScoreView } from "./SampleScoreView.mjs";
@@ -63,7 +64,7 @@ export const SampleDisplay = ({
   // The core tabs
   const tabs = [
     html`
-    <${TabPanel} id=${msgTabId} title="Messages" icon=${icons.messages} onSelected=${onSelectedTab} selected=${
+    <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${
       selectedTab === msgTabId || selectedTab === undefined
     }>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
@@ -75,7 +76,7 @@ export const SampleDisplay = ({
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(html`
-      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${
+      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${
         selectedTab === scoringTabId
       }>
         <${SampleScoreView}
@@ -89,7 +90,7 @@ export const SampleDisplay = ({
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(html`
-        <${TabPanel} id="${tabId}" title="${scorer}" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${
+        <${TabPanel} id="${tabId}" title="${scorer}" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${
           selectedTab === tabId
         }>
           <${SampleScoreView}
@@ -109,7 +110,7 @@ export const SampleDisplay = ({
       <${TabPanel} 
           id=${metdataTabId} 
           title="Metadata" 
-          icon=${icons.metadata}
+          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
         ${sampleMetadatas}
@@ -274,7 +275,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
       })}
       ${columns.map((col) => {
         const style = {
-          ...(col.clamp ? sharedStyles.threeLineClamp : {}),
+          ...(col.clamp ? ApplicationStyles.threeLineClamp : {}),
         };
         if (col.center) {
           style.display = "flex";

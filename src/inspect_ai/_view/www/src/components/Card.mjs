@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 export const CardHeader = ({ id, icon, label, classes, style, children }) => {
   return html`<div class="card-header ${classes || ""}" ...${{ id, style }}>
@@ -76,7 +76,7 @@ export const CardCollapsingHeader = ({
           padding: "0 0.5em 0.1em 0.5em",
           fontSize: "0.8rem",
         }}>
-            <i class="${icons["toggle-right"]} toggle-rotated"></i>
+            <i class="${ApplicationIcons["toggle-right"]} toggle-rotated"></i>
         </div>
       </div>
 

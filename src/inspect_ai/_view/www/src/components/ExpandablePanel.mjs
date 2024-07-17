@@ -1,7 +1,8 @@
 import { html } from "htm/preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
-import { icons, sharedStyles } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
 
 export const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
   const [collapsed, setCollapsed] = useState(collapse);
@@ -51,7 +52,7 @@ export const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
   // Enforce the line clamp if need be
   let contentsStyle = { fontSize: "0.8rem" };
   if (collapse && collapsed) {
-    contentsStyle = { ...contentsStyle, ...sharedStyles.lineClamp(lines) };
+    contentsStyle = { ...contentsStyle, ...ApplicationStyles.lineClamp(lines) };
   }
 
   if (border) {
@@ -76,7 +77,7 @@ export const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
 
 const MoreToggle = ({ collapsed, border, setCollapsed }) => {
   const text = collapsed ? "more" : "less";
-  const icon = collapsed ? icons["expand-down"] : icons["collapse-up"];
+  const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
 
   const topStyle = {
     display: "flex",

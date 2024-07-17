@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { formatTime } from "../utils/Format.mjs";
 import { Card, CardHeader, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
@@ -22,7 +22,7 @@ export const UsageCard = ({ stats, context }) => {
   return html`
 
     <${Card}>
-      <${CardHeader} icon=${icons.usage} label="Usage"/>
+      <${CardHeader} icon=${ApplicationIcons.usage} label="Usage"/>
       <${CardBody} id=${kUsageCardBodyId} style=${{
         paddingTop: "0",
         paddingBottom: "0",
