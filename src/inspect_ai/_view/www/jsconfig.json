@@ -1,7 +1,14 @@
 {
   "compilerOptions": {
+    "target": "es6",
     "checkJs": true,
-    "strict": true
+    "strict": true,
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["node_modules/*"]
+    }
   },
-  "include": ["**/src/*.mjs","**/src/*.js"] 
+  "include": ["**/src/*.mjs","**/src/*.js"],
+  "exclude": ["node_modules"]
 }

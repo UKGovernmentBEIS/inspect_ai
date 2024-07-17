@@ -1,3 +1,5 @@
+
+// @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 
