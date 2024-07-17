@@ -1,4 +1,4 @@
-import { asyncJsonParse } from "../utils/Json.mjs";
+import { asyncJsonParse } from "../utils/json.mjs";
 import {
   webViewJsonRpcClient,
   kMethodEvalLog,

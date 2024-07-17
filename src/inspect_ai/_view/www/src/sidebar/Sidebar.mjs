@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 
 import { ApplicationIcons } from "./../appearance/Icons.mjs";
-import { formatPrettyDecimal } from "./../utils/Format.mjs";
+import { formatPrettyDecimal } from "../utils/Format.mjs";
 import { ProgressBar } from "../components/ProgressBar.mjs";
 
 export const Sidebar = ({

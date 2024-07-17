@@ -7,8 +7,7 @@ import "./src/Register.mjs";
 // The api for loading evals
 import api from "./src/api/index.mjs";
 
-import { throttle } from "./src/utils/events.mjs";
-import { sleep } from "./src/utils/sleep.mjs";
+import { sleep, throttle } from "./src/utils/Sync.mjs";
 
 import { AppErrorBoundary } from "./src/components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./src/components/ErrorPanel.mjs";
