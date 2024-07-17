@@ -7,6 +7,7 @@ from test_helpers.utils import (
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_together,
+    skip_if_no_groq,
 )
 
 from inspect_ai.model import get_model
@@ -21,6 +22,12 @@ async def check_explicit_api_key(model_name, env_var):
         await model.generate("What color is your parachute?")
     finally:
         os.environ[env_var] = api_key
+
+
+@pytest.mark.asyncio
+@skip_if_no_groq
+async def test_groq_api_key():
+    await check_explicit_api_key("groq/llama3-70b-8192", "GROQ_API_KEY")
 
 
 @pytest.mark.asyncio

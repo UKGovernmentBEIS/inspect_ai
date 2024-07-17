@@ -135,6 +135,7 @@ dev = [
     "types-psutil",
     "types-python-dateutil",
     "wikipedia",
+    "groq",
 ]
 doc = ["quarto-cli"]
 dist = ["twine", "build"]
