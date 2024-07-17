@@ -7,8 +7,8 @@
     "baseUrl": ".",
     "paths": {
       "*": ["node_modules/*"]
-    }
+    },
   },
-  "include": ["**/src/*.mjs","**/src/*.js"],
+  "include": ["**/src/*.mjs","**/src/*.js", "src/types/*.d.ts"],
   "exclude": ["node_modules"]
 }

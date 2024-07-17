@@ -1,3 +1,4 @@
+// @ts-check
 import { html } from "htm/preact";
 
 /**
@@ -71,9 +72,8 @@ export const formatDataset = (name, samples, epochs) => {
 /**
  * Extracts and trims the user prompt from a sample input.
  *
- * @param {Object} sample - The sample containing input data.
- * @param {(string|Array.<{role: string, content: string}>)} sample.input - The input data, which can be a string or an array of message objects.
- * @returns {string} - The trimmed user prompt or an empty string if no user prompt is found.
+ * @param {import("../types/log").EvalSample} sample - The sample containing input data.
+ * @returns {(string | Array<string|import("preact").JSX.Element>)} - The trimmed user prompt or an array of contents if the input is an array.
  */
 export const userPromptForSample = (sample) => {
   if (sample) {
@@ -82,11 +82,29 @@ export const userPromptForSample = (sample) => {
     } else if (Array.isArray(sample.input)) {
       const userPrompt = sample.input.find((message) => message.role == "user");
       if (userPrompt) {
-        return userPrompt.content.trim();
+        const contents = userPrompt.content;
+        if (Array.isArray(contents)) {
+          const results = [];
+          for (const content of contents) {
+            if (content.type === "text") {
+              results.push(content.text);
+            } else {
+              results.push(html`<img
+                src="${content.image}"
+                style=${{
+                  maxWidth: "400px",
+                  border: "solid var(--bs-border-color) 1px",
+                }}
+              />`);
+            }
+          }
+          return results;
+        } else {
+          return contents.trim();
+        }
       }
     }
   }
-
   return "";
 };
 
