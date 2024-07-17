@@ -35,10 +35,12 @@
         document.documentElement.setAttribute("data-bs-theme", theme);
       }
     </script>
+    <script src="./libs/prism/prism.min.js"></script>
   </head>
 
   <body>
     <div id="app"></div>
+    
     <script type="module">
       import { render } from "preact";
       import { html } from "htm/preact";
@@ -46,7 +48,6 @@
       render(html`<${App} />`, document.getElementById("app"));
     </script>
     <script src="./libs/bootstrap/js/bootstrap.bundle.min.js"></script>
-    <script src="./libs/prism/prism.min.js"></script>
     <script src="./libs/clipboard.min.js"></script>
     <script src="./libs/json5.min.js"></script>
     <script src="./libs/purify.min.js"></script>

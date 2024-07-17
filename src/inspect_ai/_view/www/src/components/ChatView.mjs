@@ -1,4 +1,5 @@
 // @ts-check
+/// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
 import { useMemo, useRef } from "preact/hooks";
 
@@ -199,7 +200,7 @@ export const ToolInput = ({ type, contents }) => {
     return "";
   }
 
-  const toolInputRef = useRef();
+  const toolInputRef = useRef(/** @type {HTMLElement|null} */(null));
   useMemo(() => {
     const tokens = Prism.languages[type];
     if (toolInputRef.current && tokens) {
