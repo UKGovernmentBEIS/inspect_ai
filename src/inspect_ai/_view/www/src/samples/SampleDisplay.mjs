@@ -13,6 +13,7 @@ import { arrayToString, shortenCompletion } from "../utils/Format.mjs";
 
 import { SampleScoreView } from "./SampleScoreView.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { SampleTranscript } from "./SampleTranscript.mjs";
 
 export const InlineSampleDisplay = ({
   index,
@@ -44,6 +45,7 @@ export const SampleDisplay = ({
   // Tab ids
   const baseId = `sample-${index}`;
   const msgTabId = `${baseId}-messages`;
+  const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
 
@@ -71,7 +73,15 @@ export const SampleDisplay = ({
         sample.messages
       }/>
     </${TabPanel}>`,
+    html`
+    <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
+      selectedTab === transcriptTabId
+    }>
+      <${SampleTranscript} transcript=${sample.transcript}/>
+    </${TabPanel}>`,
   ];
+
+
 
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {

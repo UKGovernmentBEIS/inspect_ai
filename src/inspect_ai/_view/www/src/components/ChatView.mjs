@@ -1,3 +1,4 @@
+// @ts-check
 import { html } from "htm/preact";
 import { useMemo, useRef } from "preact/hooks";
 
@@ -6,8 +7,15 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
 
-// role
-// content
+/**
+ * Renders the ChatView component.
+ * 
+ * @param {Object} props - The properties passed to the component.
+ * @param {string} props.id - The ID for the chat view.
+ * @param {import("../types/log").Messages} props.messages - The array of chat messages.
+ * @param {Object} [props.style] - Inline styles for the chat view.
+ * @returns {import("preact").JSX.Element} The component.
+ */
 export const ChatView = ({ id, messages, style }) => {
   // Filter tool messages into a sidelist that the chat stream
   // can use to lookup the tool responses
