@@ -157,7 +157,7 @@ export type Timestamp1 = string;
 export type Event1 = "store";
 export type Changes1 = JsonChange[];
 export type Timestamp2 = string;
-export type Event2 = string;
+export type Event2 = "model";
 export type Model2 = string;
 export type Input1 = (
   | ChatMessageSystem
