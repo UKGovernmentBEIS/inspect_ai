@@ -1,13 +1,10 @@
 import { html } from "htm/preact";
 
 /**
- * A string or string array
- * @typedef {(string[]|string)} MaybeArray
- */
-
-/**
+ * Converts an array or a single value to a comma-separated string.
  *
- * @param MaybeArray val
+ * @param {(string|string[])} val - The value to be converted. Can be a string or an array of strings.
+ * @returns {string} - A comma-separated string.
  */
 export const arrayToString = (val) => {
   val = Array.isArray(val) ? val : [val];
@@ -17,8 +14,10 @@ export const arrayToString = (val) => {
 const shorteners = [/^.*(\[.+\])$/m];
 
 /**
+ * Shortens a completion string based on predefined patterns.
  *
- * @param string completion
+ * @param {string} completion - The completion string to be shortened.
+ * @returns {string} - The shortened string or the original completion if no patterns match.
  */
 export const shortenCompletion = (completion) => {
   if (!completion) {
@@ -36,7 +35,12 @@ export const shortenCompletion = (completion) => {
   return shortened || completion;
 };
 
-// Gets a string for a sample input
+/**
+ * Gets a string for a sample input.
+ *
+ * @param {(string|Array.<{content: string}>)} input - The input to process. Can be a string or an array of objects containing a content string.
+ * @returns {(string|string[])} - The processed string or an array of strings.
+ */
 export const inputString = (input) => {
   if (typeof input === "string") {
     return input;
@@ -51,11 +55,26 @@ export const inputString = (input) => {
   }
 };
 
+/**
+ * Formats dataset information into a string.
+ *
+ * @param {string} name - The name of the dataset.
+ * @param {number} samples - The total number of samples in the dataset.
+ * @param {number} epochs - The number of epochs.
+ * @returns {string} - A formatted string describing the dataset.
+ */
 export const formatDataset = (name, samples, epochs) => {
   const perEpochSamples = epochs > 0 ? samples / epochs : samples;
   return `${name ? "— " : ""}${perEpochSamples + " "}${epochs > 1 ? `x ${epochs} ` : ""}${samples === 1 ? "sample" : "samples"}`;
 };
 
+/**
+ * Extracts and trims the user prompt from a sample input.
+ *
+ * @param {Object} sample - The sample containing input data.
+ * @param {(string|Array.<{role: string, content: string}>)} sample.input - The input data, which can be a string or an array of message objects.
+ * @returns {string} - The trimmed user prompt or an empty string if no user prompt is found.
+ */
 export const userPromptForSample = (sample) => {
   if (sample) {
     if (typeof sample.input == "string") {
@@ -71,6 +90,12 @@ export const userPromptForSample = (sample) => {
   return "";
 };
 
+/**
+ * Formats a score with specific HTML based on its value.
+ *
+ * @param {string} score - The score to format.
+ * @returns {import("preact").JSX.Element|string} The formatted score as an HTML template or the original score if not "C" or "I".
+ */
 export const formatScore = (score) => {
   // Circle with single letter
   if (score === "C") {
@@ -82,6 +107,12 @@ export const formatScore = (score) => {
   }
 };
 
+/**
+ * Formats a duration given in seconds into a human-readable string.
+ *
+ * @param {number} seconds - The duration in seconds.
+ * @returns {string} - The formatted time string.
+ */
 export const formatTime = (seconds) => {
   if (seconds < 60) {
     return `${seconds} sec`;
@@ -89,11 +120,17 @@ export const formatTime = (seconds) => {
     return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
   } else {
     return `${Math.floor((seconds / 60) * 60 * 24)} days ${Math.floor(
-      seconds / 60,
+      seconds / 60
     )} min ${seconds % 60} sec`;
   }
 };
 
+/**
+ * Formats a number to a string with specific decimal places for prettiness.
+ *
+ * @param {number} num - The number to format.
+ * @returns {string} - The formatted number as a string.
+ */
 export function formatPrettyDecimal(num) {
   const numDecimalPlaces = num.toString().includes(".")
     ? num.toString().split(".")[1].length
@@ -108,6 +145,12 @@ export function formatPrettyDecimal(num) {
   }
 }
 
+/**
+ * Formats a number to a string without trailing zeroes after the decimal point.
+ *
+ * @param {number} num - The number to format.
+ * @returns {string|number} - The formatted number as a string, or the original input if it's not a number.
+ */
 export function formatDecimalNoTrailingZeroes(num) {
   // This isn't a number, continue
   if (typeof num !== "number") {
@@ -123,6 +166,12 @@ export function formatDecimalNoTrailingZeroes(num) {
   }
 }
 
+/**
+ * Converts a string to title case.
+ *
+ * @param {string} str - The string to convert.
+ * @returns {string} - The string in title case.
+ */
 export function toTitleCase(str) {
   return str
     .split(" ")
