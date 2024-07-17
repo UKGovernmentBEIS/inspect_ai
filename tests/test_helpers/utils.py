@@ -15,6 +15,10 @@ def skip_if_env_var(var: str, exists=True):
     )
 
 
+def skip_if_no_groq(func):
+    return skip_if_env_var("GROQ_API_KEY", exists=False)(func)
+
+
 def skip_if_no_openai(func):
     return skip_if_env_var("OPENAI_API_KEY", exists=False)(func)
 

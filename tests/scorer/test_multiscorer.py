@@ -63,7 +63,7 @@ def test_single_scorer() -> None:
     )
 
     # normal eval
-    log = eval(tasks=task, model="mockllm/model")[0]
+    log = eval(tasks=task, model="groq/llama3-8b-8192")[0]
     check_log(log, ["rand_score"], ["mean", "bootstrap_std"])
 
 
@@ -75,7 +75,7 @@ def test_multi_scorer() -> None:
     )
 
     # normal eval
-    log = eval(tasks=task, model="mockllm/model")[0]
+    log = eval(tasks=task, model="groq/llama3-8b-8192")[0]
     check_log(log, ["rand_score", "another_rand_score"], ["mean", "bootstrap_std"])
 
 
@@ -87,7 +87,7 @@ def test_dict_scorer() -> None:
     )
 
     # normal eval
-    log = eval(tasks=task, model="mockllm/model")[0]
+    log = eval(tasks=task, model="groq/llama3-8b-8192")[0]
     check_log(log, ["a_count", "e_count"], ["mean", "bootstrap_std"])
 
 
@@ -99,5 +99,5 @@ def test_blend_scorer() -> None:
     )
 
     # normal eval
-    log = eval(tasks=task, model="mockllm/model")[0]
+    log = eval(tasks=task, model="groq/llama3-8b-8192")[0]
     check_log(log, ["a_count", "e_count", "rand_score"], ["mean", "bootstrap_std"])
