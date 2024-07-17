@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.19 (Unreleased)
+
+- Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
+
 ## v0.3.18 (14 July 2024)
 
 - [Multiple Scorers](https://ukgovernmentbeis.github.io/inspect_ai/scorers.html#sec-multiple-scorers) are now supported for evaluation tasks.
@@ -78,18 +82,18 @@
 -   **BREAKING:** The `pattern` scorer has been modified to match against any (or all) regex match groups. This replaces the previous behaviour when there was more than one group, which would only match the second group.
 -   Improved performance for Inspect View on very large datasets (virtualized sample list).
 -   ToolChoice `any` option to indicate the model should use at least one tool (supported by Anthropic and Mistral, mapped to `auto` for OpenAI).
--   Tool calls can now return a simple scalar or `list[ContentText | ContentImage]`
--   Support for updated Anthropic tools beta (tool_choice and image tool results)
+-   Tool calls can now return a simple scalar or `list[ContentText | ContentImage]`.
+-   Support for updated Anthropic tools beta (tool_choice and image tool results).
 -   Report tool_error back to model if it provides invalid JSON for tool calls arguments (formerly this halted the entire eval with an error).
 -   New `max_samples` option to control how many samples are run in parallel (still defaults to running all samples in parallel).
 -   Add `boolq.py` benchmark.
 -   Add `piqa.py` benchmark.
--   View: Improved markdown rendering (properly escape reference links)
+-   View: Improved markdown rendering (properly escape reference links).
 -   Improved typing for example_dataset function.
 -   Setuptools entry point for loading custom model extensions.
 -   Break optional `tuple` return out of `ToolResult` type.
 -   Bugfix: always read original sample message(s) for `TaskState.input_text`.
--   Bugfix: remove write counter from log (could have resulted in incomplete/invalid logs propagating to the viewer)
+-   Bugfix: remove write counter from log (could have resulted in incomplete/invalid logs propagating to the viewer).
 -   Bugfix: handle task names that include spaces in log viewer.
 
 ## v0.3.9 (14 May 2024)
