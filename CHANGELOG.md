@@ -6,8 +6,8 @@
 
 ## v0.3.18 (14 July 2024)
 
-- [Multiple Scorers](https://ukgovernmentbeis.github.io/inspect_ai/scorers.html#sec-multiple-scorers) are now supported for evaluation tasks.
-- [Multiple Models](https://ukgovernmentbeis.github.io/inspect_ai/parallelism.html#sec-multiple-models) can now be evaluated in parallel by passing a list of models to `eval()`.
+- [Multiple Scorers](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) are now supported for evaluation tasks.
+- [Multiple Models](https://inspect.ai-safety-institute.org.uk/parallelism.html#sec-multiple-models) can now be evaluated in parallel by passing a list of models to `eval()`.
 - Add `api_key` to `get_model()` for explicitly specifying an API key for a model.
 - Improved handling of very large (> 100MB) log files in Inspect View.
 - Use `network_mode: none` for disabling networking by default in Docker tool environments.
@@ -37,8 +37,8 @@
 
 ## v0.3.15 (15 June 2024)
 
--   [Tool Environments](https://ukgovernmentbeis.github.io/inspect_ai/agents.html#sec-tool-environments) for executing tool code in a sandbox.
--   [Caching](https://ukgovernmentbeis.github.io/inspect_ai/caching.html) to reduce the number of model API calls made.
+-   [Tool Environments](https://inspect.ai-safety-institute.org.uk/agents.html#sec-tool-environments) for executing tool code in a sandbox.
+-   [Caching](https://inspect.ai-safety-institute.org.uk/caching.html) to reduce the number of model API calls made.
 -   The `multiple_choice()` solver now has support for questions with multiple correct answers.
 -   More fine grained handling of Claude `BadRequestError` (400) errors (which were formerly all treated as content moderation errors).
 -   Filter out empty TextBlockParam when playing messages back to Claude.
