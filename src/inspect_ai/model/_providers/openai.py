@@ -302,9 +302,9 @@ def chat_tool_choice(tool_choice: ToolChoice) -> ChatCompletionToolChoiceOptionP
         return ChatCompletionNamedToolChoiceParam(
             type="function", function=dict(name=tool_choice.name)
         )
-    # openai does not support 'any' so we force it to 'auto'
+    # openai supports 'any' via the 'required' keyword
     elif tool_choice == "any":
-        return "auto"
+        return "required"
     else:
         return tool_choice
 
