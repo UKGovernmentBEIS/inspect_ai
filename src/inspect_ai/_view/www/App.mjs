@@ -303,7 +303,7 @@ export function App() {
   const workspace = useMemo(() => {
     if (status.error) {
       return html`<${ErrorPanel}
-        title="An error occurred while loading this task."
+        title="An error occurred while loading this task. force rebuilds"
         error=${status.error}
       />`;
     } else {
