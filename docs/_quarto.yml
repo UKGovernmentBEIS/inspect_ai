@@ -2,13 +2,15 @@ project:
    type: book
    pre-render:
       -  _format/pre-render.sh
+   resources: 
+      - CNAME
   
 book:
    title: "Inspect"
    subtitle: "An open-source framework for large language model evaluations"
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
-   site-url: https://UKGovernmentBEIS.github.io/inspect_ai/
+   site-url: https://inspect.ai-safety-institute.org.uk/
    repo-actions: [issue]
    # downloads: [pdf, epub, docx]
    twitter-card:
