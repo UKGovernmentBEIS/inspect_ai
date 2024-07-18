@@ -74,13 +74,19 @@ export const sort = (sort, samples, sampleDescriptor) => {
         if (isNumeric(a.id) && isNumeric(b.id)) {
           return a.id - b.id;
         } else {
-          return a.id.localeCompare(b.id);
+          // Note that if there are mixed types of ids (e.g. a string
+          // and a number), we need to be sure we're working with strings
+          // to performan the comparison
+          return String(a.id).localeCompare(String(b.id));
         }
       case kSampleDescVal:
         if (isNumeric(a.id) && isNumeric(b.id)) {
           return b.id - a.id;
         } else {
-          return b.id.localeCompare(a.id);
+          // Note that if there are mixed types of ids (e.g. a string
+          // and a number), we need to be sure we're working with strings
+          // to performan the comparison
+          return String(b.id).localeCompare(String(a.id));
         }
       case kEpochAscVal:
         return a.epoch - b.epoch;
