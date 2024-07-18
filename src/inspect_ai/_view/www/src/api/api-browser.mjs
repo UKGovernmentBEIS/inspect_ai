@@ -1,4 +1,5 @@
 import { asyncJsonParse } from "../utils/Json.mjs";
+import { download_file } from "./api-shared.mjs";
 
 const loaded_time = Date.now();
 let last_eval_time = 0;
@@ -59,16 +60,6 @@ async function api(method, path, body) {
   } else {
     throw new Error(`${response.status} - ${response.statusText} `);
   }
-}
-
-async function download_file(_logfile, filename, filecontents) {
-  const blob = new Blob([filecontents], { type: "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
 }
 
 export default {

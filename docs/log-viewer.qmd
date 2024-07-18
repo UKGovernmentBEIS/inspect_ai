@@ -140,3 +140,15 @@ Note that you can also set the log level using the `INSPECT_LOG_LEVEL` environme
 The **Info** panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, plan, and scorer details, git revision, and model token usage:
 
 ![](images/inspect-view-info.png){.border .lightbox fig-alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, plan, and scorer details, git revision, and model token usage."}
+
+## Viewer Embedding
+
+The log viewer can be published to a static web server and linked to or embedded in another page (for example, in an iframe). To embed the viewer:
+
+1.  Copy the contents of the [`www`](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/_view/www) directory (`src/inspect_ai/_view/www`) to the folder you will be publishing.
+
+2.  Create a `logs` sub-directory within the folder into which you placed the contents of the `www` directory. Place any logs you'd like to display within this `logs` folder.
+
+3.  Link to the viewer with the query parameter `log_file` and the path to a log file. For example:
+
+    `https://<deployment url>/?log_file=logs/2024-07-18T09-00-04-04-00_bash_QuRMsu7hRUWrJjxe8xePLa.json`
