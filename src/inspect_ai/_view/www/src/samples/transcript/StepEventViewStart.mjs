@@ -51,7 +51,6 @@ export const StepEventViewStart = ({ event }) => {
     <div
       style=${{
         width: "100%",
-        borderBottom: "1px solid var(--bs-light-border-subtle)",
       }}
     ></div>
   </div>`;
