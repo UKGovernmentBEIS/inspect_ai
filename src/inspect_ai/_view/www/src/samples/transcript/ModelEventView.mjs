@@ -23,6 +23,13 @@ export const ModelEventView = ({ event, index }) => {
     id="model-input-${index}"
     messages=${event.input}
   />`;
+
+  const toolComponents = event.tools.map((tool) => {
+    return html`<div>${tool.name} (${tool.description})</div>`;
+  });
+  contents["tools"] = toolComponents;
+  contents["tool_choice"] = event.tool_choice;
+
   const outputMessages = event.output.choices.map((choice) => {
     return choice.message;
   });
@@ -30,6 +37,8 @@ export const ModelEventView = ({ event, index }) => {
     id="model-output-${index}"
     messages=${outputMessages}
   />`;
+
+  
 
   return html`<div
     style=${{
