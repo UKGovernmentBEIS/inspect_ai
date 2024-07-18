@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * Delays the execution of code for a specified number of milliseconds.
- * 
+ *
  * @param {number} ms - The number of milliseconds to delay.
  * @returns {Promise<void>} - A promise that resolves after the specified delay.
  */
@@ -9,12 +9,11 @@ export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-
 /**
  * Creates a throttled version of a function that only invokes the original function
  * at most once per every `wait` milliseconds. The throttled function will run as much
  * as it can, without ever going more than once per `wait` duration.
- * 
+ *
  * @param {Function} func - The function to throttle.
  * @param {number} wait - The number of milliseconds to throttle executions to.
  * @param {Object} [options] - The options object.

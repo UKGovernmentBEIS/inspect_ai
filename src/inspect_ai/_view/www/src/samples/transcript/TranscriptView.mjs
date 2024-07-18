@@ -18,8 +18,10 @@ import { StepEventViewEnd } from "./StepEventViewEnd.mjs";
 export const TranscriptView = ({ transcript }) => {
   const render = getRenderer();
   const rows = transcript.map((e, index) => {
-    return html`<div>${e.timestamp}</div>
-      <div>${render(e, index)}</div>`;
+    return html`
+      <div>${e.timestamp}</div>
+      <div>${render(e, index)}</div>
+    `;
   });
 
   return html`<div
@@ -44,7 +46,6 @@ const getRenderer = () => {
    * @type {Date[]}
    */
   const stepStarts = [];
-  console.log("NEW STEP STARTS");
 
   /**
    * Renders the event based on its type.
@@ -68,11 +69,10 @@ const getRenderer = () => {
         return html`<${StateEventView} index=${index} event=${event} />`;
 
       case "step":
-        
         if (event.action === "begin") {
           stepStarts.push(new Date(event.timestamp));
           return html`<${StepEventViewStart} index=${index} event=${event} />`;
-        } else {  
+        } else {
           const stepStartTime = stepStarts.pop();
           return html`<${StepEventViewEnd}
             event=${event}

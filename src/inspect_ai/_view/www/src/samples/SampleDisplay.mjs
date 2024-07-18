@@ -125,7 +125,7 @@ export const SampleDisplay = ({
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
         ${sampleMetadatas}
-      </${TabPanel}>`
+      </${TabPanel}>`,
     );
   }
 
@@ -157,7 +157,7 @@ const metadataViewsForSample = (id, sample, context) => {
         entries="${sample?.metadata}"
         style=${{ marginTop: "1em" }}
         context=${context}
-      />`
+      />`,
     );
   }
 
@@ -172,7 +172,7 @@ const metadataViewsForSample = (id, sample, context) => {
         entries="${sample?.score?.metadata}"
         style=${{ marginTop: "1em" }}
         context=${context}
-      />`
+      />`,
     );
   }
   return sampleMetadatas;
@@ -198,7 +198,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
     scoreInput.push(
       ...sample.choices.map((choice, index) => {
         return `${String.fromCharCode(65 + index)}) ${choice}`;
-      })
+      }),
     );
   }
 

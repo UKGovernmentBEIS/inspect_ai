@@ -1,49 +1,48 @@
 // @ts-check
 /**
-* Arrow Icons
-* @typedef {Object} ArrowIcons
-* @property {string} right
-* @property {string} down
-*/
+ * Arrow Icons
+ * @typedef {Object} ArrowIcons
+ * @property {string} right
+ * @property {string} down
+ */
 
 /**
-* Logging Icons
-* @typedef {Object} LoggingIcons
-* @property {string} notset
-* @property {string} debug
-* @property {string} info
-* @property {string} warning
-* @property {string} error
-* @property {string} critical
-*/
+ * Logging Icons
+ * @typedef {Object} LoggingIcons
+ * @property {string} notset
+ * @property {string} debug
+ * @property {string} info
+ * @property {string} warning
+ * @property {string} error
+ * @property {string} critical
+ */
 
 /**
-* Role Icons
-* @typedef {Object} RoleIcons
-* @property {string} user
-* @property {string} system
-* @property {string} assistant
-* @property {string} tool
-*/
+ * Role Icons
+ * @typedef {Object} RoleIcons
+ * @property {string} user
+ * @property {string} system
+ * @property {string} assistant
+ * @property {string} tool
+ */
 
 /**
-* Solver Icons
-* @typedef {Object} SolverIcons
-* @property {string} default
-* @property {string} generate
-* @property {string} chain_of_thought
-* @property {string} self_critique
-* @property {string} system_message
-* @property {string} use_tools
-*/
-
+ * Solver Icons
+ * @typedef {Object} SolverIcons
+ * @property {string} default
+ * @property {string} generate
+ * @property {string} chain_of_thought
+ * @property {string} self_critique
+ * @property {string} system_message
+ * @property {string} use_tools
+ */
 
 /**
-* Solver Icons
-* @typedef {Object} CollapseIcons
-* @property {string} up
-* @property {string} all
-*/
+ * Solver Icons
+ * @typedef {Object} CollapseIcons
+ * @property {string} up
+ * @property {string} all
+ */
 
 /**
  * Provides a centralized repository of Bootstrap icons
@@ -81,7 +80,6 @@
  * @property {string} usage
  */
 
-
 /** @type {Icons} */
 export const ApplicationIcons = {
   arrows: {
@@ -115,7 +113,7 @@ export const ApplicationIcons = {
   menu: "bi bi-list",
   messages: "bi bi-chat-right-text",
   metadata: "bi bi-table",
-  model: "bi bi-cpu",
+  model: "bi bi-grid-3x3-gap",
   "toggle-right": "bi bi-chevron-right",
   more: "bi bi-zoom-in",
   next: "bi bi-chevron-right",

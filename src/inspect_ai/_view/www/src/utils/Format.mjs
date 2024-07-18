@@ -89,13 +89,15 @@ export const userPromptForSample = (sample) => {
             if (content.type === "text") {
               results.push(content.text);
             } else {
-              results.push(html`<img
-                src="${content.image}"
-                style=${{
-                  maxWidth: "400px",
-                  border: "solid var(--bs-border-color) 1px",
-                }}
-              />`);
+              results.push(
+                html`<img
+                  src="${content.image}"
+                  style=${{
+                    maxWidth: "400px",
+                    border: "solid var(--bs-border-color) 1px",
+                  }}
+                />`,
+              );
             }
           }
           return results;
@@ -138,7 +140,7 @@ export const formatTime = (seconds) => {
     return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
   } else {
     return `${Math.floor((seconds / 60) * 60 * 24)} days ${Math.floor(
-      seconds / 60
+      seconds / 60,
     )} min ${seconds % 60} sec`;
   }
 };

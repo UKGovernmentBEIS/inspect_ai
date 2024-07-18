@@ -10,7 +10,7 @@ import { ExpandablePanel } from "./ExpandablePanel.mjs";
 
 /**
  * Renders the ChatView component.
- * 
+ *
  * @param {Object} props - The properties passed to the component.
  * @param {string} props.id - The ID for the chat view.
  * @param {import("../types/log").Messages} props.messages - The array of chat messages.
@@ -200,7 +200,7 @@ export const ToolInput = ({ type, contents }) => {
     return "";
   }
 
-  const toolInputRef = useRef(/** @type {HTMLElement|null} */(null));
+  const toolInputRef = useRef(/** @type {HTMLElement|null} */ (null));
   useMemo(() => {
     const tokens = Prism.languages[type];
     if (toolInputRef.current && tokens) {

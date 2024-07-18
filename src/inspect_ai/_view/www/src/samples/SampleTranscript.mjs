@@ -10,6 +10,5 @@ import { TranscriptView } from "./transcript/TranscriptView.mjs";
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
 export const SampleTranscript = ({ transcript }) => {
-  return html`<${TranscriptView} transcript=${transcript}/>`;
+  return html`<${TranscriptView} transcript=${transcript} />`;
 };
-

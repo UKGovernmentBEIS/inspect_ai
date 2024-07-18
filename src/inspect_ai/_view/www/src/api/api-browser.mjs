@@ -1,4 +1,4 @@
-import { asyncJsonParse } from "../utils/json.mjs"
+import { asyncJsonParse } from "../utils/json.mjs";
 
 const loaded_time = Date.now();
 let last_eval_time = 0;

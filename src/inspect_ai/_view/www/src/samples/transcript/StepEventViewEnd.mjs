@@ -11,9 +11,11 @@ import { formatTime } from "../../utils/Format.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const StepEventViewEnd = ({ event, stepStartTime }) => {
-  const durationMs = new Date(event.timestamp).getTime() - stepStartTime.getTime();
+  const durationMs =
+    new Date(event.timestamp).getTime() - stepStartTime.getTime();
   const durationSec = durationMs / 1000;
 
-  return html`<div
-  style=${{marginBottom: "2em"}}>duration: ${formatTime(durationSec)}</div>`;
+  return html`<div style=${{ marginBottom: "2em" }}>
+    duration: ${formatTime(durationSec)}
+  </div>`;
 };

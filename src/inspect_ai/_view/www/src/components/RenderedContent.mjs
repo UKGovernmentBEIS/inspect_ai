@@ -74,7 +74,8 @@ const contentRenderers = {
     },
     render: (_id, entry) => {
       return {
-        rendered: html`<i class="${ApplicationIcons.model}"></i> ${entry.value._model}`,
+        rendered: html`<i class="${ApplicationIcons.model}"></i> ${entry.value
+            ._model}`,
       };
     },
   },
@@ -225,6 +226,7 @@ const contentRenderers = {
           entries="${entry.value}"
           tableOptions="borderless,sm"
           context=${context}
+          compact
         />`,
       };
     },

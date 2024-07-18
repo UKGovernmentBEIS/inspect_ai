@@ -25,4 +25,3 @@ export const ApplicationColors = {
     critical: "var(--bs-danger)",
   },
 };
-

@@ -2,7 +2,6 @@
 import { html } from "htm/preact";
 import { TranscriptView } from "./TranscriptView.mjs";
 
-
 /**
  * Renders the StateEventView component.
  *
@@ -11,5 +10,5 @@ import { TranscriptView } from "./TranscriptView.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const SubtaskEventView = ({ event }) => {
-  return html`<${TranscriptView} transcript=${event.transcript}/>`
+  return html`<${TranscriptView} transcript=${event.transcript} />`;
 };

@@ -4,7 +4,7 @@ import { RenderedContent } from "./RenderedContent.mjs";
 
 /**
  * Renders the MetaDataView component.
- * 
+ *
  * @param {Object} props - The properties passed to the component.
  * @param {string} props.id - The ID for the table element.
  * @param {string} [props.baseClass] - The base class name for styling.

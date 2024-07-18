@@ -10,10 +10,11 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const LoggerEventView = ({ event }) => {
-  return html`
-  <div
-    style=${{ display: "grid", gridTemplateColumns: "auto auto"}}>
-    <div><i class=${ApplicationIcons.logging[event.level]}/></div>
+  return html` <div
+    style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
+  >
+    <div><i class=${ApplicationIcons.logging[event.level]} /></div>
     <div>${event.message}</div>
-  <div>`
+    <div></div>
+  </div>`;
 };

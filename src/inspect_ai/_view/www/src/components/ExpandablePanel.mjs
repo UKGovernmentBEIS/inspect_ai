@@ -77,7 +77,9 @@ export const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
 
 const MoreToggle = ({ collapsed, border, setCollapsed }) => {
   const text = collapsed ? "more" : "less";
-  const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
+  const icon = collapsed
+    ? ApplicationIcons["expand-down"]
+    : ApplicationIcons.collapse.up;
 
   const topStyle = {
     display: "flex",

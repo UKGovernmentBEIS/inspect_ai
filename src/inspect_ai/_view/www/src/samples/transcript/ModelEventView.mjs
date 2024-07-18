@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
+import { ApplicationIcons } from "../../appearance/Icons.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -12,45 +13,49 @@ import { ChatView } from "../../components/ChatView.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const ModelEventView = ({ event, index }) => {
-  const contents = {};
-  contents["model"] = html`<b>${event.model}</b>`;
-  if (event.config && Object.keys(event.config).length > 0) {
-    contents["config"] = html`<${MetaDataView}
-      entries=${event.config}
-    />`;
-  }
-  contents["input"] = html`<${ChatView}
-    id="model-input-${index}"
-    messages=${event.input}
-  />`;
+  const toolTable = event.tools.reduce((accum, current) => {
+    accum[current.name] = current.description;
+    return accum;
+  }, {});
 
-  const toolComponents = event.tools.map((tool) => {
-    return html`<div>${tool.name} (${tool.description})</div>`;
-  });
-  contents["tools"] = toolComponents;
-  contents["tool_choice"] = event.tool_choice;
+  const modelProperties = {
+    ...event.config,
+  };
+
+  if (Object.keys(toolTable).length > 0) {
+    modelProperties["tools"] = toolTable;
+    modelProperties["tool_choice"] = event.tool_choice;
+  }
+
+  if (event.output.usage) {
+    modelProperties["usage"] = event.output.usage;
+  }
 
   const outputMessages = event.output.choices.map((choice) => {
     return choice.message;
   });
-  contents["output"] = html`<${ChatView}
-    id="model-output-${index}"
-    messages=${outputMessages}
-  />`;
 
-  
-
-  return html`<div
-    style=${{
-      display: "grid",
-      gridTemplateColumns: "auto auto",
-      columnGap: "1em",
-    }}
-  >
-    ${Object.keys(contents).map((key) => {
-      return html`<div>${key}</div>
-        <div>${contents[key]}</div>`;
-    })}
-  </div>`;
-
+  return html`
+    <div
+      style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content auto",
+        columnGap: "0.5em",
+      }}
+    >
+      <div style=${{ fontWeight: 600 }}>
+        <i class="${ApplicationIcons.model}" />
+      </div>
+      <div style=${{ fontWeight: 600 }}>${event.model}</div>
+      <div></div>
+      <div><${MetaDataView} entries=${modelProperties} compact=${true} /></div>
+      <div></div>
+      <div>
+        <${ChatView}
+          id="model-input-${index}"
+          messages=${[...event.input, ...outputMessages]}
+        />
+      </div>
+    </div>
+  `;
 };
