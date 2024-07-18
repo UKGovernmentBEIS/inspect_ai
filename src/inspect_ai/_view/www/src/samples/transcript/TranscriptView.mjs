@@ -42,7 +42,7 @@ export const TranscriptView = ({ transcript }) => {
             height: ".1em",
             width: "100%",
             rowGap: "1em",
-            paddingBottom: "1em"
+            paddingBottom: "1em",
           }}
         ></div>`,
       );
