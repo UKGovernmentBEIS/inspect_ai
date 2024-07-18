@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.32">
+<meta name="generator" content="quarto-1.5.54">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Models</title>
+<title>Models – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -106,13 +106,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
-<meta property="og:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
+<meta property="og:image" content="https://inspect.ai-safety-institute.org.uk/images/inspect.png">
 <meta property="og:site_name" content="Inspect">
 <meta property="og:image:height" content="1258">
 <meta property="og:image:width" content="2400">
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:image" content="https://UKGovernmentBEIS.github.io/inspect_ai/images/inspect.png">
+<meta name="twitter:image" content="https://inspect.ai-safety-institute.org.uk/images/inspect.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image-height" content="1258">
 <meta name="twitter:image-width" content="2400">
@@ -327,7 +327,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>Inspect has built in support for a variety of language model API providers and can be extended to support arbitrary additions ones. Built-in model API providers, their dependencies, and environment variables required to use them are as follows:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 18%">
 <col style="width: 45%">
@@ -407,7 +407,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="using-models" class="level2">
 <h2 class="anchored" data-anchor-id="using-models">Using Models</h2>
 <p>To select a model for use in an evaluation task you specify it using a <em>model name</em>. Model names include their API provider and the specific model to use (e.g.&nbsp;<code>openai/gpt-4</code>) Here are the supported providers along with example model names and links to documentation on all available models:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 18%">
 <col style="width: 45%">
@@ -494,7 +494,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="model-base-url" class="level3">
 <h3 class="anchored" data-anchor-id="model-base-url">Model Base URL</h3>
 <p>Each model also can use a different base URL than the default (e.g.&nbsp;if running through a proxy server). The base URL can be specified with the same prefix as the <code>API_KEY</code>, for example, the following are all valid base URLs:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
 <col style="width: 50%">
@@ -545,7 +545,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>In addition, there are separate base URL variables for running various frontier models on Azure and Bedrock:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
 <col style="width: 50%">
@@ -723,7 +723,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The section above illustrates passing model specific arguments to local models on the command line, in <code>eval()</code>, and in <code>get_model()</code>. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn’t covered by the <code>GenerateConfig</code>, you can use this method to do it. For example, here we specify the <code>transport</code> option for a Google Gemini model:</p>
 <div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity <span class="at">--model</span> google/gemini-1.0-pro <span class="at">-M</span> transport:grpc</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The additional <code>model_args</code> are forwarded as follows for the various providers:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 30%">
 <col style="width: 70%">
@@ -875,7 +875,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
     var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
     var mailtoRegex = new RegExp(/^mailto:/);
-      var filterRegex = new RegExp("https:\/\/UKGovernmentBEIS\.github\.io\/inspect_ai\/");
+      var filterRegex = new RegExp("https:\/\/inspect\.ai-safety-institute\.org\.uk\/");
     var isInternal = (href) => {
         return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
     }

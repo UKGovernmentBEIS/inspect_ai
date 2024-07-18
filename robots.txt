@@ -1,1 +1,1 @@
-Sitemap: https://UKGovernmentBEIS.github.io/inspect_ai/sitemap.xml
+Sitemap: https://inspect.ai-safety-institute.org.uk/sitemap.xml
