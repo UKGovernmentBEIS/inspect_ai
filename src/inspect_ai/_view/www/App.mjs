@@ -133,11 +133,17 @@ export function App() {
   // Keep a queue of loading operations that will be run
   // as needed
   const loadLogsImpl = useCallback(async () => {
-    const result = await api.eval_logs();
-    if (result) {
-      setLogs(result);
-    } else {
-      setLogs({ log_dir: "", files: [] });
+    try {
+      const result = await api.eval_logs();
+      if (result) {
+        setLogs(result);
+      } else {
+        setLogs({ log_dir: "", files: [] });
+      }
+    } catch (e) {
+      // Show an error
+      console.log(e);
+      setStatus({ loading: false, error: e });
     }
   }, []);
 
