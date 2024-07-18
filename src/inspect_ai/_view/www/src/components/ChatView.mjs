@@ -191,6 +191,10 @@ export const ToolInput = ({ type, contents }) => {
     return "";
   }
 
+  if (typeof contents === "object" || Array.isArray(contents)) {
+    contents = JSON.stringify(contents);
+  }
+
   const toolInputRef = useRef();
   useMemo(() => {
     const tokens = Prism.languages[type];
