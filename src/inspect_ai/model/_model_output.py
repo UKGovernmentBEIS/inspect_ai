@@ -1,3 +1,4 @@
+import uuid
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -154,7 +155,7 @@ class ModelOutput(BaseModel):
                         source="generate",
                         tool_calls=[
                             ToolCall(
-                                id="tool_call_id",
+                                id=f"for_tool_call_{uuid.uuid4()}",
                                 function=tool_name,
                                 arguments=tool_arguments,
                                 type="function",
