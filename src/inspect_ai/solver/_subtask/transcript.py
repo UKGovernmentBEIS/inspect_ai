@@ -25,6 +25,10 @@ class BaseEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     """Time at which event occurred."""
 
+    class Config:
+        # Write the datetime as an isoformatted string including timezone
+        json_encoders = {datetime: lambda v: v.astimezone().isoformat()}
+
 
 class StoreEvent(BaseEvent):
     """Change to data within the current `Store`."""
