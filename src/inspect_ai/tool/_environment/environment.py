@@ -99,6 +99,7 @@ class ToolEnvironment(abc.ABC):
         self,
         cmd: list[str],
         input: str | bytes | None = None,
+        cwd: str | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
     ) -> ExecResult[str]:
@@ -110,6 +111,7 @@ class ToolEnvironment(abc.ABC):
         Args:
           cmd (str | list[str]): Command or command and arguments to execute.
           input (str | bytes | None): Standard input (optional).
+          cwd (str | None): Current working dir (optional).
           env (dict[str,str]): Environment variables for execution.
           timeout (int | None): Optional execution timeout (seconds).
 
