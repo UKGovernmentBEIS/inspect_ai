@@ -46,7 +46,7 @@ class GenerateOutput:
     input_tokens: int
     output_tokens: int
     total_tokens: int
-    stop_reason: str | None = None
+    stop_reason: StopReason
     logprobs: Logprobs | None = None
 
 
@@ -308,13 +308,13 @@ def extract_logprobs(
     for token_id, logprob in zip(completion.token_ids, completion.logprobs):
         top_logprobs = [
             TopLogprob(
-                token=token.decoded_token,
+                token=cast(str, token.decoded_token),
                 logprob=token.logprob,
-                bytes=string_to_bytes(token.decoded_token),
+                bytes=string_to_bytes(cast(str, token.decoded_token)),
             )
             # exclude the chosen token if it's not in the top logprobs
             for token in logprob.values()
-            if token.rank - 1 < num_top_logprobs
+            if cast(int, token.rank) - 1 < num_top_logprobs
         ]
         selected_token = logprob[token_id]
         logprobs.append(
@@ -329,12 +329,12 @@ def extract_logprobs(
     return Logprobs(content=logprobs)
 
 
-def get_stop_reason(completion: CompletionOutput) -> StopReason:
-    if completion.finish_reason == "stop":
+def get_stop_reason(finish_reason: str | None) -> StopReason:
+    if finish_reason == "stop":
         return "stop"
-    elif completion.finish_reason == "length":
+    elif finish_reason == "length":
         return "length"
-    elif completion.finish_reason == "abort":
+    elif finish_reason == "abort":
         return "unknown"
     else:
         return "unknown"
