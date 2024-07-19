@@ -628,7 +628,6 @@ def combine_messages(
 
 def init_active_model(model: Model) -> None:
     active_model_context_var.set(model)
-    init_model_usage()
 
 
 def active_model() -> Model | None:
