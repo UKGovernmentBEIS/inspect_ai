@@ -6,27 +6,28 @@ from queue import Empty, Queue
 from threading import Thread
 from typing import Any, cast
 
+from typing_extensions import override
+from vllm import LLM, SamplingParams, CompletionOutput, RequestOutput
+
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._model import ModelAPI, simple_input_messages
-from .._generate_config import GenerateConfig
 from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._generate_config import GenerateConfig
+from .._model import ModelAPI, simple_input_messages
 from .._model_output import (
+    ChatCompletionChoice,
     Logprob,
     Logprobs,
     ModelOutput,
+    ModelUsage,
+    StopReason,
     TopLogprob,
-    ChatCompletionChoice,
-    ModelUsage
 )
 from .._util import chat_api_input
-from typing_extensions import override
 
-from vllm import LLM, SamplingParams
-
-DEFAULT_START_TOKEN = '<|im_start|>'
-DEFAULT_END_TOKEN = '<|im_end|>'
+DEFAULT_START_TOKEN = "<|im_start|>"
+DEFAULT_END_TOKEN = "<|im_end|>"
 
 HF_TOKEN = "HF_TOKEN"
 
@@ -36,7 +37,7 @@ class GenerateInput:
     input: str
     generator: Any
     batch_size: int
-    num_logprobs: int = 0
+    num_top_logprobs: int | None = None
 
 
 @dataclass
@@ -51,14 +52,13 @@ class GenerateOutput:
 
 class VLLMAPI(ModelAPI):
     def __init__(
-            self,
-            model_name: str,
-            base_url: str | None = None,
-            api_key: str | None = None,
-            config: GenerateConfig = GenerateConfig(),
-            **model_args: Any,
+        self,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
+        **model_args: Any,
     ) -> None:
-
         super().__init__(
             model_name=model_name,
             base_url=base_url,
@@ -102,7 +102,7 @@ class VLLMAPI(ModelAPI):
             os.environ["CUDA_VISIBLE_DEVICES"] = str(device)
 
         # tell vllm how many GPUs to use
-        if 'tensor_parallel_size' not in model_args:
+        if "tensor_parallel_size" not in model_args:
             devices = os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")
             num_devices = len(devices)
             if num_devices > 1:
@@ -112,10 +112,13 @@ class VLLMAPI(ModelAPI):
 
         # https://github.com/vllm-project/vllm/pull/6051
         # Gemma 2 models require FlashInfer backend for softcap logits
-        if 'google/gemma-2' in model_name:
-            os.environ['VLLM_ATTENTION_BACKEND'] = 'FLASHINFER'
+        if "google/gemma-2" in model_name:
+            os.environ["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
             try:
-                import flashinfer  # noqa: F401
+                import importlib
+
+                # check if flashinfer is installed
+                importlib.import_module("flashinfer")
             except ImportError:
                 raise ImportError(
                     "To use the 'google/gemma-2' model, you must install the 'flashinfer' package. "
@@ -123,11 +126,7 @@ class VLLMAPI(ModelAPI):
                 )
 
         # load model
-        self.model = LLM(
-            model_name,
-            tokenizer=tokenizer,
-            **model_args
-        )
+        self.model = LLM(model_name, tokenizer=tokenizer, **model_args)
 
         # we get the tokenizer so we can use it to apply the model's chat template later
         self.tokenizer = self.model.get_tokenizer()
@@ -204,25 +203,24 @@ class VLLMAPI(ModelAPI):
         sampling_params = SamplingParams(
             **kwargs,
             stop_token_ids=self.tokenizer.all_special_ids,  # We default to stopping at all special tokens
-            include_stop_str_in_output=False
+            include_stop_str_in_output=False,
         )
         return sampling_params
 
     async def generate(
-            self,
-            input: list[ChatMessage],
-            tools: list[ToolInfo] = None,
-            tool_choice: ToolChoice = None,
-            config: GenerateConfig = None,
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
     ) -> ModelOutput:
-        if config is None:
-            config = GenerateConfig()
-
         chat = self.apply_chat_template(input)
 
         # prepare generator
         sampling_params = self.get_sampling_params(config, chat)
-        generator = functools.partial(self.model.generate, sampling_params=sampling_params, use_tqdm=False)
+        generator = functools.partial(
+            self.model.generate, sampling_params=sampling_params, use_tqdm=False
+        )
 
         # generate
         responses = await batched_generate(
@@ -230,7 +228,7 @@ class VLLMAPI(ModelAPI):
                 input=chat,
                 generator=generator,
                 batch_size=config.max_connections or self.max_connections(),
-                num_logprobs=config.top_logprobs,
+                num_top_logprobs=config.top_logprobs,
             )
         )
 
@@ -300,7 +298,9 @@ def string_to_bytes(string: str) -> list[int]:
     return list(map(ord, string))
 
 
-def extract_logprobs(completion, num_logprobs) -> Logprobs | None:
+def extract_logprobs(
+    completion: CompletionOutput, num_top_logprobs: int | None
+) -> Logprobs | None:
     if completion.logprobs is None:
         return None
 
@@ -310,23 +310,39 @@ def extract_logprobs(completion, num_logprobs) -> Logprobs | None:
             TopLogprob(
                 token=token.decoded_token,
                 logprob=token.logprob,
-                bytes=string_to_bytes(token.decoded_token)
+                bytes=string_to_bytes(token.decoded_token),
             )
             # exclude the chosen token if it's not in the top logprobs
-            for token in logprob.values() if token.rank - 1 < num_logprobs
+            for token in logprob.values()
+            if token.rank - 1 < num_top_logprobs
         ]
         selected_token = logprob[token_id]
-        logprobs.append(Logprob(
-            token=selected_token.decoded_token,
-            logprob=selected_token.logprob,
-            bytes=string_to_bytes(selected_token.decoded_token),
-            top_logprobs=top_logprobs
-        ))
+        logprobs.append(
+            Logprob(
+                token=selected_token.decoded_token,
+                logprob=selected_token.logprob,
+                bytes=string_to_bytes(selected_token.decoded_token),
+                top_logprobs=top_logprobs,
+            )
+        )
 
     return Logprobs(content=logprobs)
 
 
-def post_process_output(output, i, num_logprobs) -> GenerateOutput:
+def get_stop_reason(completion: CompletionOutput) -> StopReason:
+    if completion.finish_reason == "stop":
+        return "stop"
+    elif completion.finish_reason == "length":
+        return "length"
+    elif completion.finish_reason == "abort":
+        return "unknown"
+    else:
+        return "unknown"
+
+
+def post_process_output(
+    output: RequestOutput, i: int, num_top_logprobs: int | None
+) -> GenerateOutput:
     completion = output.outputs[i]
     output_text: str = completion.text
 
@@ -344,13 +360,18 @@ def post_process_output(output, i, num_logprobs) -> GenerateOutput:
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         total_tokens=total_tokens,
-        stop_reason=completion.finish_reason,
-        logprobs=extract_logprobs(completion, num_logprobs)
+        stop_reason=get_stop_reason(completion.finish_reason),
+        logprobs=extract_logprobs(completion, num_top_logprobs),
     )
 
 
-def post_process_outputs(output, num_logprobs) -> list[GenerateOutput]:
-    return [post_process_output(output, i, num_logprobs) for i in range(len(output.outputs))]
+def post_process_outputs(
+    output: RequestOutput, num_top_logprobs: int | None
+) -> list[GenerateOutput]:
+    return [
+        post_process_output(output, i, num_top_logprobs)
+        for i in range(len(output.outputs))
+    ]
 
 
 def process_batches() -> None:
@@ -359,7 +380,9 @@ def process_batches() -> None:
         inputs: list[tuple[GenerateInput, asyncio.Future[list[GenerateOutput]]]] = []
         while True:
             try:
-                input = batch_queue.get(timeout=2)  # wait 2 seconds max TODO: what's optimal wait time?
+                input = batch_queue.get(
+                    timeout=2
+                )  # wait 2 seconds max TODO: what's optimal wait time?
                 loop = input.loop
                 inputs.append((input.input, input.future))
                 if len(inputs) >= input.input.batch_size:
@@ -376,7 +399,7 @@ def process_batches() -> None:
         try:
             first_input = inputs[0][0]
             generator = first_input.generator
-            num_logprobs = first_input.num_logprobs
+            num_top_logprobs = first_input.num_top_logprobs
 
             # generate
             outputs = generator([input[0].input for input in inputs])
@@ -388,8 +411,7 @@ def process_batches() -> None:
                 # down to this point, so we can mark the future as done in a thread safe manner.
                 # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
                 loop.call_soon_threadsafe(
-                    future.set_result,
-                    post_process_outputs(output, num_logprobs)
+                    future.set_result, post_process_outputs(output, num_top_logprobs)
                 )
 
         except Exception as e:

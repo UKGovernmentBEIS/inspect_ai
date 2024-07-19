@@ -4,7 +4,6 @@ from inspect_ai._util.version import verify_required_version
 from .._model import ModelAPI
 from .._registry import modelapi
 
-
 # Defer importing model api classes until they are actually used
 # (this allows the package to load without the optional deps)
 # Note that some api providers (e.g. Cloudflare, AzureAI) don't
@@ -81,9 +80,7 @@ def vllm() -> type[ModelAPI]:
     try:
         from .vllm import VLLMAPI
     except ImportError:
-        raise pip_dependency_error(
-            "vLLM Models", ["vllm"]
-        )
+        raise pip_dependency_error("vLLM Models", ["vllm"])
 
     return VLLMAPI
 
