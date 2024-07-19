@@ -301,8 +301,13 @@ def string_to_bytes(string: str) -> list[int]:
 def extract_logprobs(
     completion: CompletionOutput, num_top_logprobs: int | None
 ) -> Logprobs | None:
-    if completion.logprobs is None:
+    if completion.logprobs is None or not completion.logprobs:
         return None
+
+    # if config.logprobs = True, we want to get the selected tokens logprob
+    # but if config.top_logprobs is not set, we don't want to return the top logprobs
+    if num_top_logprobs is None:
+        num_top_logprobs = 0
 
     logprobs = []
     for token_id, logprob in zip(completion.token_ids, completion.logprobs):
@@ -319,9 +324,9 @@ def extract_logprobs(
         selected_token = logprob[token_id]
         logprobs.append(
             Logprob(
-                token=selected_token.decoded_token,
+                token=cast(str, selected_token.decoded_token),
                 logprob=selected_token.logprob,
-                bytes=string_to_bytes(selected_token.decoded_token),
+                bytes=string_to_bytes(cast(str, selected_token.decoded_token)),
                 top_logprobs=top_logprobs,
             )
         )
