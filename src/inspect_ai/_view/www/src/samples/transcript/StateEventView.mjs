@@ -14,6 +14,8 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
 export const StateEventView = ({ event, index }) => {
   const mutations = event.changes.map((change) => {
     // TODO: change.from is always undefined
+
+    // Compute the change rows
     const symbol = iconForOp(change.op);
     const background = backgroundForOp(change.op);
     const toStyle = {
@@ -28,8 +30,11 @@ export const StateEventView = ({ event, index }) => {
     `;
   });
 
+  // Compute the title
+  const title = event.event === "state" ? "State Updated" : "Store Updated";
+
   return html`
-  <div>State Updated</div>
+  <div>${title}</div>
   <div
     style=${{
       display: "grid",
