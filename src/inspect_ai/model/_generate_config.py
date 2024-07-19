@@ -121,7 +121,7 @@ class GenerateConfig(BaseModel):
     """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Huggingface, and vLLM only."""
 
     def merge(
-            self, other: Union["GenerateConfig", GenerateConfigArgs]
+        self, other: Union["GenerateConfig", GenerateConfigArgs]
     ) -> "GenerateConfig":
         """Merge another model configuration into this one.
 
