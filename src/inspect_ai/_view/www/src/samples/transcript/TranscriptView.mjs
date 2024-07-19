@@ -22,7 +22,7 @@ export const TranscriptView = ({ transcript }) => {
     const beginStep = e.event === "step" && e.action === "begin";
     const rows = [
       html`
-        <div style=${{ gridColumn: "1", opacity: beginStep ? "1" : "0.7" }}>${e.timestamp}</div>
+        <div style=${{ gridColumn: "1", opacity: beginStep ? "1" : "0.7", fontSize: "0.7rem" }}>${e.timestamp}</div>
         <div
           style=${{
             gridColumn: "2",
