@@ -4,7 +4,11 @@
 
 - Gracefully handle tool calls that include only a single value (rather than a named dict of parameters).
 - Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
-- Add `cwd` argument to `ToolEnvironment.exec()`. 
+- Add `cwd` argument to `ToolEnvironment.exec()`.
+- Handle duplicate tool call ids in Inspect View.
+- Handle sorting sample ids of different types in Inspect View.
+- Correctly resolve default model based on CLI --model argument.
+- Ability to host standalone version of Inspect View to view single log files.
 
 ## v0.3.18 (14 July 2024)
 
