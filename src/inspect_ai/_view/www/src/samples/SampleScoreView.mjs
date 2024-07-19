@@ -40,7 +40,7 @@ export const SampleScoreView = ({
     <div
       class="container-fluid"
       style=${{
-        paddingTop: "0",
+        paddingTop: "0.5em",
         paddingLeft: "0",
         fontSize: "0.8rem",
         ...style,

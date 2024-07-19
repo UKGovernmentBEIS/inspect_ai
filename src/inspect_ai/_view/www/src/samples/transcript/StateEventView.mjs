@@ -18,10 +18,9 @@ export const StateEventView = ({ event }) => {
     const symbol = iconForOp(change.op);
     const background = backgroundForOp(change.op);
     const toStyle = {
-      background: background ? background.to : "initial"
-    }
-    const baseStyle = {
-    }
+      background: background ? background.to : "initial",
+    };
+    const baseStyle = {};
     return html`
       <div style=${baseStyle}>${symbol ? symbol : ""}</div>
       <code style=${baseStyle}>${change.path}</code>
@@ -32,17 +31,18 @@ export const StateEventView = ({ event }) => {
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 
-  return html`
-  <div style=${{textTransform: "uppercase", fontSize: "0.7rem"}}>${title}</div>
-  <div 
-    style=${{
-      display: "grid",
-      gridTemplateColumns: "max-content max-content 1fr",
-      columnGap: "1em"
-    }}
-  >
-    ${mutations}
-  </div>`;
+  return html` <div style=${{ textTransform: "uppercase", fontSize: "0.7rem" }}>
+      ${title}
+    </div>
+    <div
+      style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content max-content 1fr",
+        columnGap: "1em",
+      }}
+    >
+      ${mutations}
+    </div>`;
 };
 
 /**
@@ -54,11 +54,11 @@ export const StateEventView = ({ event }) => {
 const iconForOp = (op) => {
   switch (op) {
     case "add":
-      return html`<i class="${ApplicationIcons.changes.add}"/>`;
+      return html`<i class="${ApplicationIcons.changes.add}" />`;
     case "remove":
-      return html`<i class="${ApplicationIcons.changes.remove}"/>`;
+      return html`<i class="${ApplicationIcons.changes.remove}" />`;
     case "replace":
-      return html`<i class="${ApplicationIcons.changes.replace}"/>`;
+      return html`<i class="${ApplicationIcons.changes.replace}" />`;
     case "copy":
     case "move":
     case "test":
@@ -105,8 +105,12 @@ const backgroundForOp = (op) => {
  * @returns {import("preact").JSX.Element|Object|string} - The rendered HTML template if the value is an object with content and source, otherwise the value itself.
  */
 const renderValue = (change) => {
+  const contents =
+    typeof change.value === "object" || Array.isArray(change.value)
+      ? JSON.stringify(change.value, null, 2)
+      : change.value;
 
-  const contents = typeof change.value === "object" || Array.isArray(change.value) ? JSON.stringify(change.value, null, 2) : change.value;
-
-  return html`<pre style=${{ whiteSpace: "pre-wrap", wordBreak: "break-word"}}>${contents}</pre>`;
+  return html`<pre style=${{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+${contents}</pre
+  >`;
 };

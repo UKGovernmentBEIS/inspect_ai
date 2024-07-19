@@ -18,19 +18,35 @@ import { StepEventViewEnd } from "./StepEventViewEnd.mjs";
 export const TranscriptView = ({ transcript }) => {
   const render = getRenderer();
   const rows = transcript.map((e, index) => {
-
     const beginStep = e.event === "step" && e.action === "begin";
     const rows = [
       html`
-        <div style=${{ gridColumn: "1", opacity: beginStep ? "1" : "0.7", fontSize: "0.7rem" }}>${e.timestamp}</div>
+        <div
+          style=${{
+            gridColumn: "1",
+            opacity: beginStep ? "1" : "0.7",
+            fontSize: "0.7rem",
+            paddingTop: ".5em",
+          }}
+        >
+          ${e.timestamp}
+        </div>
         <div
           style=${{
             gridColumn: "2",
             width: ".1em",
             borderRight: "solid var(--bs-light-border-subtle) .1em",
+            paddingTop: ".5em",
           }}
         ></div>
-        <div style=${{ gridColumn: "3" }}>${render(e, index)}</div>
+        <div
+          style=${{
+            gridColumn: "3",
+            paddingTop: ".5em",
+          }}
+        >
+          ${render(e, index)}
+        </div>
       `,
     ];
 
@@ -44,7 +60,6 @@ export const TranscriptView = ({ transcript }) => {
             height: ".1em",
             width: "100%",
             rowGap: "1em",
-            paddingBottom: "1em",
           }}
         ></div>`,
       );
@@ -59,7 +74,6 @@ export const TranscriptView = ({ transcript }) => {
       display: "grid",
       gridTemplateColumns: "auto max-content auto",
       columnGap: "1em",
-      rowGap: "0.5em"
     }}
   >
     ${rows}

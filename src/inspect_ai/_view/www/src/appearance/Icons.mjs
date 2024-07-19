@@ -14,7 +14,6 @@
  * @property {string} replace
  */
 
-
 /**
  * Logging Icons
  * @typedef {Object} LoggingIcons
@@ -99,7 +98,7 @@ export const ApplicationIcons = {
   changes: {
     add: "bi bi-plus",
     remove: "bi bi-dash",
-    replace: "bi bi-plus-slash-minus"
+    replace: "bi bi-plus-slash-minus",
   },
   collapse: {
     all: "bi bi-arrows-collapse",

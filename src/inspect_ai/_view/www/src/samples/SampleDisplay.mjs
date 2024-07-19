@@ -140,7 +140,6 @@ export const SampleDisplay = ({
     },
     tabBody: {
       paddingLeft: ".4em",
-      marginTop: "0.5rem",
     },
   }}>
     ${tabs}

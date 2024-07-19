@@ -36,11 +36,10 @@ export const ModelEventView = ({ event, index }) => {
   });
 
   return html`
-    <div
-      style=${{
-      }}
-    >
-      <div style=${{ textTransform: "uppercase", fontSize: "0.7rem" }}>${event.model}</div>
+    <div style=${{}}>
+      <div style=${{ textTransform: "uppercase", fontSize: "0.7rem" }}>
+        ${event.model}
+      </div>
       <div><${MetaDataView} entries=${modelProperties} compact=${true} /></div>
       <div>
         <${ChatView}
