@@ -1,6 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ChatView } from "../../components/ChatView.mjs";
+import { ApplicationIcons } from "../../appearance/Icons.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -12,23 +13,83 @@ import { ChatView } from "../../components/ChatView.mjs";
  */
 export const StateEventView = ({ event, index }) => {
   const mutations = event.changes.map((change) => {
+    // TODO: change.from is always undefined
+    const symbol = iconForOp(change.op);
+    const background = backgroundForOp(change.op);
+    const toStyle = {
+      background: background ? background.to : "initial"
+    }
+    const baseStyle = {
+    }
     return html`
-      <div>${change.op}</div>
-      <div>${change.path}</div>
-      <div>${change.from}</div>
-      <div>${renderValue(change, index)}</div>
+      <div style=${baseStyle}>${symbol ? symbol : ""}</div>
+      <code style=${baseStyle}>${change.path}</code>
+      <div style=${toStyle}>${renderValue(change, index)}</div>
     `;
   });
 
   return html`<div
     style=${{
       display: "grid",
-      gridTemplateColumns: "auto auto auto auto",
-      columnGap: "1em",
+      gridTemplateColumns: "max-content auto auto",
+      columnGap: "1em"
     }}
   >
     ${mutations}
   </div>`;
+};
+
+/**
+ * Returns a symbol representing the operation type.
+ *
+ * @param {string} op - The operation type.
+ * @returns {import("preact").JSX.Element | undefined} The component.
+ */
+const iconForOp = (op) => {
+  switch (op) {
+    case "add":
+      return html`<i class="${ApplicationIcons.changes.add}"/>`;
+    case "remove":
+      return html`<i class="${ApplicationIcons.changes.remove}"/>`;
+    case "replace":
+      return html`<i class="${ApplicationIcons.changes.replace}"/>`;
+    case "copy":
+    case "move":
+    case "test":
+    default:
+      return undefined;
+  }
+};
+
+/**
+ * Returns a background color configuration based on the operation type.
+ *
+ * @param {string} op - The operation type.
+ * @returns {{from: string, to: string}|undefined} - The background color configuration, or undefined for certain operations.
+ */
+const backgroundForOp = (op) => {
+  switch (op) {
+    case "add":
+      return {
+        from: "#dafbe1",
+        to: "#dafbe1",
+      };
+    case "remove":
+      return {
+        from: "#ffebe9",
+        to: "#ffebe9",
+      };
+    case "replace":
+      return {
+        from: "#ffebe9",
+        to: "#dafbe1",
+      };
+    case "copy":
+    case "move":
+    case "test":
+    default:
+      return undefined;
+  }
 };
 
 /**

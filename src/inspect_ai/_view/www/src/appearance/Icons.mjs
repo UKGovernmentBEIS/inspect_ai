@@ -7,6 +7,15 @@
  */
 
 /**
+ * Arrow Icons
+ * @typedef {Object} ChangeIcons
+ * @property {string} add
+ * @property {string} remove
+ * @property {string} replace
+ */
+
+
+/**
  * Logging Icons
  * @typedef {Object} LoggingIcons
  * @property {string} notset
@@ -49,6 +58,7 @@
  * used throughout the workspace.
  * @typedef {Object} Icons
  * @property {ArrowIcons} arrows
+ * @property {ChangeIcons} changes
  * @property {CollapseIcons} collapse
  * @property {string} close
  * @property {string} config
@@ -85,6 +95,11 @@ export const ApplicationIcons = {
   arrows: {
     right: "bi bi-arrow-right",
     down: "bi bi-arrow-down",
+  },
+  changes: {
+    add: "bi bi-plus",
+    remove: "bi bi-dash",
+    replace: "bi bi-plus-slash-minus"
   },
   collapse: {
     all: "bi bi-arrows-collapse",
