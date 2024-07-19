@@ -11,6 +11,7 @@ Inspect has built in support for a variety of language model API providers and c
 | Google       | `pip install google-generativeai` | `GOOGLE_API_KEY`                                                       |
 | Mistral      | `pip install mistralai`           | `MISTRAL_API_KEY`                                                      |
 | Hugging Face | `pip install transformers`        | `HF_TOKEN`                                                             |
+| vLLM         | `pip install vllm`                | None required                                                          |
 | Ollama       | `pip install openai`              | None required                                                          |
 | TogetherAI   | `pip install openai`              | `TOGETHER_API_KEY`                                                     |
 | AWS Bedrock  | `pip install boto3`               | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
@@ -34,6 +35,7 @@ To select a model for use in an evaluation task you specify it using a *model na
 | Google       | `google/gemini-1.0-pro`           | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models)             |
 | Mistral      | `mistral/mistral-large-latest`    | [Mistral Models](https://docs.mistral.ai/platform/endpoints/)                                   |
 | Hugging Face | `hf/openai-community/gpt2`        | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
+| vLLM         | `vllm/openai-community/gpt2`      | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html)                      |
 | Ollama       | `ollama/llama3`                   | [Ollama Models](https://ollama.com/library)                                                     |
 | TogetherAI   | `together/lmsys/vicuna-13b-v1.5`  | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                 |
 | AWS Bedrock  | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/)                                           |
@@ -145,7 +147,7 @@ def popularity(model):
 
 ## Provider Notes
 
-This section provides additional documentation on using the Azure AI, AWS Bedrock, and Hugging Face providers.
+This section provides additional documentation on using the Azure AI, AWS Bedrock, Hugging Face, and vLLM providers.
 
 ### Azure AI {#azure-ai}
 
@@ -260,6 +262,37 @@ Or in a call to `get_model()`
 model = get_model("hf/local", model_path="./my-model")
 ```
 
+### vLLM {#sec-vllm}
+
+The vLLM provider also implements support for local models using the [vllm](https://github.com/vllm-project/vllm/) package. You can use any vLLM model by specifying it with the `vllm/` prefix. For example:
+
+``` bash
+$ inspect eval popularity --model vllm/openai-community/gpt2
+```
+
+vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.
+
+#### Device
+
+The `device` option is also available for vLLM models, and you can use it to specify the device(s) to run the model on. For example:
+
+``` bash
+$ inspect eval popularity --model vllm/meta-llama/Meta-Llama-3-8B-Instruct -M device='0,1,2,3'
+```
+
+#### Batching
+
+vLLM automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32.
+
+#### Local Models
+
+Similar to the Hugging Face provider, you can also use local models with the vLLM provider. Use `vllm/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
+
+``` bash
+$ inspect eval popularity --model vllm/local -M model_path=./my-model
+```
+
+
 ## Helper Models
 
 Often you'll want to use language models in the implementation of [Solvers](#sec-solvers) and [Scorers](#sec-scorers). Inspect includes some critique solvers and model graded scorers that do this, and you'll often want to do the same in your own.
@@ -317,6 +350,7 @@ The additional `model_args` are forwarded as follows for the various providers:
 | Google       | `genai.configure`                      |
 | Mistral      | `MistralAsyncClient`                   |
 | Hugging Face | `AutoModelForCausalLM.from_pretrained` |
+| vLLM         | `SamplingParams`                       |
 | Ollama       | `AsyncOpenAI`                          |
 | TogetherAI   | `AsyncOpenAI`                          |
 | AzureAI      | Chat HTTP Post Body                    |
@@ -324,7 +358,7 @@ The additional `model_args` are forwarded as follows for the various providers:
 
 : {tbl-colwidths="\[30,70\]"}
 
-See the OpenAI, Anthropic, Google, Mistral, Hugging Face, Ollama, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.
+See the OpenAI, Anthropic, Google, Mistral, Hugging Face, vLLM, Ollama, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.
 
 ## Custom Models
 
