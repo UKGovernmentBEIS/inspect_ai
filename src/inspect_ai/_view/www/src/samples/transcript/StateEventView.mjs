@@ -8,10 +8,9 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param {import("../../types/log").StateEvent | import("../../types/log").StoreEvent} props.event - The event object to display.
- * @param {number} props.index - The index of the event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StateEventView = ({ event, index }) => {
+export const StateEventView = ({ event }) => {
   const mutations = event.changes.map((change) => {
     // TODO: change.from is always undefined
 
@@ -26,7 +25,7 @@ export const StateEventView = ({ event, index }) => {
     return html`
       <div style=${baseStyle}>${symbol ? symbol : ""}</div>
       <code style=${baseStyle}>${change.path}</code>
-      <div style=${toStyle}>${renderValue(change, index)}</div>
+      <div style=${toStyle}>${renderValue(change)}</div>
     `;
   });
 
@@ -103,19 +102,11 @@ const backgroundForOp = (op) => {
  * Renders the value of a change based on its type.
  *
  * @param {import("../../types/log").JsonChange} change - The change object containing the value.
- * @param {number} index - The index of the change.
  * @returns {import("preact").JSX.Element|Object|string} - The rendered HTML template if the value is an object with content and source, otherwise the value itself.
  */
-const renderValue = (change, index) => {
-  if (change.value && typeof change.value === "object") {
-    if (change.value["content"] && change.value["source"]) {
-      return html`<${ChatView}
-        id="model-input-${index}"
-        messages=${[change.value]}
-      />`;
-    }
-    return change.value;
-  } else {
-    return change.value;
-  }
+const renderValue = (change) => {
+
+  const contents = typeof change.value === "object" || Array.isArray(change.value) ? JSON.stringify(change.value, null, 2) : change.value;
+
+  return html`<pre style=${{ whiteSpace: "pre-wrap", wordBreak: "break-word"}}>${contents}</pre>`;
 };
