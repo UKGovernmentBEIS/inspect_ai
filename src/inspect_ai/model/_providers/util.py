@@ -47,7 +47,7 @@ def parse_tool_call(id: str, function: str, arguments: str) -> ToolCall:
         arguments_dict = json.loads(arguments)
     except json.JSONDecodeError as ex:
         # define and log error
-        error = f"Error parsing the following tool call arguments:\n{arguments}\nError details: {ex}"
+        error = f"Error parsing the following tool call arguments:\n\n{arguments}\n\nError details: {ex}"
         logger.info(error)
 
     # return ToolCall with error payload
