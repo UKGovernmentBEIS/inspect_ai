@@ -2,7 +2,9 @@
 
 ## v0.3.19 (Unreleased)
 
+- Gracefully handle tool calls that include only a single value (rather than a named dict of parameters).
 - Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
+- Add `cwd` argument to `ToolEnvironment.exec()`. 
 
 ## v0.3.18 (14 July 2024)
 
