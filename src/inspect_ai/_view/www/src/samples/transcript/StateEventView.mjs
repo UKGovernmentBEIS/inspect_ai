@@ -38,7 +38,7 @@ export const StateEventView = ({ event, index }) => {
   <div 
     style=${{
       display: "grid",
-      gridTemplateColumns: "max-content max-content minmax(max-content, 1fr)",
+      gridTemplateColumns: "max-content max-content 1fr",
       columnGap: "1em"
     }}
   >
