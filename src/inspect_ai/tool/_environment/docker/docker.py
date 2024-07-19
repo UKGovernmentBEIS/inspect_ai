@@ -174,20 +174,28 @@ class DockerToolEnvironment(ToolEnvironment):
         self,
         cmd: list[str],
         input: str | bytes | None = None,
+        cwd: str | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
     ) -> ExecResult[str]:
+        # additional args
+        args = []
+
+        # specify working if requested
+        if cwd:
+            args.append("--workdir")
+            args.append(cwd)
+
         # Forward environment commands to docker compose exec so they
         # will be available to the bash command
-        env_args = []
         if len(env.items()) > 0:
             for key, value in env.items():
-                env_args.append("--env")
-                env_args.append(f"{key}={value}")
+                args.append("--env")
+                args.append(f"{key}={value}")
 
         try:
             result = await compose_exec(
-                env_args + [self._service] + cmd,
+                args + [self._service] + cmd,
                 project=self._project,
                 timeout=timeout,
                 input=input,
