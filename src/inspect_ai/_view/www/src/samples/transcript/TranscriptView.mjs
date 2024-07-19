@@ -59,6 +59,7 @@ export const TranscriptView = ({ transcript }) => {
       display: "grid",
       gridTemplateColumns: "auto max-content auto",
       columnGap: "1em",
+      rowGap: "0.5em"
     }}
   >
     ${rows}

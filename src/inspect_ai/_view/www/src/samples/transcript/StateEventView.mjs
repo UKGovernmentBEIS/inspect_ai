@@ -34,8 +34,8 @@ export const StateEventView = ({ event, index }) => {
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 
   return html`
-  <div>${title}</div>
-  <div
+  <div style=${{textTransform: "uppercase", fontSize: "0.7rem"}}>${title}</div>
+  <div 
     style=${{
       display: "grid",
       gridTemplateColumns: "max-content max-content minmax(max-content, 1fr)",

@@ -15,7 +15,7 @@ export const StepEventViewEnd = ({ event, stepStartTime }) => {
     new Date(event.timestamp).getTime() - stepStartTime.getTime();
   const durationSec = durationMs / 1000;
 
-  return html`<div style=${{ marginBottom: "2em" }}>
+  return html`<div style=${{ marginBottom: "2em", textTransform: "uppercase", fontSize: "0.7rem" }}>
     ${event.name} finished (${formatTime(durationSec)})
   </div>`;
 };

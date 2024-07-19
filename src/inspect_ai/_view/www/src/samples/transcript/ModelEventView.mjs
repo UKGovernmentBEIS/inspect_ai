@@ -38,18 +38,10 @@ export const ModelEventView = ({ event, index }) => {
   return html`
     <div
       style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content auto",
-        columnGap: "0.5em",
       }}
     >
-      <div style=${{ fontWeight: 600 }}>
-        <i class="${ApplicationIcons.model}" />
-      </div>
-      <div style=${{ fontWeight: 600 }}>${event.model}</div>
-      <div></div>
+      <div style=${{ textTransform: "uppercase", fontSize: "0.7rem" }}>${event.model}</div>
       <div><${MetaDataView} entries=${modelProperties} compact=${true} /></div>
-      <div></div>
       <div>
         <${ChatView}
           id="model-input-${index}"
