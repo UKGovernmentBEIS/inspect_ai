@@ -11,12 +11,11 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._model import ModelAPI, simple_input_messages
 from .._generate_config import GenerateConfig
-from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
+from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._model_output import (
     Logprob,
     Logprobs,
     ModelOutput,
-    ModelUsage,
     TopLogprob,
     ChatCompletionChoice,
     ModelUsage
@@ -160,6 +159,9 @@ class VLLMAPI(ModelAPI):
             kwargs["max_tokens"] = DEFAULT_MAX_TOKENS
 
         if config.temperature is not None:
+            # for some reason vllm doesn't generate anything for 0 < temperature < 0.02
+            if 0 < config.temperature > 0.02:
+                config.temperature = 0.02
             kwargs["temperature"] = config.temperature
         if config.top_p is not None:
             kwargs["top_p"] = config.top_p
