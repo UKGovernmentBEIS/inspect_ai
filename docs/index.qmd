@@ -66,6 +66,13 @@ $ export HF_TOKEN=your-hf-token
 $ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 ```
 
+#### vLLM
+
+``` bash
+$ pip install vllm
+$ inspect eval arc.py --model vllm/meta-llama/Llama-2-7b-chat-hf
+```
+
 #### Together
 
 ``` bash

@@ -202,7 +202,6 @@ def metric(name: str) -> Callable[..., MetricType]: ...
 
 
 @overload
-# type: ignore
 def metric(name: Callable[..., Metric]) -> Callable[..., Metric]: ...
 
 

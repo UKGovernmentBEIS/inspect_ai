@@ -91,34 +91,34 @@ class GenerateConfig(BaseModel):
     """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
 
     best_of: int | None = Field(default=None)
-    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only."""
+    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI and vLLM only."""
 
     frequency_penalty: float | None = Field(default=None)
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI only."""
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI and vLLM only."""
 
     presence_penalty: float | None = Field(default=None)
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI only."""
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI and vLLM only."""
 
     logit_bias: dict[int, float] | None = Field(default=None)
     """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI only."""
 
     seed: int | None = Field(default=None)
-    """Random seed. OpenAI and Mistral only."""
+    """Random seed. OpenAI, Mistral, HuggingFace, and vLLM only."""
 
     suffix: str | None = Field(default=None)
     """The suffix that comes after a completion of inserted text. OpenAI only."""
 
     top_k: int | None = Field(default=None)
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
+    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only."""
 
     num_choices: int | None = Field(default=None)
-    """How many chat completion choices to generate for each input message. OpenAI, Google, and TogetherAI only."""
+    """How many chat completion choices to generate for each input message. OpenAI, Google, TogetherAI, and vLLM only."""
 
     logprobs: bool | None = Field(default=None)
-    """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
+    """Return log probabilities of the output tokens. OpenAI, TogetherAI, Huggingface, and vLLM only."""
 
     top_logprobs: int | None = Field(default=None)
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Huggingface, and vLLM only."""
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]
