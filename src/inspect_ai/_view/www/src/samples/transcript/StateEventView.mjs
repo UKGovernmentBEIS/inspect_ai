@@ -28,10 +28,12 @@ export const StateEventView = ({ event, index }) => {
     `;
   });
 
-  return html`<div
+  return html`
+  <div>State Updated</div>
+  <div
     style=${{
       display: "grid",
-      gridTemplateColumns: "max-content auto auto",
+      gridTemplateColumns: "max-content max-content minmax(max-content, 1fr)",
       columnGap: "1em"
     }}
   >
