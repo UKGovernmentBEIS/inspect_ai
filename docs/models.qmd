@@ -13,6 +13,7 @@ Inspect has built in support for a variety of language model API providers and c
 | TogetherAI   | `pip install openai`              | `TOGETHER_API_KEY`                                                     |
 | AWS Bedrock  | `pip install boto3`               | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
 | Azure AI     | None required                     | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL`                      |
+| Groq         | `pip install groq`                | `GROQ_API_KEY`                                                         |
 | Cloudflare   | None required                     | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`                     |
 | Hugging Face | `pip install transformers`        | None required                                                          |
 | vLLM         | `pip install vllm`                | None required                                                          |
@@ -28,7 +29,7 @@ Note that some providers ([Ollama](https://github.com/ollama/ollama/blob/main/do
 
 To select a model for use in an evaluation task you specify it using a *model name*. Model names include their API provider and the specific model to use (e.g. `openai/gpt-4`) Here are the supported providers along with example model names and links to documentation on all available models:
 
-| Provider     | Model Name                        | Docs                                                                                            |
+| Provider     | Example                        | Docs                                                                                            |
 |-------------------|---------------------------|---------------------------|
 | OpenAI       | `openai/gpt-3.5-turbo`            | [OpenAI Models](https://platform.openai.com/docs/models/overview)                               |
 | Anthropic    | `anthropic/claude-2.1`            | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview)                      |
@@ -39,7 +40,8 @@ To select a model for use in an evaluation task you specify it using a *model na
 | Ollama       | `ollama/llama3`                   | [Ollama Models](https://ollama.com/library)                                                     |
 | TogetherAI   | `together/lmsys/vicuna-13b-v1.5`  | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                 |
 | AWS Bedrock  | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/)                                           |
-| Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)                                          |
+| Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)         
+| Groq         | `groq/mixtral-8x7b-32768`    | [Groq Models](https://console.groq.com/docs/models)       |                                 |
 | Cloudflare   | `cf/meta/llama-2-7b-chat-fp16`    | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation)       |
 
 : {tbl-colwidths="\[18,45,37\]"}
@@ -82,6 +84,7 @@ Each model also can use a different base URL than the default (e.g. if running t
 | Ollama      | `OLLAMA_BASE_URL`     |
 | AWS Bedrock | `BEDROCK_BASE_URL`    |
 | Azure AI    | `AZUREAI_BASE_URL`    |
+| Groq        | `GROQ_BASE_URL`       |
 | Cloudflare  | `CLOUDFLARE_BASE_URL` |
 
 : {tbl-colwidths="\[50,50\]"}
