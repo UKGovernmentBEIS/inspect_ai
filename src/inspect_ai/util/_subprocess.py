@@ -27,7 +27,6 @@ class ExecResult(Generic[T]):
 
 
 @overload
-# type: ignore
 async def subprocess(
     args: str | list[str],
     text: Literal[True] = True,

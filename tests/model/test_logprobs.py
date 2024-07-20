@@ -53,3 +53,17 @@ async def test_hf_logprobs() -> None:
         and response.choices[0].logprobs.content[0].top_logprobs is not None
     )
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
+
+
+@pytest.mark.asyncio
+@skip_if_github_action
+async def test_vllm_logprobs() -> None:
+    response = await generate_with_logprobs(
+        "vllm/EleutherAI/pythia-70m",
+        chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
+    )
+    assert (
+        response.choices[0].logprobs
+        and response.choices[0].logprobs.content[0].top_logprobs is not None
+    )
+    assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2

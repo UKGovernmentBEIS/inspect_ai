@@ -6,6 +6,7 @@ from openai.types.chat import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai.tool._tool_info import ToolInfo
 
 from .._generate_config import GenerateConfig
 from .._model_output import ChatCompletionChoice, Logprob, Logprobs
@@ -17,7 +18,7 @@ from .util import as_stop_reason, model_base_url
 
 
 def chat_choices_from_response_together(
-    response: ChatCompletion,
+    response: ChatCompletion, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
     choices = list(response.choices)
     choices.sort(key=lambda c: c.index)
@@ -45,7 +46,7 @@ def chat_choices_from_response_together(
         logprobs_models.append(Logprobs(content=logprobs_sequence))
     return [
         ChatCompletionChoice(
-            message=chat_message_assistant(choice.message),
+            message=chat_message_assistant(choice.message, tools),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=logprobs,
         )
@@ -78,6 +79,6 @@ class TogetherAIAPI(OpenAIAPI):
 
     # Together has a slightly different logprobs structure to OpenAI, so we need to remap it.
     def _chat_choices_from_response(
-        self, response: ChatCompletion
+        self, response: ChatCompletion, tools: list[ToolInfo]
     ) -> list[ChatCompletionChoice]:
-        return chat_choices_from_response_together(response)
+        return chat_choices_from_response_together(response, tools)

@@ -96,6 +96,16 @@ def hf() -> type[ModelAPI]:
     return HuggingFaceAPI
 
 
+@modelapi(name="vllm")
+def vllm() -> type[ModelAPI]:
+    try:
+        from .vllm import VLLMAPI
+    except ImportError:
+        raise pip_dependency_error("vLLM Models", ["vllm"])
+
+    return VLLMAPI
+
+
 @modelapi(name="cf")
 def cf() -> type[ModelAPI]:
     from .cloudflare import CloudFlareAPI
