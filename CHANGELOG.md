@@ -2,7 +2,7 @@
 
 ## v0.3.19 (Unreleased)
 
-- New vLLM model provider (uses vllm package for local inference, see [details](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/docs/models.qmd#L265-L294) here).
+- [vLLM model provider](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) for higher performance use of Hugging Face and other local models.
 - Gracefully handle tool calls that include only a single value (rather than a named dict of parameters).
 - Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
 - Add `cwd` argument to `ToolEnvironment.exec()`.
