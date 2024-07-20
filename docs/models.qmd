@@ -11,7 +11,7 @@ Inspect has built in support for a variety of language model API providers and c
 | Google       | `pip install google-generativeai` | `GOOGLE_API_KEY`                                                       |
 | Mistral      | `pip install mistralai`           | `MISTRAL_API_KEY`                                                      |
 | Hugging Face | `pip install transformers`        | `HF_TOKEN`                                                             |
-| vLLM         | `pip install vllm`                | None required                                                          |
+| vLLM         | `pip install vllm`                | None required or `OPENAI_API_KEY` if using OpenAI compatible server    |
 | Ollama       | `pip install openai`              | None required                                                          |
 | TogetherAI   | `pip install openai`              | `TOGETHER_API_KEY`                                                     |
 | AWS Bedrock  | `pip install boto3`               | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
@@ -291,6 +291,25 @@ Similar to the Hugging Face provider, you can also use local models with the vLL
 ``` bash
 $ inspect eval popularity --model vllm/local -M model_path=./my-model
 ```
+
+#### OpenAI Compatible Server
+
+Alternatively, vLLM can be run as an OpenAI compatible sever like so
+
+```bash
+export CUDA_VISIBLE_DEVICES=0
+python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --api-key token-abc123
+```
+
+`--api-key` sets the API key needed to send requests to the vLLM server. Optionally, you can set the host and port (i.e. if the default port is already in use) with the cli flags `--host 0.0.0.0 --port 8000`. For more documentation on running a vLLM server see [here](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html) or run `python -m vllm.entrypoints.openai.api_server --help`.
+
+You can then use the model with inspect by prefixing the model name with `openai/`
+```bash
+export OPENAI_BASE_URL=http://localhost:8080/v1
+export OPENAI_API_KEY=token-abc123
+inspect eval examples/popularity.py --model openai/meta-llama/Meta-Llama-3-8B-Instruct
+```
+You can also use `--model-base-url http://localhost:8000/v1` and `-M api-key=token-abc123` instead of setting the environment variables.
 
 
 ## Helper Models
