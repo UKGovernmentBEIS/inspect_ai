@@ -1,5 +1,5 @@
 import pytest
-from test_helpers.utils import skip_if_github_action
+from test_helpers.utils import skip_if_github_action, skip_if_no_vllm
 
 from inspect_ai.model import (
     ChatMessageUser,
@@ -10,7 +10,8 @@ from inspect_ai.model import (
 
 @pytest.mark.asyncio
 @skip_if_github_action
-async def test_hf_api() -> None:
+@skip_if_no_vllm
+async def test_vllm_api() -> None:
     model = get_model(
         "vllm/EleutherAI/pythia-70m",
         config=GenerateConfig(

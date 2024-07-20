@@ -3,6 +3,7 @@ from test_helpers.utils import (
     skip_if_github_action,
     skip_if_no_openai,
     skip_if_no_together,
+    skip_if_no_vllm,
 )
 
 from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput, get_model
@@ -57,6 +58,7 @@ async def test_hf_logprobs() -> None:
 
 @pytest.mark.asyncio
 @skip_if_github_action
+@skip_if_no_vllm
 async def test_vllm_logprobs() -> None:
     response = await generate_with_logprobs(
         "vllm/EleutherAI/pythia-70m",

@@ -135,7 +135,6 @@ dev = [
     "types-protobuf",
     "types-psutil",
     "types-python-dateutil",
-    "vllm",
     "wikipedia"
 ]
 doc = ["quarto-cli", "jupyter"]
