@@ -130,7 +130,7 @@ class HuggingFaceAPI(ModelAPI):
         if config.top_k is not None:
             kwargs["top_k"] = config.top_k
         if config.logprobs is not None:
-            kwargs["output_logits"] = True
+            kwargs["output_logits"] = config.logprobs
         if "return_dict_in_generate" in kwargs:
             assert kwargs["return_dict_in_generate"]
         kwargs["return_dict_in_generate"] = True

@@ -126,7 +126,6 @@ def solver(name: str) -> Callable[..., SolverType]: ...
 
 
 @overload
-# type: ignore
 def solver(name: Callable[..., Solver]) -> Callable[..., Solver]: ...
 
 

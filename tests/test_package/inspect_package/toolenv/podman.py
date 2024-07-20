@@ -29,6 +29,7 @@ class PodmanToolEnvironment(ToolEnvironment):
         self,
         cmd: list[str],
         input: str | bytes | None = None,
+        cwd: str | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
     ) -> ExecResult[str]:
