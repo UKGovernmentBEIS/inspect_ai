@@ -5,6 +5,7 @@ from test_helpers.tools import addition, exec, read_file
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
 )
@@ -172,6 +173,11 @@ def test_anthropic_tools():
 @skip_if_no_mistral
 def test_mistral_tools():
     check_tools("mistral/mistral-large-latest")
+
+
+@skip_if_no_groq
+def test_groq_tools():
+    check_tools("groq/mixtral-8x7b-32768")
 
 
 @skip_if_no_google
