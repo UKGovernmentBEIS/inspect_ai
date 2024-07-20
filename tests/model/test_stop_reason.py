@@ -1,10 +1,10 @@
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_together,
-    skip_if_no_groq,
 )
 
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
