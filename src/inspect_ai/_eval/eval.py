@@ -32,7 +32,7 @@ from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
 from .task import PreviousTask, Tasks
 from .task.log import TaskLogger
-from .task.run import create_sample_semaphore, task_run
+from .task.run import TaskRunOptions, create_sample_semaphore, task_run
 from .task.util import task_run_dir
 
 log = logging.getLogger(__name__)
@@ -261,29 +261,53 @@ async def eval_async(
             log_buffer=log_buffer,
         )
 
-        # run tasks (batch so that multiple models are executed in parallel)
+        # run tasks - 2 codepaths, one for the traditional task at a time
+        # (w/ optional multiple models) and the other for true multi-task
+        # (which requires different scheduling and UI)
         run_id = uuid()
-        results: list[EvalLog] = []
-        for sequence in range(0, len(resolved_tasks) // len(models)):
-            task_batch = list(filter(lambda t: t.sequence == sequence, resolved_tasks))
-            results.extend(
-                await eval_parallel(
-                    run_id=run_id,
-                    tasks=task_batch,
-                    eval_config=eval_config,
-                    recorder=recorder,
-                    model_args=model_args,
-                    plan=plan,
-                    score=score,
-                    **kwargs,
-                )
-            )
-            # exit the loop if there was a cancellation
-            if any([result.status == "cancelled" for result in results]):
-                break
+        max_tasks = 1 if max_tasks is None else max_tasks
+        num_tasks = len(resolved_tasks) // len(models)
 
-        # return list of eval logs
-        return EvalLogs(results)
+        # single 'logical' task (could be multi-model) or tasks capped to 1
+        if max_tasks == 1 or num_tasks == 1:
+            results: list[EvalLog] = []
+            for sequence in range(0, num_tasks):
+                task_batch = list(
+                    filter(lambda t: t.sequence == sequence, resolved_tasks)
+                )
+                results.extend(
+                    await eval_parallel(
+                        run_id=run_id,
+                        tasks=task_batch,
+                        eval_config=eval_config,
+                        recorder=recorder,
+                        model_args=model_args,
+                        plan=plan,
+                        score=score,
+                        **kwargs,
+                    )
+                )
+                # exit the loop if there was a cancellation
+                if any([result.status == "cancelled" for result in results]):
+                    break
+
+            # return list of eval logs
+            return EvalLogs(results)
+
+        # multiple logical tasks AND tasks not capped at 1
+        else:
+            results = await eval_parallel(
+                run_id=run_id,
+                tasks=resolved_tasks,
+                eval_config=eval_config,
+                recorder=recorder,
+                model_args=model_args,
+                plan=plan,
+                score=score,
+                **kwargs,
+            )
+            return EvalLogs(results)
+
     finally:
         _eval_async_running = False
 
@@ -306,14 +330,10 @@ async def eval_parallel(
     # alias these and then confirm that the rest of the tasks conform
     run_dir = task_run_dir(tasks[0].task)
     if any([task_run_dir(task.task) != run_dir for task in tasks]):
-        raise RuntimeError(
-            "Tasks passed to eval_parallel must have the same working directory."
-        )
+        raise RuntimeError("Parallel tasks must have the same working directory.")
     toolenv = next((task.toolenv for task in tasks if task.toolenv is not None), None)
     if any([task.toolenv is not None and task.toolenv != toolenv for task in tasks]):
-        raise RuntimeError(
-            "Tasks passed to eval_parallel must have the same tool environment."
-        )
+        raise RuntimeError("Parallel tasks must have the same tool environment.")
 
     # if we have a toolenv then we need to enforce sample concurrency at
     # this level of the eval (so we don't explode the # of toolenvs)
@@ -334,8 +354,8 @@ async def eval_parallel(
             )
 
         try:
-            # create asyncio tasks
-            asyncio_tasks: list[asyncio.Task[EvalLog]] = []
+            # create run tasks
+            task_run_options: list[TaskRunOptions] = []
             for resolved_task in tasks:
                 # tasks can provide their own epochs and max_messages
                 task = resolved_task.task
@@ -363,24 +383,27 @@ async def eval_parallel(
                 )
 
                 # append task
-                asyncio_tasks.append(
-                    asyncio.create_task(
-                        task_run(
-                            task=task,
-                            model=resolved_task.model,
-                            toolenv=toolenv,
-                            logger=logger,
-                            config=task_eval_config,
-                            plan=plan,
-                            score=score,
-                            sample_source=resolved_task.sample_source,
-                            sample_semaphore=sample_semaphore,
-                            **kwargs,
-                        )
+                task_run_options.append(
+                    TaskRunOptions(
+                        task=task,
+                        model=resolved_task.model,
+                        toolenv=toolenv,
+                        logger=logger,
+                        config=task_eval_config,
+                        plan=plan,
+                        score=score,
+                        sample_source=resolved_task.sample_source,
+                        sample_semaphore=sample_semaphore,
+                        kwargs=kwargs,
                     )
                 )
 
-            # run all of the tasks in parallel
+            # create the tasks
+            asyncio_tasks = [
+                asyncio.create_task(task_run(options)) for options in task_run_options
+            ]
+
+            # run them all in parallel
             with display().live_task_status():
                 return await asyncio.gather(*asyncio_tasks)
 
