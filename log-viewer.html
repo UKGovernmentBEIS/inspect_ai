@@ -298,6 +298,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#filtering-and-sorting" id="toc-filtering-and-sorting" class="nav-link" data-scroll-target="#filtering-and-sorting">Filtering and Sorting</a></li>
   <li><a href="#python-logging" id="toc-python-logging" class="nav-link" data-scroll-target="#python-logging">Python Logging</a></li>
   <li><a href="#task-information" id="toc-task-information" class="nav-link" data-scroll-target="#task-information">Task Information</a></li>
+  <li><a href="#viewer-embedding" id="toc-viewer-embedding" class="nav-link" data-scroll-target="#viewer-embedding">Viewer Embedding</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -415,6 +416,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="task-information">Task Information</h2>
 <p>The <strong>Info</strong> panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, plan, and scorer details, git revision, and model token usage:</p>
 <p><a href="images/inspect-view-info.png" class="lightbox" data-gallery="quarto-lightbox-gallery-11"><img src="images/inspect-view-info.png" class="border img-fluid" alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, plan, and scorer details, git revision, and model token usage."></a></p>
+</section>
+<section id="viewer-embedding" class="level2">
+<h2 class="anchored" data-anchor-id="viewer-embedding">Viewer Embedding</h2>
+<p>The log viewer can be published to a static web server and linked to or embedded in another page (for example, in an iframe). To embed the viewer:</p>
+<ol type="1">
+<li><p>Copy the contents of the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/_view/www"><code>www</code></a> directory (<code>src/inspect_ai/_view/www</code>) to the folder you will be publishing.</p></li>
+<li><p>Create a <code>logs</code> sub-directory within the folder into which you placed the contents of the <code>www</code> directory. Place any logs you’d like to display within this <code>logs</code> folder.</p></li>
+<li><p>Link to the viewer with the query parameter <code>log_file</code> and the path to a log file. For example:</p>
+<p><code>https://&lt;deployment url&gt;/?log_file=logs/2024-07-18T09-00-04-04-00_bash_QuRMsu7hRUWrJjxe8xePLa.json</code></p></li>
+</ol>
 
 
 </section>
@@ -947,7 +958,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"selector":".lightbox","loop":false,"closeEffect":"zoom","openEffect":"zoom","descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","openEffect":"zoom","loop":false,"descPosition":"bottom","closeEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
