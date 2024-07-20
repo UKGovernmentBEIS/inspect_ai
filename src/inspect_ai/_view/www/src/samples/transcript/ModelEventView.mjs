@@ -2,7 +2,6 @@
 import { html } from "htm/preact";
 import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
 
 /**
  * Renders the StateEventView component.

@@ -1,6 +1,5 @@
 // @ts-check
 import { html } from "htm/preact";
-import { ChatView } from "../../components/ChatView.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 
 /**
