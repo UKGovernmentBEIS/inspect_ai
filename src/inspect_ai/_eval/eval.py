@@ -23,7 +23,7 @@ from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
 )
-from inspect_ai.model._model import resolve_models
+from inspect_ai.model._model import init_active_model, resolve_models
 from inspect_ai.solver import Plan, Solver
 from inspect_ai.tool import ToolEnvironmentSpec
 from inspect_ai.tool._environment.context import startup_tool_environments
@@ -219,13 +219,14 @@ async def eval_async(
         init_eval_context(max_subprocesses)
 
         # resolve models
-        models = resolve_models(
-            model, model_base_url, model_args, GenerateConfig(**kwargs)
-        )
+        generate_config = GenerateConfig(**kwargs)
+        models = resolve_models(model, model_base_url, model_args, generate_config)
 
-        # resolve tasks
+        # resolve tasks (set active model to resolve uses of the
+        # 'default' model in tools, solvers, and scorers)
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
+            init_active_model(m, generate_config)
             resolved_tasks.extend(resolve_tasks(tasks, task_args, m, toolenv))
 
         # warn and return empty string if we resolved no tasks

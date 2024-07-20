@@ -666,7 +666,6 @@ def combine_messages(
 def init_active_model(model: Model, config: GenerateConfig) -> None:
     active_model_context_var.set(model)
     active_generate_config_context_var.set(config)
-    init_model_usage()
 
 
 def active_model() -> Model | None:
