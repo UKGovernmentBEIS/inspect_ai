@@ -739,12 +739,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="vllm-server" class="level4">
 <h4 class="anchored" data-anchor-id="vllm-server">vLLM Server</h4>
-<p>vLLM supports running in server mode and serving requests to remote clients. vLLM server provides an OpenAI-compatible endpoint, so you use the Inspect OpenAI provider rather than the vLLM provider to access it. The key is to set the model base URL to point to the vLLM server rather than OpenAI. For example:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval examples/popularity.py <span class="dt">\</span></span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> openai/meta-llama/Meta-Llama-3-8B-Instruct <span class="dt">\</span></span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model-base-url</span> http://localhost:8080/v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that if you started the vLLM Server with an <code>--api-key</code> argument, you would also need to set the <code>OPENAI_API_KEY</code> environment variable to the requisite value.</p>
-<p>See the documentation on <a href="https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html">vLLM Server</a> for additional details on server mode.</p>
+<p>vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the OpenAI provider rather than the vLLM provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_BASE_URL=http://localhost:8080/v1</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_API_KEY=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py <span class="at">--model</span> openai/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also use the CLI arguments <code>--model-base-url</code> and <code>-M api-key=&lt;your-key&gt;</code> rather than setting environment variables.</p>
+<p>See the vLLM documentation on <a href="https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html">Server Mode</a> for additional details.</p>
 </section>
 </section>
 </section>
