@@ -53,6 +53,7 @@ def eval(
     epochs: int | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
+    max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -89,7 +90,9 @@ def eval(
         max_messages (int | None): Maximum number of messages to allow
            in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
-           (default is running all samples in parallel)
+           (default is max_connections)
+        max_tasks (int | None): Maximum number of tasks to run in parallel
+           (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -122,6 +125,7 @@ def eval(
             epochs=epochs,
             max_messages=max_messages,
             max_samples=max_samples,
+            max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             log_samples=log_samples,
             log_images=log_images,
@@ -147,6 +151,7 @@ async def eval_async(
     epochs: int | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
+    max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -183,7 +188,9 @@ async def eval_async(
         max_messages (int | None): Maximum number of messages to allow
             in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
-           (default is running all samples in parallel)
+           (default is max_connections)
+        max_tasks (int | None): Maximum number of tasks to run in parallel
+           (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -246,6 +253,7 @@ async def eval_async(
             epochs=epochs,
             max_messages=max_messages,
             max_samples=max_samples,
+            max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             toolenv_cleanup=toolenv_cleanup,
             log_samples=log_samples,
@@ -392,6 +400,7 @@ def eval_retry(
     log_level: str | None = None,
     log_dir: str | None = None,
     max_samples: int | None = None,
+    max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     toolenv_cleanup: bool | None = None,
     log_samples: bool | None = None,
@@ -412,7 +421,9 @@ def eval_retry(
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
         max_samples (int | None): Maximum number of samples to run in parallel
-           (default is running all samples in parallel)
+           (default is max_connections)
+        max_tasks (int | None): Maximum number of tasks to run in parallel
+           (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
         toolenv_cleanup (bool | None): Cleanup tool environments after task completes
@@ -441,6 +452,7 @@ def eval_retry(
             log_level=log_level,
             log_dir=log_dir,
             max_samples=max_samples,
+            max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             toolenv_cleanup=toolenv_cleanup,
             log_samples=log_samples,
@@ -459,6 +471,7 @@ async def eval_retry_async(
     log_level: str | None = None,
     log_dir: str | None = None,
     max_samples: int | None = None,
+    max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     toolenv_cleanup: bool | None = None,
     log_samples: bool | None = None,
@@ -479,7 +492,9 @@ async def eval_retry_async(
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
         max_samples (int | None): Maximum number of samples to run in parallel
-           (default is running all samples in parallel)
+           (default is max_connections)
+        max_tasks (int | None): Maximum number of tasks to run in parallel
+           (default is 1)
         max_subprocesses (int): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
         toolenv_cleanup (bool | None): Cleanup tool environments after task completes
@@ -547,7 +562,8 @@ async def eval_retry_async(
         limit = eval_log.eval.config.limit
         epochs = eval_log.eval.config.epochs
         max_messages = eval_log.eval.config.max_messages
-        max_samples = max_samples
+        max_samples = max_samples or eval_log.eval.config.max_samples
+        max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
         toolenv_cleanup = (
             toolenv_cleanup
@@ -585,6 +601,7 @@ async def eval_retry_async(
                 epochs=epochs,
                 max_messages=max_messages,
                 max_samples=max_samples,
+                max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 log_samples=log_samples,
                 log_images=log_images,
