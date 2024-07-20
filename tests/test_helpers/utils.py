@@ -16,9 +16,9 @@ def skip_if_env_var(var: str, exists=True):
     )
 
 
-
 def skip_if_no_groq(func):
     return skip_if_env_var("GROQ_API_KEY", exists=False)(func)
+
 
 def skip_if_no_package(package):
     return pytest.mark.skipif(
@@ -26,11 +26,14 @@ def skip_if_no_package(package):
         reason=f"Test doesn't work without package {package} installed",
     )
 
+
 def skip_if_no_vllm(func):
     return skip_if_no_package("vllm")(func)
 
+
 def skip_if_no_transformers(func):
     return skip_if_no_package("transformers")(func)
+
 
 def skip_if_no_openai(func):
     return skip_if_env_var("OPENAI_API_KEY", exists=False)(func)

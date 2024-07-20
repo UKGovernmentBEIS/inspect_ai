@@ -1,25 +1,31 @@
+import json
 import os
-from typing import Any, List, Dict, Optional, Union, Literal
+from typing import Any, Dict, List, Optional
 
-from groq import AsyncGroq
 from groq import (
-    APIConnectionError,
-    APIStatusError,
+    AsyncGroq,
     RateLimitError,
-    BadRequestError,
-    AuthenticationError,
-    PermissionDeniedError,
-    NotFoundError,
-    UnprocessableEntityError,
-    InternalServerError,
-    APITimeoutError,
+)
+from groq.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+    ChatCompletionMessageToolCallParam,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionToolMessageParam,
+    ChatCompletionUserMessageParam,
 )
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
-from inspect_ai.tool import ToolCall, ToolFunction, ToolInfo
+from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
-from .._chat_message import ChatMessageAssistant
+from .._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
@@ -27,18 +33,6 @@ from .._util import chat_api_tool
 from .util import as_stop_reason, model_base_url, parse_tool_call
 
 GROQ_API_KEY = "GROQ_API_KEY"
-
-
-# Define a type for ChatMessage
-class ChatMessage:
-    role: str
-    text: str
-    tool_calls: Optional[List[ToolCall]] = None
-    tool_call_id: Optional[str] = None
-
-
-# Define a type for ToolChoice
-ToolChoice = Union[ToolFunction, Literal["any", "none"]]
 
 
 class GroqAPI(ModelAPI):
@@ -77,57 +71,43 @@ class GroqAPI(ModelAPI):
 
     async def generate(
         self,
-        input: List[ChatMessage],
-        tools: Optional[List[ToolInfo]] = None,
-        tool_choice: Optional[ToolChoice] = None,
-        config: GenerateConfig = GenerateConfig(),
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
     ) -> ModelOutput:
         messages = await as_groq_chat_messages(input)
 
-        try:
-            params = self.completion_params(config)
-            if tools:
-                params["tools"] = chat_tools(tools)
-                params["tool_choice"] = (
-                    chat_tool_choice(tool_choice) if tool_choice else "auto"
+        params = self.completion_params(config)
+        if tools:
+            params["tools"] = chat_tools(tools)
+            params["tool_choice"] = (
+                chat_tool_choice(tool_choice) if tool_choice else "auto"
+            )
+
+        response = await self.client.chat.completions.create(
+            messages=messages,
+            model=self.model_name,
+            **params,
+        )
+
+        choices = self._chat_choices_from_response(response, tools)
+        return ModelOutput(
+            model=response.model,
+            choices=choices,
+            usage=(
+                ModelUsage(
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens,
                 )
-
-            response = await self.client.chat.completions.create(
-                messages=messages,
-                model=self.model_name,
-                **params,
-            )
-
-            choices = self._chat_choices_from_response(response)
-            return ModelOutput(
-                model=response.model,
-                choices=choices,
-                usage=(
-                    ModelUsage(
-                        input_tokens=response.usage.prompt_tokens,
-                        output_tokens=response.usage.completion_tokens,
-                        total_tokens=response.usage.total_tokens,
-                    )
-                    if response.usage
-                    else None
-                ),
-            )
-        except (
-            APIConnectionError,
-            APIStatusError,
-            RateLimitError,
-            BadRequestError,
-            AuthenticationError,
-            PermissionDeniedError,
-            NotFoundError,
-            UnprocessableEntityError,
-            InternalServerError,
-            APITimeoutError,
-        ) as e:
-            raise
+                if response.usage
+                else None
+            ),
+        )
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
-        params = {}
+        params: dict[str, Any] = {}
         if config.temperature is not None:
             params["temperature"] = config.temperature
         if config.max_tokens is not None:
@@ -146,19 +126,21 @@ class GroqAPI(ModelAPI):
             params["n"] = config.num_choices
         return params
 
-    def _chat_choices_from_response(self, response: Any) -> List[ChatCompletionChoice]:
+    def _chat_choices_from_response(
+        self, response: Any, tools: list[ToolInfo]
+    ) -> List[ChatCompletionChoice]:
         choices = list(response.choices)
         choices.sort(key=lambda c: c.index)
         return [
             ChatCompletionChoice(
-                message=chat_message_assistant(choice.message),
+                message=chat_message_assistant(choice.message, tools),
                 stop_reason=as_stop_reason(choice.finish_reason),
             )
             for choice in choices
         ]
 
     @override
-    def is_rate_limit(self, ex: Exception) -> bool:
+    def is_rate_limit(self, ex: BaseException) -> bool:
         return isinstance(ex, RateLimitError)
 
     @override
@@ -178,30 +160,41 @@ class GroqAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
 
-async def as_groq_chat_messages(messages: List[ChatMessage]) -> List[Dict[str, Any]]:
+async def as_groq_chat_messages(
+    messages: list[ChatMessage],
+) -> list[ChatCompletionMessageParam]:
     return [await groq_chat_message(message) for message in messages]
 
 
-async def groq_chat_message(message: ChatMessage) -> Dict[str, Any]:
-    groq_message: Dict[str, Any] = {"role": message.role, "content": message.text}
+async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
+    if isinstance(message, ChatMessageSystem):
+        return ChatCompletionSystemMessageParam(role="system", content=message.text)
 
-    if hasattr(message, "tool_calls") and message.tool_calls:
-        groq_message["tool_calls"] = [
-            {
-                "id": call.id,
-                "type": "function",
-                "function": {"name": call.function, "arguments": call.arguments},
-            }
-            for call in message.tool_calls
-        ]
+    elif isinstance(message, ChatMessageUser):
+        return ChatCompletionUserMessageParam(role="user", content=message.text)
 
-    if hasattr(message, "tool_call_id") and message.tool_call_id:
-        groq_message["tool_call_id"] = message.tool_call_id
-
-    if message.role == "tool":
-        groq_message["name"] = message.tool_call_id
-
-    return groq_message
+    elif isinstance(message, ChatMessageAssistant):
+        return ChatCompletionAssistantMessageParam(
+            role="assistant",
+            content=message.text,
+            tool_calls=[
+                ChatCompletionMessageToolCallParam(
+                    id=call.id,
+                    type="function",
+                    function={
+                        "name": call.function,
+                        "arguments": json.dumps(call.arguments),
+                    },
+                )
+                for call in (message.tool_calls or [])
+            ],
+        )
+    elif isinstance(message, ChatMessageTool):
+        return ChatCompletionToolMessageParam(
+            role="tool",
+            content=message.text,
+            tool_call_id=str(message.tool_call_id),
+        )
 
 
 def chat_tools(tools: List[ToolInfo]) -> List[Dict[str, Any]]:
@@ -220,18 +213,18 @@ def chat_tool_choice(tool_choice: ToolChoice) -> str | Dict[str, Any]:
         return tool_choice
 
 
-def chat_tool_calls(message: Any) -> Optional[List[ToolCall]]:
+def chat_tool_calls(message: Any, tools: list[ToolInfo]) -> Optional[List[ToolCall]]:
     if hasattr(message, "tool_calls") and message.tool_calls:
         return [
-            parse_tool_call(call.id, call.function.name, call.function.arguments)
+            parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
             for call in message.tool_calls
         ]
     return None
 
 
-def chat_message_assistant(message: Any) -> ChatMessageAssistant:
+def chat_message_assistant(message: Any, tools: list[ToolInfo]) -> ChatMessageAssistant:
     return ChatMessageAssistant(
         content=message.content or "",
         source="generate",
-        tool_calls=chat_tool_calls(message),
+        tool_calls=chat_tool_calls(message, tools),
     )
