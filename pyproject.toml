@@ -137,7 +137,6 @@ dev = [
     "types-python-dateutil",
     "wikipedia",
     "groq",
-    "vllm",
     "wikipedia"
 ]
 doc = ["quarto-cli", "jupyter"]

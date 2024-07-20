@@ -7,7 +7,7 @@ from threading import Thread
 from typing import Any, cast
 
 from typing_extensions import override
-from vllm import LLM, CompletionOutput, RequestOutput, SamplingParams
+from vllm import LLM, CompletionOutput, RequestOutput, SamplingParams  # type: ignore
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.tool import ToolChoice, ToolInfo
