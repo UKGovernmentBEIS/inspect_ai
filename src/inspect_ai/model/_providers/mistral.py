@@ -122,7 +122,7 @@ class MistralAPI(ModelAPI):
         )
 
         # return model output (w/ tool calls if they exist)
-        choices = completion_choices_from_response(response)
+        choices = completion_choices_from_response(response, tools)
         return ModelOutput(
             model=response.model,
             choices=choices,
@@ -203,24 +203,30 @@ def mistral_function_call(tool_call: ToolCall) -> FunctionCall:
     )
 
 
-def chat_tool_calls(message: MistralChatMessage) -> list[ToolCall] | None:
+def chat_tool_calls(
+    message: MistralChatMessage, tools: list[ToolInfo]
+) -> list[ToolCall] | None:
     if message.tool_calls:
         return [
-            parse_tool_call(call.id, call.function.name, call.function.arguments)
+            parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
             for call in message.tool_calls
         ]
     else:
         return None
 
 
-def completion_choice(choice: ChatCompletionResponseChoice) -> ChatCompletionChoice:
+def completion_choice(
+    choice: ChatCompletionResponseChoice, tools: list[ToolInfo]
+) -> ChatCompletionChoice:
     message = choice.message
     completion = message.content
     if isinstance(completion, list):
         completion = " ".join(completion)
     return ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=completion, tool_calls=chat_tool_calls(message), source="generate"
+            content=completion,
+            tool_calls=chat_tool_calls(message, tools),
+            source="generate",
         ),
         stop_reason=(
             choice_stop_reason(choice)
@@ -231,9 +237,9 @@ def completion_choice(choice: ChatCompletionResponseChoice) -> ChatCompletionCho
 
 
 def completion_choices_from_response(
-    response: ChatCompletionResponse,
+    response: ChatCompletionResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
-    return [completion_choice(choice) for choice in response.choices]
+    return [completion_choice(choice, tools) for choice in response.choices]
 
 
 def choice_stop_reason(choice: ChatCompletionResponseChoice) -> StopReason:

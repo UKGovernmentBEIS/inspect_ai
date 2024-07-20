@@ -42,12 +42,17 @@ class LocalToolEnvironment(ToolEnvironment):
         self,
         cmd: list[str],
         input: str | bytes | None = None,
+        cwd: str | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
     ) -> ExecResult[str]:
         try:
             return await subprocess(
-                args=cmd, input=input, cwd=self.directory.name, env=env, timeout=timeout
+                args=cmd,
+                input=input,
+                cwd=cwd if cwd else self.directory.name,
+                env=env,
+                timeout=timeout,
             )
         except UnicodeDecodeError:
             raise ToolError(
