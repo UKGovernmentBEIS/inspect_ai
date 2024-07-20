@@ -10,13 +10,13 @@ Inspect has built in support for a variety of language model API providers and c
 | Anthropic    | `pip install anthropic`           | `ANTHROPIC_API_KEY`                                                    |
 | Google       | `pip install google-generativeai` | `GOOGLE_API_KEY`                                                       |
 | Mistral      | `pip install mistralai`           | `MISTRAL_API_KEY`                                                      |
-| Hugging Face | `pip install transformers`        | `HF_TOKEN`                                                             |
-| vLLM         | `pip install vllm`                | None required                                                          |
-| Ollama       | `pip install openai`              | None required                                                          |
 | TogetherAI   | `pip install openai`              | `TOGETHER_API_KEY`                                                     |
 | AWS Bedrock  | `pip install boto3`               | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
 | Azure AI     | None required                     | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL`                      |
 | Cloudflare   | None required                     | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`                     |
+| Hugging Face | `pip install transformers`        | None required                                                          |
+| vLLM         | `pip install vllm`                | None required                                                          |
+| Ollama       | `pip install openai`              | None required                                                          |
 
 : {tbl-colwidths="\[18,45,37\]"}
 
@@ -65,7 +65,7 @@ INSPECT_EVAL_MODEL=google/gemini-1.0-pro
 ```
 
 ::: {.callout-note appearance="simple"}
-If are using Azure AI, AWS Bedrock, or Hugging Face, you should additionally consult the sections below on using the [Azure AI](#azure-ai), [AWS Bedrock](#aws-bedrock), and [Hugging Face](#hugging-face) providers to learn more about available models and their usage and authentication requirements.
+If are using Azure AI, AWS Bedrock, Hugging Face, or vLLM you should additionally consult the sections below on using the [Azure AI](#azure-ai), [AWS Bedrock](#aws-bedrock), [Hugging Face](#sec-hugging-face-transformers), and [vLLM](#sec-vllm) providers to learn more about available models and their usage and authentication requirements.
 :::
 
 ### Model Base URL
@@ -253,7 +253,7 @@ $ inspect eval popularity --model hf/local -M model_path=./my-model
 Or using the `eval()` function:
 
 ``` python
-eval(popularity, model="hf/local", model_args=dict( model_path="./my-model"))
+eval(popularity, model="hf/local", model_args=dict(model_path="./my-model"))
 ```
 
 Or in a call to `get_model()`
@@ -264,13 +264,28 @@ model = get_model("hf/local", model_path="./my-model")
 
 ### vLLM {#sec-vllm}
 
-The vLLM provider also implements support for local models using the [vllm](https://github.com/vllm-project/vllm/) package. You can use any vLLM model by specifying it with the `vllm/` prefix. For example:
+::: {.callout-note appearance="simple"}
+The vLLM provider is currently available only in the development version of Inspect. You can intstall the development version with:
+
+```bash
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
+```
+:::
+
+
+The `vllm` provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. You can access any Hugging Face model by specifying it with the `vllm/` prefix. For example:
 
 ``` bash
 $ inspect eval popularity --model vllm/openai-community/gpt2
 ```
 
+You can also access models from ModelScope rather than Hugging Face, see the [vLLM documentation](https://docs.vllm.ai/en/latest/getting_started/quickstart.html) for details on this.
+
 vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.
+
+::: {.callout-tip appearance="simple"}
+Rather than doing inference locally, you can also connect to a remote vLLM server. See the section below on [vLLM Server](#sec-vllm-server) for details).
+:::
 
 #### Device
 
@@ -292,6 +307,19 @@ Similar to the Hugging Face provider, you can also use local models with the vLL
 $ inspect eval popularity --model vllm/local -M model_path=./my-model
 ```
 
+#### vLLM Server
+
+vLLM supports running in server mode and serving requests to remote clients. vLLM server provides an OpenAI-compatible endpoint, so you use the Inspect OpenAI provider rather than the vLLM provider to access it. The key is to set the model base URL to point to the vLLM server rather than OpenAI. For example:
+
+```bash
+inspect eval examples/popularity.py \
+  --model openai/meta-llama/Meta-Llama-3-8B-Instruct \
+  --model-base-url http://localhost:8080/v1
+```
+
+Note that if you started the vLLM Server with an `--api-key` argument, you would also need to set the `OPENAI_API_KEY` environment variable to the requisite value.
+
+See the documentation on [vLLM Server](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html) for additional details on server mode.
 
 ## Helper Models
 

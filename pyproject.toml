@@ -138,5 +138,5 @@ dev = [
     "vllm",
     "wikipedia"
 ]
-doc = ["quarto-cli"]
+doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]
