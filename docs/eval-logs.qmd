@@ -71,7 +71,7 @@ The `EvalLog` object returned from `eval()` provides programmatic interface to t
 Before analysing results from a log, you should always check their status to ensure they represent a successful run:
 
 ``` python
-log = log = eval(popularity, model="openai/gpt-4")
+log = eval(popularity, model="openai/gpt-4")
 if log.status == "success":
    ...
 ```
