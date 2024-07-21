@@ -505,6 +505,11 @@ def create_sample_semaphore(
         else DEFAULT_MAX_CONNECTIONS
     )
 
+    # if max_tasks is specified and max_samples is less
+    # than max_tasks then bump it up
+    if config.max_tasks is not None:
+        max_samples = max(max_samples, config.max_tasks)
+
     # if a toolenv is in play then it can cap max_samples
     if toolenv:
         toolenv_type = registry_find_toolenv(toolenv[0])
