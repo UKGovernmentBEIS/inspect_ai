@@ -274,7 +274,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
 
-    await send_telemetry("eval_log", eval_log_json(eval_log))
+    try:
+        await send_telemetry("eval_log", eval_log_json(eval_log))
+    except Exception as ex:
+        py_logger.warning(f"Error occurred sending telemetry: {exception_message(ex)}")
 
     # return eval log
     return eval_log
