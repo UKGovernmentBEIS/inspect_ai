@@ -181,6 +181,4 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         for w in workers:
             w.cancel()
 
-        await asyncio.sleep(100)
-
         return results
