@@ -135,9 +135,9 @@ class RichTaskDisplay(TaskDisplay):
         self.status = status
         model = Text(self.status.profile.model.name)
         model.truncate(20, overflow="ellipsis")
-        description = Text(self.status.profile.name if show_name else "")
+        description = Text(f"{self.status.profile.name} " if show_name else "")
         if show_name:
-            description.truncate(15, overflow="ellipsis", pad=True)
+            description.truncate(20, overflow="ellipsis")
 
         def task_status() -> str:
             if self.status.result:
