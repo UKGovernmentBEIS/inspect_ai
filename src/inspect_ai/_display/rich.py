@@ -133,8 +133,8 @@ class RichTaskDisplay(TaskDisplay):
     def __init__(self, status: TaskStatus, show_name: bool) -> None:
         theme = rich_theme()
         self.status = status
-        model = Text(self.status.profile.model.name)
-        model.truncate(20, overflow="ellipsis")
+        model = Text(str(self.status.profile.model))
+        model.truncate(25, overflow="ellipsis")
         description = Text(f"{self.status.profile.name} " if show_name else "")
         if show_name:
             description.truncate(20, overflow="ellipsis")
@@ -243,6 +243,14 @@ def tasks_live_status(
     console = rich_console()
     width = 100 if is_vscode_notebook(console) else None
 
+    # compute completed tasks
+    completed = sum(1 for task in tasks if task.result is not None)
+
+    # get config
+    config = task_config(tasks[0].profile, generate_config=False)
+    if config:
+        config += "\n"
+
     # build footer table
     footer_table = Table.grid(expand=True)
     footer_table.add_column()
@@ -251,12 +259,9 @@ def tasks_live_status(
     footer_table.add_row()
     footer_table.add_row(footer[0], footer[1])
 
-    # compute completed tasks
-    completed = sum(1 for task in tasks if task.result is not None)
-
     # create panel w/ title
     panel = Panel(
-        Group("", progress, footer_table, fit=False),
+        Group(config, progress, footer_table, fit=False),
         title=f"[bold][{theme.meta}]eval: {completed}/{total_tasks} tasks complete[/{theme.meta}][/bold]",
         title_align="left",
         width=width,
@@ -382,14 +387,14 @@ def task_targets(profile: TaskProfile) -> str:
     return "   " + "\n   ".join(targets)
 
 
-def task_config(profile: TaskProfile) -> str:
+def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
     # merge config
     theme = rich_theme()
-    config = (
-        dict(profile.task_args)
-        | dict(profile.eval_config.model_dump(exclude_none=True))
-        | dict(profile.generate_config.model_dump(exclude_none=True))
+    config = dict(profile.task_args) | dict(
+        profile.eval_config.model_dump(exclude_none=True)
     )
+    if generate_config:
+        config = config | dict(profile.generate_config.model_dump(exclude_none=True))
     config_print: list[str] = []
     for name, value in config.items():
         if name not in ["limit", "epochs"]:
