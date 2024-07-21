@@ -136,23 +136,24 @@ class RichTaskDisplay(TaskDisplay):
         model = Text(str(self.status.profile.model))
         model.truncate(14, overflow="ellipsis")
         description = Text(self.status.profile.name if show_name else "")
-        description.truncate(15, overflow="ellipsis", pad=True)
+        if show_name:
+            description.truncate(15, overflow="ellipsis", pad=True)
 
         def task_status() -> str:
             if self.status.result:
                 if isinstance(self.status.result, TaskError):
-                    return f"[{theme.error}]✗ [{theme.error}]"
+                    return f"[{theme.error}]✗[{theme.error}]"
                 elif isinstance(self.status.result, TaskCancelled):
-                    return f"[{theme.error}]✗ [{theme.error}]"
+                    return f"[{theme.error}]✗[{theme.error}]"
                 else:
-                    return f"[{theme.success}]✔ [{theme.success}]"
+                    return f"[{theme.success}]✔[{theme.success}]"
             else:
-                return f"[{theme.meta}]⠿ [{theme.meta}]"
+                return f"[{theme.meta}]⠿[{theme.meta}]"
 
         self.p = RichProgress(
             total=self.status.profile.steps,
             progress=self.status.progress,
-            description=f"{description.markup} ",
+            description=f"{description.markup}",
             model=f"{model.markup} ",
             status=task_status,
         )
