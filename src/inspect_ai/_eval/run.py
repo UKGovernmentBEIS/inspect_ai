@@ -158,7 +158,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         nonlocal tasks_completed
         while True:
             task = await queue.get()
-            results.append(await task_run(task))
+            result = await task_run(task)
+            results.append(result)
             tasks_completed += 1
             queue.task_done()
 

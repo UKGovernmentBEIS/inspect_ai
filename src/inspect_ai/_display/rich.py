@@ -9,7 +9,6 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
-    SpinnerColumn,
     TaskProgressColumn,
     TextColumn,
     TimeElapsedColumn,
@@ -137,17 +136,25 @@ class RichTaskDisplay(TaskDisplay):
         model = Text(str(self.status.profile.model))
         model.truncate(14, overflow="ellipsis")
         description = Text(self.status.profile.name if show_name else "")
-        description.truncate(15, overflow="ellipsis")
+        description.truncate(15, overflow="ellipsis", pad=True)
+
+        def task_status() -> str:
+            if self.status.result:
+                if isinstance(self.status.result, TaskError):
+                    return f"[{theme.error}]✗ [{theme.error}]"
+                elif isinstance(self.status.result, TaskCancelled):
+                    return f"[{theme.error}]✗ [{theme.error}]"
+                else:
+                    return f"[{theme.success}]✔ [{theme.success}]"
+            else:
+                return f"[{theme.meta}]⠿ [{theme.meta}]"
+
         self.p = RichProgress(
             total=self.status.profile.steps,
             progress=self.status.progress,
             description=f"{description.markup} ",
             model=f"{model.markup} ",
-            status=lambda: "running "
-            if self.status.result is None
-            else f"[{theme.success}]complete[/{theme.success}]"
-            if isinstance(self.status.result, TaskSuccess)
-            else "[{theme.error}]error[/{theme.error}]",
+            status=task_status,
         )
 
     @override
@@ -519,10 +526,9 @@ def rich_display() -> RichDisplay:
 def rich_progress() -> RProgress:
     console = rich_console()
     return RProgress(
-        SpinnerColumn(finished_text="✓"),
+        TextColumn("{task.fields[status]}"),
         TextColumn("{task.description}"),
         TextColumn("{task.fields[model]}"),
-        TextColumn("{task.fields[status]}"),
         BarColumn(bar_width=40 if is_vscode_notebook(console) else None),
         TaskProgressColumn(),
         TimeElapsedColumn(),
