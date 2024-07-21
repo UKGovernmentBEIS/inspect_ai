@@ -181,8 +181,10 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             model_counts[str(task.model)] -= 1
             queue.task_done()
 
-            # enque next task
-            await enque_next_task()
+            if result.status != "cancelled":
+                await enque_next_task()
+            else:
+                break
 
     # with task display
     with display().live_task_status(total_tasks=len(tasks), parallel=True):
@@ -194,7 +196,10 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             await enque_next_task()
 
         # wait for all tasks to complete
-        await queue.join()
+        try:
+            await queue.join()
+        except asyncio.CancelledError:
+            pass
 
         # cancel worker tasks
         for w in workers:
