@@ -133,8 +133,8 @@ class RichTaskDisplay(TaskDisplay):
     def __init__(self, status: TaskStatus, show_name: bool) -> None:
         theme = rich_theme()
         self.status = status
-        model = Text(str(self.status.profile.model))
-        model.truncate(14, overflow="ellipsis")
+        model = Text(self.status.profile.model.name)
+        model.truncate(20, overflow="ellipsis")
         description = Text(self.status.profile.name if show_name else "")
         if show_name:
             description.truncate(15, overflow="ellipsis", pad=True)
@@ -404,8 +404,6 @@ def task_config(profile: TaskProfile) -> str:
 def task_resources() -> str:
     resources: dict[str, str] = {}
     for model, resource in concurrency_status().items():
-        if "/" in model:
-            model = model.split("/", 1)[1]
         resources[model] = f"{resource[0]}/{resource[1]}"
     return task_dict(resources)
 

@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Set
 
 from shortuuid import uuid
 from typing_extensions import Unpack
@@ -139,6 +139,13 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
 # multiple mode -- run multiple logical tasks (requires some smart
 # schedluing to ensure that we are spreading work among models)
 async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalLog]:
+    # track current usage of each model
+    models: Set[str] = set()
+    for task in tasks:
+        models.add(str(task.model))
+    model_counts = {model: 0 for model in models}
+
+    # setup pending tasks, queue, and results
     pending_tasks = tasks.copy()
     queue: asyncio.Queue[TaskRunOptions] = asyncio.Queue()
     results: list[EvalLog] = []
@@ -147,9 +154,16 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
     async def enque_next_task() -> bool:
         if tasks_completed < total_tasks:
-            next_task = pending_tasks.pop()
-            await queue.put(next_task)
-            return True
+            # find a task that keeps as many different models as possible running concurrently
+            model = min(model_counts.items(), key=lambda m: m[1])[0]
+            next_task = next((t for t in pending_tasks if str(t.model) == model), None)
+            if next_task:
+                pending_tasks.remove(next_task)
+                model_counts[str(next_task.model)] += 1
+                await queue.put(next_task)
+                return True
+            else:
+                return False
         else:
             return False
 
@@ -157,10 +171,14 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         # worker runs untiil cancelled
         nonlocal tasks_completed
         while True:
+            # remove the task from the queue and run it
             task = await queue.get()
             result = await task_run(task)
             results.append(result)
+
+            # tracking
             tasks_completed += 1
+            model_counts[str(task.model)] -= 1
             queue.task_done()
 
             # enque next task
