@@ -1,6 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { TranscriptEvent } from "./TranscriptEvent.mjs";
 
 /**
  * Renders the InfoEventView component.
@@ -10,11 +11,14 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const InfoEventView = ({ event }) => {
-  return html` <div
+  return html`
+  <${TranscriptEvent} name="Info">
+  <div
     style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
   >
     <div><i class=${ApplicationIcons.logging.info} /></div>
     <div>${event.message}</div>
     <div></div>
-  </div>`;
+  </div>
+  </${TranscriptEvent}>`;
 };

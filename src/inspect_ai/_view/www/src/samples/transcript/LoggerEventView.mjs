@@ -1,6 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { TranscriptEvent } from "./TranscriptEvent.mjs";
 
 /**
  * Renders the LoggerEventView component.
@@ -10,11 +11,13 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const LoggerEventView = ({ event }) => {
-  return html` <div
-    style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
+  return html`
+  <${TranscriptEvent} name="Logger">
+  <div
+    style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "0.5em" }}
   >
-    <div><i class=${ApplicationIcons.logging[event.level]} /></div>
+    <div><i class=${ApplicationIcons.logging[event.level.toLowerCase()]}/></div>
     <div>${event.message}</div>
-    <div></div>
-  </div>`;
+  </div>
+  </${TranscriptEvent}>`;
 };

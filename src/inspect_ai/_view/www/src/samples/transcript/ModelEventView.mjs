@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
+import { TranscriptEvent } from "./TranscriptEvent.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -35,17 +36,15 @@ export const ModelEventView = ({ event, index }) => {
   });
 
   return html`
-    <div style=${{}}>
-      <div style=${{ textTransform: "uppercase", fontSize: "0.7rem" }}>
-        ${event.model}
-      </div>
-      <div><${MetaDataView} entries=${modelProperties} compact=${true} /></div>
-      <div>
-        <${ChatView}
-          id="model-input-${index}"
-          messages=${[...event.input, ...outputMessages]}
-        />
-      </div>
-    </div>
-  `;
+  <${TranscriptEvent} name=${event.model}>
+  <div>
+    <${MetaDataView} entries=${modelProperties} compact=${true} />
+  </div>
+  <div>
+    <${ChatView}
+      id="model-input-${index}"
+      messages=${[...event.input, ...outputMessages]}
+      />
+  </div>  
+  </${TranscriptEvent}>`;
 };
