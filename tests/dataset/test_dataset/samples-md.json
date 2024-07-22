@@ -1,0 +1,10 @@
+[
+  {
+    "input": "Say 'Hello, World'",
+    "target": "Hello, World",
+    "label": "Hello, World",
+    "metadata": {
+      "foo": "bar"
+    }
+  }
+]
