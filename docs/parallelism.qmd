@@ -122,8 +122,6 @@ tasks = [
 eval(tasks, max_tasks=5)
 ```
 
-This example creates 6 tasks (for each of 6 temperature values) and then evaluates them on 2 models each. There are 12 total tasks and up to 5 will be run in parallel.
-
 It's critical to reinforce that this will only provide a performance gain if the number of samples is very small. For example, If the dataset contains 10 samples and your `max_connections` is 10, there is no gain to be had by running tasks in parallel.
 
 Note that you can combine parallel tasks with parallel models if you are evaluating multiple models:
