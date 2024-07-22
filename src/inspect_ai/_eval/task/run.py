@@ -50,6 +50,7 @@ from inspect_ai.scorer import Score, Scorer, Target
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.solver._subtask.subtask import init_subtask
+from inspect_ai.solver._subtask.transcript import ScoreEvent, transcript
 from inspect_ai.tool import ToolEnvironment
 from inspect_ai.tool._environment.context import (
     cleanup_tool_environments_sample,
@@ -378,10 +379,9 @@ async def task_run_sample(
         if scorers:
             for scorer in scorers:
                 scorer_name = unique_scorer_name(scorer, list(results.keys()))
-                score_result = (
-                    await scorer(state, Target(sample.target)) if scorer else None
-                )
-                if score_result is not None:
+                with transcript().step(name=scorer_name, type="scorer"):
+                    score_result = await scorer(state, Target(sample.target))
+                    transcript()._event(ScoreEvent(score=score_result))
                     results[scorer_name] = score_result
         progress()
 

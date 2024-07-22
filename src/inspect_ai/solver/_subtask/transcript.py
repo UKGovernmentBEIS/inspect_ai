@@ -15,6 +15,7 @@ from inspect_ai._util.json import JsonChange
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer._metric import Score
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -98,6 +99,16 @@ class InfoEvent(BaseEvent):
     """Data provided with event."""
 
 
+class ScoreEvent(BaseEvent):
+    """Event with sample score."""
+
+    event: Literal["score"] = Field(default="score")
+    """Event type."""
+
+    score: Score
+    """Sample score."""
+
+
 class StepEvent(BaseEvent):
     """Step within current sample or subtask."""
 
@@ -134,8 +145,14 @@ class SubtaskEvent(BaseEvent):
 
 
 Event: TypeAlias = Union[
-    StateEvent | StoreEvent | ModelEvent,
-    LoggerEvent | InfoEvent | StepEvent | SubtaskEvent,
+    StateEvent
+    | StoreEvent
+    | ModelEvent
+    | ScoreEvent
+    | LoggerEvent
+    | InfoEvent
+    | StepEvent
+    | SubtaskEvent,
 ]
 """Event in a transcript."""
 
