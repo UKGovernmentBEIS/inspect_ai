@@ -14,9 +14,9 @@ export const LoggerEventView = ({ event }) => {
   return html`
   <${TranscriptEvent} name="Logger">
   <div
-    style=${{ display: "grid", gridTemplateColumns: "max-content auto" }}
+    style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "0.5em" }}
   >
-    <div><i class=${ApplicationIcons.logging[event.level.toLowerCase()]} /></div>
+    <div><i class=${ApplicationIcons.logging[event.level.toLowerCase()]}/></div>
     <div>${event.message}</div>
   </div>
   </${TranscriptEvent}>`;

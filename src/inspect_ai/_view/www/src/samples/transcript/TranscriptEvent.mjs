@@ -9,10 +9,11 @@ import { html } from "htm/preact";
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const TranscriptEvent = ({name, children}) => {
-  return html`
-    <div>
-      <div style=${{ textTransform: "uppercase", fontSize: "0.7rem" }}>${name}</div>
-      <div>${children}</div>
-    </div>`;
-}
+export const TranscriptEvent = ({ name, children }) => {
+  return html` <div>
+    <div style=${{ textTransform: "uppercase", fontSize: "0.7rem" }}>
+      ${name}
+    </div>
+    <div>${children}</div>
+  </div>`;
+};
