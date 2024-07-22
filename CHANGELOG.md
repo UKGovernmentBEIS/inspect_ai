@@ -12,7 +12,9 @@
 - Correctly resolve default model based on CLI --model argument.
 - Add `setup` field to `Sample` for providing a per-sample setup script.
 - Read JSON encoded `metadata` field from samples.
+- Reduce foreground task contention for Inspect View history loading.
 - Ability to host standalone version of Inspect View to view single log files.
+
 
 ## v0.3.18 (14 July 2024)
 
