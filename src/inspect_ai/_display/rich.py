@@ -85,7 +85,11 @@ class RichDisplay(Display):
                 handle: asyncio.TimerHandle | None
 
                 def update_display() -> None:
-                    if self.tasks is not None and self.progress_ui is not None:
+                    if (
+                        self.tasks is not None
+                        and self.tasks
+                        and self.progress_ui is not None
+                    ):
                         if parallel:
                             r = tasks_live_status(
                                 total_tasks, self.tasks, self.progress_ui
