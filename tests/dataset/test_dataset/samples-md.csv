@@ -1,0 +1,2 @@
+input,target,label,metadata
+"Say 'Hello, World'","Hello, World","Hello, World","{""foo"": ""bar""}"

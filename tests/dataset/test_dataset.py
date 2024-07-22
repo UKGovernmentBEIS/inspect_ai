@@ -22,6 +22,10 @@ json = (json_dataset, "samples.json")
 jsonl = (file_dataset, "samples.jsonl")
 dataset_params = [csv, json, jsonl]
 
+dataset_md_params = [
+    (param[0], param[1].replace(".", "-md.")) for param in dataset_params
+]
+
 
 # test reading a dataset using default configuration
 @pytest.mark.parametrize("type,file", dataset_params)
@@ -47,6 +51,13 @@ def test_dataset_fields_fn(type: Type[T_ds], file: str) -> None:
         sample_fields=data_to_sample,
     )
     assert_sample(dataset[0])
+
+
+# test reading metadata field
+@pytest.mark.parametrize("type,file", dataset_md_params)
+def test_dataset_metadata(type: Type[T_ds], file: str) -> None:
+    dataset: Dataset = type.__call__(dataset_path(file))
+    assert dataset[0].metadata and dataset[0].metadata.get("foo") == "bar"
 
 
 @skip_if_github_action

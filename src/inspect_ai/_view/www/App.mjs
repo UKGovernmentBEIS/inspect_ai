@@ -67,7 +67,7 @@ export function App() {
           });
           return { ...prev, ...updatedHeaders };
         });
-        await sleep(2000);
+        await sleep(5000);
       }
     } catch (e) {
       // Show an error
