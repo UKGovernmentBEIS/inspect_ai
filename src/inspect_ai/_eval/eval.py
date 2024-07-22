@@ -536,7 +536,7 @@ async def eval_retry_async(
             task = f"{task_file}@{task_name}"
         else:
             if registry_lookup("task", task_name) is None:
-                raise FileNotFoundError("Task '{task_name}' not found.")
+                raise FileNotFoundError(f"Task '{task_name}' not found.")
             task = task_name
 
         # collect the rest of the params we need for the eval
