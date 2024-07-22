@@ -83,7 +83,11 @@ class RichDisplay(Display):
                 handle: asyncio.TimerHandle | None
 
                 def update_display() -> None:
-                    if self.tasks is not None and self.progress_ui is not None:
+                    if (
+                        self.tasks is not None
+                        and self.tasks
+                        and self.progress_ui is not None
+                    ):
                         r = tasks_live_status(self.tasks, self.progress_ui)
                         live.update(r, refresh=True)
                     nonlocal handle
