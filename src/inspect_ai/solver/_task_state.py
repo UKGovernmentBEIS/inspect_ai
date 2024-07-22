@@ -1,7 +1,11 @@
 from collections.abc import Sequence
+from contextvars import ContextVar
+from copy import deepcopy
 from dataclasses import dataclass
 from random import Random
-from typing import Any, Union, overload
+from typing import Any, Union, cast, overload
+
+from pydantic_core import to_jsonable_python
 
 from inspect_ai.model import (
     ChatMessage,
@@ -11,9 +15,9 @@ from inspect_ai.model import (
     ModelOutput,
 )
 from inspect_ai.tool import Tool, ToolChoice
-from inspect_ai.tool._tool_def import tool_defs
+from inspect_ai.tool._tool_def import tool_defs, tools_info
 
-from ._subtask.store import Store
+from ._subtask.store import Store, store_jsonable
 from ._util import append_system_message
 
 
@@ -271,3 +275,37 @@ class TaskState:
 
         # set the tools
         self._tools = tools
+
+
+def sample_state() -> TaskState | None:
+    return _sample_state.get(None)
+
+
+def set_sample_state(state: TaskState) -> None:
+    _sample_state.set(state)
+
+
+_sample_state: ContextVar[TaskState] = ContextVar("sample_state")
+
+
+def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
+    # use current sample state if none specified
+    if state is None:
+        state = sample_state()
+        if state is None:
+            return dict()
+
+    def as_jsonable(value: Any) -> Any:
+        return to_jsonable_python(value, exclude_none=True, fallback=lambda _x: None)
+
+    state_data = dict(
+        messages=as_jsonable(state.messages),
+        tools=tools_info(state.tools),
+        tool_choice=state.tool_choice,
+        store=store_jsonable(state.store),
+        output=state.output,
+        completed=state.completed,
+        metadata=as_jsonable(state.metadata),
+    )
+    jsononable = as_jsonable(state_data)
+    return cast(dict[str, Any], deepcopy(jsononable))

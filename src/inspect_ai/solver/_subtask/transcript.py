@@ -11,7 +11,8 @@ from typing import (
 
 from pydantic import BaseModel, Field, JsonValue
 
-from inspect_ai._util.json import JsonChange
+from inspect_ai._util.constants import SAMPLE_SUBTASK
+from inspect_ai._util.json import JsonChange, json_changes
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
@@ -19,6 +20,7 @@ from inspect_ai.scorer._metric import Score
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
+from .._task_state import state_jsonable
 from .store import store, store_changes, store_jsonable
 
 
@@ -185,8 +187,8 @@ class Transcript(BaseModel):
         # step event
         self._event(StepEvent(action="begin", name=name, type=type))
 
-        # run the step (tracking store changes)
-        with track_store_changes():
+        # run the step (tracking state/store changes)
+        with track_state_changes(type), track_store_changes():
             yield
 
         # end step event
@@ -210,6 +212,23 @@ def track_store_changes() -> Iterator[None]:
     changes = store_changes(before, after)
     if changes:
         transcript()._event(StoreEvent(changes=changes))
+
+
+@contextlib.contextmanager
+def track_state_changes(type: str | None = None) -> Iterator[None]:
+    # we only want to track for step() inside the the sample
+    # (solver level tracking is handled already and there are
+    # no state changes in subtasks)
+    if transcript().name == SAMPLE_SUBTASK and type != "solver":
+        before = state_jsonable()
+        yield
+        after = state_jsonable()
+
+        changes = json_changes(before, after)
+        if changes:
+            transcript()._event(StateEvent(changes=changes))
+    else:
+        yield
 
 
 def init_transcript(transcript: Transcript) -> None:

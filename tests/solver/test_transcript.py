@@ -14,7 +14,9 @@ def test_sample_transcript():
     @solver
     def transcript_solver():
         async def solve(state: TaskState, generate: Generate):
-            transcript().info(str(state.sample_id))
+            with transcript().step("info"):
+                state.metadata["foo"] = "bar"
+                transcript().info(str(state.sample_id))
             return state
 
         return solve
@@ -22,7 +24,6 @@ def test_sample_transcript():
     task = Task(
         dataset=[
             Sample(input="Say Hello", target="Hello"),
-            Sample(input="Say Goodbye", target="Goodbye"),
         ],
         plan=[transcript_solver(), generate()],
         scorer=match(),
@@ -38,7 +39,9 @@ def test_sample_transcript():
     # )
 
     assert log.samples[0].transcript[0].type == "solver"
-    assert log.samples[0].transcript[1].data == "1"
-    assert log.samples[1].transcript[1].data == "2"
-    assert len(log.samples[0].transcript[4].output.completion) > 0
+    assert log.samples[0].transcript[2].data == "1"
     assert log.samples[0].transcript[5].event == "state"
+    assert len(log.samples[0].transcript[8].output.completion) > 0
+    assert log.samples[0].transcript[9].event == "state"
+    assert log.samples[0].transcript[11].type == "scorer"
+    assert log.samples[0].transcript[12].event == "score"

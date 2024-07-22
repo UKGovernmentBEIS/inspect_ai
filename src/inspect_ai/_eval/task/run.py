@@ -16,7 +16,11 @@ from inspect_ai._display._display import (
     TaskSuccess,
 )
 from inspect_ai._eval.task.util import sample_messages
-from inspect_ai._util.constants import DEFAULT_EPOCHS, DEFAULT_MAX_CONNECTIONS
+from inspect_ai._util.constants import (
+    DEFAULT_EPOCHS,
+    DEFAULT_MAX_CONNECTIONS,
+    SAMPLE_SUBTASK,
+)
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.file import file, filesystem
@@ -329,7 +333,7 @@ async def task_run_sample(
     )
 
     # initialise subtask
-    init_subtask("sample", state.store)
+    init_subtask(SAMPLE_SUBTASK, state.store)
 
     # use toolenv if provided
     toolenv_cm = (

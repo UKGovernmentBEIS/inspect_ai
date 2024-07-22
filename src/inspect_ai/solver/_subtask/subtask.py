@@ -15,7 +15,7 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.solver._subtask.transcript import init_transcript
 from inspect_ai.tool._tool import ToolResult
 
-from .store import Store, dict_jsonable, init_store
+from .store import Store, dict_jsonable, init_subtask_store
 from .transcript import SubtaskEvent, Transcript, track_store_changes, transcript
 
 RT = TypeVar("RT", ToolResult, Any)
@@ -129,5 +129,5 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
 
 
 def init_subtask(name: str, store: Store) -> None:
-    init_store(store)
+    init_subtask_store(store)
     init_transcript(Transcript(name=name))

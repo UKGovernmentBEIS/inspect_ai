@@ -1,4 +1,5 @@
 from contextvars import ContextVar
+from copy import deepcopy
 from typing import (
     Any,
     ItemsView,
@@ -102,14 +103,14 @@ class Store:
 
 def store() -> Store:
     """Get the currently active `Store`."""
-    return _store.get()
+    return _subtask_store.get()
 
 
-def init_store(store: Store) -> None:
-    _store.set(store)
+def init_subtask_store(store: Store) -> None:
+    _subtask_store.set(store)
 
 
-_store: ContextVar[Store] = ContextVar("subtask_store", default=Store())
+_subtask_store: ContextVar[Store] = ContextVar("subtask_store", default=Store())
 
 
 def store_changes(
@@ -123,7 +124,7 @@ def store_changes(
 
 
 def store_jsonable(store: Store) -> dict[str, Any]:
-    return dict_jsonable(store._data)
+    return deepcopy(dict_jsonable(store._data))
 
 
 def dict_jsonable(data: dict[str, Any]) -> dict[str, Any]:
