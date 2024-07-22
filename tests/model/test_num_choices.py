@@ -3,6 +3,7 @@ from test_helpers.utils import (
     skip_if_github_action,
     skip_if_no_openai,
     skip_if_no_together,
+    skip_if_no_vllm,
 )
 
 from inspect_ai.model import GenerateConfig, get_model
@@ -35,6 +36,7 @@ async def test_together_num_choices() -> None:
 
 @pytest.mark.asyncio
 @skip_if_github_action
+@skip_if_no_vllm
 async def test_vllm_num_choices() -> None:
     await check_num_choices("vllm/EleutherAI/pythia-70m")
 
