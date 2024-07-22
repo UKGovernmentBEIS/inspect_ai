@@ -72,7 +72,7 @@ export const TranscriptView = ({ transcript }) => {
     style=${{
       fontSize: "0.8em",
       display: "grid",
-      gridTemplateColumns: "auto max-content auto",
+      gridTemplateColumns: "max-content max-content auto",
       columnGap: "1em",
     }}
   >

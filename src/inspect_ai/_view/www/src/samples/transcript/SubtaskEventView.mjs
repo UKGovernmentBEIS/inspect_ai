@@ -10,5 +10,8 @@ import { TranscriptView } from "./TranscriptView.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const SubtaskEventView = ({ event }) => {
-  return html`<${TranscriptView} transcript=${event.transcript} />`;
+  return html`<div style=${{ textTransform: "uppercase", fontSize: "0.7rem" }}>
+      Subtask: ${event.name}
+    </div>
+    <${TranscriptView} transcript=${event.transcript.events} />`;
 };
