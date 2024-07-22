@@ -1,4 +1,5 @@
-from typing import Any
+import json
+from typing import Any, cast
 
 from inspect_ai.model import (
     ChatMessage,
@@ -42,6 +43,8 @@ def record_to_sample_fn(
                 choices=read_choices(record.get(sample_fields.choices)),
                 id=record.get(sample_fields.id, None),
                 metadata=metadata,
+                files=read_files(record.get(sample_fields.files)),
+                setup=read_setup(record.get(sample_fields.setup)),
             )
 
     else:
@@ -116,5 +119,26 @@ def read_choices(obj: Any | None) -> list[str] | None:
             return [choice.strip() for choice in choices]
         else:
             return [str(obj)]
+    else:
+        return None
+
+
+def read_setup(setup: Any | None) -> str | None:
+    if setup is not None:
+        return str(setup)
+    else:
+        return None
+
+
+def read_files(files: Any | None) -> dict[str, str] | None:
+    if files is not None:
+        if isinstance(files, str):
+            files = json.loads(files)
+        if isinstance(files, dict):
+            if all(isinstance(v, str) for v in files.values()):
+                return cast(dict[str, str], files)
+
+        # didn't find the right type
+        raise ValueError(f"Unexpected type for 'files' field: {type(files)}")
     else:
         return None
