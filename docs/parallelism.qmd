@@ -124,15 +124,17 @@ eval(tasks, max_tasks=5)
 
 It's critical to reinforce that this will only provide a performance gain if the number of samples is very small. For example, If the dataset contains 10 samples and your `max_connections` is 10, there is no gain to be had by running tasks in parallel.
 
-Note that you can combine parallel tasks with parallel models if you are evaluating multiple models:
+Note that you can combine parallel tasks with parallel models as follows:
 
 ``` python
 eval(
-    tasks,
+    tasks, # 6 tasks for various temperature values
     model=["openai/gpt-4o", "anthropic/claude-3-haiku-20240307"],
     max_tasks=5,
 )
 ```
+
+This code will evaluate a total of 12 tasks (6 temperature variations against 2 models each) with up to 5 tasks run in parallel.
 
 ## Tool Environments {#sec-parallel-tool-environments}
 
