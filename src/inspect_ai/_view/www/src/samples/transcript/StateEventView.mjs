@@ -15,11 +15,13 @@ export const StateEventView = ({ event }) => {
 
     // Compute the change rows
     const symbol = iconForOp(change.op);
-    const background = backgroundForOp(change.op);
+    const color = colorForOp(change.op);
     const toStyle = {
-      background: background ? background.to : "initial",
+
     };
-    const baseStyle = {};
+    const baseStyle = {
+      color
+    };
     return html`
       <div style=${baseStyle}>${symbol ? symbol : ""}</div>
       <code style=${baseStyle}>${change.path}</code>
@@ -70,25 +72,16 @@ const iconForOp = (op) => {
  * Returns a background color configuration based on the operation type.
  *
  * @param {string} op - The operation type.
- * @returns {{from: string, to: string}|undefined} - The background color configuration, or undefined for certain operations.
+ * @returns {string|undefined} - The color configuration, or undefined for certain operations.
  */
-const backgroundForOp = (op) => {
+const colorForOp = (op) => {
   switch (op) {
     case "add":
-      return {
-        from: "#dafbe1",
-        to: "#dafbe1",
-      };
+      return "var(--bs-success)";
     case "remove":
-      return {
-        from: "#ffebe9",
-        to: "#ffebe9",
-      };
+      return "var(--bs-danger)";
     case "replace":
-      return {
-        from: "#ffebe9",
-        to: "#dafbe1",
-      };
+      return "var(--bs-success)";
     case "copy":
     case "move":
     case "test":
