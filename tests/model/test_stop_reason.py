@@ -1,6 +1,7 @@
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_together,
@@ -27,6 +28,12 @@ async def check_stop_reason(model_name):
 
     response = await generate_token_limit(model_name)
     assert response.choices[0].stop_reason == "length"
+
+
+@pytest.mark.asyncio
+@skip_if_no_groq
+async def test_groq_stop_reason() -> None:
+    await check_stop_reason("groq/llama3-70b-8192")
 
 
 @pytest.mark.asyncio

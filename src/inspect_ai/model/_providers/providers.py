@@ -10,6 +10,27 @@ from .._registry import modelapi
 # strictly require this treatment but we do it anyway for uniformity,
 
 
+@modelapi(name="groq")
+def groq() -> type[ModelAPI]:
+    FEATURE = "Groq API"
+    PACKAGE = "groq"
+    MIN_VERSION = "0.1.0"
+
+    # verify we have the package
+    try:
+        import groq  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+    # in the clear
+    from .groq import GroqAPI
+
+    return GroqAPI
+
+
 @modelapi(name="openai")
 def openai() -> type[ModelAPI]:
     # validate
