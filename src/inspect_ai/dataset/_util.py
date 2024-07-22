@@ -35,6 +35,16 @@ def record_to_sample_fn(
                 metadata = {}
                 for name in sample_fields.metadata:
                     metadata[name] = record.get(name)
+            elif "metadata" in record:
+                metadata_field = record.get("metadata")
+                if isinstance(metadata_field, str):
+                    metadata = json.loads(metadata_field)
+                elif isinstance(metadata_field, dict):
+                    metadata = metadata_field
+                else:
+                    raise ValueError(
+                        f"Unexpected type for 'metadata' field: {type(metadata_field)}"
+                    )
 
             # return sample
             return Sample(
