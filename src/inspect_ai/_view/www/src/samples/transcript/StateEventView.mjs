@@ -16,11 +16,9 @@ export const StateEventView = ({ event }) => {
     // Compute the change rows
     const symbol = iconForOp(change.op);
     const color = colorForOp(change.op);
-    const toStyle = {
-
-    };
+    const toStyle = {};
     const baseStyle = {
-      color
+      color,
     };
     return html`
       <div style=${baseStyle}>${symbol ? symbol : ""}</div>
