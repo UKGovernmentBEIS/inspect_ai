@@ -13,7 +13,7 @@ from inspect_ai.tool._tool_def import tools_info
 
 
 class SolverTranscript:
-    def __init__(self, solver: Solver, before_state: TaskState) -> None:
+    def __init__(self, before_state: TaskState) -> None:
         self.before = state_jsonable(before_state)
 
     def complete(self, after_state: TaskState) -> None:
@@ -26,7 +26,7 @@ class SolverTranscript:
 @contextlib.contextmanager
 def solver_transcript(solver: Solver, state: TaskState) -> Iterator[SolverTranscript]:
     with transcript().step(name=registry_log_name(solver), type="solver"):
-        yield SolverTranscript(solver, state)
+        yield SolverTranscript(state)
 
 
 def state_jsonable(state: TaskState) -> dict[str, Any]:
