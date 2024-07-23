@@ -16,6 +16,7 @@ from .util import ComposeProject
 def project_cleanup_startup() -> None:
     _running_projects.set([])
     _auto_compose_files.set(set())
+    _cleanup_completed.set(False)
 
 
 def project_startup(project: ComposeProject) -> None:
@@ -36,39 +37,43 @@ async def project_cleanup(project: ComposeProject, quiet: bool = True) -> None:
 
 
 async def project_cleanup_shutdown(cleanup: bool) -> None:
-    # get projects that still need shutting down
-    shutdown_projects = running_projects().copy()
+    # cleanup is global so we do it only once
+    if not _cleanup_completed.get():
+        # get projects that still need shutting down
+        shutdown_projects = running_projects().copy()
 
-    # full cleanup if requested
-    if len(shutdown_projects) > 0:
-        if cleanup:
-            await cleanup_projects(shutdown_projects)
+        # full cleanup if requested
+        if len(shutdown_projects) > 0:
+            if cleanup:
+                await cleanup_projects(shutdown_projects)
 
-        else:
-            print("")
-            table = Table(
-                title="Docker Tool Environments (not yet cleaned up):",
-                box=box.SQUARE_DOUBLE_HEAD,
-                show_lines=True,
-                title_style="bold",
-                title_justify="left",
-            )
-            table.add_column("Container(s)", no_wrap=True)
-            table.add_column("Cleanup")
-            for project in shutdown_projects:
-                containers = await compose_ps(project, all=True)
-                table.add_row(
-                    "\n".join(container["Name"] for container in containers),
-                    f"[blue]inspect toolenv cleanup docker {project.name}[/blue]",
+            elif not _cleanup_completed.get():
+                print("")
+                table = Table(
+                    title="Docker Tool Environments (not yet cleaned up):",
+                    box=box.SQUARE_DOUBLE_HEAD,
+                    show_lines=True,
+                    title_style="bold",
+                    title_justify="left",
                 )
-            print(table)
-            print(
-                "\nCleanup all environments with: [blue]inspect toolenv cleanup docker[/blue]\n"
-            )
+                table.add_column("Container(s)", no_wrap=True)
+                table.add_column("Cleanup")
+                for project in shutdown_projects:
+                    containers = await compose_ps(project, all=True)
+                    table.add_row(
+                        "\n".join(container["Name"] for container in containers),
+                        f"[blue]inspect toolenv cleanup docker {project.name}[/blue]",
+                    )
+                print(table)
+                print(
+                    "\nCleanup all environments with: [blue]inspect toolenv cleanup docker[/blue]\n"
+                )
 
-    # remove auto-compose files
-    for file in auto_compose_files().copy():
-        safe_cleanup_auto_compose(file)
+        # remove auto-compose files
+        for file in auto_compose_files().copy():
+            safe_cleanup_auto_compose(file)
+
+        _cleanup_completed.set(True)
 
 
 async def cleanup_projects(
@@ -130,3 +135,7 @@ _running_projects: ContextVar[list[ComposeProject]] = ContextVar(
 )
 
 _auto_compose_files: ContextVar[Set[str]] = ContextVar("docker_auto_compose_files")
+
+_cleanup_completed: ContextVar[bool] = ContextVar(
+    "docker_cleanup_executed", default=False
+)
