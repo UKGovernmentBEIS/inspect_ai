@@ -72,7 +72,7 @@ class Display(abc.ABC):
 
     @abc.abstractmethod
     @contextlib.contextmanager
-    def live_task_status(self) -> Iterator[None]: ...
+    def live_task_status(self, total_tasks: int, parallel: bool) -> Iterator[None]: ...
 
     @abc.abstractmethod
     @contextlib.contextmanager

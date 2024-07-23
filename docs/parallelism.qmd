@@ -16,7 +16,7 @@ There are a progression of concurrency concerns, and while most evaluations can 
 3.  Tool environment concurrency.
 4.  Writing parallel code in custom solvers and scorers.
 
-## Model Connections 
+## Model Connections
 
 ### Max Connections
 
@@ -61,14 +61,14 @@ Note that max connections is applied per-model. This means that if you use a gra
 ::: {.callout-note appearance="simple"}
 The multiple models feature described below is available in only the very latest version of Inspect (v0.3.18). You can upgrade to the latest version with:
 
-```bash
+``` bash
 $ pip install --upgrade inspect-ai
 ```
 :::
 
 You can evaluate multiple models in parallel by passing a list of models to the `eval()` function. For example:
 
-```python
+``` python
 eval("mathematics.py", model=[
     "openai/gpt-4-turbo",
     "anthropic/claude-3-opus-20240229",
@@ -82,9 +82,59 @@ Since each model provider has its own `max_connections` they don't contend with 
 
 If you want to specify multiple models when using the `--model` CLI argument or `INSPECT_EVAL_MODEL` environment variable, just separate the model names with commas. For example:
 
-```bash
+``` bash
 INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
 ```
+
+## Multiple Tasks {#sec-multiple-tasks}
+
+::: {.callout-note appearance="simple"}
+The multiple tasks feature described below is currently available only in the development version of Inspect. You can intstall the development version with:
+
+``` bash
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
+```
+:::
+
+By default, Inspect runs a single task at a time. This is because most tasks consist of 10 or more samples, which generally means that sample parallelism is enough to make full use of the `max_connections` defined for the active model. If however, the number samples per task is substantially lower than `max_connections` then you might benefit from running multiple tasks in parallel.
+
+There is one important constraint on task parallelism to note: all of the tasks *must share a working directory* (as Inspect switches to the working directory of tasks when executing them).
+
+Run multiple tasks in parallel using the `--max-tasks` CLI option or `max_tasks` parameter to the `eval()` function. For example, here we run all of the tasks in the current working directory with up 5 tasks run in parallel:
+
+``` bash
+$ inspect eval . --max-tasks=5 
+```
+
+Another common scenario is running the same task with variations of hyperparameters (e.g. prompts, generation config, etc.). For example:
+
+``` python
+tasks = [
+    Task(
+        dataset=csv_dataset("dataset.csv"),
+        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        scorer=match(),
+        config=GenerateConfig(temperature=temperature),
+    )
+    for temperature in [0.5, 0.6, 0.7, 0.8, 0.9, 1]
+]
+
+eval(tasks, max_tasks=5)
+```
+
+It's critical to reinforce that this will only provide a performance gain if the number of samples is very small. For example, If the dataset contains 10 samples and your `max_connections` is 10, there is no gain to be had by running tasks in parallel.
+
+Note that you can combine parallel tasks with parallel models as follows:
+
+``` python
+eval(
+    tasks, # 6 tasks for various temperature values
+    model=["openai/gpt-4o", "anthropic/claude-3-haiku-20240307"],
+    max_tasks=5,
+)
+```
+
+This code will evaluate a total of 12 tasks (6 temperature variations against 2 models each) with up to 5 tasks run in parallel.
 
 ## Tool Environments {#sec-parallel-tool-environments}
 
@@ -92,7 +142,7 @@ INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
 
 ### Max Samples
 
-The `max_samples` option determines how many samples are executed in parallel (and in th case of Docker containers how many containers are run in parallel). By default, `max_samples` is set to `max_connections` so that the connection to the Model API can be fully utilised. 
+The `max_samples` option determines how many samples are executed in parallel (and in the case of Docker containers how many containers are run in parallel). By default, `max_samples` is set to `max_connections` so that the connection to the Model API can be fully utilised.
 
 Since Tool enviroinments include additional expensive operations beyond calling models, you may want to increase `max_samples` to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you'll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing `max_samples`.
 
@@ -195,7 +245,6 @@ downloads = [download(page) for page in pages]
 
 results = await asyncio.gather(*downloads)
 ```
-
 
 ### Subprocesses
 

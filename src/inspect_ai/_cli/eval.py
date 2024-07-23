@@ -18,6 +18,7 @@ from .common import CommonOptions, common_options, resolve_common_options
 from .util import parse_cli_args, parse_tool_env
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
+MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1)"
 MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
@@ -87,6 +88,7 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
 @click.option("--max-retries", type=int, help=MAX_RETRIES_HELP)
 @click.option("--timeout", type=int, help=TIMEOUT_HELP)
 @click.option("--max-samples", type=int, help=MAX_SAMPLES_HELP)
+@click.option("--max-tasks", type=int, help=MAX_TASKS_HELP)
 @click.option("--max-subprocesses", type=int, help=MAX_SUBPROCESSES_HELP)
 @click.option(
     "--max-messages",
@@ -205,6 +207,7 @@ def eval_command(
     top_logprobs: int | None,
     max_messages: int | None,
     max_samples: int | None,
+    max_tasks: int | None,
     max_subprocesses: int | None,
     no_log_samples: bool | None,
     no_log_images: bool | None,
@@ -257,6 +260,7 @@ def eval_command(
         epochs=epochs,
         max_messages=max_messages,
         max_samples=max_samples,
+        max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         log_samples=log_samples,
         log_images=log_images,
@@ -280,6 +284,9 @@ def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
 @click.argument("log_files", nargs=-1, required=True)
 @click.option(
     "--max-samples", type=int, help=MAX_SAMPLES_HELP, envvar="INSPECT_EVAL_MAX_SAMPLES"
+)
+@click.option(
+    "--max-tasks", type=int, help=MAX_TASKS_HELP, envvar="INSPECT_EVAL_MAX_TASKS"
 )
 @click.option(
     "--max-subprocesses",
@@ -331,6 +338,7 @@ def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
 def eval_retry_command(
     log_files: tuple[str],
     max_samples: int | None,
+    max_tasks: int | None,
     max_subprocesses: int | None,
     no_toolenv_cleanup: bool | None,
     no_log_samples: bool | None,
@@ -363,6 +371,7 @@ def eval_retry_command(
         log_level=log_level,
         log_dir=log_dir,
         max_samples=max_samples,
+        max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         toolenv_cleanup=toolenv_cleanup,
         log_samples=log_samples,
