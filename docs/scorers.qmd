@@ -60,9 +60,14 @@ Task(
 )
 ```
 
-:::{.callout-note}
+:::{#stderr-note .callout-note}
 
-Inspect's latest update replaced the `bootstrap_std` metric with `stderr`, a calulation of the standard error of the means using the Central Limit Theorem. We are able to compute the error directly using `stderr` (rather than using bootstrapping to estimate it) since the evaluation scores are means of numbers having finite variance. 
+The current development version of Inspect replaces the use of the `bootstrap_std` metric with `stderr` for the built in scorers enumerated above.
+
+Since eval scores are means of numbers having finite variance, we can compute standard errors using the Central Limit Theorem rather than bootstrapping. Bootstrapping is generally useful in contexts with more complex structure or non-mean summary statistics (e.g. quantiles). You will notice that the bootstrap numbers will come in quite close to the analytic numbers, since they are estimating the same thing.
+
+
+A common misunderstanding is that "t-tests require the underlying data to be normally distributed". This is only true for small-sample problems; for large sample problems (say 30 or more questions), you just need finite variance in the underlying data and the CLT guarantees a normally distributed mean value.
 
 :::
 
