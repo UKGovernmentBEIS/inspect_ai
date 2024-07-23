@@ -6,6 +6,7 @@ from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Metric, Score, accuracy, includes, match, metric
 from inspect_ai.scorer._metric import MetricType, metric_create
+from inspect_ai.scorer._metrics import std
 
 # declare some metrics using the various forms supported (function,
 # function returning Metric, class deriving from Metric) as well
@@ -76,19 +77,20 @@ def test_extra_metrics() -> None:
     # check that we get the extra metrics and de-duping works
     def check_log(log):
         assert log.results and (
-            list(log.results.metrics.keys())
+            list(log.results.scores[0].metrics.keys())
             == [
                 "accuracy",
-                "bootstrap_std",
+                "stderr",
                 "accuracy1",
                 "Accuracy3",
+                "std",
             ]
         )
 
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
         scorer=match(),
-        metrics=[accuracy(), accuracy1(), Accuracy3()],
+        metrics=[accuracy(), accuracy1(), Accuracy3(), std()],
     )
 
     # normal eval

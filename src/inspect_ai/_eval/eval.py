@@ -2,22 +2,18 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from shortuuid import uuid
 from typing_extensions import Unpack
 
-from inspect_ai._display import display
 from inspect_ai._display.logger import init_logger
-from inspect_ai._util.dotenv import dotenv_environ, init_dotenv
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.file import absolute_file_path
-from inspect_ai._util.path import chdir_python
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
 from inspect_ai.log._file import JSONRecorder
-from inspect_ai.log._log import Recorder
 from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
@@ -26,14 +22,11 @@ from inspect_ai.model import (
 from inspect_ai.model._model import init_active_model, resolve_models
 from inspect_ai.solver import Plan, Solver
 from inspect_ai.tool import ToolEnvironmentSpec
-from inspect_ai.tool._environment.context import startup_tool_environments
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
+from .run import eval_run
 from .task import PreviousTask, Tasks
-from .task.log import TaskLogger
-from .task.run import create_sample_semaphore, task_run
-from .task.util import task_run_dir
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +46,7 @@ def eval(
     epochs: int | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
+    max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -89,7 +83,9 @@ def eval(
         max_messages (int | None): Maximum number of messages to allow
            in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
-           (default is running all samples in parallel)
+           (default is max_connections)
+        max_tasks (int | None): Maximum number of tasks to run in parallel
+           (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -122,6 +118,7 @@ def eval(
             epochs=epochs,
             max_messages=max_messages,
             max_samples=max_samples,
+            max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             log_samples=log_samples,
             log_images=log_images,
@@ -147,6 +144,7 @@ async def eval_async(
     epochs: int | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
+    max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -183,7 +181,9 @@ async def eval_async(
         max_messages (int | None): Maximum number of messages to allow
             in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
-           (default is running all samples in parallel)
+           (default is max_connections)
+        max_tasks (int | None): Maximum number of tasks to run in parallel
+           (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -246,6 +246,7 @@ async def eval_async(
             epochs=epochs,
             max_messages=max_messages,
             max_samples=max_samples,
+            max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             toolenv_cleanup=toolenv_cleanup,
             log_samples=log_samples,
@@ -253,29 +254,55 @@ async def eval_async(
             log_buffer=log_buffer,
         )
 
-        # run tasks (batch so that multiple models are executed in parallel)
+        # run tasks - 2 codepaths, one for the traditional task at a time
+        # (w/ optional multiple models) and the other for true multi-task
+        # (which requires different scheduling and UI)
         run_id = uuid()
-        results: list[EvalLog] = []
-        for sequence in range(0, len(resolved_tasks) // len(models)):
-            task_batch = list(filter(lambda t: t.sequence == sequence, resolved_tasks))
-            results.extend(
-                await eval_parallel(
-                    run_id=run_id,
-                    tasks=task_batch,
-                    eval_config=eval_config,
-                    recorder=recorder,
-                    model_args=model_args,
-                    plan=plan,
-                    score=score,
-                    **kwargs,
-                )
-            )
-            # exit the loop if there was a cancellation
-            if any([result.status == "cancelled" for result in results]):
-                break
+        task_definitions = len(resolved_tasks) // len(models)
+        parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
 
-        # return list of eval logs
-        return EvalLogs(results)
+        # single task definition (could be multi-model) or max_tasks capped to 1
+        if parallel == 1:
+            results: list[EvalLog] = []
+            for sequence in range(0, task_definitions):
+                task_batch = list(
+                    filter(lambda t: t.sequence == sequence, resolved_tasks)
+                )
+                results.extend(
+                    await eval_run(
+                        run_id=run_id,
+                        tasks=task_batch,
+                        parallel=parallel,
+                        eval_config=eval_config,
+                        recorder=recorder,
+                        model_args=model_args,
+                        plan=plan,
+                        score=score,
+                        **kwargs,
+                    )
+                )
+                # exit the loop if there was a cancellation
+                if any([result.status == "cancelled" for result in results]):
+                    break
+
+            # return list of eval logs
+            return EvalLogs(results)
+
+        # multiple task definitions AND tasks not capped at 1
+        else:
+            results = await eval_run(
+                run_id=run_id,
+                tasks=resolved_tasks,
+                parallel=parallel,
+                eval_config=eval_config,
+                recorder=recorder,
+                model_args=model_args,
+                plan=plan,
+                score=score,
+                **kwargs,
+            )
+            return EvalLogs(results)
+
     finally:
         _eval_async_running = False
 
@@ -284,114 +311,12 @@ async def eval_async(
 _eval_async_running = False
 
 
-async def eval_parallel(
-    run_id: str,
-    tasks: list[ResolvedTask],
-    eval_config: EvalConfig,
-    recorder: Recorder,
-    model_args: dict[str, Any],
-    plan: Plan | Solver | list[Solver] | None = None,
-    score: bool = True,
-    **kwargs: Unpack[GenerateConfigArgs],
-) -> list[EvalLog]:
-    # we rely on the run_dir and toolenv being the same across all tasks
-    # alias these and then confirm that the rest of the tasks conform
-    run_dir = task_run_dir(tasks[0].task)
-    if any([task_run_dir(task.task) != run_dir for task in tasks]):
-        raise RuntimeError(
-            "Tasks passed to eval_parallel must have the same working directory."
-        )
-    toolenv = next((task.toolenv for task in tasks if task.toolenv is not None), None)
-    if any([task.toolenv is not None and task.toolenv != toolenv for task in tasks]):
-        raise RuntimeError(
-            "Tasks passed to eval_parallel must have the same tool environment."
-        )
-
-    # if we have a toolenv then we need to enforce sample concurrency at
-    # this level of the eval (so we don't explode the # of toolenvs)
-    sample_semaphore: asyncio.Semaphore | None = (
-        create_sample_semaphore(eval_config, GenerateConfig(**kwargs), toolenv)
-        if toolenv
-        else None
-    )
-
-    # switch to task directory context
-    with chdir_python(run_dir), dotenv_environ():
-        # run startup pass for the tool_environment
-        shutdown_tool_environments: Callable[[], Awaitable[None]] | None = None
-        if toolenv:
-            cleanup = eval_config.toolenv_cleanup is not False
-            shutdown_tool_environments = await startup_tool_environments(
-                "startup", toolenv, cleanup
-            )
-
-        try:
-            # create asyncio tasks
-            asyncio_tasks: list[asyncio.Task[EvalLog]] = []
-            for resolved_task in tasks:
-                # tasks can provide their own epochs and max_messages
-                task = resolved_task.task
-                task_eval_config = eval_config.model_copy()
-                if task.epochs is not None:
-                    task_eval_config.epochs = task.epochs
-                if task.max_messages is not None:
-                    task_eval_config.max_messages = task.max_messages
-
-                # create and track the logger
-                logger = TaskLogger(
-                    task_name=task.name,
-                    task_version=task.version,
-                    task_file=resolved_task.task_file,
-                    task_id=resolved_task.id if resolved_task.id else uuid(),
-                    run_id=run_id,
-                    model=resolved_task.model,
-                    dataset=task.dataset,
-                    tool_environment=resolved_task.toolenv,
-                    task_attribs=task.attribs,
-                    task_args=resolved_task.task_args,
-                    model_args=model_args,
-                    eval_config=task_eval_config,
-                    recorder=recorder,
-                )
-
-                # append task
-                asyncio_tasks.append(
-                    asyncio.create_task(
-                        task_run(
-                            task=task,
-                            model=resolved_task.model,
-                            toolenv=toolenv,
-                            logger=logger,
-                            config=task_eval_config,
-                            plan=plan,
-                            score=score,
-                            sample_source=resolved_task.sample_source,
-                            sample_semaphore=sample_semaphore,
-                            **kwargs,
-                        )
-                    )
-                )
-
-            # run all of the tasks in parallel
-            with display().live_task_status():
-                return await asyncio.gather(*asyncio_tasks)
-
-        finally:
-            # shutdown tool environments
-            if shutdown_tool_environments:
-                try:
-                    await shutdown_tool_environments()
-                except BaseException as ex:
-                    log.warning(
-                        f"Error occurred shutting down tool environments: {exception_message(ex)}"
-                    )
-
-
 def eval_retry(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
     log_dir: str | None = None,
     max_samples: int | None = None,
+    max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     toolenv_cleanup: bool | None = None,
     log_samples: bool | None = None,
@@ -412,7 +337,9 @@ def eval_retry(
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
         max_samples (int | None): Maximum number of samples to run in parallel
-           (default is running all samples in parallel)
+           (default is max_connections)
+        max_tasks (int | None): Maximum number of tasks to run in parallel
+           (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
         toolenv_cleanup (bool | None): Cleanup tool environments after task completes
@@ -441,6 +368,7 @@ def eval_retry(
             log_level=log_level,
             log_dir=log_dir,
             max_samples=max_samples,
+            max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             toolenv_cleanup=toolenv_cleanup,
             log_samples=log_samples,
@@ -459,6 +387,7 @@ async def eval_retry_async(
     log_level: str | None = None,
     log_dir: str | None = None,
     max_samples: int | None = None,
+    max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     toolenv_cleanup: bool | None = None,
     log_samples: bool | None = None,
@@ -479,7 +408,9 @@ async def eval_retry_async(
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
         max_samples (int | None): Maximum number of samples to run in parallel
-           (default is running all samples in parallel)
+           (default is max_connections)
+        max_tasks (int | None): Maximum number of tasks to run in parallel
+           (default is 1)
         max_subprocesses (int): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
         toolenv_cleanup (bool | None): Cleanup tool environments after task completes
@@ -547,7 +478,8 @@ async def eval_retry_async(
         limit = eval_log.eval.config.limit
         epochs = eval_log.eval.config.epochs
         max_messages = eval_log.eval.config.max_messages
-        max_samples = max_samples
+        max_samples = max_samples or eval_log.eval.config.max_samples
+        max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
         toolenv_cleanup = (
             toolenv_cleanup
@@ -585,6 +517,7 @@ async def eval_retry_async(
                 epochs=epochs,
                 max_messages=max_messages,
                 max_samples=max_samples,
+                max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 log_samples=log_samples,
                 log_images=log_images,
