@@ -20,8 +20,8 @@ from inspect_ai.scorer import (
     Score,
     Target,
     accuracy,
-    bootstrap_std,
     scorer,
+    stderr,
 )
 from inspect_ai.solver import TaskState, generate, prompt_template
 
@@ -52,7 +52,7 @@ def math(shuffle=True):
     )
 
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def expression_equivalance():
     async def score(state: TaskState, target: Target):
         # extract answer
