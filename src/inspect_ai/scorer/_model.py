@@ -6,13 +6,13 @@ from inspect_ai.solver import TaskState
 from inspect_ai.util import resource
 
 from ._metric import INCORRECT, Score
-from ._metrics import accuracy, bootstrap_std
+from ._metrics import accuracy, stderr
 from ._multi import majority_vote, multi_scorer
 from ._scorer import Scorer, scorer
 from ._target import Target
 
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def model_graded_fact(
     template: str | None = None,
     instructions: str | None = None,
@@ -52,7 +52,7 @@ def model_graded_fact(
     )
 
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def model_graded_qa(
     template: str | None = None,
     instructions: str | None = None,
@@ -97,7 +97,7 @@ def model_graded_qa(
     return multi_scorer(scorers, majority_vote)
 
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def _model_graded_qa_single(
     template: str | None = None,
     instructions: str | None = None,
