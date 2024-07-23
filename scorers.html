@@ -363,7 +363,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><code>model_graded_fact()</code></p>
 <p>Have another model assess whether the model output contains a fact that is set out in <code>target</code>. This is a more narrow assessment than <code>model_graded_qa()</code>, and is used when model output is too complex to be assessed using a simple <code>match()</code> or <code>pattern()</code> scorer.</p></li>
 </ul>
-<p>Scorers provide one or more built-in metrics (each of the scorers above provides <code>accuracy</code> as a metric). You can also provide your own custom metrics in <code>Task</code> definitions. For example:</p>
+<p>Scorers provide one or more built-in metrics (each of the scorers above provides <code>accuracy</code> and <code>stderr</code> as a metric). You can also provide your own custom metrics in <code>Task</code> definitions. For example:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    plan<span class="op">=</span>[</span>
@@ -373,12 +373,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>match(),</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    metrics<span class="op">=</span>[custom_metric()]</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div id="stderr-note" class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The current development version of Inspect replaces the use of the <code>bootstrap_std</code> metric with <code>stderr</code> for the built in scorers enumerated above.</p>
+<p>Since eval scores are means of numbers having finite variance, we can compute standard errors using the Central Limit Theorem rather than bootstrapping. Bootstrapping is generally useful in contexts with more complex structure or non-mean summary statistics (e.g.&nbsp;quantiles). You will notice that the bootstrap numbers will come in quite close to the analytic numbers, since they are estimating the same thing.</p>
+<p>A common misunderstanding is that “t-tests require the underlying data to be normally distributed”. This is only true for small-sample problems; for large sample problems (say 30 or more questions), you just need finite variance in the underlying data and the CLT guarantees a normally distributed mean value.</p>
+</div>
+</div>
 </section>
 <section id="model-graded" class="level2">
 <h2 class="anchored" data-anchor-id="model-graded">Model Graded</h2>
 <p>Model graded scorers are well suited to assessing open ended answers as well as factual answers that are embedded in a longer narrative. The built-in model graded scorers can be customised in several ways—you can also create entirely new model scorers (see the model graded example below for a starting point).</p>
 <p>Here is the declaration for the <code>model_graded_qa()</code> function:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), bootstrap_std()])</span>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_graded_qa(</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    instructions: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -491,7 +506,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="example-includes" class="level3">
 <h3 class="anchored" data-anchor-id="example-includes">Example: Includes</h3>
 <p>Here is the source code for the built-in <code>includes()</code> scorer:</p>
-<div class="sourceCode" id="annotated-cell-7"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><a class="code-annotation-anchor" data-target-cell="annotated-cell-7" data-target-annotation="1" onclick="event.preventDefault();">1</a><span id="annotated-cell-7-1" class="code-annotation-target"><a href="#annotated-cell-7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), bootstrap_std()])</span>
+<div class="sourceCode" id="annotated-cell-7"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><a class="code-annotation-anchor" data-target-cell="annotated-cell-7" data-target-annotation="1" onclick="event.preventDefault();">1</a><span id="annotated-cell-7-1" class="code-annotation-target"><a href="#annotated-cell-7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="annotated-cell-7-2"><a href="#annotated-cell-7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> includes(ignore_case: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>):</span>
 <span id="annotated-cell-7-3"><a href="#annotated-cell-7-3" aria-hidden="true" tabindex="-1"></a></span>
 <a class="code-annotation-anchor" data-target-cell="annotated-cell-7" data-target-annotation="2" onclick="event.preventDefault();">2</a><span id="annotated-cell-7-4" class="code-annotation-target"><a href="#annotated-cell-7-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):</span>
@@ -526,7 +541,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-7" data-target-annotation="4">4</dt>
 <dd>
-<span data-code-cell="annotated-cell-7" data-code-lines="16" data-code-annotation="4">We use the special constants <code>CORRECT</code> and <code>INCORRECT</code> for the score value (as the <code>accuracy()</code> and <code>bootstrap_std()</code> metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).</span>
+<span data-code-cell="annotated-cell-7" data-code-lines="16" data-code-annotation="4">We use the special constants <code>CORRECT</code> and <code>INCORRECT</code> for the score value (as the <code>accuracy()</code>, <code>stderr()</code>, and <code>bootstrap_std()</code> metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).</span>
 </dd>
 <dt data-target-cell="annotated-cell-7" data-target-annotation="5">5</dt>
 <dd>
@@ -538,7 +553,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="example-model-grading">Example: Model Grading</h3>
 <p>Here’s a somewhat simplified version of the code for the <code>model_graded_qa()</code> scorer:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), bootstrap_std()])</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_graded_qa(</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    template: <span class="bu">str</span> <span class="op">=</span> DEFAULT_MODEL_GRADED_QA_TEMPLATE,</span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    instructions: <span class="bu">str</span> <span class="op">=</span> DEFAULT_MODEL_GRADED_QA_INSTRUCTIONS,</span>
@@ -626,8 +641,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>You may also create a scorer which yields multiple scores. This is useful when the scores use data that is shared or expensive to compute. For example:</p>
 <div class="sourceCode" id="annotated-cell-10"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-10-1"><a href="#annotated-cell-10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(</span>
 <a class="code-annotation-anchor" data-target-cell="annotated-cell-10" data-target-annotation="1" onclick="event.preventDefault();">1</a><span id="annotated-cell-10-2" class="code-annotation-target"><a href="#annotated-cell-10-2" aria-hidden="true" tabindex="-1"></a>    metrics<span class="op">=</span>{</span>
-<span id="annotated-cell-10-3"><a href="#annotated-cell-10-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"a_count"</span>: [mean(), bootstrap_std()],</span>
-<span id="annotated-cell-10-4"><a href="#annotated-cell-10-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"e_count"</span>: [mean(), bootstrap_std()]</span>
+<span id="annotated-cell-10-3"><a href="#annotated-cell-10-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"a_count"</span>: [mean(), stderr()],</span>
+<span id="annotated-cell-10-4"><a href="#annotated-cell-10-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"e_count"</span>: [mean(), stderr()]</span>
 <span id="annotated-cell-10-5"><a href="#annotated-cell-10-5" aria-hidden="true" tabindex="-1"></a>    }</span>
 <span id="annotated-cell-10-6"><a href="#annotated-cell-10-6" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="annotated-cell-10-7"><a href="#annotated-cell-10-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> letter_count():</span>
@@ -656,7 +671,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span data-code-cell="annotated-cell-10" data-code-lines="12,13,14,15" data-code-annotation="2">The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the <code>@scorer</code> decorator.</span>
 </dd>
 </dl>
-<p>The above example will produce two scores, <code>a_count</code> and <code>e_count</code>, each of which will have metrics for <code>mean</code> and <code>bootstrap_std</code>.</p>
+<p>The above example will produce two scores, <code>a_count</code> and <code>e_count</code>, each of which will have metrics for <code>mean</code> and <code>stderr</code>.</p>
 </section>
 <section id="reducing-multiple-scores" class="level3">
 <h3 class="anchored" data-anchor-id="reducing-multiple-scores">Reducing Multiple Scores</h3>
@@ -687,7 +702,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="metrics" class="level2">
 <h2 class="anchored" data-anchor-id="metrics">Metrics</h2>
-<p>Each scorer provides one or more built-in metrics (typically <code>accuracy</code> and <code>bootstrap_std</code>). In addition, you can specify other metrics (either built-in or custom) to compute when defining a <code>Task</code>:</p>
+<p>Each scorer provides one or more built-in metrics (typically <code>accuracy</code> and <code>stderr</code>). In addition, you can specify other metrics (either built-in or custom) to compute when defining a <code>Task</code>:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    plan<span class="op">=</span>[</span>
@@ -707,6 +722,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Mean of all scores.</p></li>
 <li><p><code>var()</code></p>
 <p>Variance over all scores.</p></li>
+<li><p><code>std()</code></p>
+<p>Sample standard deviation of all scores.</p></li>
+<li><p><code>stderr()</code></p>
+<p>Standard error of the mean.</p></li>
 <li><p><code>bootstrap_std()</code></p>
 <p>Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the <code>num_samples</code> option).</p></li>
 </ul>
