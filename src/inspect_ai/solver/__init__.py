@@ -11,8 +11,8 @@ from ._prompt import (
 from ._solver import Generate, Solver, generate, solver
 from ._task_state import Choice, Choices, TaskState
 from ._tools._execute import bash, python
-from ._tools._use_tools import use_tools
 from ._tools._web_search import web_search
+from ._use_tools import use_tools
 
 __all__ = [
     "generate",
