@@ -90,10 +90,6 @@ class ToolEnvironment(abc.ABC):
         """
         pass
 
-    @classmethod
-    def max_samples(cls) -> int | None:
-        return None
-
     @abc.abstractmethod
     async def exec(
         self,
