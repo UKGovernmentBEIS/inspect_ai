@@ -356,7 +356,7 @@ class Model:
         )
         model_name = ModelName(self)
         return concurrency(
-            name=f"{model_name.api}/{model_name.name}",
+            name=f"{model_name.api}",
             concurrency=max_connections,
             key=f"Model{self.api.connection_key()}",
         )
@@ -628,7 +628,6 @@ def combine_messages(
 
 def init_active_model(model: Model) -> None:
     active_model_context_var.set(model)
-    init_model_usage()
 
 
 def active_model() -> Model | None:

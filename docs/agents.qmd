@@ -379,6 +379,7 @@ class ToolEnvironment:
         self,
         cmd: list[str],
         input: str | bytes | None = None,
+        cwd: str | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
     ) -> ExecResult[str]:
@@ -402,7 +403,7 @@ Note that `read_file()` will raise a `FileNotFoundError` if the specified `file`
 There are two tool environments built in to Inspect:
 
 | Environment Type | Description |
-|---------------------------|---------------------------------------------|
+|------------------------------------|-----------------------------------------------------------------|
 | `local` | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
 | `docker` | Run `tool_environment()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
 
@@ -426,6 +427,28 @@ For this example, if there is a `compose.yaml` file in the task directory it wil
 tool_environment=("docker","my-compose.yaml")
 ```
 
+### Per Sample Setup
+
+The `Sample` class includes `files` and `setup` fields that are used to specify per-sample file assets and setup logic.
+
+#### Files
+
+Sample `files` is a `dict[str,str]` that specifies files to copy into tool environments. The key of the `dict` specifies the name of the file to write. By default files are written into the default tool environment but they can optionally include a prefix indicating that they should be written into a specific tool environment (e.g. `"victim:flag.txt": "flag.txt"`).
+
+The value of the `dict` can be either the file contents, a file path, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+#### Script
+
+If there is a Sample `setup` script it will be executed within the default tool environment after any Sample `files` are copied into the environment. The `setup` field can be either the script contents, a file path containing the script, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+The `setup` script is by default interpreted as a bash script, however you can have it executed by another interpreter using a shebang comment. For example, this will be executed as a Python script:
+
+``` bash
+#!/usr/bin/env python3
+
+print('hello from python')
+```
+
 ### Docker Configuration {#sec-docker-configuration}
 
 Before using Docker tool environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/) (version 24.0.7 or greater).
@@ -435,7 +458,7 @@ You can use the Docker tool enviornment without any special configuration, howev
 Here is how Docker tool environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
 | Config Files | Behavior |
-|--------------------------|----------------------------------------------|
+|--------------------------|---------------------------------------------|
 | None | Creates a tool environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
 | `Dockerfile` | Creates a tool environment by building the image. |
 | `compose.yaml` | Creates tool environment(s) based on `compose.yaml`. |
@@ -514,10 +537,6 @@ tool_environment("victim")  # named tool environment
 ::: {.callout-note apperance="simple"}
 If you define multiple tool environments you are *required* to name one of them "default" so that Inspect knows which environment to copy samples files to and resolve for calls to `tool_environment()` without an argument.
 :::
-
-#### Files
-
-Sample `files` will be copied into the default tool environment unless their name contains a prefix mapping them into another environment (e.g. `"victim:flag.txt": "flag.txt"`).
 
 #### Infrastructure
 

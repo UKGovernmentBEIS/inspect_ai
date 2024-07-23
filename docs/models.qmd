@@ -10,12 +10,14 @@ Inspect has built in support for a variety of language model API providers and c
 | Anthropic    | `pip install anthropic`           | `ANTHROPIC_API_KEY`                                                    |
 | Google       | `pip install google-generativeai` | `GOOGLE_API_KEY`                                                       |
 | Mistral      | `pip install mistralai`           | `MISTRAL_API_KEY`                                                      |
-| Hugging Face | `pip install transformers`        | `HF_TOKEN`                                                             |
-| Ollama       | `pip install openai`              | None required                                                          |
 | TogetherAI   | `pip install openai`              | `TOGETHER_API_KEY`                                                     |
 | AWS Bedrock  | `pip install boto3`               | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
 | Azure AI     | None required                     | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL`                      |
+| Groq         | `pip install groq`                | `GROQ_API_KEY`                                                         |
 | Cloudflare   | None required                     | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`                     |
+| Hugging Face | `pip install transformers`        | None required                                                          |
+| vLLM         | `pip install vllm`                | None required                                                          |
+| Ollama       | `pip install openai`              | None required                                                          |
 
 : {tbl-colwidths="\[18,45,37\]"}
 
@@ -27,17 +29,19 @@ Note that some providers ([Ollama](https://github.com/ollama/ollama/blob/main/do
 
 To select a model for use in an evaluation task you specify it using a *model name*. Model names include their API provider and the specific model to use (e.g. `openai/gpt-4`) Here are the supported providers along with example model names and links to documentation on all available models:
 
-| Provider     | Model Name                        | Docs                                                                                            |
+| Provider     | Example                        | Docs                                                                                            |
 |-------------------|---------------------------|---------------------------|
 | OpenAI       | `openai/gpt-3.5-turbo`            | [OpenAI Models](https://platform.openai.com/docs/models/overview)                               |
 | Anthropic    | `anthropic/claude-2.1`            | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview)                      |
 | Google       | `google/gemini-1.0-pro`           | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models)             |
 | Mistral      | `mistral/mistral-large-latest`    | [Mistral Models](https://docs.mistral.ai/platform/endpoints/)                                   |
 | Hugging Face | `hf/openai-community/gpt2`        | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
+| vLLM         | `vllm/openai-community/gpt2`      | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html)                      |
 | Ollama       | `ollama/llama3`                   | [Ollama Models](https://ollama.com/library)                                                     |
 | TogetherAI   | `together/lmsys/vicuna-13b-v1.5`  | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                 |
 | AWS Bedrock  | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/)                                           |
-| Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)                                          |
+| Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)         
+| Groq         | `groq/mixtral-8x7b-32768`    | [Groq Models](https://console.groq.com/docs/models)       |                                 |
 | Cloudflare   | `cf/meta/llama-2-7b-chat-fp16`    | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation)       |
 
 : {tbl-colwidths="\[18,45,37\]"}
@@ -63,7 +67,7 @@ INSPECT_EVAL_MODEL=google/gemini-1.0-pro
 ```
 
 ::: {.callout-note appearance="simple"}
-If are using Azure AI, AWS Bedrock, or Hugging Face, you should additionally consult the sections below on using the [Azure AI](#azure-ai), [AWS Bedrock](#aws-bedrock), and [Hugging Face](#hugging-face) providers to learn more about available models and their usage and authentication requirements.
+If are using Azure AI, AWS Bedrock, Hugging Face, or vLLM you should additionally consult the sections below on using the [Azure AI](#azure-ai), [AWS Bedrock](#aws-bedrock), [Hugging Face](#sec-hugging-face-transformers), and [vLLM](#sec-vllm) providers to learn more about available models and their usage and authentication requirements.
 :::
 
 ### Model Base URL
@@ -80,6 +84,7 @@ Each model also can use a different base URL than the default (e.g. if running t
 | Ollama      | `OLLAMA_BASE_URL`     |
 | AWS Bedrock | `BEDROCK_BASE_URL`    |
 | Azure AI    | `AZUREAI_BASE_URL`    |
+| Groq        | `GROQ_BASE_URL`       |
 | Cloudflare  | `CLOUDFLARE_BASE_URL` |
 
 : {tbl-colwidths="\[50,50\]"}
@@ -145,7 +150,7 @@ def popularity(model):
 
 ## Provider Notes
 
-This section provides additional documentation on using the Azure AI, AWS Bedrock, and Hugging Face providers.
+This section provides additional documentation on using the Azure AI, AWS Bedrock, Hugging Face, and vLLM providers.
 
 ### Azure AI {#azure-ai}
 
@@ -251,7 +256,7 @@ $ inspect eval popularity --model hf/local -M model_path=./my-model
 Or using the `eval()` function:
 
 ``` python
-eval(popularity, model="hf/local", model_args=dict( model_path="./my-model"))
+eval(popularity, model="hf/local", model_args=dict(model_path="./my-model"))
 ```
 
 Or in a call to `get_model()`
@@ -259,6 +264,65 @@ Or in a call to `get_model()`
 ``` python
 model = get_model("hf/local", model_path="./my-model")
 ```
+
+### vLLM {#sec-vllm}
+
+::: {.callout-note appearance="simple"}
+The vLLM provider is currently available only in the development version of Inspect. You can intstall the development version with:
+
+```bash
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
+```
+:::
+
+
+The `vllm` provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. You can access any Hugging Face model by specifying it with the `vllm/` prefix. For example:
+
+``` bash
+$ inspect eval popularity --model vllm/openai-community/gpt2
+```
+
+You can also access models from ModelScope rather than Hugging Face, see the [vLLM documentation](https://docs.vllm.ai/en/latest/getting_started/quickstart.html) for details on this.
+
+vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.
+
+::: {.callout-tip appearance="simple"}
+Rather than doing inference locally, you can also connect to a remote vLLM server. See the section below on [vLLM Server](#sec-vllm-server) for details).
+:::
+
+#### Device
+
+The `device` option is also available for vLLM models, and you can use it to specify the device(s) to run the model on. For example:
+
+``` bash
+$ inspect eval popularity --model vllm/meta-llama/Meta-Llama-3-8B-Instruct -M device='0,1,2,3'
+```
+
+#### Batching
+
+vLLM automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32.
+
+#### Local Models
+
+Similar to the Hugging Face provider, you can also use local models with the vLLM provider. Use `vllm/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
+
+``` bash
+$ inspect eval popularity --model vllm/local -M model_path=./my-model
+```
+
+#### vLLM Server
+
+vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the OpenAI provider rather than the vLLM provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:
+
+```bash
+$ export OPENAI_BASE_URL=http://localhost:8080/v1
+$ export OPENAI_API_KEY=<your-server-api-key>
+$ inspect eval ctf.py --model openai/meta-llama/Meta-Llama-3-8B-Instruct
+```
+
+You can also use the CLI arguments `--model-base-url` and `-M api-key=<your-key>` rather than setting environment variables.
+
+See the vLLM documentation on [Server Mode](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html) for additional details.
 
 ## Helper Models
 
@@ -317,6 +381,7 @@ The additional `model_args` are forwarded as follows for the various providers:
 | Google       | `genai.configure`                      |
 | Mistral      | `MistralAsyncClient`                   |
 | Hugging Face | `AutoModelForCausalLM.from_pretrained` |
+| vLLM         | `SamplingParams`                       |
 | Ollama       | `AsyncOpenAI`                          |
 | TogetherAI   | `AsyncOpenAI`                          |
 | AzureAI      | Chat HTTP Post Body                    |
@@ -324,7 +389,7 @@ The additional `model_args` are forwarded as follows for the various providers:
 
 : {tbl-colwidths="\[30,70\]"}
 
-See the OpenAI, Anthropic, Google, Mistral, Hugging Face, Ollama, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.
+See the OpenAI, Anthropic, Google, Mistral, Hugging Face, vLLM, Ollama, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.
 
 ## Custom Models
 

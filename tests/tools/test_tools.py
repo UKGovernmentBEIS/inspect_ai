@@ -5,17 +5,16 @@ from test_helpers.tools import addition, exec, read_file
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
 )
+from tool_call_utils import get_tool_call, get_tool_calls, get_tool_response
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageTool,
     ChatMessageUser,
     Model,
     get_model,
@@ -28,7 +27,7 @@ from inspect_ai.solver import (
     solver,
     use_tools,
 )
-from inspect_ai.tool import ToolCall, ToolFunction, tool
+from inspect_ai.tool import ToolFunction, tool
 
 # we define 3 versions of addition so we can test the ability to force the
 # the model to use a certain tool via tool_choice=ToolFunction()
@@ -176,6 +175,11 @@ def test_mistral_tools():
     check_tools("mistral/mistral-large-latest")
 
 
+@skip_if_no_groq
+def test_groq_tools():
+    check_tools("groq/mixtral-8x7b-32768")
+
+
 @skip_if_no_google
 def test_google_tools():
     check_tools("google/gemini-1.0-pro")
@@ -314,45 +318,3 @@ def test_tool_calls():
     # tool_calls == "none"
     log = eval(task("none"), model="openai/gpt-4")[0]
     check_messages(log, lambda m: get_tool_response(m, "add") is None)
-
-
-def get_tool_call(messages: list[ChatMessage], tool: str) -> ToolCall | None:
-    tool_calls = get_tool_calls(messages, tool)
-    if tool_calls:
-        return tool_calls[0]
-    else:
-        return None
-
-
-def get_tool_calls(messages: list[ChatMessage], tool: str) -> list[ToolCall]:
-    tool_call_messages = [
-        message
-        for message in messages
-        if isinstance(message, ChatMessageAssistant) and message.tool_calls
-    ]
-    tool_calls: list[ToolCall] = []
-    for message in tool_call_messages:
-        tool_calls.extend(
-            [
-                tool_call
-                for tool_call in (message.tool_calls or [])
-                if tool_call.function == tool
-            ]
-        )
-    return tool_calls
-
-
-def get_tool_response(
-    messages: list[ChatMessage], tool_call: ToolCall
-) -> ChatMessageTool | None:
-    tool_messages = [
-        message for message in messages if isinstance(message, ChatMessageTool)
-    ]
-    tool_response = next(
-        (message for message in tool_messages if message.tool_call_id == tool_call.id),
-        None,
-    )
-    if tool_response:
-        return tool_response
-    else:
-        return None

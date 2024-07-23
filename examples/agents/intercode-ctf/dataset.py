@@ -36,19 +36,20 @@ def read_dataset(shuffle=False, force_download=False):
             input=record["query"],
             target=record["gold"],
             metadata={
-                "setup": record.get("setup", None),
-                "files": list(files.keys()),
                 "source": record["source"],
                 "tags": record["tags"],
                 "solution": solution,
             },
             files=files,
+            setup=record.get("setup", None),
         )
 
     # read dataset. we filter out samples that required internet access, as
     # is also done in the GDM paper (https://arxiv.org/pdf/2403.13793)
     excluded = [
+        1,
         9,
+        14,
         16,
         20,
         28,

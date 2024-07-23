@@ -54,7 +54,7 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
 async def compose_cp(
     src: str, dest: str, project: ComposeProject, cwd: str | Path | None = None
 ) -> None:
-    result = await compose_command(["cp", src, dest], project=project, cwd=cwd)
+    result = await compose_command(["cp", "--", src, dest], project=project, cwd=cwd)
     if not result.success:
         msg = f"Failed to copy file from '{src}' to '{dest}': {result.stderr}"
         raise RuntimeError(msg)

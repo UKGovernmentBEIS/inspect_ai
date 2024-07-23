@@ -3,7 +3,10 @@ import os
 from logging import getLogger
 from typing import Any
 
-from inspect_ai.tool import ToolCall
+import yaml
+import yaml.parser
+
+from inspect_ai.tool import ToolCall, ToolInfo
 
 from .._model_output import StopReason
 
@@ -40,15 +43,38 @@ def model_base_url(base_url: str | None, env_vars: str | list[str]) -> str | Non
     return os.getenv("INSPECT_EVAL_MODEL_BASE_URL", None)
 
 
-def parse_tool_call(id: str, function: str, arguments: str) -> ToolCall:
+def parse_tool_call(
+    id: str, function: str, arguments: str, tools: list[ToolInfo]
+) -> ToolCall:
     error: str | None = None
     arguments_dict: dict[str, Any] = {}
-    try:
-        arguments_dict = json.loads(arguments)
-    except json.JSONDecodeError as ex:
-        # define and log error
-        error = f"Error parsing the following tool call arguments:\n{arguments}\nError details: {ex}"
+
+    def report_parse_error(ex: Exception) -> None:
+        nonlocal error
+        error = f"Error parsing the following tool call arguments:\n\n{arguments}\n\nError details: {ex}"
         logger.info(error)
+
+    # if the arguments is a dict, then handle it with a plain json.loads
+    arguments = arguments.strip()
+    if arguments.startswith("{"):
+        try:
+            arguments_dict = json.loads(arguments)
+        except json.JSONDecodeError as ex:
+            report_parse_error(ex)
+
+    # otherwise parse it as yaml (which will pickup unquoted strings, numbers, and true/false)
+    # and then create a dict that maps it to the first function argument
+    else:
+        tool_info = next(
+            (tool for tool in tools if tool.name == function and len(tool.params) > 0),
+            None,
+        )
+        if tool_info:
+            try:
+                value = yaml.safe_load(arguments)
+                arguments_dict[tool_info.params[0].name] = value
+            except yaml.parser.ParserError as ex:
+                report_parse_error(ex)
 
     # return ToolCall with error payload
     return ToolCall(
