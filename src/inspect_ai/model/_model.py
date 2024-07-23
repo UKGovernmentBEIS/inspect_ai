@@ -356,7 +356,7 @@ class Model:
         )
         model_name = ModelName(self)
         return concurrency(
-            name=f"{model_name.api}/{model_name.name}",
+            name=f"{model_name.api}",
             concurrency=max_connections,
             key=f"Model{self.api.connection_key()}",
         )

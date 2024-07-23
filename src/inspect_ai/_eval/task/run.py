@@ -3,6 +3,7 @@ import base64
 import contextlib
 import sys
 from copy import deepcopy
+from dataclasses import dataclass, field
 from logging import getLogger
 from typing import AsyncGenerator, Callable, Literal, cast
 
@@ -69,44 +70,33 @@ py_logger = getLogger(__name__)
 EvalSampleSource = Callable[[int | str, int], EvalSample | None]
 
 
-async def task_run(
-    task: Task,
-    model: Model,
-    toolenv: tuple[str, str | None] | None,
-    logger: TaskLogger,
-    config: EvalConfig = EvalConfig(),
-    plan: Plan | Solver | list[Solver] | None = None,
-    score: bool = True,
-    sample_source: EvalSampleSource | None = None,
-    sample_semaphore: asyncio.Semaphore | None = None,
-    **kwargs: Unpack[GenerateConfigArgs],
-) -> EvalLog:
-    r"""Run the task.
+@dataclass
+class TaskRunOptions:
+    task: Task
+    model: Model
+    toolenv: tuple[str, str | None] | None
+    logger: TaskLogger
+    config: EvalConfig = field(default_factory=EvalConfig)
+    plan: Plan | Solver | list[Solver] | None = field(default=None)
+    score: bool = field(default=True)
+    sample_source: EvalSampleSource | None = field(default=None)
+    sample_semaphore: asyncio.Semaphore | None = field(default=None)
+    kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
 
-    Run the task with the passed model and configuration, using the
-    samples, scorer, metrics and solver(s) specified for the task.
 
-    Args:
-        task (Task): Task to run.
-        model (Model): Model used to generate output
-        toolenv (tuple[str, str | None] | None): Tool environment
-        logger (TaskLogger): Logger for recording results.
-        config (EvalConfig): Config (sample range/epochs, logging options)
-        plan:(Plan | Solver | list[Solver] | None): Override of
-            task default plan.
-        score (bool | None): Score model output. If not specified
-          is determined automatically based on whether the task
-          has a solver and metrics defined.
-        sample_source (EvalSampleSource | None): Source from which
-          previously executed samples can be found/returned
-        sample_semaphore (Semphonre | None): Semaphore for limiting
-          number of concurrent samples.
-        **kwargs (GenerateConfigArgs): Generation config options
+async def task_run(options: TaskRunOptions) -> EvalLog:
+    # destructure options
+    task = options.task
+    model = options.model
+    toolenv = options.toolenv
+    logger = options.logger
+    config = options.config
+    plan = options.plan
+    score = options.score
+    sample_source = options.sample_source
+    sample_semaphore = options.sample_semaphore
+    kwargs = options.kwargs
 
-    Returns:
-      EvalLog for executed task.
-
-    """
     # init task context
     init_task_context(model)
 
@@ -284,7 +274,10 @@ async def task_run(
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
 
-    await send_telemetry("eval_log", eval_log_json(eval_log))
+    try:
+        await send_telemetry("eval_log", eval_log_json(eval_log))
+    except Exception as ex:
+        py_logger.warning(f"Error occurred sending telemetry: {exception_message(ex)}")
 
     # return eval log
     return eval_log
@@ -514,6 +507,11 @@ def create_sample_semaphore(
         if modelapi
         else DEFAULT_MAX_CONNECTIONS
     )
+
+    # if max_tasks is specified and max_samples is less
+    # than max_tasks then bump it up
+    if config.max_tasks is not None:
+        max_samples = max(max_samples, config.max_tasks)
 
     # if a toolenv is in play then it can cap max_samples
     if toolenv:

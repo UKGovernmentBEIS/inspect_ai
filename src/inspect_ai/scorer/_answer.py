@@ -7,7 +7,7 @@ from inspect_ai._util.pattern import (
     ANSWER_PATTERN_WORD,
 )
 
-from ._metrics import accuracy, bootstrap_std
+from ._metrics import accuracy, stderr
 from ._pattern import pattern
 from ._scorer import Scorer, scorer
 
@@ -32,7 +32,7 @@ class AnswerPattern(str, Enum):
     """
 
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def answer(type: Literal["letter", "word", "line"]) -> Scorer:
     """Scorer for model output that preceded answers with ANSWER:.
 

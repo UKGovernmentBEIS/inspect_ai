@@ -46,7 +46,7 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 
     Have another model assess whether the model output contains a fact that is set out in `target`. This is a more narrow assessment than `model_graded_qa()`, and is used when model output is too complex to be assessed using a simple `match()` or `pattern()` scorer.
 
-Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` as a metric). You can also provide your own custom metrics in `Task` definitions. For example:
+Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` and `stderr` as a metric). You can also provide your own custom metrics in `Task` definitions. For example:
 
 ``` python
 Task(
@@ -60,6 +60,18 @@ Task(
 )
 ```
 
+:::{#stderr-note .callout-note}
+
+The current development version of Inspect replaces the use of the `bootstrap_std` metric with `stderr` for the built in scorers enumerated above.
+
+Since eval scores are means of numbers having finite variance, we can compute standard errors using the Central Limit Theorem rather than bootstrapping. Bootstrapping is generally useful in contexts with more complex structure or non-mean summary statistics (e.g. quantiles). You will notice that the bootstrap numbers will come in quite close to the analytic numbers, since they are estimating the same thing.
+
+
+A common misunderstanding is that "t-tests require the underlying data to be normally distributed". This is only true for small-sample problems; for large sample problems (say 30 or more questions), you just need finite variance in the underlying data and the CLT guarantees a normally distributed mean value.
+
+:::
+
+
 ## Model Graded
 
 Model graded scorers are well suited to assessing open ended answers as well as factual answers that are embedded in a longer narrative. The built-in model graded scorers can be customised in several ways—you can also create entirely new model scorers (see the model graded example below for a starting point).
@@ -67,7 +79,7 @@ Model graded scorers are well suited to assessing open ended answers as well as 
 Here is the declaration for the `model_graded_qa()` function:
 
 ``` python
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def model_graded_qa(
     template: str | None = None,
     instructions: str | None = None,
@@ -171,7 +183,7 @@ Next, we'll take a look at the source code for a couple of the built in scorers 
 Here is the source code for the built-in `includes()` scorer:
 
 ``` python
-@scorer(metrics=[accuracy(), bootstrap_std()])   # <1>
+@scorer(metrics=[accuracy(), stderr()])   # <1>
 def includes(ignore_case: bool = True):
 
     async def score(state: TaskState, target: Target):   # <2>
@@ -196,7 +208,7 @@ def includes(ignore_case: bool = True):
 1.  The function applies the `@scorer` decorator and registers two metrics for use with the scorer.
 2.  The `score()` function is declared as `async`. This is so that it can participate in Inspect's optimised scheduling for expensive model generation calls (this scorer doesn't call a model but others will).
 3.  We make use of the `text` property on the `Target`. This is a convenience property to get a simple text value out of the `Target` (as targets can technically be a list of strings).
-4.  We use the special constants `CORRECT` and `INCORRECT` for the score value (as the `accuracy()` and `bootstrap_std()` metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).
+4.  We use the special constants `CORRECT` and `INCORRECT` for the score value (as the `accuracy()`, `stderr()`, and `bootstrap_std()` metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).
 5.  We provide the full model completion as the answer for the score (`answer` is optional, but highly recommended as it is often useful to refer to during evaluation development).
 
 ### Example: Model Grading
@@ -205,7 +217,7 @@ Here's a somewhat simplified version of the code for the `model_graded_qa()` sco
 
 ``` python
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def model_graded_qa(
     template: str = DEFAULT_MODEL_GRADED_QA_TEMPLATE,
     instructions: str = DEFAULT_MODEL_GRADED_QA_INSTRUCTIONS,
@@ -299,8 +311,8 @@ You may also create a scorer which yields multiple scores. This is useful when t
 ``` python
 @scorer(
     metrics={  # <1>
-        "a_count": [mean(), bootstrap_std()],  # <1>
-        "e_count": [mean(), bootstrap_std()]   # <1>
+        "a_count": [mean(), stderr()],  # <1>
+        "e_count": [mean(), stderr()]   # <1>
     } # <1>
 )
 def letter_count():
@@ -324,7 +336,7 @@ task = Task(
 1.  The metrics for this scorer are a dictionary—this defines metrics to be applied to scores (by name).
 2.  The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
 
-The above example will produce two scores, `a_count` and `e_count`, each of which will have metrics for `mean` and `bootstrap_std`.
+The above example will produce two scores, `a_count` and `e_count`, each of which will have metrics for `mean` and `stderr`.
 
 ### Reducing Multiple Scores
 
@@ -366,7 +378,7 @@ def multi_model_graded(models)
 
 ## Metrics
 
-Each scorer provides one or more built-in metrics (typically `accuracy` and `bootstrap_std`). In addition, you can specify other metrics (either built-in or custom) to compute when defining a `Task`:
+Each scorer provides one or more built-in metrics (typically `accuracy` and `stderr`). In addition, you can specify other metrics (either built-in or custom) to compute when defining a `Task`:
 
 ``` python
 Task(
@@ -395,6 +407,14 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 -   `var()`
 
     Variance over all scores.
+
+-   `std()`
+
+    Sample standard deviation of all scores.
+
+-   `stderr()`
+
+    Standard error of the mean.
 
 -   `bootstrap_std()`
 

@@ -4,7 +4,7 @@ from typing import Any
 from inspect_ai.solver import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
-from ._metrics import accuracy, bootstrap_std
+from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -43,7 +43,7 @@ def match_all_groups(
     return target.text
 
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> Scorer:
     """Scorer which extracts the model answer using a regex.
 
