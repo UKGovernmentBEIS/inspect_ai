@@ -1,5 +1,10 @@
 import pytest
-from test_helpers.utils import skip_if_no_openai, skip_if_no_together
+from test_helpers.utils import (
+    skip_if_github_action,
+    skip_if_no_openai,
+    skip_if_no_together,
+    skip_if_no_vllm,
+)
 
 from inspect_ai.model import GenerateConfig, get_model
 
@@ -27,6 +32,13 @@ async def test_openai_num_choices() -> None:
 @skip_if_no_together
 async def test_together_num_choices() -> None:
     await check_num_choices("together/google/gemma-2b-it")
+
+
+@pytest.mark.asyncio
+@skip_if_github_action
+@skip_if_no_vllm
+async def test_vllm_num_choices() -> None:
+    await check_num_choices("vllm/EleutherAI/pythia-70m")
 
 
 # @pytest.mark.asyncio

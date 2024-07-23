@@ -13,13 +13,13 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = [
-    "E",      # pycodestyle errors
-    "W",      # pycodestyle warnings
-    "F",      # flake8
-    "D",      # pydocstyle
-    "I",      # isort
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings
+    "F", # flake8
+    "D", # pydocstyle
+    "I", # isort
     "SIM101", # duplicate isinstance
-    "UP038",  # non-pep604-isinstance
+    "UP038", # non-pep604-isinstance
     # "RET", # flake8-return
     # "RUF", # ruff rules
 ]
@@ -65,6 +65,7 @@ disallow_incomplete_defs = true
 check_untyped_defs = true
 disallow_untyped_decorators = true
 extra_checks = true
+disable_error_code = "unused-ignore"
 
 [[tool.mypy.overrides]]
 module = "pandas-stubs.*"
@@ -93,7 +94,7 @@ classifiers = [
 ]
 
 [project.urls]
-Documentation = "https://UKGovernmentBEIS.github.io/inspect_ai/"
+Documentation = "https://inspect.ai-safety-institute.org.uk/"
 "Source Code" = "https://github.com/UKGovernmentBEIS/inspect_ai"
 "Issue Tracker" = "https://github.com/UKGovernmentBEIS/inspect_ai/issues"
 
@@ -135,6 +136,8 @@ dev = [
     "types-psutil",
     "types-python-dateutil",
     "wikipedia",
+    "groq",
+    "wikipedia"
 ]
-doc = ["quarto-cli"]
+doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]

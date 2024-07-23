@@ -31,9 +31,10 @@ class Sample(BaseModel):
             or narrative text to be used by a model grader.
         id (int | str | None): Optional. Unique identifier for sample.
         metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
-        files (dict[str, str]): Optional. Files that go along with the sample (copied to
+        files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
           ToolEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
-
+        setup: (str | None): Optional. Setup script to run for sample (run
+          within default ToolEnvironment).
     """
 
     input: str | list[ChatMessage]
@@ -53,6 +54,9 @@ class Sample(BaseModel):
 
     files: dict[str, str] | None = Field(default=None)
     """Files that go along with the sample (copied to ToolEnvironment)"""
+
+    setup: str | None = Field(default=None)
+    """Setup script to run for sample (run within default ToolEnvironment)."""
 
 
 def sample_input_len(sample: Sample) -> int:
@@ -172,6 +176,9 @@ class FieldSpec(BaseModel):
 
     files: str = Field(default="files")
     """Files that go along wtih the sample."""
+
+    setup: str = Field(default="setup")
+    """Setup script to run for sample (run within default ToolEnvironment)."""
 
 
 RecordToSample = Callable[[DatasetRecord], Sample]

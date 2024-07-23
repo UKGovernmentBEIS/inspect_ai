@@ -2,6 +2,8 @@ from contextvars import ContextVar
 from logging import getLogger
 from typing import Any, Awaitable, Callable, cast
 
+from shortuuid import uuid
+
 from .environment import (
     SampleCleanup,
     SampleInit,
@@ -70,6 +72,7 @@ async def init_tool_environments_sample(
     task_name: str,
     config: str | None,
     files: dict[str, bytes],
+    setup: bytes | None,
     metadata: dict[str, Any],
 ) -> dict[str, ToolEnvironment]:
     # get setup and cleanup functions
@@ -86,6 +89,10 @@ async def init_tool_environments_sample(
     try:
         # copy files into environments
         await copy_tool_environment_files(files, environments)
+
+        # run setup script
+        if setup:
+            await setup_tool_environment(setup, environments)
 
         # set context
         tool_environments_context_var.set(environments)
@@ -113,11 +120,7 @@ async def cleanup_tool_environments_sample(
 async def copy_tool_environment_files(
     files: dict[str, bytes], environments: dict[str, ToolEnvironment]
 ) -> None:
-    default_environment = (
-        list(environments.values())[0]
-        if len(environments) == 1
-        else environments["default"]
-    )
+    default_environment = default_tool_environment(environments)
     for file, contents in files.items():
         # does it have an environment prefix? if so target that env
         parts = file.split(":", maxsplit=1)
@@ -133,6 +136,41 @@ async def copy_tool_environment_files(
             target_env = default_environment
 
         await target_env.write_file(file, contents)
+
+
+async def setup_tool_environment(
+    setup: bytes, environments: dict[str, ToolEnvironment]
+) -> None:
+    # get default toolenv
+    env = default_tool_environment(environments)
+
+    # copy to container
+    setup_file = uuid()
+    await env.write_file(setup_file, setup)
+
+    # chmod, execute, and remove
+    async def exec(cmd: list[str]) -> None:
+        result = await env.exec(cmd)
+
+        if not result.success:
+            raise RuntimeError(
+                f"Failed to execute setup script for sample: {result.stderr}"
+            )
+
+    setup_file = f"./{setup_file}"
+    await exec(["chmod", "+x", setup_file])
+    await exec([setup_file])
+    await exec(["rm", setup_file])
+
+
+def default_tool_environment(
+    environments: dict[str, ToolEnvironment],
+) -> ToolEnvironment:
+    return (
+        list(environments.values())[0]
+        if len(environments) == 1
+        else environments["default"]
+    )
 
 
 def validate_tool_environments(

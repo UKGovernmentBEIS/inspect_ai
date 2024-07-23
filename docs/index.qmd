@@ -66,6 +66,13 @@ $ export HF_TOKEN=your-hf-token
 $ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 ```
 
+#### vLLM
+
+``` bash
+$ pip install vllm
+$ inspect eval arc.py --model vllm/meta-llama/Llama-2-7b-chat-hf
+```
+
 #### Together
 
 ``` bash
@@ -75,7 +82,7 @@ $ inspect eval ctf.py --model together/Qwen/Qwen1.5-72B-Chat
 ```
 :::
 
-In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, and Cloudflare, as well as local models with Ollama. See the documentation on [Models](#sec-models) for additional details.
+In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, Groq, and Cloudflare, as well as local models with Ollama. See the documentation on [Models](#sec-models) for additional details.
 
 ## Hello, Inspect {#sec-hello-inspect}
 
