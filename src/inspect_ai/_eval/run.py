@@ -92,7 +92,7 @@ async def eval_run(
                     TaskRunOptions(
                         task=task,
                         model=resolved_task.model,
-                        toolenv=toolenv,
+                        toolenv=resolved_task.toolenv,
                         logger=logger,
                         config=task_eval_config,
                         plan=plan,
