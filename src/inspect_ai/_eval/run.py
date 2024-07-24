@@ -128,9 +128,21 @@ async def eval_run(
 # single mode -- run a single logical task (could consist of multiple
 # executable tasks if we are evaluating against multiple models)
 async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
+    # https://discuss.python.org/t/asyncio-cancel-a-cancellation-utility-as-a-coroutine-this-time-with-feeling/26304/3
     asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
     with display().live_task_status(total_tasks=len(tasks), parallel=False):
-        return await asyncio.gather(*asyncio_tasks)
+        try:
+            return await asyncio.gather(*asyncio_tasks)
+        except asyncio.CancelledError:
+            results: list[EvalLog] = []
+            for task in asyncio_tasks:
+                if task.done():
+                    results.append(task.result())
+                else:
+                    task.cancel()
+                    await task
+                    results.append(task.result())
+        return results
 
 
 # multiple mode -- run multiple logical tasks (requires some smart
@@ -169,13 +181,21 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         nonlocal tasks_completed
         while True:
             # remove the task from the queue and run it
-            task = await queue.get()
-            result = await task_run(task)
-            results.append(result)
+            task_options = await queue.get()
+            task = asyncio.create_task(task_run(task_options))
+            try:
+                await task
+                result = task.result()
+                results.append(result)
+            except asyncio.CancelledError:
+                task.cancel()
+                await task
+                result = task.result()
+                results.append(result)
 
             # tracking
             tasks_completed += 1
-            model_counts[str(task.model)] -= 1
+            model_counts[str(task_options.model)] -= 1
             queue.task_done()
 
             if result.status != "cancelled":
