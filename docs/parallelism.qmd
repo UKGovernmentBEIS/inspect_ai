@@ -89,7 +89,7 @@ INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
 ## Multiple Tasks {#sec-multiple-tasks}
 
 ::: {.callout-note appearance="simple"}
-The multiple tasks feature described below is currently available only in the development version of Inspect. You can intstall the development version with:
+The multiple tasks feature described below is currently available only in the development version of Inspect. You can install the development version with:
 
 ``` bash
 $ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
