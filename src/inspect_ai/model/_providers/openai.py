@@ -147,7 +147,7 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=(
                     chat_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN
                 ),
-                **self.completion_params(config),
+                **self.completion_params(config, len(tools) > 0),
             )
             choices = self._chat_choices_from_response(response, tools)
             return ModelOutput(
@@ -194,8 +194,8 @@ class OpenAIAPI(ModelAPI):
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
 
-    def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
-        return dict(
+    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+        params = dict(
             model=self.model_name,
             stream=False,  # Code below assumes this is not a streaming response
             frequency_penalty=(
@@ -231,6 +231,10 @@ class OpenAIAPI(ModelAPI):
                 config.top_logprobs if config.top_logprobs is not None else NOT_GIVEN
             ),
         )
+        if tools and config.parallel_tool_calls is not None:
+            params["parallel_tool_calls"] = config.parallel_tool_calls
+
+        return params
 
 
 async def as_openai_chat_messages(
