@@ -206,34 +206,22 @@ class DockerToolEnvironment(ToolEnvironment):
     async def write_file(self, file: str, contents: str | bytes) -> None:
         tools_log(f"write_file: {file}")
 
-        # Write the contents to a temp file
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-            src_file = os.path.join(temp_dir, os.path.basename(file))
-            if isinstance(contents, str):
-                async with aiofiles.open(src_file, "w", encoding="utf-8") as f:
-                    await f.write(contents)
-            else:
-                async with aiofiles.open(src_file, "wb") as f:
-                    await f.write(contents)
+        # resolve relative file paths
+        file = container_file(self._project, file)
 
-            # resolve relative file paths
-            file = container_file(self._project, file)
+        # ensure that the directory exists
+        parent = Path(file).parent.as_posix()
+        if parent != ".":
+            result = await self.exec(["mkdir", "-p", parent])
+            if not result.success:
+                msg = f"Failed to create container directory {parent}: {result.stderr}"
+                raise RuntimeError(msg)
 
-            # ensure that the directory exists
-            parent = Path(file).parent.as_posix()
-            if parent != ".":
-                result = await self.exec(["mkdir", "-p", parent])
-                if not result.success:
-                    msg = f"Failed to create container directory {parent}: {result.stderr}"
-                    raise RuntimeError(msg)
-
-            # use the cp command to copy the file
-            await compose_cp(
-                src=os.path.basename(src_file),
-                dest=f"{self._service}:{file}",
-                project=self._project,
-                cwd=os.path.dirname(src_file),
-            )
+        # write the file
+        result = await self.exec(["tee", "--", file], input=contents)
+        if not result.success:
+            msg = f"Failed to write file '{file}' into container: {result.stderr}"
+            raise RuntimeError(msg)
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
