@@ -44,14 +44,14 @@ def record_to_sample(record):
 
 
 @task
-def gpqa_diamond(cot=True):
+def gpqa_diamond():
     return Task(
         dataset=csv_dataset(
             csv_file="https://openaipublic.blob.core.windows.net/simple-evals/gpqa_diamond.csv",
             sample_fields=record_to_sample,
         ),
         plan=[
-            multiple_choice(cot=cot, shuffle=True),
+            multiple_choice(shuffle=True),
         ],
         scorer=choice(),
         config=GenerateConfig(temperature=0.5),

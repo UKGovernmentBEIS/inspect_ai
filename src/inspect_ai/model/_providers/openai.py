@@ -68,8 +68,14 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # resolve api_key
+        # pull out azure model_arg
+        AZURE_MODEL_ARG = "azure"
         is_azure = False
+        if AZURE_MODEL_ARG in model_args:
+            is_azure = model_args.get(AZURE_MODEL_ARG, False)
+            del model_args[AZURE_MODEL_ARG]
+
+        # resolve api_key
         if not self.api_key:
             self.api_key = os.environ.get(
                 AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
@@ -97,7 +103,7 @@ class OpenAIAPI(ModelAPI):
             if not base_url:
                 raise ValueError(
                     "You must provide a base URL when using OpenAI on Azure. Use the AZUREAI_OPENAI_BASE_URL "
-                    + " environment variable or the --model-base-url CLI flag to set the base URL."
+                    + "environment variable or the --model-base-url CLI flag to set the base URL."
                 )
 
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
@@ -147,7 +153,7 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=(
                     chat_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN
                 ),
-                **self.completion_params(config),
+                **self.completion_params(config, len(tools) > 0),
             )
             choices = self._chat_choices_from_response(response, tools)
             return ModelOutput(
@@ -194,8 +200,8 @@ class OpenAIAPI(ModelAPI):
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
 
-    def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
-        return dict(
+    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+        params = dict(
             model=self.model_name,
             stream=False,  # Code below assumes this is not a streaming response
             frequency_penalty=(
@@ -231,6 +237,10 @@ class OpenAIAPI(ModelAPI):
                 config.top_logprobs if config.top_logprobs is not None else NOT_GIVEN
             ),
         )
+        if tools and config.parallel_tool_calls is not None:
+            params["parallel_tool_calls"] = config.parallel_tool_calls
+
+        return params
 
 
 async def as_openai_chat_messages(

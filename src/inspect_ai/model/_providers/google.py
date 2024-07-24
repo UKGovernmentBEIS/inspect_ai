@@ -1,3 +1,4 @@
+import json
 from copy import copy
 from typing import Any, cast
 
@@ -52,7 +53,9 @@ from .._model_output import (
 from .._util import chat_api_tool
 from .util import model_base_url
 
-VERTEX_SAFETY_SETTINGS = {
+SAFETY_SETTINGS = "safety_settings"
+
+DEFAULT_SAFETY_SETTINGS = {
     HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -78,6 +81,14 @@ class GoogleAPI(ModelAPI):
             api_key_vars=[GOOGLE_API_KEY],
             config=config,
         )
+
+        # pick out vertex safety settings and merge against default
+        self.safety_settings = DEFAULT_SAFETY_SETTINGS.copy()
+        if SAFETY_SETTINGS in model_args:
+            self.safety_settings.update(
+                parse_safety_settings(model_args.get(SAFETY_SETTINGS))
+            )
+            del model_args[SAFETY_SETTINGS]
 
         # configure genai client
         base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
@@ -115,7 +126,7 @@ class GoogleAPI(ModelAPI):
                 AsyncGenerateContentResponse,
                 await self.model.generate_content_async(
                     contents=messages,
-                    safety_settings=VERTEX_SAFETY_SETTINGS,
+                    safety_settings=self.safety_settings,
                     generation_config=parameters,
                     tools=chat_tools(tools) if len(tools) > 0 else None,
                     stream=False,
@@ -326,3 +337,56 @@ def gapi_should_retry(ex: BaseException) -> bool:
         return if_transient_error(ex)
     else:
         return False
+
+
+def parse_safety_settings(
+    safety_settings: Any,
+) -> dict[HarmCategory, HarmBlockThreshold]:
+    # ensure we have a dict
+    if isinstance(safety_settings, str):
+        safety_settings = json.loads(safety_settings)
+    if not isinstance(safety_settings, dict):
+        raise ValueError(f"{SAFETY_SETTINGS} must be dictionary.")
+
+    parsed_settings: dict[HarmCategory, HarmBlockThreshold] = {}
+    for key, value in safety_settings.items():
+        if isinstance(key, str):
+            key = str_to_harm_category(key)
+        if not isinstance(key, HarmCategory):
+            raise ValueError(f"Unexpected type for harm category: {key}")
+        if isinstance(value, str):
+            value = str_to_harm_block_threshold(value)
+        if not isinstance(value, HarmBlockThreshold):
+            raise ValueError(f"Unexpected type for harm block threshold: {value}")
+
+        parsed_settings[key] = value
+
+    return parsed_settings
+
+
+def str_to_harm_category(category: str) -> HarmCategory:
+    category = category.upper()
+    if "HARASSMENT" in category:
+        return HarmCategory.HARM_CATEGORY_HARASSMENT
+    elif "HATE_SPEECH" in category:
+        return HarmCategory.HARM_CATEGORY_HATE_SPEECH
+    elif "SEXUALLY_EXPLICIT" in category:
+        return HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT
+    elif "DANGEROUS_CONTENT" in category:
+        return HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT
+    else:
+        raise ValueError(f"Unknown HarmCategory: {category}")
+
+
+def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
+    threshold = threshold.upper()
+    if "LOW" in threshold:
+        return HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
+    elif "MEDIUM" in threshold:
+        return HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+    elif "HIGH" in threshold:
+        return HarmBlockThreshold.BLOCK_ONLY_HIGH
+    elif "NONE" in threshold:
+        return HarmBlockThreshold.BLOCK_NONE
+    else:
+        raise ValueError(f"Unknown HarmBlockThreshold: {threshold}")
