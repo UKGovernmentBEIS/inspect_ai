@@ -173,6 +173,13 @@ The complete list of environment variables (and how they map to the parameters o
 -   `organization` from `OPENAI_ORG_ID`
 -   `api_version` from `OPENAI_API_VERSION`
 
+The OpenAI provider will choose whether to make a connection to the main OpenAI service or Azure based on the presence of environment variables. If the `AZUREAI_OPENAI_API_KEY` variable is defined Azure will be used, otherwise OpenAI will be used (via the `OPENAI_API_KEY`). You can override this default behaviour using the `azure` model argument. For example:
+
+``` bash
+$ inspect eval eval.py -M azure=true  # force azure
+$ inspect eval eval.py -M azure=false # force no azure
+```
+
 #### Mistral
 
 To use Mistral models on Azure AI, specify an `AZURE_MISTRAL_API_KEY` along with an `INSPECT_EVAL_MODEL_BASE_URL`. You can then use the normal `mistral` provider, but you'll need to specify a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployment model name was `mistral-large-ctwi:`
@@ -211,7 +218,7 @@ $ inspect eval bedrock/meta.llama2-70b-chat-v1
 
 You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
 
-### Google
+### Google {#google}
 
 ::: {.callout-note appearance="simple"}
 The ability to override the default [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) for Google models is available only in the development version of Inspect. You can install the development version with:
@@ -235,7 +242,7 @@ Google models make available [safety settings](https://ai.google.dev/gemini-api/
 For each category, the following block thresholds are available:
 
 | Block Threshold    | Description                                                  |
-|--------------------|--------------------------------------------------------------|
+|-------------------|-----------------------------------------------------|
 | `none`             | Always show regardless of probability of unsafe content      |
 | `only_high`        | Block when high probability of unsafe content                |
 | `medium_and_above` | Block when medium or high probability of unsafe content      |
