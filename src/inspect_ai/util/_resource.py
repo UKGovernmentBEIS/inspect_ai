@@ -61,7 +61,7 @@ def resource(
         # parse the url
         try:
             parsed = urlparse(resource)
-        except (OSError, ValueError):
+        except (ValueError, OSError):
             return resource
 
         # if it has a scheme then its likely a file
