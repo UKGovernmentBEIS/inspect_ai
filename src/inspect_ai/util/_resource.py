@@ -68,7 +68,7 @@ def resource(
         if parsed.scheme:
             try:
                 return read_resource()
-            except FileNotFoundError:
+            except (ValueError, FileNotFoundError):
                 return resource
             except OSError as ex:
                 if ex.errno == errno.ENAMETOOLONG:
@@ -85,8 +85,11 @@ def resource(
                 return resource
 
             # return it if it exists (otherwise return the str)
-            fs = filesystem(path)
-            if fs.exists(path):
-                return read_resource()
-            else:
+            try:
+                fs = filesystem(path)
+                if fs.exists(path):
+                    return read_resource()
+                else:
+                    return resource
+            except ValueError:
                 return resource
