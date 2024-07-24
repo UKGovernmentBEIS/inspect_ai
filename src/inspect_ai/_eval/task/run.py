@@ -234,7 +234,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             # display task summary
             td.complete(TaskSuccess(stats, results))
 
-        except (asyncio.CancelledError, KeyboardInterrupt):
+        except asyncio.CancelledError:
             # flag as cancelled
             cancelled = True
 
