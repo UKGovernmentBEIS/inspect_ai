@@ -536,7 +536,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h4 class="anchored" data-anchor-id="max-samples">Max Samples</h4>
 <p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
 <p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code>, ensuring that the model API is always fully saturated (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
-<p>Note also that when using <a href="agents.html#sec-tool-environments">Tool Environments</a>, the tool environment provider may place an additional cap on the default <code>max_samples</code> (for example, the Docker provider limits the default <code>max_samples</code> to no more than 25).</p>
 
 
 </section>

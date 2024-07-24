@@ -500,7 +500,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>task_init()</code></td>
-<td>Called at the beginning of each <code>Task</code>.</td>
+<td>Called once for each unique tool environment config before executing the tasks in an <code>eval()</code> run.</td>
 <td>Expensive initialisation operations (e.g.&nbsp;pulling or building images)</td>
 </tr>
 <tr class="even">
@@ -515,7 +515,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>task_cleanup()</code></td>
-<td>Called at the end of each <code>Task</code>.</td>
+<td>Called once for each unique tool environment config after executing the tasks in an <code>eval()</code> run.</td>
 <td>Last chance handler for any resources not yet cleaned up (see also discussion below).</td>
 </tr>
 <tr class="odd">
@@ -523,14 +523,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Called via <code>inspect toolenv cleanup</code></td>
 <td>CLI invoked manual cleanup of resources created by this <code>ToolEnvironment</code>.</td>
 </tr>
-<tr class="even">
-<td><code>max_samples()</code></td>
-<td>Called at startup</td>
-<td>Provide a default <code>max_samples</code> (used to cap the default, explicit <code>max_samples</code> will override this).</td>
-</tr>
 </tbody>
 </table>
-<p>In the case of parallel execution of a group of tasks that share a working directory and tool environment, the <code>task_init()</code> and <code>task_cleanup()</code> functions may be called once for the entire group as a performance optimisation.</p>
+<p>In the case of parallel execution of a group of tasks within the same working directory, the <code>task_init()</code> and <code>task_cleanup()</code> functions will be called once for each unique tool environment configuration (e.g.&nbsp;Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.</p>
 <p>The <code>task_cleanup()</code> has a number of important functions:</p>
 <ol type="1">
 <li>There may be global resources that are not tied to samples that need to be cleaned up.</li>
