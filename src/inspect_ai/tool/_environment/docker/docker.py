@@ -165,10 +165,6 @@ class DockerToolEnvironment(ToolEnvironment):
         self._service = service
         self._project = project
 
-    @classmethod
-    def max_samples(cls) -> int | None:
-        return 25
-
     @override
     async def exec(
         self,
