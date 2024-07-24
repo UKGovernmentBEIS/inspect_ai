@@ -51,7 +51,7 @@ export const inputString = (input) => {
         return inp;
       } else {
         const content = inp.content;
-        if (typeof(content) === "string") {
+        if (typeof content === "string") {
           return content;
         } else {
           const result = content.map((con) => {
