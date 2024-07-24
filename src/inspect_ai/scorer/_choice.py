@@ -68,15 +68,6 @@ def choice() -> Scorer:
         else:
             explanation = state.output.completion
 
-        unanswered_choices = [
-            choice.value for choice in choices if choice.correct is None
-        ]
-
-        if any(unanswered_choices):
-            raise ValueError(
-                f"Cannot score choice, missing generated answers for: {','.join(unanswered_choices)}"
-            )
-
         target_positions, answers = _score_target(target, choices)
 
         generated_selected_choices = [

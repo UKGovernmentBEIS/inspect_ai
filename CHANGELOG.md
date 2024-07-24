@@ -17,6 +17,7 @@
 - Correctly resolve default model based on CLI --model argument.
 - Add `azure` model arg for OpenAI provider to force binding (or not binding) to the Azure OpenAI back-end.
 - Add `setup` field to `Sample` for providing a per-sample setup script.
+- Score multiple choice questions without parsed answers as incorrect (rather than being an error). Llama 3 and 3.1 models especially often fail to yield an answer.
 - Read JSON encoded `metadata` field from samples.
 - Reduce foreground task contention for Inspect View history loading.
 - Ability to host standalone version of Inspect View to view single log files.
