@@ -15,6 +15,7 @@
 - Handle duplicate tool call ids in Inspect View.
 - Handle sorting sample ids of different types in Inspect View.
 - Correctly resolve default model based on CLI --model argument.
+- Add `azure` model arg for OpenAI provider to force binding (or not binding) to the Azure OpenAI back-end.
 - Add `setup` field to `Sample` for providing a per-sample setup script.
 - Read JSON encoded `metadata` field from samples.
 - Reduce foreground task contention for Inspect View history loading.
