@@ -13,6 +13,7 @@
 - Handle sorting sample ids of different types in Inspect View.
 - Correctly resolve default model based on CLI --model argument.
 - Add `setup` field to `Sample` for providing a per-sample setup script.
+- Score multiple choice question with parseable answers as incorrect (rather than being an error).
 - Read JSON encoded `metadata` field from samples.
 - Reduce foreground task contention for Inspect View history loading.
 - Ability to host standalone version of Inspect View to view single log files.
