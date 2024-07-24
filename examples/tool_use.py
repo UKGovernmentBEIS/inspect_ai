@@ -122,3 +122,17 @@ def read():
         scorer=match(),
         tool_environment="local",
     )
+
+
+@task
+def parallel_add():
+    return Task(
+        dataset=[
+            Sample(
+                input="Please add the numbers 1+1 and 2+2, and then print the results of those computations side by side as just two numbers (with no additional text). You should use the add tool to do this, and you should make the two required calls to add in parallel so the results are computed faster.",
+                target=["2 4"],
+            )
+        ],
+        plan=[use_tools([add()]), generate()],
+        scorer=includes(),
+    )
