@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 from dataclasses import dataclass
 from typing import (
@@ -32,29 +33,24 @@ async def call_tools(
     """
     if message.tool_calls:
         tdefs = tool_defs(tools)
-        tool_messages: list[ChatMessageTool] = []
-        for tool_call in message.tool_calls:
+
+        async def call_tool_task(call: ToolCall) -> ChatMessageTool:
             tool_error: str | None = None
             try:
-                result = await call_tool(tdefs, tool_call)
+                result = await call_tool(tdefs, call)
             except ToolError as ex:
                 result = ""
                 tool_error = ex.message
 
-            # there may be some tool still returning tuple
-            if isinstance(result, tuple):
-                result, _ = result
-
-            tool_messages.append(
-                ChatMessageTool(
-                    content=result if isinstance(result, list) else str(result),
-                    tool_error=tool_error,
-                    tool_call_id=tool_call.id,
-                )
+            return ChatMessageTool(
+                content=result if isinstance(result, list) else str(result),
+                tool_error=tool_error,
+                tool_call_id=call.id,
             )
 
-        # return state
-        return tool_messages
+        tasks = [call_tool_task(call) for call in message.tool_calls]
+        return await asyncio.gather(*tasks)
+
     else:
         return []
 

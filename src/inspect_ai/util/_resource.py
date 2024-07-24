@@ -61,14 +61,14 @@ def resource(
         # parse the url
         try:
             parsed = urlparse(resource)
-        except OSError:
+        except (ValueError, OSError):
             return resource
 
         # if it has a scheme then its likely a file
         if parsed.scheme:
             try:
                 return read_resource()
-            except FileNotFoundError:
+            except (ValueError, FileNotFoundError):
                 return resource
             except OSError as ex:
                 if ex.errno == errno.ENAMETOOLONG:
@@ -81,12 +81,15 @@ def resource(
             # extract the path
             try:
                 path = url2pathname(parsed.path)
-            except OSError:
+            except (ValueError, OSError):
                 return resource
 
             # return it if it exists (otherwise return the str)
-            fs = filesystem(path)
-            if fs.exists(path):
-                return read_resource()
-            else:
+            try:
+                fs = filesystem(path)
+                if fs.exists(path):
+                    return read_resource()
+                else:
+                    return resource
+            except ValueError:
                 return resource

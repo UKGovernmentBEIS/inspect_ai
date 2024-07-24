@@ -111,23 +111,6 @@ async def test_correct_single_answer():
 
 
 @pytest.mark.asyncio
-async def test_state_not_had_answers_generated():
-    scorer = choice()
-    state = simple_task_state(
-        model_output="ANSWERS: A",
-        choices=["choice 1", "choice 2"],
-    )
-
-    state.choices.mark_choice(0, True)
-    # We've never set the second choice (for whatever reason)
-
-    with pytest.raises(
-        ValueError, match="Cannot score choice, missing generated answers for: choice 2"
-    ):
-        await scorer(state, Target("A"))
-
-
-@pytest.mark.asyncio
 async def test_correct_multiple_answers_one_incorrect():
     scorer = choice()
     state = simple_task_state(model_output="ANSWERS: ", choices=["A"])

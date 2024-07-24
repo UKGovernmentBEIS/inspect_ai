@@ -122,3 +122,47 @@ def read():
         scorer=match(),
         tool_environment="local",
     )
+
+
+@tool(prompt="If you need to write a text file, use the write_file tool.")
+def write_file():
+    async def execute(file: str, contents: str):
+        """Write a file
+
+        Args:
+            file (str): File to write
+            contents (str): Contents of file
+        """
+        try:
+            return await tool_environment().write_file(file, contents)
+        except FileNotFoundError:
+            raise ToolError(f"File {file} not found.")
+
+    return execute
+
+
+@task
+def write():
+    return Task(
+        dataset=[Sample(input="Please write 'bar' to a file named 'foo.txt'.")],
+        plan=[
+            use_tools([write_file()]),
+            generate(),
+        ],
+        scorer=match(),
+        tool_environment="local",
+    )
+
+
+@task
+def parallel_add():
+    return Task(
+        dataset=[
+            Sample(
+                input="Please add the numbers 1+1 and 2+2, and then print the results of those computations side by side as just two numbers (with no additional text). You should use the add tool to do this, and you should make the two required calls to add in parallel so the results are computed faster.",
+                target=["2 4"],
+            )
+        ],
+        plan=[use_tools([add()]), generate()],
+        scorer=includes(),
+    )
