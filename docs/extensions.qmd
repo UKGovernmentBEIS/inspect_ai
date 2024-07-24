@@ -91,10 +91,10 @@ eval(math, model = "custom/my-model")
 
 [Tool Environments](#sec-tool-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two tool environments built in:
 
-| Environment Type | Description |
+| Environment Type | Description                                                                                                                                                               |
 |----------------------------|--------------------------------------------|
-| `local` | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run `tool_environment()` methods within a Docker container |
+| `local`          | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `tool_environment()` methods within a Docker container                                                                                                                |
 
 To create a custom tool environment, derive a class from `ToolEnvironment`, implement the required static and instance methods, and add the `@toolenv` decorator to it. For example:
 
@@ -172,16 +172,15 @@ class PodmanToolEnvironment(ToolEnvironment):
 
 The class methods take care of various stages of initialisation, setup, and teardown:
 
-| Method | Lifecycle | Purpose |
+| Method             | Lifecycle                                                                                          | Purpose                                                                               |
 |-------------------|-------------------|----------------------------------|
-| `task_init()` | Called at the beginning of each `Task`. | Expensive initialisation operations (e.g. pulling or building images) |
-| `sample_init()` | Called at the beginning of each `Sample`. | Create `ToolEnvironment` instances for the sample. |
-| `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `ToolEnvironment` instances for the sample. |
-| `task_cleanup()` | Called at the end of each `Task`. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
-| `cli_cleanup()` | Called via `inspect toolenv cleanup` | CLI invoked manual cleanup of resources created by this `ToolEnvironment`. |
-| `max_samples()` | Called at startup | Provide a default `max_samples` (used to cap the default, explicit `max_samples` will override this). |
+| `task_init()`      | Called once for each unique tool environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images)                 |
+| `sample_init()`    | Called at the beginning of each `Sample`.                                                          | Create `ToolEnvironment` instances for the sample.                                    |
+| `sample_cleanup()` | Called at the end of each `Sample`                                                                 | Cleanup `ToolEnvironment` instances for the sample.                                   |
+| `task_cleanup()`   | Called once for each unique tool environment config after executing the tasks in an `eval()` run.  | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()`    | Called via `inspect toolenv cleanup`                                                               | CLI invoked manual cleanup of resources created by this `ToolEnvironment`.            |
 
-In the case of parallel execution of a group of tasks that share a working directory and tool environment, the `task_init()` and `task_cleanup()` functions may be called once for the entire group as a performance optimisation.
+In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique tool environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
 
 The `task_cleanup()` has a number of important functions:
 

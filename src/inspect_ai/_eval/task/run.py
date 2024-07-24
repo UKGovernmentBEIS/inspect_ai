@@ -5,7 +5,7 @@ import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import AsyncGenerator, Callable, Literal, cast
+from typing import AsyncGenerator, Callable, Literal
 
 from typing_extensions import Unpack
 
@@ -55,7 +55,6 @@ from inspect_ai.tool._environment.context import (
     cleanup_tool_environments_sample,
     init_tool_environments_sample,
 )
-from inspect_ai.tool._environment.registry import registry_find_toolenv
 
 from ..context import init_task_context
 from ..task import Task
@@ -187,9 +186,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 sample_semaphore = (
                     sample_semaphore
                     if sample_semaphore
-                    else create_sample_semaphore(
-                        config, generate_config, toolenv, model.api
-                    )
+                    else create_sample_semaphore(config, generate_config, model.api)
                 )
 
                 # create sample coroutines
@@ -492,7 +489,6 @@ def eval_log_sample_source(
 def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
-    toolenv: tuple[str, str | None] | None = None,
     modelapi: ModelAPI | None = None,
 ) -> asyncio.Semaphore:
     # if the user set max_samples then use that
@@ -512,14 +508,6 @@ def create_sample_semaphore(
     # than max_tasks then bump it up
     if config.max_tasks is not None:
         max_samples = max(max_samples, config.max_tasks)
-
-    # if a toolenv is in play then it can cap max_samples
-    if toolenv:
-        toolenv_type = registry_find_toolenv(toolenv[0])
-        toolenv_max_samples = cast(int | None, getattr(toolenv_type, "max_samples")())
-        if toolenv_max_samples is not None:
-            if max_samples > toolenv_max_samples:
-                max_samples = toolenv_max_samples
 
     # return the semaphore
     return asyncio.Semaphore(max_samples)
