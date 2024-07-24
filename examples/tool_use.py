@@ -124,6 +124,36 @@ def read():
     )
 
 
+@tool(prompt="If you need to write a text file, use the write_file tool.")
+def write_file():
+    async def execute(file: str, contents: str):
+        """Write a file
+
+        Args:
+            file (str): File to write
+            contents (str): Contents of file
+        """
+        try:
+            return await tool_environment().write_file(file, contents)
+        except FileNotFoundError:
+            raise ToolError(f"File {file} not found.")
+
+    return execute
+
+
+@task
+def write():
+    return Task(
+        dataset=[Sample(input="Please write 'bar' to a file named 'foo.txt'.")],
+        plan=[
+            use_tools([write_file()]),
+            generate(),
+        ],
+        scorer=match(),
+        tool_environment="local",
+    )
+
+
 @task
 def parallel_add():
     return Task(
