@@ -3,6 +3,7 @@ import logging
 from copy import deepcopy
 from typing import Any, Callable, TypeVar, cast
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -72,6 +73,8 @@ def task_create(name: str, model: ModelName, **kwargs: Any) -> Task:
     # (note that we always pass the 'model' param but tasks aren't
     # required to consume it, so we don't warn for 'model')
     task = registry_lookup("task", name)
+    if not task:
+        raise PrerequisiteError(f"Task named '{name}' not found.\n")
     task_info = registry_info(task)
     task_params: list[str] = task_info.metadata["params"]
     task_args: dict[str, Any] = {}
