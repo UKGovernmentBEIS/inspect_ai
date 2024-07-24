@@ -1,0 +1,2 @@
+{ "input": [ { "role": "user", "content": [{ "type": "text", "text": "How many ballons are in this picture?"}, { "type": "image", "image": "ballons.png"} ]}], "target": "3" }
+{ "input": [ { "role": "user", "content": [{ "type": "text", "text": "What is this a picture of?"}, { "type": "image", "image": "bike.png"} ]}], "target": ["bike", "bicycle"] }

@@ -1,14 +1,12 @@
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Awaitable, Callable, cast
+from typing import Any, cast
 
 from shortuuid import uuid
 
 from .environment import (
     SampleCleanup,
     SampleInit,
-    TaskCleanup,
-    TaskInit,
     ToolEnvironment,
 )
 from .registry import registry_find_toolenv
@@ -46,25 +44,6 @@ def tool_environment(name: str = "default") -> ToolEnvironment:
         )
 
     return environment
-
-
-async def startup_tool_environments(
-    task_name: str, tool_environment: tuple[str, str | None], cleanup: bool
-) -> Callable[[], Awaitable[None]]:
-    # find type
-    toolenv_type = registry_find_toolenv(tool_environment[0])
-
-    # run startup
-    task_init = cast(TaskInit, getattr(toolenv_type, "task_init"))
-    await task_init(task_name, tool_environment[1])
-
-    # return shutdown method
-    task_cleanup = cast(TaskCleanup, getattr(toolenv_type, "task_cleanup"))
-
-    async def shutdown() -> None:
-        await task_cleanup(task_name, tool_environment[1], cleanup)
-
-    return shutdown
 
 
 async def init_tool_environments_sample(
