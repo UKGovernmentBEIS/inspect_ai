@@ -68,8 +68,14 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # resolve api_key
+        # pull out azure model_arg
+        AZURE_MODEL_ARG = "azure"
         is_azure = False
+        if AZURE_MODEL_ARG in model_args:
+            is_azure = model_args.get(AZURE_MODEL_ARG, False)
+            del model_args[AZURE_MODEL_ARG]
+
+        # resolve api_key
         if not self.api_key:
             self.api_key = os.environ.get(
                 AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
@@ -97,7 +103,7 @@ class OpenAIAPI(ModelAPI):
             if not base_url:
                 raise ValueError(
                     "You must provide a base URL when using OpenAI on Azure. Use the AZUREAI_OPENAI_BASE_URL "
-                    + " environment variable or the --model-base-url CLI flag to set the base URL."
+                    + "environment variable or the --model-base-url CLI flag to set the base URL."
                 )
 
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
