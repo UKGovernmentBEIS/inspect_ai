@@ -218,7 +218,7 @@ class DockerToolEnvironment(ToolEnvironment):
                 raise RuntimeError(msg)
 
         # write the file
-        result = await self.exec(["tee", file], input=contents)
+        result = await self.exec(["tee", "--", file], input=contents)
         if not result.success:
             msg = f"Failed to write file '{file}' into container: {result.stderr}"
             raise RuntimeError(msg)
