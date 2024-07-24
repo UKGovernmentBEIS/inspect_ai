@@ -122,12 +122,12 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
 @click.option(
     "--frequency-penalty",
     type=float,
-    help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI only.",
+    help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI and Groq only.",
 )
 @click.option(
     "--presence-penalty",
     type=float,
-    help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI only.",
+    help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI and Groq only.",
 )
 @click.option(
     "--logit-bias",
@@ -176,6 +176,11 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     type=int,
     help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only.",
 )
+@click.option(
+    "--parallel-tool-calls",
+    type=bool,
+    help="Whether to enable parallel function calling during tool use. OpenAI and Groq only.",
+)
 @common_options
 def eval_command(
     tasks: tuple[str] | None,
@@ -205,6 +210,7 @@ def eval_command(
     num_choices: int | None,
     logprobs: bool | None,
     top_logprobs: int | None,
+    parallel_tool_calls: bool | None,
     max_messages: int | None,
     max_samples: int | None,
     max_tasks: int | None,
