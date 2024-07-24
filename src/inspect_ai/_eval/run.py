@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable, Set
+from typing import Any, Awaitable, Callable, Set, cast
 
 from shortuuid import uuid
 from typing_extensions import Unpack
@@ -13,7 +13,8 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._log import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
 from inspect_ai.solver import Plan, Solver
-from inspect_ai.tool._environment.context import startup_tool_environments
+from inspect_ai.tool._environment.environment import TaskCleanup, TaskInit
+from inspect_ai.tool._environment.registry import registry_find_toolenv
 
 from .loader import ResolvedTask
 from .task.log import TaskLogger
@@ -40,13 +41,11 @@ async def eval_run(
     if any([task_run_dir(task.task) != run_dir for task in tasks]):
         raise RuntimeError("Parallel tasks must have the same working directory.")
     toolenv = next((task.toolenv for task in tasks if task.toolenv is not None), None)
-    if any([task.toolenv is not None and task.toolenv != toolenv for task in tasks]):
-        raise RuntimeError("Parallel tasks must have the same tool environment.")
 
     # if we have a toolenv then we need to enforce sample concurrency at
     # this level of the eval (so we don't explode the # of toolenvs)
     sample_semaphore: asyncio.Semaphore | None = (
-        create_sample_semaphore(eval_config, GenerateConfig(**kwargs), toolenv)
+        create_sample_semaphore(eval_config, GenerateConfig(**kwargs))
         if toolenv
         else None
     )
@@ -57,9 +56,7 @@ async def eval_run(
         shutdown_tool_environments: Callable[[], Awaitable[None]] | None = None
         if toolenv:
             cleanup = eval_config.toolenv_cleanup is not False
-            shutdown_tool_environments = await startup_tool_environments(
-                "startup", toolenv, cleanup
-            )
+            shutdown_tool_environments = await startup_tool_environments(tasks, cleanup)
 
         try:
             # create run tasks
@@ -95,7 +92,7 @@ async def eval_run(
                     TaskRunOptions(
                         task=task,
                         model=resolved_task.model,
-                        toolenv=toolenv,
+                        toolenv=resolved_task.toolenv,
                         logger=logger,
                         config=task_eval_config,
                         plan=plan,
@@ -206,3 +203,40 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             w.cancel()
 
         return results
+
+
+async def startup_tool_environments(
+    tasks: list[ResolvedTask], cleanup: bool
+) -> Callable[[], Awaitable[None]]:
+    # find unique toolenvs
+    toolenvs: Set[tuple[str, str | None]] = set()
+    for task in tasks:
+        if task.toolenv is not None and task.toolenv not in toolenvs:
+            toolenvs.add(task.toolenv)
+
+    # initialiase toolenvs (track cleanups)
+    cleanups: list[tuple[TaskCleanup, str | None]] = []
+    for toolenv in toolenvs:
+        # find type
+        toolenv_type = registry_find_toolenv(toolenv[0])
+
+        # run startup
+        task_init = cast(TaskInit, getattr(toolenv_type, "task_init"))
+        await task_init("startup", toolenv[1])
+
+        # append cleanup method
+        task_cleanup = cast(TaskCleanup, getattr(toolenv_type, "task_cleanup"))
+        cleanups.append((task_cleanup, toolenv[1]))
+
+    # return shutdown method
+    async def shutdown() -> None:
+        for cleanup_jobs in cleanups:
+            try:
+                cleanup_fn, config = cleanup_jobs
+                await cleanup_fn("shutdown", config, cleanup)
+            except BaseException as ex:
+                log.warning(
+                    f"Error occurred shutting down tool environments: {exception_message(ex)}"
+                )
+
+    return shutdown

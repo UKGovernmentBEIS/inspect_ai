@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 from logging import getLogger
+from pathlib import Path
 
 from shortuuid import uuid
 
@@ -27,7 +28,7 @@ class ComposeProject:
         working_dir: str = "/",
     ) -> "ComposeProject":
         # ensure we have an auto-compose file if we need one
-        config = config if config else await auto_compose()
+        config = Path(config).resolve().as_posix() if config else await auto_compose()
         await ensure_auto_compose_file(config)
 
         # return project
