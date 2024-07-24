@@ -222,7 +222,7 @@ async def startup_tool_environments(
 
         # run startup
         task_init = cast(TaskInit, getattr(toolenv_type, "task_init"))
-        await task_init("init", toolenv[1])
+        await task_init("startup", toolenv[1])
 
         # append cleanup method
         task_cleanup = cast(TaskCleanup, getattr(toolenv_type, "task_cleanup"))
@@ -233,7 +233,7 @@ async def startup_tool_environments(
         for cleanup_jobs in cleanups:
             try:
                 cleanup_fn, config = cleanup_jobs
-                await cleanup_fn("cleanup", config, cleanup)
+                await cleanup_fn("shutdown", config, cleanup)
             except BaseException as ex:
                 log.warning(
                     f"Error occurred shutting down tool environments: {exception_message(ex)}"
