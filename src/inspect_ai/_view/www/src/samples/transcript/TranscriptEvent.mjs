@@ -56,7 +56,7 @@ export const TranscriptEventTitle = ({ title, collapse, onCollapse }) => {
       style=${{
         textTransform: "uppercase",
         fontSize: "0.8rem",
-        cursor: "pointer",
+        
       }}
     >
       
