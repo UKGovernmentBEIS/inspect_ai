@@ -217,11 +217,25 @@ class DockerToolEnvironment(ToolEnvironment):
                 msg = f"Failed to create container directory {parent}: {result.stderr}"
                 raise RuntimeError(msg)
 
-        # write the file
-        result = await self.exec(["tee", "--", file], input=contents)
-        if not result.success:
-            msg = f"Failed to write file '{file}' into container: {result.stderr}"
-            raise RuntimeError(msg)
+        # use docker cp for binary files, tee for text files (which will
+        # have higher privs b/c the command runs in the container)
+        if isinstance(contents, str):
+            # write the file
+            result = await self.exec(["tee", "--", file], input=contents)
+            if not result.success:
+                msg = f"Failed to write file '{file}' into container: {result.stderr}"
+                raise RuntimeError(msg)
+        else:
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+                src_file = os.path.join(temp_dir, os.path.basename(file))
+                async with aiofiles.open(src_file, "wb") as f:
+                    await f.write(contents)
+                await compose_cp(
+                    src=os.path.basename(src_file),
+                    dest=f"{self._service}:{file}",
+                    project=self._project,
+                    cwd=os.path.dirname(src_file),
+                )
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
