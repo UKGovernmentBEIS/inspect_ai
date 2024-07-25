@@ -208,7 +208,8 @@ def create_file_tasks(
             # (will be used later to ensure it runs in the directory)
             task = task_create(task_spec, model, **task_args)
             setattr(task, TASK_FILE_ATTR, file.as_posix())
-            setattr(task, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+            if task.attribs.get("chdir", True):
+                setattr(task, TASK_RUN_DIR_ATTR, file.parent.as_posix())
             tasks.append(task)
         return tasks
 
