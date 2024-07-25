@@ -449,8 +449,6 @@ The `setup` script is by default interpreted as a bash script, however you can h
 print('hello from python')
 ```
 
-#### 
-
 ### Docker Configuration {#sec-docker-configuration}
 
 Before using Docker tool environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/) (version 24.0.7 or greater).

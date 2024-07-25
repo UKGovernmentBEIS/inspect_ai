@@ -41,6 +41,9 @@ class EvalConfig(BaseModel):
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
 
+    max_tasks: int | None = Field(default=None)
+    """Maximum number of tasks to run in parallel."""
+
     max_subprocesses: int | None = Field(default=None)
     """Maximum number of subprocesses to run concurrently."""
 

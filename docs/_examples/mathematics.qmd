@@ -41,7 +41,7 @@ from inspect_ai.scorer import (
     Score,
     Target,
     accuracy,
-    bootstrap_std,
+    stderr,
     scorer,
 )
 from inspect_ai.solver import TaskState, generate, prompt_template
@@ -88,7 +88,7 @@ def math(shuffle=True):
 The heart of this eval isn't in the task definition though, rather it's in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we'll use a model to assess whether the output and the target are logically equivalent. the `expression_equivalence()` custom scorer implements this:
 
 ```{python}
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def expression_equivalence():
     async def score(state: TaskState, target: Target):
         # extract answer

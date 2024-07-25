@@ -29,7 +29,7 @@ Note that some providers ([Ollama](https://github.com/ollama/ollama/blob/main/do
 
 To select a model for use in an evaluation task you specify it using a *model name*. Model names include their API provider and the specific model to use (e.g. `openai/gpt-4`) Here are the supported providers along with example model names and links to documentation on all available models:
 
-| Provider     | Example                        | Docs                                                                                            |
+| Provider     | Example                           | Docs                                                                                            |
 |-------------------|---------------------------|---------------------------|
 | OpenAI       | `openai/gpt-3.5-turbo`            | [OpenAI Models](https://platform.openai.com/docs/models/overview)                               |
 | Anthropic    | `anthropic/claude-2.1`            | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview)                      |
@@ -40,8 +40,8 @@ To select a model for use in an evaluation task you specify it using a *model na
 | Ollama       | `ollama/llama3`                   | [Ollama Models](https://ollama.com/library)                                                     |
 | TogetherAI   | `together/lmsys/vicuna-13b-v1.5`  | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                 |
 | AWS Bedrock  | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/)                                           |
-| Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)         
-| Groq         | `groq/mixtral-8x7b-32768`    | [Groq Models](https://console.groq.com/docs/models)       |                                 |
+| Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)                                          |
+| Groq         | `groq/mixtral-8x7b-32768`         | [Groq Models](https://console.groq.com/docs/models)                                             |
 | Cloudflare   | `cf/meta/llama-2-7b-chat-fp16`    | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation)       |
 
 : {tbl-colwidths="\[18,45,37\]"}
@@ -67,7 +67,7 @@ INSPECT_EVAL_MODEL=google/gemini-1.0-pro
 ```
 
 ::: {.callout-note appearance="simple"}
-If are using Azure AI, AWS Bedrock, Hugging Face, or vLLM you should additionally consult the sections below on using the [Azure AI](#azure-ai), [AWS Bedrock](#aws-bedrock), [Hugging Face](#sec-hugging-face-transformers), and [vLLM](#sec-vllm) providers to learn more about available models and their usage and authentication requirements.
+If are using Google, Azure AI, AWS Bedrock, Hugging Face, or vLLM you should additionally consult the sections below on using the [Azure AI](#azure-ai), [AWS Bedrock](#aws-bedrock), [Google](#google), [Hugging Face](#sec-hugging-face-transformers), and [vLLM](#sec-vllm) providers to learn more about available models and their usage and authentication requirements.
 :::
 
 ### Model Base URL
@@ -173,6 +173,13 @@ The complete list of environment variables (and how they map to the parameters o
 -   `organization` from `OPENAI_ORG_ID`
 -   `api_version` from `OPENAI_API_VERSION`
 
+The OpenAI provider will choose whether to make a connection to the main OpenAI service or Azure based on the presence of environment variables. If the `AZUREAI_OPENAI_API_KEY` variable is defined Azure will be used, otherwise OpenAI will be used (via the `OPENAI_API_KEY`). You can override this default behaviour using the `azure` model argument. For example:
+
+``` bash
+$ inspect eval eval.py -M azure=true  # force azure
+$ inspect eval eval.py -M azure=false # force no azure
+```
+
 #### Mistral
 
 To use Mistral models on Azure AI, specify an `AZURE_MISTRAL_API_KEY` along with an `INSPECT_EVAL_MODEL_BASE_URL`. You can then use the normal `mistral` provider, but you'll need to specify a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployment model name was `mistral-large-ctwi:`
@@ -210,6 +217,57 @@ $ inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
 You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
+
+### Google {#google}
+
+::: {.callout-note appearance="simple"}
+The ability to override the default [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) for Google models is available only in the development version of Inspect. You can install the development version with:
+
+``` bash
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
+```
+:::
+
+Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:
+
+| Category            | Description                                                                  |
+|------------------------------------|------------------------------------|
+| `sexually_explicit` | Contains references to sexual acts or other lewd content.                    |
+| `hate_speech`       | Content that is rude, disrespectful, or profane.                             |
+| `harassment`        | Negative or harmful comments targeting identity and/or protected attributes. |
+| `dangerous_content` | Promotes, facilitates, or encourages harmful acts.                           |
+
+: {tbl-colwidths="\[35,65\]"}
+
+For each category, the following block thresholds are available:
+
+| Block Threshold    | Description                                                  |
+|-------------------|-----------------------------------------------------|
+| `none`             | Always show regardless of probability of unsafe content      |
+| `only_high`        | Block when high probability of unsafe content                |
+| `medium_and_above` | Block when medium or high probability of unsafe content      |
+| `low_and_above`    | Block when low, medium or high probability of unsafe content |
+
+: {tbl-colwidths="\[35,65\]"}
+
+By default, Inspect sets all four categories to `none` (enabling all content). You can override these defaults by using the `safety_settings` model argument. For example:
+
+``` python
+safety_settings = dict(
+  dangerous_content = "medium_and_above",
+  hate_speech = "low_and_above"
+)
+eval(
+  "eval.py", 
+  model_args=dict(safety_settings=safety_settings)
+)
+```
+
+This also can be done from the command line:
+
+``` bash
+$ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
+```
 
 ### Hugging Face {#sec-hugging-face-transformers}
 
@@ -268,13 +326,12 @@ model = get_model("hf/local", model_path="./my-model")
 ### vLLM {#sec-vllm}
 
 ::: {.callout-note appearance="simple"}
-The vLLM provider is currently available only in the development version of Inspect. You can intstall the development version with:
+The vLLM provider is currently available only in the development version of Inspect. You can install the development version with:
 
-```bash
+``` bash
 $ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
 ```
 :::
-
 
 The `vllm` provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. You can access any Hugging Face model by specifying it with the `vllm/` prefix. For example:
 
@@ -314,7 +371,7 @@ $ inspect eval popularity --model vllm/local -M model_path=./my-model
 
 vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the OpenAI provider rather than the vLLM provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:
 
-```bash
+``` bash
 $ export OPENAI_BASE_URL=http://localhost:8080/v1
 $ export OPENAI_API_KEY=<your-server-api-key>
 $ inspect eval ctf.py --model openai/meta-llama/Meta-Llama-3-8B-Instruct

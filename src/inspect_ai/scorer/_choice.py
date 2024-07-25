@@ -7,7 +7,7 @@ from inspect_ai.solver._multiple_choice import (
 )
 
 from ._metric import CORRECT, INCORRECT, Score
-from ._metrics import accuracy, bootstrap_std
+from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -38,7 +38,7 @@ def _shuffled_explanation(choices: Choices) -> str:
     return f"Choices were shuffled before generating a response, the following was sent to the model:\n\n{answer_options(choices)}\nShuffled answer:\nANSWER: {', '.join(generated_answers)}"
 
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def choice() -> Scorer:
     """
     Scorer for multiple choice answers, required by the `multiple_choice` solver.
@@ -67,15 +67,6 @@ def choice() -> Scorer:
             choices = unshuffle_choices(choices)
         else:
             explanation = state.output.completion
-
-        unanswered_choices = [
-            choice.value for choice in choices if choice.correct is None
-        ]
-
-        if any(unanswered_choices):
-            raise ValueError(
-                f"Cannot score choice, missing generated answers for: {','.join(unanswered_choices)}"
-            )
 
         target_positions, answers = _score_target(target, choices)
 

@@ -4,14 +4,23 @@
 
 - [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
 - [Groq](https://groq.com/) model provider.
+- Replace the use of the `bootstrap_std` metric with `stderr` for built in scorers (see [rationale](https://inspect.ai-safety-institute.org.uk/scorers.html#stderr-note) for details).
+- Enable parallel execution of tasks that share a working directory.
+- Add `chdir` option to `@task` to opt-out of changing the working directory during task execution.
+- Enable overriding of default safety settings for Google models.
 - Gracefully handle tool calls that include only a single value (rather than a named dict of parameters).
 - Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
-- Add `cwd` argument to `ToolEnvironment.exec()`.
+- Make multiple tool calls in parallel. Parallel tool calls occur by default for OpenAI, Anthropic, Mistral, and Groq. You can disable this behavior for OpenAI and Groq with `--parallel-tool-calls false`.
+- Add `cwd` argument to `ToolEnvironment.exec()`
+- Use `tee` rather than `docker cp` for Docker tool environment implementation of `write_file()`.
 - Handle duplicate tool call ids in Inspect View.
 - Handle sorting sample ids of different types in Inspect View.
 - Correctly resolve default model based on CLI --model argument.
+- Add `azure` model arg for OpenAI provider to force binding (or not binding) to the Azure OpenAI back-end.
 - Add `setup` field to `Sample` for providing a per-sample setup script.
+- Score multiple choice questions without parsed answers as incorrect (rather than being an error). Llama 3 and 3.1 models especially often fail to yield an answer.
 - Read JSON encoded `metadata` field from samples.
+- Show task/display progress immediately (rather than waiting for connections to fill).
 - Reduce foreground task contention for Inspect View history loading.
 - Ability to host standalone version of Inspect View to view single log files.
 

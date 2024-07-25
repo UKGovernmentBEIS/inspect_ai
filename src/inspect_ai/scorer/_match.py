@@ -1,11 +1,11 @@
 from typing import Literal
 
 from ._common import match_str, str_match_scorer
-from ._metrics import accuracy, bootstrap_std
+from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def match(
     location: Literal["begin", "end", "any", "exact"] = "end",
     *,
@@ -37,7 +37,7 @@ def match(
     return str_match_scorer(check)
 
 
-@scorer(metrics=[accuracy(), bootstrap_std()])
+@scorer(metrics=[accuracy(), stderr()])
 def includes(ignore_case: bool = True) -> Scorer:
     """Check whether the specified text is included in the model output.
 
