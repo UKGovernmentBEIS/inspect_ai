@@ -17,9 +17,28 @@ import { ScoreEventView } from "./ScoreEventView.mjs";
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const TranscriptView = ({ transcript }) => {
+  let stepDepth = 0;
   const render = getRenderer();
   const rows = transcript.map((e, index) => {
+
+
+    const endStep = e.event === "step" && e.action === "end";
+    if (endStep) {
+      stepDepth--;
+   }
+    
+    const indentStyle = {
+    }
+    const indentDepth = (stepDepth)  * 1.5 ;
+    if (indentDepth > 0) {
+      indentStyle["marginLeft"] = `${indentDepth}em`;
+    }
+
     const beginStep = e.event === "step" && e.action === "begin";
+    if (beginStep) {
+      stepDepth++;
+    }
+
     const rows = [
       html`
         <div
@@ -46,13 +65,12 @@ export const TranscriptView = ({ transcript }) => {
             paddingTop: ".5em",
           }}
         >
-          ${render(e, index)}
+          <div style=${indentStyle}>${render(e, index)}</div>
         </div>
       `,
     ];
 
-    const endStep = e.event === "step" && e.action === "end";
-    if (endStep) {
+    if (endStep && stepDepth === 0) {
       rows.push(
         html`<div
           style=${{

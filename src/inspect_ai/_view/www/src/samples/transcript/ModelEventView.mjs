@@ -36,7 +36,7 @@ export const ModelEventView = ({ event, index }) => {
   });
 
   return html`
-  <${TranscriptEvent} name=${event.model}>
+  <${TranscriptEvent} name="Model Call: ${event.model}">
   <div>
     <${MetaDataView} entries=${modelProperties} compact=${true} />
   </div>

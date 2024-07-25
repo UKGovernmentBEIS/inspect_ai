@@ -12,7 +12,7 @@ import { TranscriptEvent } from "./TranscriptEvent.mjs";
  */
 export const SubtaskEventView = ({ event }) => {
   return html`
-    <${TranscriptEvent} name="Subtask: ${event.name}">
+    <${TranscriptEvent} name="Subtask: ${event.name}" collapse="true">
     <${TranscriptView}
       transcript=${event.transcript.events}
     />

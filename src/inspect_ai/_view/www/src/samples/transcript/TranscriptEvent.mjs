@@ -28,7 +28,7 @@ export const TranscriptEvent = ({ name, collapse, children }) => {
     contents.push(
       html`<${TranscriptEventTitle}
         title=${name}
-        collapse=${collapse}
+        collapse=${collapsed}
         onCollapse=${onCollapse}
       />`,
     );
@@ -55,22 +55,28 @@ export const TranscriptEventTitle = ({ title, collapse, onCollapse }) => {
     <div
       style=${{
         textTransform: "uppercase",
-        fontSize: "0.7rem",
+        fontSize: "0.8rem",
         cursor: "pointer",
       }}
     >
-      ${title}
+      
       ${collapse !== undefined
         ? html`
             <button
               class="btn"
               style=${{
-                fontSize: "0.7rem",
-                border: "none",
-                padding: "0.1rem .5rem",
+                paddingLeft: 0,
+                paddingTop: 0,
+                paddingBottom: 0,
+                fontSize: "0.8rem"
               }}
               onclick=${onCollapse}
             >
+              <i
+                class="${ApplicationIcons.subtask}"
+                style=${{marginRight: "0.2rem"}}
+              />
+              ${title}
               <i
                 class="${collapse
                   ? ApplicationIcons.caret.right
@@ -78,7 +84,7 @@ export const TranscriptEventTitle = ({ title, collapse, onCollapse }) => {
               />
             </button>
           `
-        : ""}
+        : title}
     </div>
   `;
 };

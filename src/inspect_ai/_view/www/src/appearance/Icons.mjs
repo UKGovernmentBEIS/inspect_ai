@@ -93,6 +93,7 @@
  * @property {string} search
  * @property {SolverIcons} solvers
  * @property {string} step
+ * @property {string} subtask
  * @property {string} transcript
  * @property {string} usage
  */
@@ -163,6 +164,7 @@ export const ApplicationIcons = {
     use_tools: "bi bi-tools",
   },
   step: "bi bi-fast-forward-btn",
+  subtask: "bi bi-subtract",
   transcript: "bi bi-list-columns-reverse",
   usage: "bi bi-stopwatch",
 };

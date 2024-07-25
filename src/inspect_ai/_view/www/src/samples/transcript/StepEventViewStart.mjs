@@ -36,16 +36,15 @@ export const StepEventViewStart = ({ event }) => {
   return html`<div
     style=${{
       display: "grid",
-      gridTemplateRows: "auto auto",
-      paddingBottom: "0.5em",
+      gridTemplateRows: "max-content auto",
     }}
   >
     <div
       style=${{
         display: "inline-block",
         justifySelf: "left",
-        padding: "0.1em 0.3em",
-        fontWeight: 600,
+        fontSize: "0.9rem",
+        fontWeight: 600
       }}
     >
       <i class=${icon()} style=${{ marginRight: "0.2em" }} />${event.name}
@@ -54,6 +53,7 @@ export const StepEventViewStart = ({ event }) => {
       style=${{
         width: "100%",
       }}
-    ></div>
+    >
+    </div>
   </div>`;
 };
