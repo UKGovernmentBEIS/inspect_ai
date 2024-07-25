@@ -44,7 +44,7 @@ export const StepEventViewStart = ({ event }) => {
         display: "inline-block",
         justifySelf: "left",
         fontSize: "0.9rem",
-        fontWeight: 600
+        fontWeight: 600,
       }}
     >
       <i class=${icon()} style=${{ marginRight: "0.2em" }} />${event.name}
@@ -53,7 +53,6 @@ export const StepEventViewStart = ({ event }) => {
       style=${{
         width: "100%",
       }}
-    >
-    </div>
+    ></div>
   </div>`;
 };

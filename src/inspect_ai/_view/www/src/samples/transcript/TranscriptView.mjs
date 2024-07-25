@@ -20,16 +20,13 @@ export const TranscriptView = ({ transcript }) => {
   let stepDepth = 0;
   const render = getRenderer();
   const rows = transcript.map((e, index) => {
-
-
     const endStep = e.event === "step" && e.action === "end";
     if (endStep) {
       stepDepth--;
-   }
-    
-    const indentStyle = {
     }
-    const indentDepth = (stepDepth)  * 1.5 ;
+
+    const indentStyle = {};
+    const indentDepth = stepDepth * 1.5;
     if (indentDepth > 0) {
       indentStyle["marginLeft"] = `${indentDepth}em`;
     }

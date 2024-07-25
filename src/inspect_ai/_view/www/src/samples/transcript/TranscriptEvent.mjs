@@ -56,10 +56,8 @@ export const TranscriptEventTitle = ({ title, collapse, onCollapse }) => {
       style=${{
         textTransform: "uppercase",
         fontSize: "0.8rem",
-        
       }}
     >
-      
       ${collapse !== undefined
         ? html`
             <button
@@ -68,13 +66,13 @@ export const TranscriptEventTitle = ({ title, collapse, onCollapse }) => {
                 paddingLeft: 0,
                 paddingTop: 0,
                 paddingBottom: 0,
-                fontSize: "0.8rem"
+                fontSize: "0.8rem",
               }}
               onclick=${onCollapse}
             >
               <i
                 class="${ApplicationIcons.subtask}"
-                style=${{marginRight: "0.2rem"}}
+                style=${{ marginRight: "0.2rem" }}
               />
               ${title}
               <i

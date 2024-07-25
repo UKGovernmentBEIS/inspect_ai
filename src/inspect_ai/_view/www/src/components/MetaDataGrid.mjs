@@ -1,0 +1,81 @@
+// @ts-check
+import { html } from "htm/preact";
+import { RenderedContent } from "./RenderedContent.mjs";
+
+/**
+ * Renders the MetaDataView component.
+ *
+ * @param {Object} props - The properties passed to the component.
+ * @param {string} props.id - The ID for the table element.
+ * @param {string} [props.classes] - Additional class names for the table element.
+ * @param {Object} [props.style] - Inline styles for the table element.
+ * @param {Object[]|Record<string, string>} props.entries - The metadata entries to display.
+ * @param {Object} [props.context] - Context for rendering the entries.
+ * @param {boolean} [props.expanded] - Whether to render the entries in expanded mode.
+ * @param {boolean} [props.compact] - Whether to render the table in compact mode.
+ * @returns {import("preact").JSX.Element} The component.
+ */
+export const MetaDataGrid = ({ id, entries, classes, context, expanded }) => {
+  const baseId = "metadata-grid";
+
+  const cellKeyStyle = {
+    fontWeight: "400",
+    whiteSpace: "nowrap",
+  };
+  const cellValueStyle = {
+    fontWeight: "300",
+    whiteSpace: "pre-wrap",
+    wordWrap: "anywhere",
+    fontSize: "0.8rem",
+  };
+  const cellKeyTextStyle = {
+    fontSize: "0.8rem",
+  };
+
+  // entries can be either a Record<string, stringable>
+  // or an array of record with name/value on way in
+  // but coerce to array of records for order
+  if (entries && !Array.isArray(entries)) {
+    entries = Object.entries(entries || {}).map(([key, value]) => {
+      return { name: key, value };
+    });
+  }
+
+  const entryEls = (entries || []).map((entry, index) => {
+    const id = `${baseId}-value-${index}`;
+    return html`
+      <div
+        style=${{
+          gridColumn: "1 / -1",
+          borderBottom: "solid 1px var(--bs-light-border-subtle",
+        }}
+      ></div>
+      <div
+        class="${baseId}-key"
+        style=${{ ...cellKeyStyle, ...cellKeyTextStyle }}
+      >
+        ${entry.name}
+      </div>
+      <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
+        <${RenderedContent}
+          id=${id}
+          entry=${entry}
+          context=${context}
+          options=${{ expanded }}
+        />
+      </div>
+    `;
+  });
+
+  return html`<div
+    ...${{ id }}
+    class="${classes || ""}"
+    style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content auto",
+      columnGap: "1em",
+    }}
+  >
+    ${entryEls}
+  </div>`;
+};

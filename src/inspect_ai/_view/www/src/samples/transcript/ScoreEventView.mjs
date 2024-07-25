@@ -1,8 +1,8 @@
 // @ts-check
 import { html } from "htm/preact";
 import { TranscriptEvent } from "./TranscriptEvent.mjs";
-import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
+import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 
 /**
  * Renders the InfoEventView component.
@@ -18,20 +18,27 @@ export const ScoreEventView = ({ event }) => {
   <div
     style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em" }}
   >
+    <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
     <div>Answer</div>
     <div>${event.score.answer}</div>
+    <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
     <div>Explanation</div>
     <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
+    <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
     <div>Score</div>  
     <div>${event.score.value}</div>
+    <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
   </div>
-  ${
-    event.score.metadata
-      ? html` <div style=${{marginTop: "0.5rem"}}>Scorer Metadata</div>
-          <${MetaDataView} entries=${event.score.metadata} compact=${true} />`
-      : ""
-  }
-    
+          ${
+            event.score.metadata
+              ? html` <div style=${{ marginTop: "1em" }}>Metadata</div>
+                  <${MetaDataGrid}
+                    entries=${event.score.metadata}
+                    compact=${true}
+                  />`
+              : ""
+          }
+
 
   </${TranscriptEvent}>`;
 };
