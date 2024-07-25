@@ -113,6 +113,11 @@ class ToolEnvironment(abc.ABC):
 
         Returns:
           Execution result (status code, stderr/stdout, etc.)
+
+        Raises:
+          TimeoutError: If the specified `timeout` expires.
+          UnicodeDecodeError: If an encoding error occurs while
+            reading the command output.
         """
         ...
 
@@ -120,10 +125,17 @@ class ToolEnvironment(abc.ABC):
     async def write_file(self, file: str, contents: str | bytes) -> None:
         """Write a file into the tool environment.
 
+        If the parent directories of the file path do not exist they
+        should be automatically created.
+
         Args:
           file (str): Path to file (relative file paths will resolve to the
             per-sample working directory).
           contents (str | bytes): Text or binary file contents.
+
+        Raises:
+          PermissionErrror: If the current user does not have permission to
+            write to the specified path.
         """
         ...
 
@@ -144,6 +156,13 @@ class ToolEnvironment(abc.ABC):
 
         Returns:
           Contents of file (as str or bytes for binary files)
+
+        Raises:
+          FileNotFoundError: If the specified file does not exist.
+          UnicodeDecodeError: If an encoding error occurs while
+            reading the command output.
+          PermissionErrror: If the current user does not have
+            permission to read from the specified path.
         """
         ...
 

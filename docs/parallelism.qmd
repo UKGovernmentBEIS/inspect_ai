@@ -305,7 +305,10 @@ Note that if you need to execute computationally expensive code in an eval, you 
 If you need to ensure that your subprocess runs for no longer than a specified interval, you can use the `timeout` option. For example:
 
 ``` python
-result = await subprocess(["ls", dir], timeout = 30)
+try:
+  result = await subprocess(["ls", dir], timeout = 30)
+except TimeoutError:
+  ...
 ```
 
-If a timeout occurs, then the `result.status` will be `False` and a timeout error message will be included in `result.stderr`.
+If a timeout occurs, then a `TimeoutError` will be thrown (which your code should generally handle in whatever manner is appropriate).

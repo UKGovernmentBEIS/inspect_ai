@@ -46,18 +46,13 @@ class LocalToolEnvironment(ToolEnvironment):
         env: dict[str, str] = {},
         timeout: int | None = None,
     ) -> ExecResult[str]:
-        try:
-            return await subprocess(
-                args=cmd,
-                input=input,
-                cwd=cwd if cwd else self.directory.name,
-                env=env,
-                timeout=timeout,
-            )
-        except UnicodeDecodeError:
-            raise ToolError(
-                "Unicode decoding error reading command output (it is likely binary rather than text)"
-            )
+        return await subprocess(
+            args=cmd,
+            input=input,
+            cwd=cwd if cwd else self.directory.name,
+            env=env,
+            timeout=timeout,
+        )
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
