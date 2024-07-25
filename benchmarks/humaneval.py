@@ -36,7 +36,7 @@ from inspect_ai.scorer import (
     scorer,
 )
 from inspect_ai.solver import Generate, TaskState, generate, solver
-from inspect_ai.util import subprocess
+from inspect_ai.tool import tool_environment
 
 INSTRUCTION = "Read the following function signature and docstring, and fully implement the function described. Your response should only contain the code for this function.\n"
 TIMEOUT = 20
@@ -156,8 +156,8 @@ def verify_correctness() -> Scorer:
             "".join(["check(", state.metadata["entry_point"], ")"]),
         ]
 
-        result = await subprocess(
-            ["python", "-c", "".join(code)],
+        result = await tool_environment().exec(
+            cmd=["python", "-c", "".join(code)],
             timeout=TIMEOUT,
         )
 
@@ -202,4 +202,5 @@ def humaneval():
         plan=[generate(), find_code()],
         scorer=verify_correctness(),
         epochs=NUM_EPOCHS,
+        tool_environment="local",
     )
