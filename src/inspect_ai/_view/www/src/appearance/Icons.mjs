@@ -53,10 +53,18 @@
  */
 
 /**
+ * Caret Icons
+ * @typedef {Object} CaretIcons
+ * @property {string} right
+ * @property {string} down
+ */
+
+/**
  * Provides a centralized repository of Bootstrap icons
  * used throughout the workspace.
  * @typedef {Object} Icons
  * @property {ArrowIcons} arrows
+ * @property {CaretIcons} caret
  * @property {ChangeIcons} changes
  * @property {CollapseIcons} collapse
  * @property {string} close
@@ -94,6 +102,10 @@ export const ApplicationIcons = {
   arrows: {
     right: "bi bi-arrow-right",
     down: "bi bi-arrow-down",
+  },
+  caret: {
+    right: "bi bi-caret-right",
+    down: "bi bi-caret-down",
   },
   changes: {
     add: "bi bi-plus",

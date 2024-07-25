@@ -12,7 +12,7 @@ import { TranscriptEvent } from "./TranscriptEvent.mjs";
  */
 export const LoggerEventView = ({ event }) => {
   return html`
-  <${TranscriptEvent} name="Logger">
+  <${TranscriptEvent}>
   <div
     style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "0.5em" }}
   >
