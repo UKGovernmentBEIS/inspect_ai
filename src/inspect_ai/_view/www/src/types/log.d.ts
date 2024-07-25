@@ -196,6 +196,7 @@ export type Type5 = string | null;
 export type Name7 = string;
 export type Timestamp6 = string;
 export type Event6 = "subtask";
+export type Event7 = "score";
 export type Name8 = string;
 export type Name9 = string;
 export type Events = (
@@ -206,6 +207,7 @@ export type Events = (
   | InfoEvent
   | StepEvent
   | SubtaskEvent
+  | ScoreEvent
 )[];
 export type Transcript = (
   | StateEvent
@@ -215,6 +217,7 @@ export type Transcript = (
   | InfoEvent
   | StepEvent
   | SubtaskEvent
+  | ScoreEvent
 )[];
 export type Level1 =
   | "debug"
@@ -515,6 +518,11 @@ export interface InfoEvent {
   timestamp: Timestamp4;
   event: Event4;
   data: JsonValue;
+}
+export interface ScoreEvent {
+  timestamp: Timestamp5;
+  event: Event7;
+  score: Score;
 }
 export interface StepEvent {
   timestamp: Timestamp5;

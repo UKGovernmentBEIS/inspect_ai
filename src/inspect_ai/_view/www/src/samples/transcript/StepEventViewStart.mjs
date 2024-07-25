@@ -26,6 +26,8 @@ export const StepEventViewStart = ({ event }) => {
         default:
           return ApplicationIcons.solvers.default;
       }
+    } else if (event.type === "scorer") {
+      return ApplicationIcons.scorer;
     } else {
       return ApplicationIcons.step;
     }

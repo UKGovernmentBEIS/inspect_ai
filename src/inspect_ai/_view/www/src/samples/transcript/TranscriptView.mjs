@@ -7,6 +7,7 @@ import { ModelEventView } from "./ModelEventView.mjs";
 import { LoggerEventView } from "./LoggerEventView.mjs";
 import { InfoEventView } from "./InfoEventView.mjs";
 import { StepEventViewEnd } from "./StepEventViewEnd.mjs";
+import { ScoreEventView } from "./ScoreEventView.mjs";
 
 /**
  * Renders the TranscriptView component.
@@ -94,7 +95,7 @@ const getRenderer = () => {
   /**
    * Renders the event based on its type.
    *
-   * @param {import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent} event - The event to render.
+   * @param {import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent} event - The event to render.
    * @param {number} index - The current event index.
    * @returns {import("preact").JSX.Element} The rendered event.
    */
@@ -108,6 +109,9 @@ const getRenderer = () => {
 
       case "model":
         return html`<${ModelEventView} index=${index} event=${event} />`;
+
+      case "score":
+        return html`<${ScoreEventView} index=${index} event=${event} />`;
 
       case "state":
         return html`<${StateEventView} index=${index} event=${event} />`;
