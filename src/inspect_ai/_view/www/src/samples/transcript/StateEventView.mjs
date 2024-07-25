@@ -23,7 +23,7 @@ export const StateEventView = ({ event }) => {
     };
     return html`
       <div style=${baseStyle}>${symbol ? symbol : ""}</div>
-      <code style=${baseStyle}>${change.path}</code>
+      <code style=${{ padding: "0", ...baseStyle }}>${change.path}</code>
       <div style=${toStyle}>${renderValue(change)}</div>
     `;
   });
@@ -37,6 +37,7 @@ export const StateEventView = ({ event }) => {
         display: "grid",
         gridTemplateColumns: "max-content max-content 1fr",
         columnGap: "1em",
+        rowGap: 0,
       }}
     >
       ${mutations}
@@ -98,9 +99,17 @@ const renderValue = (change) => {
   const contents =
     typeof change.value === "object" || Array.isArray(change.value)
       ? JSON.stringify(change.value, null, 2)
-      : change.value;
+      : typeof change.value === "string"
+        ? change.value.trim()
+        : change.value;
 
-  return html`<pre style=${{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-${contents}</pre
+  return html`<pre
+    style=${{
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+      marginBottom: "0",
+    }}
+  >
+${contents || ""}</pre
   >`;
 };
