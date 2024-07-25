@@ -20,6 +20,7 @@
 - Add `setup` field to `Sample` for providing a per-sample setup script.
 - Score multiple choice questions without parsed answers as incorrect (rather than being an error). Llama 3 and 3.1 models especially often fail to yield an answer.
 - Read JSON encoded `metadata` field from samples.
+- Show task/display progress immediately (rather than waiting for connections to fill).
 - Reduce foreground task contention for Inspect View history loading.
 - Ability to host standalone version of Inspect View to view single log files.
 
