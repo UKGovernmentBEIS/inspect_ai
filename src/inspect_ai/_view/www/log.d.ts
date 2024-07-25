@@ -24,6 +24,7 @@ export type Limit = number | [unknown, unknown] | null;
 export type Epochs = number | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
+export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
 export type ToolenvCleanup = boolean | null;
 export type LogSamples = boolean | null;
@@ -56,10 +57,11 @@ export type TopK = number | null;
 export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
+export type ParallelToolCalls = boolean | null;
 export type Name2 = string;
 export type Scorer = string;
 export type Name3 = string;
-export type Value = number;
+export type Value = number | number;
 export type Metadata1 = {} | null;
 export type Metadata2 = {} | null;
 export type Scores = EvalScore[];
@@ -139,10 +141,11 @@ export type Scores1 = {
 export type Value1 =
   | string
   | number
+  | number
   | boolean
-  | (string | number | boolean)[]
+  | (string | number | number | boolean)[]
   | {
-      [k: string]: string | number | boolean | null;
+      [k: string]: string | number | number | boolean | null;
     };
 export type Answer = string | null;
 export type Explanation = string | null;
@@ -203,6 +206,7 @@ export interface EvalConfig {
   epochs: Epochs;
   max_messages: MaxMessages;
   max_samples: MaxSamples;
+  max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
   toolenv_cleanup: ToolenvCleanup;
   log_samples: LogSamples;
@@ -250,6 +254,7 @@ export interface GenerateConfig {
   num_choices: NumChoices;
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
+  parallel_tool_calls: ParallelToolCalls;
 }
 export interface EvalResults {
   scores: Scores;
