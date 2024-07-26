@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Callable
 
 from .._dataset import Dataset, FieldSpec, MemoryDataset, RecordToSample
 from .csv import csv_dataset
@@ -28,12 +29,13 @@ def example_dataset(
     Returns:
       Dataset read from example file.
     """
-    def get_dataset(file_path: Path, dataset_func):
+
+    def get_dataset(
+        file_path: Path,
+        dataset_func: Callable[[str, FieldSpec | RecordToSample | None], Dataset],
+    ) -> Dataset | None:
         if file_path.exists():
-            return dataset_func(
-                json_file=str(file_path),
-                sample_fields=sample_fields,
-            )
+            return dataset_func(str(file_path), sample_fields)
         return None
 
     json_file = EXAMPLES_PATH / f"{name}.jsonl"
@@ -42,7 +44,11 @@ def example_dataset(
     dataset = get_dataset(json_file, json_dataset) or get_dataset(csv_file, csv_dataset)
 
     if dataset is None:
-        available_datasets = [file.stem for file in EXAMPLES_PATH.iterdir() if file.is_file()]
-        raise ValueError(f"Sample dataset {name} not found. Available datasets: {available_datasets}")
+        available_datasets = [
+            file.stem for file in EXAMPLES_PATH.iterdir() if file.is_file()
+        ]
+        raise ValueError(
+            f"Sample dataset {name} not found. Available datasets: {available_datasets}"
+        )
 
     return MemoryDataset(samples=list(dataset), name=name, location=f"example://{name}")
