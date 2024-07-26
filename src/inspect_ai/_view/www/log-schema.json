@@ -67,9 +67,7 @@
         "role": {
           "const": "assistant",
           "default": "assistant",
-          "enum": ["assistant"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         },
         "tool_calls": {
           "anyOf": [
@@ -131,9 +129,7 @@
         "role": {
           "const": "system",
           "default": "system",
-          "enum": ["system"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         },
         "tool": {
           "anyOf": [
@@ -192,9 +188,7 @@
         "role": {
           "const": "tool",
           "default": "tool",
-          "enum": ["tool"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         },
         "tool_call_id": {
           "anyOf": [
@@ -264,9 +258,7 @@
         "role": {
           "const": "user",
           "default": "user",
-          "enum": ["user"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         }
       },
       "required": ["content", "source", "role"],
@@ -279,9 +271,7 @@
         "type": {
           "const": "image",
           "default": "image",
-          "enum": ["image"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "image": {
           "title": "Image",
@@ -304,9 +294,7 @@
         "type": {
           "const": "text",
           "default": "text",
-          "enum": ["text"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "text": {
           "title": "Text",
@@ -695,9 +683,7 @@
       "properties": {
         "type": {
           "const": "git",
-          "enum": ["git"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "origin": {
           "title": "Origin",
@@ -1608,9 +1594,7 @@
         },
         "type": {
           "const": "function",
-          "enum": ["function"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "parse_error": {
           "anyOf": [
