@@ -21,7 +21,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import init_active_model, resolve_models
 from inspect_ai.solver import Plan, Solver
-from inspect_ai.tool import ToolEnvironmentSpec
+from inspect_ai.util import SandboxEnvironmentSpec
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
@@ -37,8 +37,8 @@ def eval(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
-    toolenv: ToolEnvironmentSpec | None = None,
-    toolenv_cleanup: bool | None = None,
+    sandbox: SandboxEnvironmentSpec | None = None,
+    sandbox_cleanup: bool | None = None,
     plan: Plan | Solver | list[Solver] | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
@@ -66,9 +66,9 @@ def eval(
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
         task_args (dict[str,Any]): Task arguments
-        toolenv (ToolEnvironmentSpec | None): Tool
+        sandbox (SandboxEnvironmentSpec | None): Sandbox
            environment type (or optionally a tuple with type and config file)
-        toolenv_cleanup (bool | None): Cleanup tool environments after task completes
+        sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
         plan (Plan | Solver | list[Solver] | None): Alternative plan
            for evaluating task(s). Optional (uses task plan by default).
@@ -109,8 +109,8 @@ def eval(
             model_base_url=model_base_url,
             model_args=model_args,
             task_args=task_args,
-            toolenv=toolenv,
-            toolenv_cleanup=toolenv_cleanup,
+            sandbox=sandbox,
+            sandbox_cleanup=sandbox_cleanup,
             plan=plan,
             log_level=log_level,
             log_dir=log_dir,
@@ -135,8 +135,8 @@ async def eval_async(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
-    toolenv: ToolEnvironmentSpec | None = None,
-    toolenv_cleanup: bool | None = None,
+    sandbox: SandboxEnvironmentSpec | None = None,
+    sandbox_cleanup: bool | None = None,
     plan: Plan | Solver | list[Solver] | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
@@ -164,9 +164,9 @@ async def eval_async(
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
         task_args (dict[str,Any]): Task arguments
-        toolenv (ToolEnvironentSpec | None): Tool
+        sandbox (SandboxEnvironentSpec | None): Sandbox
            environment type (or optionally a tuple with type and config file)
-        toolenv_cleanup (bool | None): Cleanup tool environments after task completes
+        sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         plan (Plan | Solver | list[Solver] | None): Alternative plan
            for evaluating task(s). Optional (uses task plan by default).
@@ -228,7 +228,7 @@ async def eval_async(
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
             init_active_model(m)
-            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, toolenv))
+            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
         # warn and return empty string if we resolved no tasks
         if len(resolved_tasks) == 0:
@@ -248,7 +248,7 @@ async def eval_async(
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
-            toolenv_cleanup=toolenv_cleanup,
+            sandbox_cleanup=sandbox_cleanup,
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
@@ -318,7 +318,7 @@ def eval_retry(
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
-    toolenv_cleanup: bool | None = None,
+    sandbox_cleanup: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -342,7 +342,7 @@ def eval_retry(
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
-        toolenv_cleanup (bool | None): Cleanup tool environments after task completes
+        sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
@@ -370,7 +370,7 @@ def eval_retry(
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
-            toolenv_cleanup=toolenv_cleanup,
+            sandbox_cleanup=sandbox_cleanup,
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
@@ -389,7 +389,7 @@ async def eval_retry_async(
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
-    toolenv_cleanup: bool | None = None,
+    sandbox_cleanup: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -413,7 +413,7 @@ async def eval_retry_async(
            (default is 1)
         max_subprocesses (int): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
-        toolenv_cleanup (bool | None): Cleanup tool environments after task completes
+        sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
@@ -481,10 +481,10 @@ async def eval_retry_async(
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
-        toolenv_cleanup = (
-            toolenv_cleanup
-            if toolenv_cleanup is not None
-            else eval_log.eval.config.toolenv_cleanup
+        sandbox_cleanup = (
+            sandbox_cleanup
+            if sandbox_cleanup is not None
+            else eval_log.eval.config.sandbox_cleanup
         )
         log_samples = (
             log_samples if log_samples is not None else eval_log.eval.config.log_samples
@@ -509,8 +509,8 @@ async def eval_retry_async(
                 model_base_url=model_base_url,
                 model_args=model_args,
                 task_args=task_args,
-                toolenv=eval_log.eval.tool_environment,
-                toolenv_cleanup=toolenv_cleanup,
+                sandbox=eval_log.eval.sandbox,
+                sandbox_cleanup=sandbox_cleanup,
                 log_level=log_level,
                 log_dir=log_dir,
                 limit=limit,

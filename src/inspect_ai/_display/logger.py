@@ -18,8 +18,8 @@ from inspect_ai._util.constants import (
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
-    TOOLS,
-    TOOLS_LOG_LEVEL,
+    SANDBOX,
+    SANDBOX_LOG_LEVEL,
 )
 from inspect_ai._util.logger import notify_logger_record
 
@@ -62,7 +62,7 @@ class LogHandler(RichHandler):
 def init_logger(log_level: str | None = None) -> None:
     # register http and tools levels
     addLevelName(HTTP, HTTP_LOG_LEVEL)
-    addLevelName(TOOLS, TOOLS_LOG_LEVEL)
+    addLevelName(SANDBOX, SANDBOX_LOG_LEVEL)
 
     # resolve default log level
     log_level = (

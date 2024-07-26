@@ -7,29 +7,29 @@ from shortuuid import uuid
 from .environment import (
     SampleCleanup,
     SampleInit,
-    ToolEnvironment,
+    SandboxEnvironment,
 )
-from .registry import registry_find_toolenv
+from .registry import registry_find_sandboxenv
 
 logger = getLogger(__name__)
 
 
-def tool_environment(name: str = "default") -> ToolEnvironment:
-    """Get the ToolEnvironment for the current sample.
+def sandbox(name: str = "default") -> SandboxEnvironment:
+    """Get the SandboxEnvironment for the current sample.
 
     Args:
-       name (str | None): Optional tool environmnent name.
+       name (str | None): Optional sandbox environmnent name.
 
     Return:
-       ToolEnvironment instance.
+    SandboxEnvironment instance.
     """
     # verify we have a context
-    environments = tool_environments_context_var.get(None)
+    environments = sandbox_environments_context_var.get(None)
     if not environments:
         raise RuntimeError(
-            "No tool environment has been provided for the current task. "
-            + "Please specify one using either the tool_environment task/eval "
-            + "option, or the --toolenv CLI option."
+            "No sandbox environment has been provided for the current task. "
+            + "Please specify one using either the sandbox task/eval "
+            + "option, or the --sandbox CLI option."
         )
 
     # short circuit for 1 environment (allows single environment to not sweat 'default')
@@ -40,41 +40,41 @@ def tool_environment(name: str = "default") -> ToolEnvironment:
     environment = environments.get(name, None)
     if not environment:
         raise ValueError(
-            f"ToolEnvironment '{name}' is not a recoginized environment name."
+            f"SandboxEnvironment '{name}' is not a recoginized environment name."
         )
 
     return environment
 
 
-async def init_tool_environments_sample(
+async def init_sandbox_environments_sample(
     type: str,
     task_name: str,
     config: str | None,
     files: dict[str, bytes],
     setup: bytes | None,
     metadata: dict[str, Any],
-) -> dict[str, ToolEnvironment]:
+) -> dict[str, SandboxEnvironment]:
     # get setup and cleanup functions
-    toolenv_type = registry_find_toolenv(type)
-    sample_init = cast(SampleInit, getattr(toolenv_type, "sample_init"))
-    sample_cleanup = cast(SampleCleanup, getattr(toolenv_type, "sample_cleanup"))
+    sandboxenv_type = registry_find_sandboxenv(type)
+    sample_init = cast(SampleInit, getattr(sandboxenv_type, "sample_init"))
+    sample_cleanup = cast(SampleCleanup, getattr(sandboxenv_type, "sample_cleanup"))
 
     # create environments
     environments = await sample_init(task_name, config, metadata)
 
     # verify that there is at least one environment and a 'default' env
-    validate_tool_environments(toolenv_type, environments)
+    validate_sandbox_environments(sandboxenv_type, environments)
 
     try:
         # copy files into environments
-        await copy_tool_environment_files(files, environments)
+        await copy_sandbox_environment_files(files, environments)
 
         # run setup script
         if setup:
-            await setup_tool_environment(setup, environments)
+            await setup_sandbox_environment(setup, environments)
 
         # set context
-        tool_environments_context_var.set(environments)
+        sandbox_environments_context_var.set(environments)
 
         # return environments
         return environments
@@ -84,22 +84,22 @@ async def init_tool_environments_sample(
         raise ex
 
 
-async def cleanup_tool_environments_sample(
+async def cleanup_sandbox_environments_sample(
     type: str,
     task_name: str,
     config: str | None,
-    environments: dict[str, ToolEnvironment],
+    environments: dict[str, SandboxEnvironment],
     interrupted: bool,
 ) -> None:
-    toolenv_type = registry_find_toolenv(type)
-    sample_cleanup = cast(SampleCleanup, getattr(toolenv_type, "sample_cleanup"))
+    sandboxenv_type = registry_find_sandboxenv(type)
+    sample_cleanup = cast(SampleCleanup, getattr(sandboxenv_type, "sample_cleanup"))
     await sample_cleanup(task_name, config, environments, interrupted)
 
 
-async def copy_tool_environment_files(
-    files: dict[str, bytes], environments: dict[str, ToolEnvironment]
+async def copy_sandbox_environment_files(
+    files: dict[str, bytes], environments: dict[str, SandboxEnvironment]
 ) -> None:
-    default_environment = default_tool_environment(environments)
+    default_environment = default_sandbox_environment(environments)
     for file, contents in files.items():
         # does it have an environment prefix? if so target that env
         parts = file.split(":", maxsplit=1)
@@ -117,11 +117,11 @@ async def copy_tool_environment_files(
         await target_env.write_file(file, contents)
 
 
-async def setup_tool_environment(
-    setup: bytes, environments: dict[str, ToolEnvironment]
+async def setup_sandbox_environment(
+    setup: bytes, environments: dict[str, SandboxEnvironment]
 ) -> None:
-    # get default toolenv
-    env = default_tool_environment(environments)
+    # get default sandboxenv
+    env = default_sandbox_environment(environments)
 
     # copy to container
     setup_file = uuid()
@@ -142,9 +142,9 @@ async def setup_tool_environment(
     await exec(["rm", setup_file])
 
 
-def default_tool_environment(
-    environments: dict[str, ToolEnvironment],
-) -> ToolEnvironment:
+def default_sandbox_environment(
+    environments: dict[str, SandboxEnvironment],
+) -> SandboxEnvironment:
     return (
         list(environments.values())[0]
         if len(environments) == 1
@@ -152,8 +152,8 @@ def default_tool_environment(
     )
 
 
-def validate_tool_environments(
-    type: type[ToolEnvironment], environments: dict[str, ToolEnvironment]
+def validate_sandbox_environments(
+    type: type[SandboxEnvironment], environments: dict[str, SandboxEnvironment]
 ) -> None:
     if len(environments) == 0:
         raise ValueError(
@@ -166,6 +166,6 @@ def validate_tool_environments(
         raise RuntimeError(f"No 'default' service provided for {type.__name__}")
 
 
-tool_environments_context_var = ContextVar[dict[str, ToolEnvironment]](
-    "tool_environments"
+sandbox_environments_context_var = ContextVar[dict[str, SandboxEnvironment]](
+    "sandbox_environments"
 )
