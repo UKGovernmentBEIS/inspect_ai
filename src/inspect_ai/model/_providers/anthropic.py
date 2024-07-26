@@ -293,7 +293,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
             content: str | list[TextBlockParam | ImageBlockParam] = (
                 message.error.message
             )
-        if isinstance(message.content, str):
+        elif isinstance(message.content, str):
             content = [TextBlockParam(type="text", text=message.content)]
         else:
             content = [

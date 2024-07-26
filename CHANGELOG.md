@@ -28,6 +28,7 @@
 - Throw `TimeoutError` if a call to `subprocess()` or `sandbox().exec()` times out (formerly a textual error was returned along with a non-zero exit code).
 - Validate name passed to `example_dataset()` (and print available example dataset names).
 - Resolve relative image paths within Dataset samples against the directory containing the dataset.
+- Preserve `tool_error` text for Anthropic tool call responses.
 
 
 ## v0.3.18 (14 July 2024)
