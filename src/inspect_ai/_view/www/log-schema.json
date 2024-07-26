@@ -370,6 +370,18 @@
           "default": null,
           "title": "Max Samples"
         },
+        "max_tasks": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tasks"
+        },
         "max_subprocesses": {
           "anyOf": [
             {
@@ -382,7 +394,7 @@
           "default": null,
           "title": "Max Subprocesses"
         },
-        "toolenv_cleanup": {
+        "sandbox_cleanup": {
           "anyOf": [
             {
               "type": "boolean"
@@ -392,7 +404,7 @@
             }
           ],
           "default": null,
-          "title": "Toolenv Cleanup"
+          "title": "Sandbox Cleanup"
         },
         "log_samples": {
           "anyOf": [
@@ -438,8 +450,9 @@
         "epochs",
         "max_messages",
         "max_samples",
+        "max_tasks",
         "max_subprocesses",
-        "toolenv_cleanup",
+        "sandbox_cleanup",
         "log_samples",
         "log_images",
         "log_buffer"
@@ -612,7 +625,8 @@
             "top_k": null,
             "num_choices": null,
             "logprobs": null,
-            "top_logprobs": null
+            "top_logprobs": null,
+            "parallel_tool_calls": null
           }
         }
       },
@@ -935,7 +949,7 @@
         "dataset": {
           "$ref": "#/$defs/EvalDataset"
         },
-        "tool_environment": {
+        "sandbox": {
           "anyOf": [
             {
               "maxItems": 2,
@@ -962,7 +976,7 @@
             }
           ],
           "default": null,
-          "title": "Tool Environment"
+          "title": "Sandbox"
         },
         "model": {
           "title": "Model",
@@ -1038,7 +1052,7 @@
         "run_id",
         "created",
         "dataset",
-        "tool_environment",
+        "sandbox",
         "model",
         "model_base_url",
         "task_attribs",
@@ -1303,6 +1317,18 @@
           ],
           "default": null,
           "title": "Top Logprobs"
+        },
+        "parallel_tool_calls": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parallel Tool Calls"
         }
       },
       "title": "GenerateConfig",
@@ -1325,7 +1351,8 @@
         "top_k",
         "num_choices",
         "logprobs",
-        "top_logprobs"
+        "top_logprobs",
+        "parallel_tool_calls"
       ],
       "additionalProperties": false
     },
@@ -2091,6 +2118,7 @@
           "max_retries": null,
           "max_tokens": null,
           "num_choices": null,
+          "parallel_tool_calls": null,
           "presence_penalty": null,
           "seed": null,
           "stop_seqs": null,

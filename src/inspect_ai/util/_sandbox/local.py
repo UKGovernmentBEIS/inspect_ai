@@ -5,21 +5,19 @@ from typing import Literal, Union, cast, overload
 import aiofiles
 from typing_extensions import override
 
-from inspect_ai.util import ExecResult, subprocess
-
-from .._tool import ToolError
-from .environment import ToolEnvironment
-from .registry import toolenv
+from .._subprocess import ExecResult, subprocess
+from .environment import SandboxEnvironment
+from .registry import sandboxenv
 
 
-@toolenv(name="local")
-class LocalToolEnvironment(ToolEnvironment):
+@sandboxenv(name="local")
+class LocalSandboxEnvironment(SandboxEnvironment):
     @override
     @classmethod
     async def sample_init(
         cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> dict[str, ToolEnvironment]:
-        return {"default": LocalToolEnvironment()}
+    ) -> dict[str, SandboxEnvironment]:
+        return {"default": LocalSandboxEnvironment()}
 
     @override
     @classmethod
@@ -27,11 +25,11 @@ class LocalToolEnvironment(ToolEnvironment):
         cls,
         task_name: str,
         config: str | None,
-        environments: dict[str, ToolEnvironment],
+        environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
         for environment in environments.values():
-            env = cast(LocalToolEnvironment, environment)
+            env = cast(LocalSandboxEnvironment, environment)
             env.directory.cleanup()
 
     def __init__(self) -> None:
@@ -46,18 +44,13 @@ class LocalToolEnvironment(ToolEnvironment):
         env: dict[str, str] = {},
         timeout: int | None = None,
     ) -> ExecResult[str]:
-        try:
-            return await subprocess(
-                args=cmd,
-                input=input,
-                cwd=cwd if cwd else self.directory.name,
-                env=env,
-                timeout=timeout,
-            )
-        except UnicodeDecodeError:
-            raise ToolError(
-                "Unicode decoding error reading command output (it is likely binary rather than text)"
-            )
+        return await subprocess(
+            args=cmd,
+            input=input,
+            cwd=cwd if cwd else self.directory.name,
+            env=env,
+            timeout=timeout,
+        )
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:

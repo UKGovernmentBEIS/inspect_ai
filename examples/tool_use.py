@@ -6,7 +6,8 @@ from inspect_ai.solver import (
     system_message,
     use_tools,
 )
-from inspect_ai.tool import ToolError, tool, tool_environment
+from inspect_ai.tool import ToolError, tool
+from inspect_ai.util import sandbox
 
 
 @tool(
@@ -57,7 +58,7 @@ def list_files():
         Returns:
             File listing of the directory
         """
-        result = await tool_environment().exec(["ls", dir])
+        result = await sandbox().exec(["ls", dir])
         if result.success:
             return result.stdout
         else:
@@ -90,7 +91,7 @@ def bash():
             use_tools(list_files()),
             generate(),
         ],
-        tool_environment="local",
+        sandbox="local",
         scorer=includes(),
     )
 
@@ -107,7 +108,7 @@ def read_file():
             File contents
         """
         try:
-            return await tool_environment().read_file(file)
+            return await sandbox().read_file(file)
         except FileNotFoundError:
             raise ToolError(f"File {file} not found.")
 
@@ -120,7 +121,7 @@ def read():
         dataset=[Sample(input="Please read the file 'foo.txt'")],
         plan=[use_tools([read_file()]), generate()],
         scorer=match(),
-        tool_environment="local",
+        sandbox="local",
     )
 
 
@@ -134,7 +135,7 @@ def write_file():
             contents (str): Contents of file
         """
         try:
-            return await tool_environment().write_file(file, contents)
+            return await sandbox().write_file(file, contents)
         except FileNotFoundError:
             raise ToolError(f"File {file} not found.")
 
@@ -150,7 +151,7 @@ def write():
             generate(),
         ],
         scorer=match(),
-        tool_environment="local",
+        sandbox="local",
     )
 
 

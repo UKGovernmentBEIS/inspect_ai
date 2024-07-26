@@ -47,8 +47,8 @@ class EvalConfig(BaseModel):
     max_subprocesses: int | None = Field(default=None)
     """Maximum number of subprocesses to run concurrently."""
 
-    toolenv_cleanup: bool | None = Field(default=None)
-    """Cleanup tool environments after task completes."""
+    sandbox_cleanup: bool | None = Field(default=None)
+    """Cleanup sandbox environments after task completes."""
 
     log_samples: bool | None = Field(default=None)
     """Log detailed information on each sample."""
@@ -276,8 +276,8 @@ class EvalSpec(BaseModel):
     dataset: EvalDataset
     """Dataset used for eval."""
 
-    tool_environment: tuple[str, str | None] | None = Field(default=None)
-    """Tool environment type and optional config file."""
+    sandbox: tuple[str, str | None] | None = Field(default=None)
+    """Sandbox environment type and optional config file."""
 
     model: str
     """Model used for eval."""

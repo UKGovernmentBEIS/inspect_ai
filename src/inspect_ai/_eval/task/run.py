@@ -56,11 +56,11 @@ from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.solver._subtask.subtask import init_subtask
 from inspect_ai.solver._subtask.transcript import ScoreEvent, transcript
-from inspect_ai.tool import ToolEnvironment
-from inspect_ai.tool._environment.context import (
-    cleanup_tool_environments_sample,
-    init_tool_environments_sample,
+from inspect_ai.util._sandbox.context import (
+    cleanup_sandbox_environments_sample,
+    init_sandbox_environments_sample,
 )
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from ..context import init_task_context
 from ..task import Task
@@ -80,7 +80,7 @@ EvalSampleSource = Callable[[int | str, int], EvalSample | None]
 class TaskRunOptions:
     task: Task
     model: Model
-    toolenv: tuple[str, str | None] | None
+    sandbox: tuple[str, str | None] | None
     logger: TaskLogger
     config: EvalConfig = field(default_factory=EvalConfig)
     plan: Plan | Solver | list[Solver] | None = field(default=None)
@@ -94,7 +94,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # destructure options
     task = options.task
     model = options.model
-    toolenv = options.toolenv
+    sandbox = options.sandbox
     logger = options.logger
     config = options.config
     plan = options.plan
@@ -117,7 +117,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # resolve some config
     model_name = ModelName(model)
     epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
-    toolenv_cleanup = config.toolenv_cleanup is not False
+    sandbox_cleanup = config.sandbox_cleanup is not False
     log_images = config.log_images is not False
     log_samples = config.log_samples is not False
 
@@ -204,8 +204,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         task_name=task.name,
                         sample=sample,
                         state=state,
-                        tool_environment=toolenv,
-                        toolenv_cleanup=toolenv_cleanup,
+                        sandbox=sandbox,
+                        sandbox_cleanup=sandbox_cleanup,
                         plan=plan,
                         scorers=scorers,
                         generate=generate,
@@ -292,8 +292,8 @@ async def task_run_sample(
     task_name: str,
     sample: Sample,
     state: TaskState,
-    tool_environment: tuple[str, str | None] | None,
-    toolenv_cleanup: bool,
+    sandbox: tuple[str, str | None] | None,
+    sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
     generate: Generate,
@@ -326,14 +326,14 @@ async def task_run_sample(
     init_subtask(SAMPLE_SUBTASK, state.store)
 
     # use toolenv if provided
-    toolenv_cm = (
-        toolenv_context(task_name, tool_environment, toolenv_cleanup, sample)
-        if tool_environment
+    sandboxenv_cm = (
+        sandboxenv_context(task_name, sandbox, sandbox_cleanup, sample)
+        if sandbox
         else contextlib.nullcontext()
     )
 
     # solver loop
-    async with semaphore_cm, toolenv_cm:
+    async with semaphore_cm, sandboxenv_cm:
         try:
             # run plan steps (checking for early termination)
             for index, solver in enumerate(plan.steps):
@@ -527,9 +527,9 @@ def create_sample_semaphore(
 
 
 @contextlib.asynccontextmanager
-async def toolenv_context(
+async def sandboxenv_context(
     task_name: str,
-    tool_environment: tuple[str, str | None],
+    sandbox: tuple[str, str | None],
     cleanup: bool,
     sample: Sample,
 ) -> AsyncGenerator[None, None]:
@@ -537,25 +537,25 @@ async def toolenv_context(
     files: dict[str, bytes] = {}
     if sample.files:
         for path, contents in sample.files.items():
-            files[path] = read_toolenv_file(contents)
+            files[path] = read_sandboxenv_file(contents)
 
     # read setup script from sample (add bash shebang if necessary)
     setup: bytes | None = None
     if sample.setup:
-        setup = read_toolenv_file(sample.setup)
+        setup = read_sandboxenv_file(sample.setup)
         setup_str = setup.decode(encoding="utf-8")
         if not setup_str.strip().startswith("#!"):
             setup_str = f"#!/usr/bin/env bash\n\n{setup_str}"
             setup = setup_str.encode(encoding="utf-8")
 
     interrupted = False
-    environments: dict[str, ToolEnvironment] | None = None
+    environments: dict[str, SandboxEnvironment] | None = None
     try:
-        # initialize tool environment,
-        environments = await init_tool_environments_sample(
-            type=tool_environment[0],
+        # initialize sandbox environment,
+        environments = await init_sandbox_environments_sample(
+            type=sandbox[0],
             task_name=task_name,
-            config=tool_environment[1],
+            config=sandbox[1],
             files=files,
             setup=setup,
             metadata=sample.metadata if sample.metadata else {},
@@ -569,18 +569,18 @@ async def toolenv_context(
         raise ex
 
     finally:
-        # cleanup tool environment
+        # cleanup sandbox environment
         if environments and cleanup:
-            await cleanup_tool_environments_sample(
-                type=tool_environment[0],
+            await cleanup_sandbox_environments_sample(
+                type=sandbox[0],
                 task_name=task_name,
-                config=tool_environment[1],
+                config=sandbox[1],
                 environments=environments,
                 interrupted=interrupted,
             )
 
 
-def read_toolenv_file(contents: str) -> bytes:
+def read_sandboxenv_file(contents: str) -> bytes:
     if is_data_uri(contents):
         contents_base64 = data_uri_to_base64(contents)
         file_bytes = base64.b64decode(contents_base64)
