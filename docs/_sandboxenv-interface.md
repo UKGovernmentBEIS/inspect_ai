@@ -1,6 +1,6 @@
 
 ``` python
-class ToolEnvironment:
+class SandboxEnvironment:
    
     async def exec(
         self,

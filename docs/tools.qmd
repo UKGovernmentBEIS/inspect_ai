@@ -61,7 +61,7 @@ Note that when using tools with models, the models do not call the Python functi
 
 ## Tool Errors
 
-Various errors can occur during tool execution, especially when interacting with the file system or network or when using [Tool Environments](#sec-tool-environments) to execute code in a container sandbox. As a tool writer you need to decide how you'd like to handle error conditions. A number of approaches are possible:
+Various errors can occur during tool execution, especially when interacting with the file system or network or when using [Sandbox Environments](#sec-sandbox-environments) to execute code in a container sandbox. As a tool writer you need to decide how you'd like to handle error conditions. A number of approaches are possible:
 
 1.  Notify the model that an error occurred to see whether it can recover.
 
@@ -75,7 +75,7 @@ There are no universally correct approaches as tool usage and semantics can vary
 
 If you do not explicitly handle errors, then Inspect provides some default error handling behaviour. Specifically, if any of the following errors are raised they will be handled and reported to the model:
 
--   `TimeoutError` — Occurs when a call to `subprocess()` or `tool_environment().exec()` times out.
+-   `TimeoutError` — Occurs when a call to `subprocess()` or `sandbox().exec()` times out.
 
 -   `PermissionError` — Occurs when there are inadequate permissions to read or write a file.
 
@@ -83,7 +83,7 @@ If you do not explicitly handle errors, then Inspect provides some default error
 
 -   `ToolError` — Special error thrown by tools to indicate they'd like to report an error to the model.
 
-These are all errors that are *expected* (in fact the `ToolEnvironemnt` interface documents them as such) and possibly recoverable by the model (try a different command, read a different file, etc.). Unexpected errors (e.g. a network error communicating with a remote service or container runtime) on the other hand are not automatically handled and result in the `Sample` failing with an error.
+These are all errors that are *expected* (in fact the `SandboxEnvironemnt` interface documents them as such) and possibly recoverable by the model (try a different command, read a different file, etc.). Unexpected errors (e.g. a network error communicating with a remote service or container runtime) on the other hand are not automatically handled and result in the `Sample` failing with an error.
 
 Many tools can simply rely on the default handling to provide reasonable behaviour around both expected and unexpected errors.
 
@@ -99,7 +99,7 @@ Another type of explicit handling is re-raising an error to bypass Inspect's def
 
 ``` python
 try:
-  result = await tool_environment().exec(
+  result = await sandobox().exec(
     cmd=["decode", file], 
     timeout=timeout
   )
@@ -108,13 +108,14 @@ except TimeoutError:
   
 ```
 
-## Tool Environments
+## Sandboxing
 
-Tools may have a need to interact with a sandboxed environment (e.g. to provide models with the ability to execute arbitrary bash or python commands). The active tool environment can be obtained via the `tool_environment()` function. For example:
+Tools may have a need to interact with a sandboxed environment (e.g. to provide models with the ability to execute arbitrary bash or python commands). The active sandbox environment can be obtained via the `sandbox()` function. For example:
 
 
 ``` python
-from inspect_ai.tool import ToolError, tool, tool_environment
+from inspect_ai.tool import ToolError, tool
+from inspect_ai.util import sandbox
 
 @tool(prompt="Use the list_files function to enumerate files.")
 def list_files():
@@ -127,7 +128,7 @@ def list_files():
         Returns:
             File listing of the directory
         """
-        result = await tool_environment().exec(["ls", dir])
+        result = await sandbox().exec(["ls", dir])
         if result.success:
             return result.stdout
         else:
@@ -137,11 +138,11 @@ def list_files():
 ```
 
 
-The following instance methods are available to tools that need to interact with a `ToolEnvironment`:
+The following instance methods are available to tools that need to interact with a `SandboxEnvironment`:
 
-{{< include _toolenv-interface.md >}}
+{{< include _sandboxenv-interface.md >}}
 
-See the documentation on [Tool Environments](#sec-tool-environments) for additional details.
+See the documentation on [Sandbox Environments](#sec-sandbox-environments) for additional details.
 
 ## Tool Choice
 
@@ -224,7 +225,7 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 
 ### Bash and Python
 
-The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Tool Environment](#sec-tool-environments), which can provide sandboxing for untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
+The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](#sec-sandbox-environments) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
 
 ``` python
 CMD_TIMEOUT = 180
@@ -243,7 +244,7 @@ def intercode_ctf():
         ],
         scorer=includes(),
         max_messages=30,
-        tool_environment="docker",
+        sandbox="docker",
     )
 ```
 

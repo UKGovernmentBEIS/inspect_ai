@@ -1,6 +1,6 @@
 from inspect_ai.model import modelapi
 
-from .toolenv.podman import PodmanToolEnvironment  # noqa: F401
+from .sandboxenv.podman import PodmanSandboxEnvironment  # noqa: F401
 
 
 @modelapi(name="custom")

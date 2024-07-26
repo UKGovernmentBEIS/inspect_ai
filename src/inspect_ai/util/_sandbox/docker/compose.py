@@ -13,7 +13,7 @@ from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
 )
-from .util import ComposeProject, is_inspect_project, tools_log
+from .util import ComposeProject, is_inspect_project, sandbox_log
 
 logger = getLogger(__name__)
 
@@ -179,7 +179,7 @@ async def compose_cleanup_images(
     cwd: str | None = None,
     timeout: int | None = None,
 ) -> None:
-    tools_log("Removing images")
+    sandbox_log("Removing images")
     # List the images that would be created for this compose
     images_result = await compose_command(
         ["config", "--images"], project=project, cwd=cwd
@@ -245,7 +245,7 @@ async def compose_command(
     compose_command = compose_command + command
 
     # Execute the command
-    tools_log(f"compose command: {compose_command}")
+    sandbox_log(f"compose command: {compose_command}")
     result = await subprocess(
         compose_command,
         input=input,
@@ -254,5 +254,5 @@ async def compose_command(
         timeout=timeout,
         capture_output=capture_output,
     )
-    tools_log(f"compose command (completed): {compose_command}")
+    sandbox_log(f"compose command (completed): {compose_command}")
     return result

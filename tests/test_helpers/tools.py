@@ -1,4 +1,5 @@
-from inspect_ai.tool import ContentText, ToolError, tool, tool_environment
+from inspect_ai.tool import ContentText, ToolError, tool
+from inspect_ai.util import sandbox
 
 
 # define tool
@@ -37,7 +38,7 @@ def read_file():
           File contents
         """
         try:
-            return await tool_environment().read_file(file)
+            return await sandbox().read_file(file)
         except FileNotFoundError:
             raise ToolError(f"File {file} not found.")
 
@@ -60,7 +61,7 @@ def list_files():
         Returns:
             File listing of the directory
         """
-        result = await tool_environment().exec(["ls", dir])
+        result = await sandbox().exec(["ls", dir])
         if result.success:
             return result.stdout
         else:
@@ -80,7 +81,7 @@ def exec():
         Returns:
             Program output
         """
-        result = await tool_environment().exec([program])
+        result = await sandbox().exec([program])
         if result.success:
             return result.stdout
         else:
