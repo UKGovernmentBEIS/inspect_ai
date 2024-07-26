@@ -96,7 +96,9 @@ eval(math, model = "custom/my-model")
 | `local`          | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
 | `docker`         | Run `tool_environment()` methods within a Docker container                                                                                                                |
 
-To create a custom tool environment, derive a class from `ToolEnvironment`, implement the required static and instance methods, and add the `@toolenv` decorator to it. For example:
+To create a custom tool environment, derive a class from `ToolEnvironment`, implement the required static and instance methods, and add the `@toolenv` decorator to it. 
+
+The static class methods control the lifecycle of containers and other computing resources associated with the `ToolEnvironment`:
 
 ``` python
 @toolenv(name="podman")
@@ -137,37 +139,7 @@ class PodmanToolEnvironment(ToolEnvironment):
     async def cli_cleanup(cls, id: str | None) -> None:
         ...
 
-    async def exec(
-        self,
-        cmd: list[str],
-        input: str | bytes | None = None,
-        cwd: str | None = None,
-        env: dict[str, str] = {},
-        timeout: int | None = None,
-    ) -> ExecResult[str]:
-        ...
-
-    async def write_file(
-        self, file: str, contents: str | bytes
-    ) -> None:
-        ...
-
-    @overload
-    async def read_file(
-        self, file: str, text: Literal[True] = True
-    ) -> str: 
-        ...
-      
-    @overload
-    async def read_file(
-        self, file: str, text: Literal[False]
-    ) -> bytes: 
-        ...
-      
-    async def read_file(
-        self, file: str, text: bool = True
-    ) -> Union[str | bytes]:
-        ...
+    # (instance methods shown below)
 ```
 
 The class methods take care of various stages of initialisation, setup, and teardown:
@@ -198,11 +170,10 @@ The `cli_cleanup()` function is a global cleanup handler that should be able to 
 
 The `task_cleanup()` function will typically print out the information required to invoke `cli_cleanup()` when it is invoked with `cleanup = False`. Try invoking the `DockerToolEnvironmet` with `--no-toolenv-cleanup` to see an example.
 
-The `ToolEnvironment` instance methods provide access to process execution and file input/output within the environment. A few notes on implementing these methods:
+The `ToolEnvironment` instance methods provide access to process execution and file input/output within the environment.
 
-1.  The `exec()` method currently only handles text output. If a call results in binary output then a `UnicodeDecodeError` will be raised. Tool environments should catch this and raise a `ToolError`.
+{{< include _toolenv-interface.md >}}
 
-2.  The `read_file()` method raise a `FileNotFoundError` if the specified `file` does not exist in the tool environment, as tools calling `read_file()` will often want to catch the `FileNotFoundError` and re-throw a `ToolError` (since models will frequently attempt to read files that do not exist).
 
 The best way to learn about writing tool environments is to look at the source code for the built in environments, [LocalToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_environment/local.py) and [DockerToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_environment/docker/docker.py).
 

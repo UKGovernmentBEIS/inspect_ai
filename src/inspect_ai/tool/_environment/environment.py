@@ -134,7 +134,7 @@ class ToolEnvironment(abc.ABC):
           contents (str | bytes): Text or binary file contents.
 
         Raises:
-          PermissionErrror: If the current user does not have permission to
+          PermissionError: If the current user does not have permission to
             write to the specified path.
         """
         ...
@@ -160,8 +160,8 @@ class ToolEnvironment(abc.ABC):
         Raises:
           FileNotFoundError: If the specified file does not exist.
           UnicodeDecodeError: If an encoding error occurs while
-            reading the command output.
-          PermissionErrror: If the current user does not have
+            reading the file.
+          PermissionError: If the user does not have
             permission to read from the specified path.
         """
         ...
