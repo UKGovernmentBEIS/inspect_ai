@@ -14,11 +14,12 @@ from inspect_ai.log import (
     EvalScore,
 )
 from inspect_ai.scorer import Metric, Score, Scorer
+from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._scorer import SCORER_METRICS, scorer_metrics, unique_scorer_name
 
 
 def eval_results(
-    scores: list[dict[str, Score]],
+    scores: list[dict[str, SampleScore]],
     scorers: list[Scorer] | None,
     metrics: list[Metric] = [],
 ) -> EvalResults:
@@ -41,6 +42,9 @@ def eval_results(
                 score[scorer_name] for score in scores if scorer_name in score
             ]
 
+            # TODO: reduce the scores
+            reduced_scores = cast(list[Score], resolved_scores)
+
             # Compute metrics for this scorer
             targets = target_metrics(scorer, metrics)
             if isinstance(targets, list):
@@ -51,7 +55,7 @@ def eval_results(
                         scorer_name=scorer_name,
                         scorer=scorer,
                         metadata=metadata,
-                        scores=resolved_scores,
+                        scores=reduced_scores,
                         metrics=targets,
                     )
                 )
@@ -67,7 +71,7 @@ def eval_results(
                         scorer_name=scorer_name,
                         scorer=scorer,
                         metadata=metadata,
-                        scores=resolved_scores,
+                        scores=reduced_scores,
                         metrics=targets,
                     )
                 )

@@ -9,7 +9,7 @@ from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig
-from inspect_ai.scorer import Metric, Scorer
+from inspect_ai.scorer import Metric, Scorer, ScoreReducer
 from inspect_ai.solver import Plan, Solver, generate
 
 logger = getLogger(__name__)
@@ -37,6 +37,7 @@ class Task:
         sandbox (str | tuple[str,str] | None): Sandbox
            environment type (or optionally a tuple with type and config file)
         epochs (int): Default number of epochs to run for.
+        epochs_reducer (ScoreReducer | list[ScoreReducer] | str | list[str])
         max_messages (int | None): Limit on total messages in the conversation.
         name: (str | None): Task name. If not specified is automatically
           determined based on the name of the task directory (or "task")
@@ -55,6 +56,7 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         sandbox: str | tuple[str, str] | None = None,
         epochs: int | None = None,
+        epochs_reducer: ScoreReducer | list[ScoreReducer] | str | list[str] = "mean",
         max_messages: int | None = None,
         name: str | None = None,
         version: int = 0,
@@ -86,6 +88,7 @@ class Task:
         self.config = config
         self.sandbox = (sandbox, None) if isinstance(sandbox, str) else sandbox
         self.epochs = epochs
+        self.epochs_reducer = epochs_reducer
         self.max_messages = max_messages
         self.version = version
         self._name = name

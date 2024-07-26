@@ -1,20 +1,11 @@
 import asyncio
 from collections import Counter
-from typing import (
-    Protocol,
-    runtime_checkable,
-)
 
 from inspect_ai.solver import TaskState
 
 from ._metric import Score
-from ._scorer import Scorer
+from ._scorer import Scorer, ScoreReducer
 from ._target import Target
-
-
-@runtime_checkable
-class ScoreReducer(Protocol):
-    def __call__(self, scores: list[Score]) -> Score: ...
 
 
 def multi_scorer(scorers: list[Scorer], reducer: ScoreReducer) -> Scorer:

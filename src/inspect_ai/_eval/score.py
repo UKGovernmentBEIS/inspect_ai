@@ -13,6 +13,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.model import ModelName
 from inspect_ai.scorer import Metric, Score, Scorer, Target
+from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import TaskState
 
@@ -85,11 +86,11 @@ async def score_async(log: EvalLog, scorers: list[Scorer]) -> EvalLog:
         ]
 
         # do scoring
-        scores: list[dict[str, Score]] = await asyncio.gather(*tasks)
+        scores: list[dict[str, SampleScore]] = await asyncio.gather(*tasks)
 
         # write them back (gather ensures that they come back in the same order)
         for index, score in enumerate(scores):
-            log.samples[index].scores = score
+            log.samples[index].scores = cast(dict[str, Score], score)
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
@@ -120,8 +121,22 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
     # compute and log metrics
     display().print(f"Aggregating scores for task: {task_name}")
     if task.scorer and log.samples:
+        sample_scores = [
+            {
+                score_key: SampleScore(
+                    sample_id=sample.id,
+                    value=score.value,
+                    answer=score.answer,
+                    explanation=score.explanation,
+                )
+                for score_key, score in sample.scores.items()
+            }
+            for sample in log.samples
+            if sample.scores is not None
+        ]
+
         log.results = eval_results(
-            [sample.scores for sample in log.samples if sample.scores is not None],
+            sample_scores,
             task.scorer,
             task.metrics,
         )
@@ -133,12 +148,18 @@ async def run_score_task(
     target: Target,
     scorers: list[Scorer],
     progress: Callable[..., None],
-) -> dict[str, Score]:
-    results: dict[str, Score] = {}
+) -> dict[str, SampleScore]:
+    results: dict[str, SampleScore] = {}
     for scorer in scorers:
         result = await scorer(state, target)
         scorer_name = unique_scorer_name(scorer, list(results.keys()))
-        results[scorer_name] = result
+
+        results[scorer_name] = SampleScore(
+            sample_id=state.sample_id,
+            value=result.value,
+            answer=result.answer,
+            explanation=result.explanation,
+        )
 
     progress()
     return results
