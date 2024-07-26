@@ -7,6 +7,7 @@ from shortuuid import uuid
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.git import git_context
+from inspect_ai._util.logger import logger_records
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (
     registry_log_name,
@@ -36,7 +37,6 @@ from inspect_ai.model import (
 from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
 from inspect_ai.solver import Plan, Solver, TaskState
-from inspect_ai.util._logger import logger_records
 
 
 class TaskLogger:
