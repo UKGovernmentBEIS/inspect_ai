@@ -202,7 +202,7 @@ To include an image, your dataset input would look like this:
 ]
 ```
 
-Where `"picture.png"` is located in the directory where your task runs. The image can be specified either as a URL (accessible to the model), a local file path, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+Where `"picture.png"` is resolved relative to the directory containing the dataset file. The image can be specified either as a URL (accessible to the model), a local file path, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
 If you are constructing chat messages programmatically, then the equivalent to the above would be:
 
