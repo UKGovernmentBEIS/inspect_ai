@@ -1,5 +1,6 @@
-from inspect_ai.tool import Tool, ToolError, tool
 from inspect_ai.util import sandbox
+
+from .._tool import Tool, ToolError, tool
 
 
 @tool(prompt="If you need to execute a bash command, use the bash tool.")
