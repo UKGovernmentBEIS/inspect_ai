@@ -23,6 +23,7 @@
 - Show task/display progress immediately (rather than waiting for connections to fill).
 - Reduce foreground task contention for Inspect View history loading.
 - Ability to host standalone version of Inspect View to view single log files.
+- Throw `TimeoutError` if a call to `subprocess()` or `tool_environment().exec()` times out (formerly a textual error was returned along with a non-zero exit code).
 
 
 ## v0.3.18 (14 July 2024)

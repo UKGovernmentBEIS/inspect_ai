@@ -7,7 +7,6 @@ from typing import Literal, Union, cast, overload
 import aiofiles
 from typing_extensions import override
 
-from inspect_ai.tool._tool import ToolError
 from inspect_ai.util._subprocess import ExecResult
 
 from ..environment import ToolEnvironment
@@ -189,18 +188,12 @@ class DockerToolEnvironment(ToolEnvironment):
                 args.append("--env")
                 args.append(f"{key}={value}")
 
-        try:
-            result = await compose_exec(
-                args + [self._service] + cmd,
-                project=self._project,
-                timeout=timeout,
-                input=input,
-            )
-        except UnicodeDecodeError:
-            raise ToolError(
-                "Unicode decoding error reading command output (it is likely binary rather than text)"
-            )
-        return result
+        return await compose_exec(
+            args + [self._service] + cmd,
+            project=self._project,
+            timeout=timeout,
+            input=input,
+        )
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
