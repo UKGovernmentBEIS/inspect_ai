@@ -32,9 +32,9 @@ class Sample(BaseModel):
         id (int | str | None): Optional. Unique identifier for sample.
         metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
         files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
-          ToolEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
+          SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
         setup: (str | None): Optional. Setup script to run for sample (run
-          within default ToolEnvironment).
+          within default SandboxEnvironment).
     """
 
     input: str | list[ChatMessage]
@@ -53,10 +53,10 @@ class Sample(BaseModel):
     """Arbitrary metadata associated with the sample."""
 
     files: dict[str, str] | None = Field(default=None)
-    """Files that go along with the sample (copied to ToolEnvironment)"""
+    """Files that go along with the sample (copied to SandboxEnvironment)"""
 
     setup: str | None = Field(default=None)
-    """Setup script to run for sample (run within default ToolEnvironment)."""
+    """Setup script to run for sample (run within default SandboxEnvironment)."""
 
 
 def sample_input_len(sample: Sample) -> int:
@@ -178,7 +178,7 @@ class FieldSpec(BaseModel):
     """Files that go along wtih the sample."""
 
     setup: str = Field(default="setup")
-    """Setup script to run for sample (run within default ToolEnvironment)."""
+    """Setup script to run for sample (run within default SandboxEnvironment)."""
 
 
 RecordToSample = Callable[[DatasetRecord], Sample]

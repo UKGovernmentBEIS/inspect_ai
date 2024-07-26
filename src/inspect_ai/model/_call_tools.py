@@ -47,8 +47,8 @@ async def call_tools(
             except PermissionError:
                 # TODO: Crash the sample not the eval; error state for sample
                 # TODO: Ascertain PermissionError for docker read/write file
-                # TODO: Preflight check for tool environment for better errors
-                # TODO: Document the error requirements for toolenvs and tools
+                # TODO: Preflight check for sandbox environment for better errors
+                # TODO: Document the error requirements for sandboxenvs and tools
 
                 # TODO: Consider: Should there by typeinfo on error
                 # TODO: Consider: Raw mode with no fault barrier?

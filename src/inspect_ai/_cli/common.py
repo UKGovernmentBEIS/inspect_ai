@@ -18,7 +18,7 @@ def log_level_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--log-level",
         type=click.Choice(
-            ["debug", "http", "tools", "info", "warning", "error", "critical"],
+            ["debug", "http", "sandbox", "info", "warning", "error", "critical"],
             case_sensitive=False,
         ),
         default=DEFAULT_LOG_LEVEL,

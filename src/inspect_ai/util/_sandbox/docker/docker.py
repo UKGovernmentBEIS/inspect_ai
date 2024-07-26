@@ -9,8 +9,8 @@ from typing_extensions import override
 
 from inspect_ai.util._subprocess import ExecResult
 
-from ..environment import ToolEnvironment
-from ..registry import toolenv
+from ..environment import SandboxEnvironment
+from ..registry import sandboxenv
 from .cleanup import (
     cli_cleanup,
     project_cleanup,
@@ -29,13 +29,13 @@ from .compose import (
     compose_up,
 )
 from .prereqs import validate_prereqs
-from .util import ComposeProject, task_project_name, tools_log
+from .util import ComposeProject, sandbox_log, task_project_name
 
 logger = getLogger(__name__)
 
 
-@toolenv(name="docker")
-class DockerToolEnvironment(ToolEnvironment):
+@sandboxenv(name="docker")
+class DockerSandboxEnvironment(SandboxEnvironment):
     @classmethod
     async def task_init(cls, task_name: str, config: str | None) -> None:
         # validate prereqs
@@ -81,8 +81,8 @@ class DockerToolEnvironment(ToolEnvironment):
     @classmethod
     async def sample_init(
         cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> dict[str, ToolEnvironment]:
-        tools_log("setup")
+    ) -> dict[str, SandboxEnvironment]:
+        sandbox_log("setup")
 
         # create environment variables for sample metadata
         env: dict[str, str] = {}
@@ -106,14 +106,14 @@ class DockerToolEnvironment(ToolEnvironment):
         # check to ensure that the services are running
         await compose_check_running(list(services.keys()), project=project)
 
-        # create tool environments
-        environments: dict[str, ToolEnvironment] = {}
+        # create sandbox environments
+        environments: dict[str, SandboxEnvironment] = {}
         for service, service_info in services.items():
             # update the project w/ the working directory
             project.working_dir = await container_working_dir(service, project)
 
-            # create the docker tool environemnt
-            docker_env = DockerToolEnvironment(service, project)
+            # create the docker sandbox environemnt
+            docker_env = DockerSandboxEnvironment(service, project)
 
             # save reference to environment (mark as default if requested)
             is_default = service_info.get("x-default", False) is True
@@ -136,7 +136,7 @@ class DockerToolEnvironment(ToolEnvironment):
         cls,
         task_name: str,
         config: str | None,
-        environments: dict[str, ToolEnvironment],
+        environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
         # if we were interrupted then wait unil the end of the task to cleanup
@@ -144,7 +144,7 @@ class DockerToolEnvironment(ToolEnvironment):
         if not interrupted:
             # extract project from first environment
             project = cast(
-                DockerToolEnvironment, next(iter(environments.values()))
+                DockerSandboxEnvironment, next(iter(environments.values()))
             )._project
             # cleanup the project
             await project_cleanup(project=project, quiet=True)
@@ -197,7 +197,7 @@ class DockerToolEnvironment(ToolEnvironment):
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
-        tools_log(f"write_file: {file}")
+        sandbox_log(f"write_file: {file}")
 
         # resolve relative file paths
         file = container_file(self._project, file)
@@ -238,7 +238,7 @@ class DockerToolEnvironment(ToolEnvironment):
 
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
-        tools_log(f"read_file: {file}")
+        sandbox_log(f"read_file: {file}")
 
         # Write the contents to a temp file
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:

@@ -10,8 +10,8 @@ from .cache import cache_command
 from .eval import eval_command, eval_retry_command
 from .info import info_command
 from .list import list_command
+from .sandbox import sandbox_command
 from .score import score_command
-from .toolenv import toolenv_command
 from .view import view_command
 
 
@@ -44,7 +44,7 @@ inspect.add_command(info_command)
 inspect.add_command(list_command)
 inspect.add_command(score_command)
 inspect.add_command(view_command)
-inspect.add_command(toolenv_command)
+inspect.add_command(sandbox_command)
 
 
 def main() -> None:

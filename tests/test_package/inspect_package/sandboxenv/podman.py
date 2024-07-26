@@ -2,24 +2,23 @@ from typing import Literal, Union, overload
 
 from typing_extensions import override
 
-from inspect_ai.tool import ToolEnvironment, toolenv
-from inspect_ai.util import ExecResult
+from inspect_ai.util import ExecResult, SandboxEnvironment, sandboxenv
 
 
-@toolenv(name="podman")
-class PodmanToolEnvironment(ToolEnvironment):
+@sandboxenv(name="podman")
+class PodmanSandboxEnvironment(SandboxEnvironment):
     @classmethod
     async def sample_init(
         cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> dict[str, ToolEnvironment]:
-        return {"default": PodmanToolEnvironment()}
+    ) -> dict[str, SandboxEnvironment]:
+        return {"default": PodmanSandboxEnvironment()}
 
     @classmethod
     async def sample_cleanup(
         cls,
         task_name: str,
         config: str | None,
-        environments: dict[str, ToolEnvironment],
+        environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
         pass
