@@ -28,6 +28,7 @@ def example_dataset(
     Returns:
       Dataset read from example file.
     """
+
     def get_dataset(file_path: Path, dataset_func):
         if file_path.exists():
             return dataset_func(
@@ -42,7 +43,11 @@ def example_dataset(
     dataset = get_dataset(json_file, json_dataset) or get_dataset(csv_file, csv_dataset)
 
     if dataset is None:
-        available_datasets = [file.stem for file in EXAMPLES_PATH.iterdir() if file.is_file()]
-        raise ValueError(f"Sample dataset {name} not found. Available datasets: {available_datasets}")
+        available_datasets = [
+            file.stem for file in EXAMPLES_PATH.iterdir() if file.is_file()
+        ]
+        raise ValueError(
+            f"Sample dataset {name} not found. Available datasets: {available_datasets}"
+        )
 
     return MemoryDataset(samples=list(dataset), name=name, location=f"example://{name}")
