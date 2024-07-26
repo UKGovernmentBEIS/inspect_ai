@@ -3,12 +3,11 @@ from dataset import read_dataset
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.solver import (
-    bash,
     generate,
-    python,
     system_message,
     use_tools,
 )
+from inspect_ai.tool import bash, python
 
 # maximum chat messages before giving up
 MAX_MESSAGES = 30

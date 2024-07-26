@@ -44,8 +44,9 @@ from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.solver import (
     Generate, TaskState, generate, solver,
-    system_message, use_tools, bash, python
+    system_message, use_tools
 )
+from inspect_ai.tool import bash, python
 
 CMD_TIMEOUT = 180  # max seconds to run bash/python cmds
 MAX_MESSAGES = 30  # max chat messages before giving up
