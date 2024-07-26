@@ -18,3 +18,17 @@ class ToolCall:
 
     parse_error: str | None = field(default=None)
     """Error which occurred parsing tool call."""
+
+
+@dataclass
+class ToolCallError:
+    type: Literal[
+        "parsing",
+        "timeout",
+        "unicode_decode",
+        "permission",
+        "file_not_found",
+        "unknown",
+    ]
+
+    message: str

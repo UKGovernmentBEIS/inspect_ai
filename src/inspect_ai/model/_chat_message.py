@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolCall
+from inspect_ai.tool._tool_call import ToolCallError
 
 
 class ChatMessageBase(BaseModel):
@@ -89,8 +90,8 @@ class ChatMessageTool(ChatMessageBase):
     tool_call_id: str | None = Field(default=None)
     """ID of tool call."""
 
-    tool_error: str | None = Field(default=None)
-    """Error calling tool."""
+    error: ToolCallError | None = Field(default=None)
+    """Error which occurred during tool call."""
 
 
 ChatMessage = Union[
