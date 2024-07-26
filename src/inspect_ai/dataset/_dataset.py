@@ -86,13 +86,16 @@ class Dataset(Sequence[Sample], abc.ABC):
     to a collection of Sample objects.
     """
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def name(self) -> str | None: ...
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def location(self) -> str | None: ...
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def shuffled(self) -> bool: ...
 
     @overload
