@@ -76,10 +76,14 @@ async def subprocess(
        env (dict[str, str]): Additional environment variables.
        capture_output (bool): Capture stderr and stdout into ExecResult
          (if False, then output is redirected to parent stderr/stdout)
-       timeout (int | None): Timeout
+       timeout (int | None): Timeout. If the timeout expires then
+         a `TimeoutError` will be raised.
 
     Returns:
        Subprocess result (text or binary depending on `text` param)
+
+    Raises:
+       TimeoutError: If the specified `timeout` expires.
     """
     # resolve input
     input = input.encode() if isinstance(input, str) else input
@@ -135,7 +139,7 @@ async def subprocess(
                 else:
                     return await asyncio.wait_for(run_command(), timeout=timeout)
             except asyncio.exceptions.TimeoutError:
-                return ExecResult(False, 1, "", "Command timed out before completing")
+                raise TimeoutError
         else:
             return await run_command()
 
