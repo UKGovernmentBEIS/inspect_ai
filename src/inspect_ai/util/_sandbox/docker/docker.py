@@ -29,7 +29,7 @@ from .compose import (
     compose_up,
 )
 from .prereqs import validate_prereqs
-from .util import ComposeProject, task_project_name, sandbox_log
+from .util import ComposeProject, sandbox_log, task_project_name
 
 logger = getLogger(__name__)
 
