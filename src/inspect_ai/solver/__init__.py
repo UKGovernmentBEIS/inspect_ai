@@ -39,19 +39,19 @@ relocated_module_attribute(
 )
 relocated_module_attribute(
     "ToolEnvironment",
-    "inspect_ai.tool.ToolEnvironment",
+    "inspect_ai.util.SandboxEnvironment",
     _TOOL_MODULE_VERSION_3_18,
     _REMOVED_IN,
 )
 relocated_module_attribute(
     "ToolEnvironments",
-    "inspect_ai.tool.ToolEnvironments",
+    "inspect_ai.util.SandboxEnvironments",
     _TOOL_MODULE_VERSION_3_18,
     _REMOVED_IN,
 )
 relocated_module_attribute(
     "ToolEnvironmentSpec",
-    "inspect_ai.tool.ToolEnvironmentSpec",
+    "inspect_ai.util.SandboxEnvironmentSpec",
     _TOOL_MODULE_VERSION_3_18,
     _REMOVED_IN,
 )
@@ -66,12 +66,12 @@ relocated_module_attribute(
 )
 relocated_module_attribute(
     "tool_environment",
-    "inspect_ai.tool.tool_environment",
+    "inspect_ai.util.sandbox",
     _TOOL_MODULE_VERSION_3_18,
     _REMOVED_IN,
 )
 relocated_module_attribute(
-    "toolenv", "inspect_ai.tool.toolenv", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
+    "toolenv", "inspect_ai.util.sandboxenv", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
 )
 relocated_module_attribute(
     "bash", "inspect_ai.tool.bash", _TOOL_MODULE_VERSION_3_19, _REMOVED_IN

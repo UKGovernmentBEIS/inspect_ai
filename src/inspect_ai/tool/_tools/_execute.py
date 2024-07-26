@@ -1,4 +1,5 @@
-from .._environment.context import tool_environment
+from inspect_ai.util import sandbox
+
 from .._tool import Tool, ToolError, tool
 
 
@@ -6,7 +7,7 @@ from .._tool import Tool, ToolError, tool
 def bash(timeout: int | None = None) -> Tool:
     """Bash shell command execution tool.
 
-    Execute bash shell commands using a tool environment (e.g. "docker").
+    Execute bash shell commands using a sandbox environment (e.g. "docker").
 
     Args:
       timeout (int | None): Timeout (in seconds) for command.
@@ -25,7 +26,7 @@ def bash(timeout: int | None = None) -> Tool:
         Returns:
           The output of the command.
         """
-        result = await tool_environment().exec(cmd=["bash", "-c", cmd], timeout=timeout)
+        result = await sandbox().exec(cmd=["bash", "-c", cmd], timeout=timeout)
         if result.success:
             return result.stdout
         else:
@@ -38,7 +39,7 @@ def bash(timeout: int | None = None) -> Tool:
 def python(timeout: int | None = None) -> Tool:
     """Python code execution tool.
 
-    Execute Python code using a tool environment (e.g. "docker").
+    Execute Python code using a sandbox environment (e.g. "docker").
 
     Args:
       timeout (int | None): Timeout (in seconds) for command.
@@ -57,9 +58,7 @@ def python(timeout: int | None = None) -> Tool:
         Returns:
           The output of the command.
         """
-        result = await tool_environment().exec(
-            cmd=["python3"], input=code, timeout=timeout
-        )
+        result = await sandbox().exec(cmd=["python3"], input=code, timeout=timeout)
         if result.success:
             return result.stdout
         else:

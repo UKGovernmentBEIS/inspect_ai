@@ -15,14 +15,14 @@ from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
 
 from .common import CommonOptions, common_options, resolve_common_options
-from .util import parse_cli_args, parse_tool_env
+from .util import parse_cli_args, parse_sandbox
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1)"
 MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
-NO_TOOL_CLEANUP_HELP = "Do not cleanup tool environments after task completes"
+NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
 NO_LOG_IMAGES_HELP = "Do not include base64 encoded versions of filename or URL based images in the log file."
 LOG_BUFFER_HELP = f"Number of samples to buffer before writing log file (defaults to {DEFAULT_LOG_BUFFER_LOCAL} for local filesystems, and {DEFAULT_LOG_BUFFER_REMOTE} for remote filesystems)."
@@ -64,15 +64,15 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     help="One or more task arguments (e.g. -T arg=value)",
 )
 @click.option(
-    "--toolenv",
+    "--sandbox",
     type=str,
-    help="Tool environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml'",
+    help="Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml'",
 )
 @click.option(
-    "--no-toolenv-cleanup",
+    "--no-sandbox-cleanup",
     type=bool,
     is_flag=True,
-    help=NO_TOOL_CLEANUP_HELP,
+    help=NO_SANDBOX_CLEANUP_HELP,
 )
 @click.option(
     "--limit",
@@ -122,12 +122,12 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
 @click.option(
     "--frequency-penalty",
     type=float,
-    help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI only.",
+    help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI and Groq only.",
 )
 @click.option(
     "--presence-penalty",
     type=float,
-    help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI only.",
+    help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI and Groq only.",
 )
 @click.option(
     "--logit-bias",
@@ -176,6 +176,11 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     type=int,
     help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only.",
 )
+@click.option(
+    "--parallel-tool-calls",
+    type=bool,
+    help="Whether to enable parallel function calling during tool use. OpenAI and Groq only.",
+)
 @common_options
 def eval_command(
     tasks: tuple[str] | None,
@@ -183,8 +188,8 @@ def eval_command(
     model_base_url: str | None,
     m: tuple[str] | None,
     t: tuple[str] | None,
-    toolenv: str | None,
-    no_toolenv_cleanup: bool | None,
+    sandbox: str | None,
+    no_sandbox_cleanup: bool | None,
     epochs: int | None,
     limit: str | None,
     max_retries: int | None,
@@ -205,6 +210,7 @@ def eval_command(
     num_choices: int | None,
     logprobs: bool | None,
     top_logprobs: int | None,
+    parallel_tool_calls: bool | None,
     max_messages: int | None,
     max_samples: int | None,
     max_tasks: int | None,
@@ -240,7 +246,7 @@ def eval_command(
     config["logit_bias"] = parse_logit_bias(logit_bias)
 
     # resolve negating options
-    toolenv_cleanup = False if no_toolenv_cleanup else None
+    sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
     log_images = False if no_log_images else None
     score = False if no_score else True
@@ -252,8 +258,8 @@ def eval_command(
         model_base_url=model_base_url,
         model_args=model_args,
         task_args=task_args,
-        toolenv=parse_tool_env(toolenv),
-        toolenv_cleanup=toolenv_cleanup,
+        sandbox=parse_sandbox(sandbox),
+        sandbox_cleanup=sandbox_cleanup,
         log_level=log_level,
         log_dir=log_dir,
         limit=eval_limit,
@@ -295,10 +301,10 @@ def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
     envvar="INSPECT_EVAL_MAX_SUBPROCESSES",
 )
 @click.option(
-    "--no-toolenv-cleanup",
+    "--no-sandbox-cleanup",
     type=bool,
     is_flag=True,
-    help=NO_TOOL_CLEANUP_HELP,
+    help=NO_SANDBOX_CLEANUP_HELP,
 )
 @click.option(
     "--no-log-samples",
@@ -340,7 +346,7 @@ def eval_retry_command(
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
-    no_toolenv_cleanup: bool | None,
+    no_sandbox_cleanup: bool | None,
     no_log_samples: bool | None,
     no_log_images: bool | None,
     log_buffer: int | None,
@@ -355,7 +361,7 @@ def eval_retry_command(
     (log_dir, log_level) = resolve_common_options(kwargs)
 
     # resolve negating options
-    toolenv_cleanup = False if no_toolenv_cleanup else None
+    sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
     log_images = False if no_log_images else None
     score = False if no_score else True
@@ -373,7 +379,7 @@ def eval_retry_command(
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
-        toolenv_cleanup=toolenv_cleanup,
+        sandbox_cleanup=sandbox_cleanup,
         log_samples=log_samples,
         log_images=log_images,
         log_buffer=log_buffer,

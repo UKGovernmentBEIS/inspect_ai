@@ -27,5 +27,5 @@ def intercode_ctf(shuffle=False):
         ],
         scorer=includes(),
         max_messages=MAX_MESSAGES,
-        tool_environment="docker",
+        sandbox="docker",
     )

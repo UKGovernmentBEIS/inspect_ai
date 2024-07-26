@@ -7,11 +7,10 @@ from typing import Literal, Union, cast, overload
 import aiofiles
 from typing_extensions import override
 
-from inspect_ai.tool._tool import ToolError
 from inspect_ai.util._subprocess import ExecResult
 
-from ..environment import ToolEnvironment
-from ..registry import toolenv
+from ..environment import SandboxEnvironment
+from ..registry import sandboxenv
 from .cleanup import (
     cli_cleanup,
     project_cleanup,
@@ -30,13 +29,13 @@ from .compose import (
     compose_up,
 )
 from .prereqs import validate_prereqs
-from .util import ComposeProject, task_project_name, tools_log
+from .util import ComposeProject, sandbox_log, task_project_name
 
 logger = getLogger(__name__)
 
 
-@toolenv(name="docker")
-class DockerToolEnvironment(ToolEnvironment):
+@sandboxenv(name="docker")
+class DockerSandboxEnvironment(SandboxEnvironment):
     @classmethod
     async def task_init(cls, task_name: str, config: str | None) -> None:
         # validate prereqs
@@ -82,8 +81,8 @@ class DockerToolEnvironment(ToolEnvironment):
     @classmethod
     async def sample_init(
         cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> dict[str, ToolEnvironment]:
-        tools_log("setup")
+    ) -> dict[str, SandboxEnvironment]:
+        sandbox_log("setup")
 
         # create environment variables for sample metadata
         env: dict[str, str] = {}
@@ -107,14 +106,14 @@ class DockerToolEnvironment(ToolEnvironment):
         # check to ensure that the services are running
         await compose_check_running(list(services.keys()), project=project)
 
-        # create tool environments
-        environments: dict[str, ToolEnvironment] = {}
+        # create sandbox environments
+        environments: dict[str, SandboxEnvironment] = {}
         for service, service_info in services.items():
             # update the project w/ the working directory
             project.working_dir = await container_working_dir(service, project)
 
-            # create the docker tool environemnt
-            docker_env = DockerToolEnvironment(service, project)
+            # create the docker sandbox environemnt
+            docker_env = DockerSandboxEnvironment(service, project)
 
             # save reference to environment (mark as default if requested)
             is_default = service_info.get("x-default", False) is True
@@ -137,7 +136,7 @@ class DockerToolEnvironment(ToolEnvironment):
         cls,
         task_name: str,
         config: str | None,
-        environments: dict[str, ToolEnvironment],
+        environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
         # if we were interrupted then wait unil the end of the task to cleanup
@@ -145,7 +144,7 @@ class DockerToolEnvironment(ToolEnvironment):
         if not interrupted:
             # extract project from first environment
             project = cast(
-                DockerToolEnvironment, next(iter(environments.values()))
+                DockerSandboxEnvironment, next(iter(environments.values()))
             )._project
             # cleanup the project
             await project_cleanup(project=project, quiet=True)
@@ -164,10 +163,6 @@ class DockerToolEnvironment(ToolEnvironment):
         super().__init__()
         self._service = service
         self._project = project
-
-    @classmethod
-    def max_samples(cls) -> int | None:
-        return 25
 
     @override
     async def exec(
@@ -193,51 +188,47 @@ class DockerToolEnvironment(ToolEnvironment):
                 args.append("--env")
                 args.append(f"{key}={value}")
 
-        try:
-            result = await compose_exec(
-                args + [self._service] + cmd,
-                project=self._project,
-                timeout=timeout,
-                input=input,
-            )
-        except UnicodeDecodeError:
-            raise ToolError(
-                "Unicode decoding error reading command output (it is likely binary rather than text)"
-            )
-        return result
+        return await compose_exec(
+            args + [self._service] + cmd,
+            project=self._project,
+            timeout=timeout,
+            input=input,
+        )
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
-        tools_log(f"write_file: {file}")
+        sandbox_log(f"write_file: {file}")
 
-        # Write the contents to a temp file
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-            src_file = os.path.join(temp_dir, os.path.basename(file))
-            if isinstance(contents, str):
-                async with aiofiles.open(src_file, "w", encoding="utf-8") as f:
-                    await f.write(contents)
-            else:
+        # resolve relative file paths
+        file = container_file(self._project, file)
+
+        # ensure that the directory exists
+        parent = Path(file).parent.as_posix()
+        if parent != ".":
+            result = await self.exec(["mkdir", "-p", parent])
+            if not result.success:
+                msg = f"Failed to create container directory {parent}: {result.stderr}"
+                raise RuntimeError(msg)
+
+        # use docker cp for binary files, tee for text files (which will
+        # have higher privs b/c the command runs in the container)
+        if isinstance(contents, str):
+            # write the file
+            result = await self.exec(["tee", "--", file], input=contents)
+            if not result.success:
+                msg = f"Failed to write file '{file}' into container: {result.stderr}"
+                raise RuntimeError(msg)
+        else:
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+                src_file = os.path.join(temp_dir, os.path.basename(file))
                 async with aiofiles.open(src_file, "wb") as f:
                     await f.write(contents)
-
-            # resolve relative file paths
-            file = container_file(self._project, file)
-
-            # ensure that the directory exists
-            parent = Path(file).parent.as_posix()
-            if parent != ".":
-                result = await self.exec(["mkdir", "-p", parent])
-                if not result.success:
-                    msg = f"Failed to create container directory {parent}: {result.stderr}"
-                    raise RuntimeError(msg)
-
-            # use the cp command to copy the file
-            await compose_cp(
-                src=os.path.basename(src_file),
-                dest=f"{self._service}:{file}",
-                project=self._project,
-                cwd=os.path.dirname(src_file),
-            )
+                await compose_cp(
+                    src=os.path.basename(src_file),
+                    dest=f"{self._service}:{file}",
+                    project=self._project,
+                    cwd=os.path.dirname(src_file),
+                )
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
@@ -247,7 +238,7 @@ class DockerToolEnvironment(ToolEnvironment):
 
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
-        tools_log(f"read_file: {file}")
+        sandbox_log(f"read_file: {file}")
 
         # Write the contents to a temp file
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:

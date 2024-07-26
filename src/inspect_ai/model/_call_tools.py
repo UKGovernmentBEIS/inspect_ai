@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 from dataclasses import dataclass
 from typing import (
@@ -32,29 +33,40 @@ async def call_tools(
     """
     if message.tool_calls:
         tdefs = tool_defs(tools)
-        tool_messages: list[ChatMessageTool] = []
-        for tool_call in message.tool_calls:
+
+        async def call_tool_task(call: ToolCall) -> ChatMessageTool:
             tool_error: str | None = None
             try:
-                result = await call_tool(tdefs, tool_call)
+                result = await call_tool(tdefs, call)
+            except TimeoutError:
+                result = ""
+                tool_error = "Command timed out before completing."
+            except UnicodeDecodeError:
+                result = ""
+                tool_error = "Unicode decoding error (file or command output is likely binary rather than text)"
+            except PermissionError:
+                # TODO: Crash the sample not the eval; error state for sample
+                # TODO: Ascertain PermissionError for docker read/write file
+                # TODO: Preflight check for sandbox environment for better errors
+                # TODO: Document the error requirements for sandboxenvs and tools
+
+                # TODO: Consider: Should there by typeinfo on error
+                # TODO: Consider: Raw mode with no fault barrier?
+                result = ""
+                tool_error = "The user does not have permission to write to the specified location."
             except ToolError as ex:
                 result = ""
                 tool_error = ex.message
 
-            # there may be some tool still returning tuple
-            if isinstance(result, tuple):
-                result, _ = result
-
-            tool_messages.append(
-                ChatMessageTool(
-                    content=result if isinstance(result, list) else str(result),
-                    tool_error=tool_error,
-                    tool_call_id=tool_call.id,
-                )
+            return ChatMessageTool(
+                content=result if isinstance(result, list) else str(result),
+                tool_error=tool_error,
+                tool_call_id=call.id,
             )
 
-        # return state
-        return tool_messages
+        tasks = [call_tool_task(call) for call in message.tool_calls]
+        return await asyncio.gather(*tasks)
+
     else:
         return []
 

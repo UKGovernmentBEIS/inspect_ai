@@ -84,6 +84,8 @@ class GroqAPI(ModelAPI):
             params["tool_choice"] = (
                 chat_tool_choice(tool_choice) if tool_choice else "auto"
             )
+            if config.parallel_tool_calls is not None:
+                params["parallel_tool_calls"] = config.parallel_tool_calls
 
         response = await self.client.chat.completions.create(
             messages=messages,

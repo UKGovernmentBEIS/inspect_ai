@@ -6,7 +6,8 @@ from inspect_ai.solver import (
     system_message,
     use_tools,
 )
-from inspect_ai.tool import ToolError, tool, tool_environment
+from inspect_ai.tool import ToolError, tool
+from inspect_ai.util import sandbox
 
 
 @tool(
@@ -57,7 +58,7 @@ def list_files():
         Returns:
             File listing of the directory
         """
-        result = await tool_environment().exec(["ls", dir])
+        result = await sandbox().exec(["ls", dir])
         if result.success:
             return result.stdout
         else:
@@ -90,7 +91,7 @@ def bash():
             use_tools(list_files()),
             generate(),
         ],
-        tool_environment="local",
+        sandbox="local",
         scorer=includes(),
     )
 
@@ -107,7 +108,7 @@ def read_file():
             File contents
         """
         try:
-            return await tool_environment().read_file(file)
+            return await sandbox().read_file(file)
         except FileNotFoundError:
             raise ToolError(f"File {file} not found.")
 
@@ -120,5 +121,49 @@ def read():
         dataset=[Sample(input="Please read the file 'foo.txt'")],
         plan=[use_tools([read_file()]), generate()],
         scorer=match(),
-        tool_environment="local",
+        sandbox="local",
+    )
+
+
+@tool(prompt="If you need to write a text file, use the write_file tool.")
+def write_file():
+    async def execute(file: str, contents: str):
+        """Write a file
+
+        Args:
+            file (str): File to write
+            contents (str): Contents of file
+        """
+        try:
+            return await sandbox().write_file(file, contents)
+        except FileNotFoundError:
+            raise ToolError(f"File {file} not found.")
+
+    return execute
+
+
+@task
+def write():
+    return Task(
+        dataset=[Sample(input="Please write 'bar' to a file named 'foo.txt'.")],
+        plan=[
+            use_tools([write_file()]),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox="local",
+    )
+
+
+@task
+def parallel_add():
+    return Task(
+        dataset=[
+            Sample(
+                input="Please add the numbers 1+1 and 2+2, and then print the results of those computations side by side as just two numbers (with no additional text). You should use the add tool to do this, and you should make the two required calls to add in parallel so the results are computed faster.",
+                target=["2 4"],
+            )
+        ],
+        plan=[use_tools([add()]), generate()],
+        scorer=includes(),
     )
