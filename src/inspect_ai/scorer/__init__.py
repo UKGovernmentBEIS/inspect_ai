@@ -17,8 +17,9 @@ from ._metrics.accuracy import accuracy
 from ._metrics.mean import mean
 from ._metrics.std import bootstrap_std, std, stderr
 from ._model import model_graded_fact, model_graded_qa
-from ._multi import majority_vote, multi_scorer
+from ._multi import multi_scorer
 from ._pattern import pattern
+from ._reducer import avg, majority
 from ._scorer import Scorer, ScoreReducer, scorer
 from ._target import Target
 
@@ -50,6 +51,7 @@ __all__ = [
     "PARTIAL",
     "NOANSWER",
     "multi_scorer",
-    "majority_vote",
     "ScoreReducer",
+    "majority",
+    "avg",
 ]

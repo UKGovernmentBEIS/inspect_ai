@@ -14,6 +14,7 @@ from inspect_ai.log import (
 from inspect_ai.model import ModelName
 from inspect_ai.scorer import Metric, Score, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._reducer import avg
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import TaskState
 
@@ -97,7 +98,8 @@ async def score_async(log: EvalLog, scorers: list[Scorer]) -> EvalLog:
         log_metrics = metrics_from_log(log)
 
         # compute metrics
-        log.results = eval_results(scores, scorers, log_metrics)
+        # TODO: Need to actually read reducer from somewhere (e.g. maybe command line?)
+        log.results = eval_results(scores, [avg()], scorers, log_metrics)
 
     return log
 
@@ -137,6 +139,7 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
 
         log.results = eval_results(
             sample_scores,
+            task.epochs_reducer,
             task.scorer,
             task.metrics,
         )

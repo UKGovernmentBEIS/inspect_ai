@@ -160,6 +160,9 @@ class EvalScore(BaseModel):
     scorer: str
     """Scorer name."""
 
+    reducer: str | None = Field(default=None)
+    """Reducer name."""
+
     params: dict[str, Any] = Field(default={})
     """Parameters specified when creating scorer."""
 

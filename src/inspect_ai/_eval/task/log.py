@@ -36,7 +36,6 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
-from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Plan, Solver, TaskState
 
 
