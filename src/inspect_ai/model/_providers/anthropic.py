@@ -291,7 +291,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
     elif message.role == "tool":
         if message.tool_error is not None:
             content: str | list[TextBlockParam | ImageBlockParam] = message.tool_error
-        if isinstance(message.content, str):
+        elif isinstance(message.content, str):
             content = [TextBlockParam(type="text", text=message.content)]
         else:
             content = [
