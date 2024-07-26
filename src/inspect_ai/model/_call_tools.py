@@ -38,6 +38,22 @@ async def call_tools(
             tool_error: str | None = None
             try:
                 result = await call_tool(tdefs, call)
+            except TimeoutError:
+                result = ""
+                tool_error = "Command timed out before completing."
+            except UnicodeDecodeError:
+                result = ""
+                tool_error = "Unicode decoding error (file or command output is likely binary rather than text)"
+            except PermissionError:
+                # TODO: Crash the sample not the eval; error state for sample
+                # TODO: Ascertain PermissionError for docker read/write file
+                # TODO: Preflight check for tool environment for better errors
+                # TODO: Document the error requirements for toolenvs and tools
+
+                # TODO: Consider: Should there by typeinfo on error
+                # TODO: Consider: Raw mode with no fault barrier?
+                result = ""
+                tool_error = "The user does not have permission to write to the specified location."
             except ToolError as ex:
                 result = ""
                 tool_error = ex.message
