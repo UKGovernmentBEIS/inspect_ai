@@ -69,6 +69,11 @@ def test_dataset_read_id() -> None:
     assert dataset[0].id == "q1"
 
 
+def test_example_dataset_not_found() -> None:
+    with pytest.raises(ValueError):
+        example_dataset("not_found")
+
+
 sample_field_spec = FieldSpec(input="input", target="label", metadata=["extra"])
 
 
