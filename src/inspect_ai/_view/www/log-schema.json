@@ -67,7 +67,9 @@
         "role": {
           "const": "assistant",
           "default": "assistant",
-          "title": "Role"
+          "enum": ["assistant"],
+          "title": "Role",
+          "type": "string"
         },
         "tool_calls": {
           "anyOf": [
@@ -129,7 +131,9 @@
         "role": {
           "const": "system",
           "default": "system",
-          "title": "Role"
+          "enum": ["system"],
+          "title": "Role",
+          "type": "string"
         },
         "tool": {
           "anyOf": [
@@ -188,7 +192,9 @@
         "role": {
           "const": "tool",
           "default": "tool",
-          "title": "Role"
+          "enum": ["tool"],
+          "title": "Role",
+          "type": "string"
         },
         "tool_call_id": {
           "anyOf": [
@@ -202,20 +208,19 @@
           "default": null,
           "title": "Tool Call Id"
         },
-        "tool_error": {
+        "error": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/ToolCallError"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Tool Error"
+          "default": null
         }
       },
-      "required": ["content", "source", "role", "tool_call_id", "tool_error"],
+      "required": ["content", "source", "role", "tool_call_id", "error"],
       "title": "ChatMessageTool",
       "type": "object",
       "additionalProperties": false
@@ -259,7 +264,9 @@
         "role": {
           "const": "user",
           "default": "user",
-          "title": "Role"
+          "enum": ["user"],
+          "title": "Role",
+          "type": "string"
         }
       },
       "required": ["content", "source", "role"],
@@ -272,7 +279,9 @@
         "type": {
           "const": "image",
           "default": "image",
-          "title": "Type"
+          "enum": ["image"],
+          "title": "Type",
+          "type": "string"
         },
         "image": {
           "title": "Image",
@@ -295,7 +304,9 @@
         "type": {
           "const": "text",
           "default": "text",
-          "title": "Type"
+          "enum": ["text"],
+          "title": "Type",
+          "type": "string"
         },
         "text": {
           "title": "Text",
@@ -684,7 +695,9 @@
       "properties": {
         "type": {
           "const": "git",
-          "title": "Type"
+          "enum": ["git"],
+          "title": "Type",
+          "type": "string"
         },
         "origin": {
           "title": "Origin",
@@ -1595,7 +1608,9 @@
         },
         "type": {
           "const": "function",
-          "title": "Type"
+          "enum": ["function"],
+          "title": "Type",
+          "type": "string"
         },
         "parse_error": {
           "anyOf": [
@@ -1612,6 +1627,30 @@
       },
       "required": ["id", "function", "arguments", "type", "parse_error"],
       "title": "ToolCall",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolCallError": {
+      "properties": {
+        "type": {
+          "enum": [
+            "parsing",
+            "timeout",
+            "unicode_decode",
+            "permission",
+            "file_not_found",
+            "unknown"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": ["type", "message"],
+      "title": "ToolCallError",
       "type": "object",
       "additionalProperties": false
     },

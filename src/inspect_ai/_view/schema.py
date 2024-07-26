@@ -29,6 +29,7 @@ def sync_view_schema() -> None:
         # generate types w/ json-schema-to-typescript
         subprocess.run(
             [
+                "yarn",
                 "json2ts",
                 "--input",
                 schema_path,
@@ -36,8 +37,10 @@ def sync_view_schema() -> None:
                 types_path,
                 "--additionalProperties",
                 "false",
-            ]
+            ],
+            cwd=WWW_DIR,
         )
+        subprocess.run(["yarn", "prettier:write"])
 
 
 def schema_to_strict(schema: dict[str, Any]) -> dict[str, Any]:
