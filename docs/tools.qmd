@@ -197,6 +197,8 @@ def web_search(
 You can use the `web_search()` tool in a plan like this:
 
 ``` python
+from inspect_ai.tool import web_search
+
 plan=[
     use_tools(web_search()), 
     generate()
@@ -228,6 +230,8 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](#sec-sandbox-environments) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
 
 ``` python
+from inspect_ai.tool import bash, python
+
 CMD_TIMEOUT = 180
 
 @task
