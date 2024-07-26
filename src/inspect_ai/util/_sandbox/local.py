@@ -5,20 +5,19 @@ from typing import Literal, Union, cast, overload
 import aiofiles
 from typing_extensions import override
 
-from inspect_ai.util import ExecResult, subprocess
+from .._subprocess import ExecResult, subprocess
+from .environment import SandboxEnvironment
+from .registry import sandboxenv
 
-from .environment import ToolEnvironment
-from .registry import toolenv
 
-
-@toolenv(name="local")
-class LocalToolEnvironment(ToolEnvironment):
+@sandboxenv(name="local")
+class LocalSandboxEnvironment(SandboxEnvironment):
     @override
     @classmethod
     async def sample_init(
         cls, task_name: str, config: str | None, metadata: dict[str, str]
-    ) -> dict[str, ToolEnvironment]:
-        return {"default": LocalToolEnvironment()}
+    ) -> dict[str, SandboxEnvironment]:
+        return {"default": LocalSandboxEnvironment()}
 
     @override
     @classmethod
@@ -26,11 +25,11 @@ class LocalToolEnvironment(ToolEnvironment):
         cls,
         task_name: str,
         config: str | None,
-        environments: dict[str, ToolEnvironment],
+        environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
         for environment in environments.values():
-            env = cast(LocalToolEnvironment, environment)
+            env = cast(LocalSandboxEnvironment, environment)
             env.directory.cleanup()
 
     def __init__(self) -> None:

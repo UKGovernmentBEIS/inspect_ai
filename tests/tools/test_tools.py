@@ -245,7 +245,7 @@ def test_tool_error():
         dataset=[Sample(input="Please read the file 'foo.txt'")],
         plan=[use_tools([read_file()]), generate()],
         scorer=match(),
-        tool_environment="local",
+        sandbox="local",
     )
     log = eval(task, model="openai/gpt-4")[0]
     assert log.status == "success"
@@ -264,7 +264,7 @@ def test_tool_eval_error():
         dataset=[Sample(input="Run the program 'floozle'")],
         plan=[use_tools([exec()]), generate()],
         scorer=match(),
-        tool_environment="local",
+        sandbox="local",
     )
     log = eval(task, model="openai/gpt-4")[0]
     assert log.status == "error"

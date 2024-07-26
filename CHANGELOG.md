@@ -4,6 +4,7 @@
 
 - [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
 - [Groq](https://groq.com/) model provider.
+- Rename `ToolEnvironment` to `SandboxEnvironment` and `tool_environment()` to `sandbox()` (moving the renamed types to `inspect_ai.util`).
 - Replace the use of the `bootstrap_std` metric with `stderr` for built in scorers (see [rationale](https://inspect.ai-safety-institute.org.uk/scorers.html#stderr-note) for details).
 - Enable parallel execution of tasks that share a working directory.
 - Add `chdir` option to `@task` to opt-out of changing the working directory during task execution.
@@ -11,8 +12,8 @@
 - Gracefully handle tool calls that include only a single value (rather than a named dict of parameters).
 - Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
 - Make multiple tool calls in parallel. Parallel tool calls occur by default for OpenAI, Anthropic, Mistral, and Groq. You can disable this behavior for OpenAI and Groq with `--parallel-tool-calls false`.
-- Add `cwd` argument to `ToolEnvironment.exec()`
-- Use `tee` rather than `docker cp` for Docker tool environment implementation of `write_file()`.
+- Add `cwd` argument to `SandboxEnvironment.exec()`
+- Use `tee` rather than `docker cp` for Docker sandbox environment implementation of `write_file()`.
 - Handle duplicate tool call ids in Inspect View.
 - Handle sorting sample ids of different types in Inspect View.
 - Correctly resolve default model based on CLI --model argument.
@@ -23,7 +24,7 @@
 - Show task/display progress immediately (rather than waiting for connections to fill).
 - Reduce foreground task contention for Inspect View history loading.
 - Ability to host standalone version of Inspect View to view single log files.
-- Throw `TimeoutError` if a call to `subprocess()` or `tool_environment().exec()` times out (formerly a textual error was returned along with a non-zero exit code).
+- Throw `TimeoutError` if a call to `subprocess()` or `sandbox().exec()` times out (formerly a textual error was returned along with a non-zero exit code).
 - Validate name passed to `example_dataset()` (and print available example dataset names).
 
 
@@ -35,7 +36,7 @@
 - Improved handling of very large (> 100MB) log files in Inspect View.
 - Use `network_mode: none` for disabling networking by default in Docker tool environments.
 - Shorten the default shutdown grace period for Docker container cleanup to 1 second.
-- Allow tool environent providers to specify a default `max_samples` (set to 25 for the Docker provider).
+- Allow sandbox environent providers to specify a default `max_samples` (set to 25 for the Docker provider).
 - Prevent concurrent calls to `eval_async()` (unsafe because of need to change directories for tasks). Parallel task evaluation will instead be implemented as a top-level feature of `eval()` and `eval_async()`.
 - Match scorers now return answers consistently even when there is no match.
 - Relocate tool related types into a new top-level `inspect_ai.tool` module (previous imports still work fow now, but result in a runtime deprecation warning).
@@ -60,7 +61,7 @@
 
 ## v0.3.15 (15 June 2024)
 
--   [Tool Environments](https://inspect.ai-safety-institute.org.uk/agents.html#sec-tool-environments) for executing tool code in a sandbox.
+-   [Sandbox Environments](https://inspect.ai-safety-institute.org.uk/agents.html#sec-sandbox-environments) for executing tool code in a sandbox.
 -   [Caching](https://inspect.ai-safety-institute.org.uk/caching.html) to reduce the number of model API calls made.
 -   The `multiple_choice()` solver now has support for questions with multiple correct answers.
 -   More fine grained handling of Claude `BadRequestError` (400) errors (which were formerly all treated as content moderation errors).
