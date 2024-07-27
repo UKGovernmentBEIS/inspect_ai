@@ -279,7 +279,7 @@ async def openai_chat_message(message: ChatMessage) -> ChatCompletionMessagePara
         return ChatCompletionToolMessageParam(
             role=message.role,
             content=(
-                f"Error: {message.tool_error}" if message.tool_error else message.text
+                f"Error: {message.error.message}" if message.error else message.text
             ),
             tool_call_id=str(message.tool_call_id),
         )
