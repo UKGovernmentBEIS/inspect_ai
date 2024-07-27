@@ -47,7 +47,16 @@ logger = logging.getLogger(__name__)
 
 
 class ModelAPI(abc.ABC):
-    """Model API provider."""
+    """Model API provider.
+
+    If you are implementing a custom ModelAPI provider your `__init__()`
+    method will also receive a `**model_args` parameter that will carry
+    any custom `model_args` (or `-M` arguments from the CLI) specified
+    by the user. You can then pass these on to the approriate place in
+    your model initialisation code (for example, here is what many
+    of the built-in providers do with the `model_args` passed to them:
+    https://inspect.ai-safety-institute.org.uk/models.html#model-args)
+    """
 
     def __init__(
         self,
