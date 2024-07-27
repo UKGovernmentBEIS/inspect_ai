@@ -122,6 +122,7 @@ class RichDisplay(Display):
             status, show_name=self.parallel, on_update=self._update_display
         )
 
+    @throttle(1)
     def _update_display(self) -> None:
         if (
             self.tasks is not None
