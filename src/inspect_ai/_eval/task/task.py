@@ -57,7 +57,7 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         sandbox: str | tuple[str, str] | None = None,
         epochs: int | None = None,
-        epochs_reducer: ScoreReducer | list[ScoreReducer] = at_least(4),
+        epochs_reducer: ScoreReducer | list[ScoreReducer] | None = None,
         max_messages: int | None = None,
         name: str | None = None,
         version: int = 0,

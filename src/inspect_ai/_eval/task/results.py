@@ -16,7 +16,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.scorer._reducer import ScoreReducer
+from inspect_ai.scorer._reducer import ScoreReducer, avg
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
     scorer_metrics,
@@ -26,7 +26,7 @@ from inspect_ai.scorer._scorer import (
 
 def eval_results(
     scores: list[dict[str, SampleScore]],
-    reducers: ScoreReducer | list[ScoreReducer],
+    reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
     metrics: list[Metric] = [],
 ) -> EvalResults:
@@ -50,9 +50,9 @@ def eval_results(
             ]
 
             # Group the scores by sample_id
-            reducers = reducers if isinstance(reducers, list) else [reducers]
+            reducers, use_reducer_name = resolve_reducer(reducers)
             for reducer in reducers:
-                reducer_name = reducer.__name__
+                reducer_name = reducer.__name__ if use_reducer_name else None
                 reduced_scores = reduce_scores(resolved_scores, reducer=reducer)
 
                 # Compute metrics for this scorer
@@ -91,6 +91,15 @@ def eval_results(
         results.scores = result_scores
 
     return results
+
+
+def resolve_reducer(
+    reducers: ScoreReducer | list[ScoreReducer] | None,
+) -> tuple[list[ScoreReducer], bool]:
+    if reducers is None:
+        return ([avg()], False)
+    else:
+        return (reducers if isinstance(reducers, list) else [reducers], True)
 
 
 def scorer_for_metrics(
