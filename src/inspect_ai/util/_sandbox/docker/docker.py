@@ -1,3 +1,4 @@
+import errno
 import os
 import tempfile
 from logging import getLogger
@@ -200,6 +201,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         sandbox_log(f"write_file: {file}")
 
         # resolve relative file paths
+        original_file = file
         file = container_file(self._project, file)
 
         # ensure that the directory exists
@@ -207,8 +209,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         if parent != ".":
             result = await self.exec(["mkdir", "-p", parent])
             if not result.success:
-                msg = f"Failed to create container directory {parent}: {result.stderr}"
-                raise RuntimeError(msg)
+                if "permission denied" in result.stderr.lower():
+                    raise PermissionError(errno.EACCES, "Permission denied.", parent)
+                else:
+                    msg = f"Failed to create container directory {parent}: {result.stderr}"
+                    raise RuntimeError(msg)
 
         # use docker cp for binary files, tee for text files (which will
         # have higher privs b/c the command runs in the container)
@@ -216,8 +221,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # write the file
             result = await self.exec(["tee", "--", file], input=contents)
             if not result.success:
-                msg = f"Failed to write file '{file}' into container: {result.stderr}"
-                raise RuntimeError(msg)
+                # PermissionError
+                if "permission denied" in result.stderr.lower():
+                    raise PermissionError(
+                        errno.EACCES, "Permission denied.", original_file
+                    )
+                else:
+                    msg = (
+                        f"Failed to write file '{file}' into container: {result.stderr}"
+                    )
+                    raise RuntimeError(msg)
         else:
             with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
                 src_file = os.path.join(temp_dir, os.path.basename(file))
@@ -243,6 +256,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # Write the contents to a temp file
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             # resolve relative file paths
+            original_file = file
             file = container_file(self._project, file)
 
             # copy the file
@@ -255,8 +269,20 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     cwd=os.path.dirname(dest_file),
                 )
             except RuntimeError as ex:
-                if "could not find" in str(ex).lower():
-                    raise FileNotFoundError(str(ex))
+                # extract the message and normalise case
+                message = str(ex).lower()
+
+                # FileNotFoundError
+                if "could not find the file" in message:
+                    raise FileNotFoundError(
+                        errno.ENOENT, "No such file or directory.", original_file
+                    )
+
+                # PermissionError
+                elif "permission denied" in message:
+                    raise PermissionError(
+                        errno.EACCES, "Permission denied.", original_file
+                    )
                 else:
                     raise ex
 

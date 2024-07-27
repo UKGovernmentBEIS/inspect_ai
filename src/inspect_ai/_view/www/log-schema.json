@@ -202,20 +202,19 @@
           "default": null,
           "title": "Tool Call Id"
         },
-        "tool_error": {
+        "error": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/ToolCallError"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Tool Error"
+          "default": null
         }
       },
-      "required": ["content", "source", "role", "tool_call_id", "tool_error"],
+      "required": ["content", "source", "role", "tool_call_id", "error"],
       "title": "ChatMessageTool",
       "type": "object",
       "additionalProperties": false
@@ -1612,6 +1611,30 @@
       },
       "required": ["id", "function", "arguments", "type", "parse_error"],
       "title": "ToolCall",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolCallError": {
+      "properties": {
+        "type": {
+          "enum": [
+            "parsing",
+            "timeout",
+            "unicode_decode",
+            "permission",
+            "file_not_found",
+            "unknown"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": ["type", "message"],
+      "title": "ToolCallError",
       "type": "object",
       "additionalProperties": false
     },
