@@ -83,14 +83,9 @@ def at_least(
         def gte_n(
             counter: Counter[str | int | float | bool],
         ) -> str | int | float | bool:
-            print(counter)
-            print(value)
-            print(counter.values())
-
             count_gte_n = sum(
                 count for key, count in counter.items() if value_to_float(key) >= value
             )
-            print(count_gte_n)
             return 1 if count_gte_n >= n else 0
 
         if isinstance(scores[0].value, dict):
