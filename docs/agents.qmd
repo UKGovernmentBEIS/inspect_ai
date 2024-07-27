@@ -93,11 +93,11 @@ The default tool use loop demonstrated above will work fine for some tasks, but 
 
 When you call the `generate()` function from a solver, use the `tool_calls` parameter to customise how tool calls made by the model are handled:
 
-|  |  |
+|          |                                                                                                                                                         |
 |------------------------------------|------------------------------------|
-| `loop` | Resolve tools calls and then invoke `generate()`, proceeding in a loop which terminates when there are no more tool calls or `max_messages` is reached. |
-| `single` | Resolve at most a single set of tool calls and then return. |
-| `none` | Do not resolve tool calls at all (in this case you will need to invoke `call_tools()` directly). |
+| `loop`   | Resolve tools calls and then invoke `generate()`, proceeding in a loop which terminates when there are no more tool calls or `max_messages` is reached. |
+| `single` | Resolve at most a single set of tool calls and then return.                                                                                             |
+| `none`   | Do not resolve tool calls at all (in this case you will need to invoke `call_tools()` directly).                                                        |
 
 : {tbl-colwidths=\[20,80\]}
 
@@ -131,6 +131,8 @@ You can imagine several ways you might want to customise this loop:
 3.  Examining and possibly filtering the tool calls before invoking `call_tools()`
 4.  Adding a critique / reflection step between tool calling and generate.
 5.  Deep copying the `TaskState` and exploring several trajectories.
+
+Note that by default *expected* errors (e.g. file not found, insufficient, permission , timeouts, etc.) are forwarded to the model for possible recovery. If you would like to intervene in the default error handling then rather than immediately appending the list of assistant messages returned from `call_tools()` to `state.messages`(as shown above), check the `error` property of these messages (which will be `None` in the case of no error) and proceed accordingly.
 
 ### Tool Filtering
 
@@ -295,7 +297,7 @@ def wikipedia() -> Task:
 
 The full source code for this example can be found in the Inspect GitHub repo at [examples/agents/langchain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain).
 
-## Sandbox Environments {#sec-sandbox-environments}
+## Sandboxing {#sec-sandbox-environments}
 
 The examples shown above execute tool code within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:
 
@@ -380,10 +382,10 @@ The following instance methods are available to tools that need to interact with
 
 There are two sandbox environments built in to Inspect:
 
-| Environment Type | Description |
-|------------------------------------|-----------------------------------------------------------------|
-| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
+| Environment Type | Description                                                                                                                                                      |
+|--------------------------|----------------------------------------------|
+| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
 
 Sandbox environments can be bound at the `Task` level or at the `eval()` level (where `eval()` takes precedence). To bind a sandbox environment to a `Task`, use the `sandbox` option:
 
@@ -435,11 +437,11 @@ You can use the Docker sandbox enviornment without any special configuration, ho
 
 Here is how Docker sandbox environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
-| Config Files | Behavior |
-|--------------------------|---------------------------------------------|
-| None | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
-| `Dockerfile` | Creates a sandbox environment by building the image. |
-| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+| Config Files   | Behavior                                                                                                           |
+|---------------------------|---------------------------------------------|
+| None           | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
+| `Dockerfile`   | Creates a sandbox environment by building the image.                                                               |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`.                                                            |
 
 Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. Note that the automatically generated compose file will restrict internet access by default, so if your evaluations require this you'll need to provide your own `compose.yaml` file.
 
@@ -541,7 +543,7 @@ See the documentation on [Docker Compose](https://docs.docker.com/compose/compos
 
 #### Sample Metadata
 
-You might want to interpolate Sample metadata into your Docker compose files. You can do this using the standard clmpose environment variable syntax, where any metadata in the Sample is made available with a `SAMPLE_METADATA_` prefix. For example, you might have a per-sample memory limit (with a default value of 0.5gb if unspecified):
+You might want to interpolate Sample metadata into your Docker compose files. You can do this using the standard compose environment variable syntax, where any metadata in the Sample is made available with a `SAMPLE_METADATA_` prefix. For example, you might have a per-sample memory limit (with a default value of 0.5gb if unspecified):
 
 ``` yaml
 services:
