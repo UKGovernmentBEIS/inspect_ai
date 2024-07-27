@@ -13,6 +13,7 @@
 - Gracefully handle tool calls that include only a single value (rather than a named dict of parameters).
 - Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
 - Make multiple tool calls in parallel. Parallel tool calls occur by default for OpenAI, Anthropic, Mistral, and Groq. You can disable this behavior for OpenAI and Groq with `--parallel-tool-calls false`.
+- Invoke rate limit retry for OpenAI APITimeoutError (which they have recently begun returning a lot of more of as a result of httpx.ConnectTimeout, which is only 5 seconds by default.).
 - Add `cwd` argument to `SandboxEnvironment.exec()`
 - Use `tee` rather than `docker cp` for Docker sandbox environment implementation of `write_file()`.
 - Handle duplicate tool call ids in Inspect View.
