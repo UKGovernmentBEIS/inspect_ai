@@ -107,7 +107,7 @@ class OpenAIAPI(ModelAPI):
                 )
 
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
-                api_key=api_key,
+                api_key=self.api_key,
                 azure_endpoint=base_url,
                 azure_deployment=model_name,
                 max_retries=(
@@ -117,7 +117,7 @@ class OpenAIAPI(ModelAPI):
             )
         else:
             self.client = AsyncOpenAI(
-                api_key=api_key,
+                api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
                 max_retries=(
                     config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
