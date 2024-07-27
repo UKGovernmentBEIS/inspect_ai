@@ -1,7 +1,7 @@
 from logging import getLogger
-from typing import Literal, Union
+from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolCall
@@ -106,6 +106,16 @@ class ChatMessageTool(ChatMessageBase):
             return self.error.message
         else:
             return None
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_tool_error_to_error(
+        cls: Type["ChatMessageTool"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        tool_error = values.get("tool_error", None)
+        if tool_error:
+            values["error"] = ToolCallError("unknown", tool_error)
+        return values
 
 
 ChatMessage = Union[
