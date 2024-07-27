@@ -2,7 +2,13 @@ import json
 import os
 from typing import Any, cast
 
-from openai import APIStatusError, AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
+from openai import (
+    APIStatusError,
+    APITimeoutError,
+    AsyncAzureOpenAI,
+    AsyncOpenAI,
+    RateLimitError,
+)
 from openai._types import NOT_GIVEN
 from openai.types.chat import (
     ChatCompletion,
@@ -193,6 +199,8 @@ class OpenAIAPI(ModelAPI):
                 and "You exceeded your current quota" not in ex.message
             ):
                 return True
+        elif isinstance(ex, APITimeoutError):
+            return True
         return False
 
     @override
