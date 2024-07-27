@@ -51,14 +51,6 @@ Valid scorer types include:
 """
 
 
-@runtime_checkable
-class ScoreReducer(Protocol):
-    def __call__(self, scores: list[Score]) -> Score: ...
-
-    @property
-    def __name__(self) -> str: ...
-
-
 def scorer_register(
     scorer: ScorerType, name: str = "", metadata: dict[str, Any] = {}
 ) -> ScorerType:

@@ -16,9 +16,9 @@ from inspect_ai.log import (
 )
 from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._reducer import ScoreReducer
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
-    ScoreReducer,
     scorer_metrics,
     unique_scorer_name,
 )

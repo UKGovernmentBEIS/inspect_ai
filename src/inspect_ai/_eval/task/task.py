@@ -9,8 +9,8 @@ from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig
-from inspect_ai.scorer import Metric, Scorer, ScoreReducer
-from inspect_ai.scorer._reducer import avg, majority
+from inspect_ai.scorer import Metric, Scorer
+from inspect_ai.scorer._reducer import ScoreReducer, at_least, best_of
 from inspect_ai.solver import Plan, Solver, generate
 
 logger = getLogger(__name__)
@@ -57,7 +57,7 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         sandbox: str | tuple[str, str] | None = None,
         epochs: int | None = None,
-        epochs_reducer: ScoreReducer | list[ScoreReducer] = avg(),
+        epochs_reducer: ScoreReducer | list[ScoreReducer] = at_least(4),
         max_messages: int | None = None,
         name: str | None = None,
         version: int = 0,
