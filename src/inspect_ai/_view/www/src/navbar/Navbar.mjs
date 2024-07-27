@@ -242,7 +242,6 @@ const VerticalMetric = ({ metric, isFirst }) => {
           fontSize: "0.7rem",
           fontWeight: "200",
           textAlign: "center",
-          textTransform: "uppercase",
           paddingTop: "0.3rem",
           marginBottom: "-0.3rem",
         }}
