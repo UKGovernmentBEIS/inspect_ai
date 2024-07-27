@@ -212,8 +212,8 @@ async def content_dict(
             response=ParseDict(
                 js_dict={
                     "content": (
-                        message.tool_error
-                        if message.tool_error is not None
+                        message.error.message
+                        if message.error is not None
                         else message.text
                     )
                 },

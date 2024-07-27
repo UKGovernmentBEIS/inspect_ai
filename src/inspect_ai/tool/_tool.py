@@ -26,6 +26,11 @@ class ToolError(Exception):
         self.message = message
 
 
+class ToolParsingError(ToolError):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
 @runtime_checkable
 class Tool(Protocol):
     async def __call__(
