@@ -57,7 +57,7 @@ async def call_tools(
             except FileNotFoundError as ex:
                 tool_error = ToolCallError(
                     "file_not_found",
-                    f"File '{ex.filename}' was not found. {ex.strerror}.",
+                    f"File '{ex.filename}' was not found.",
                 )
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
