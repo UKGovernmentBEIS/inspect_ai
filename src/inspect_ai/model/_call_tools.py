@@ -50,7 +50,7 @@ async def call_tools(
                     f"Error decoding bytes to {ex.encoding}: {ex.reason}",
                 )
             except PermissionError as ex:
-                message = f"Permission error: {ex.strerror}."
+                message = f"{ex.strerror}."
                 if isinstance(ex.filename, str):
                     message = f"{message} Filename '{ex.filename}'."
                 tool_error = ToolCallError("permission", message)
