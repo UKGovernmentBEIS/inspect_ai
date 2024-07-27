@@ -107,10 +107,7 @@ def read_file():
         Returns:
             File contents
         """
-        try:
-            return await sandbox().read_file(file)
-        except FileNotFoundError:
-            raise ToolError(f"File {file} not found.")
+        return await sandbox().read_file(file)
 
     return execute
 
@@ -134,10 +131,7 @@ def write_file():
             file (str): File to write
             contents (str): Contents of file
         """
-        try:
-            return await sandbox().write_file(file, contents)
-        except FileNotFoundError:
-            raise ToolError(f"File {file} not found.")
+        return await sandbox().write_file(file, contents)
 
     return execute
 

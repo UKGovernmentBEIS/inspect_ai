@@ -250,7 +250,8 @@ const resolveToolMessage = (toolMessage) => {
     return undefined;
   }
 
-  const content = toolMessage.tool_error || toolMessage.content;
+  const content =
+    toolMessage.error?.message || toolMessage.tool_error || toolMessage.content;
   if (typeof content === "string") {
     return [
       {

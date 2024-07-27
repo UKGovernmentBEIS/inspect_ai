@@ -37,8 +37,10 @@ def sync_view_schema() -> None:
                 types_path,
                 "--additionalProperties",
                 "false",
-            ]
+            ],
+            cwd=WWW_DIR,
         )
+        subprocess.run(["yarn", "prettier:write"], cwd=WWW_DIR)
 
 
 def schema_to_strict(schema: dict[str, Any]) -> dict[str, Any]:

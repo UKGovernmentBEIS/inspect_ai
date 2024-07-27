@@ -202,20 +202,19 @@
           "default": null,
           "title": "Tool Call Id"
         },
-        "tool_error": {
+        "error": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/ToolCallError"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Tool Error"
+          "default": null
         }
       },
-      "required": ["content", "source", "role", "tool_call_id", "tool_error"],
+      "required": ["content", "source", "role", "tool_call_id", "error"],
       "title": "ChatMessageTool",
       "type": "object",
       "additionalProperties": false
@@ -834,6 +833,9 @@
                 "$ref": "#/$defs/ModelEvent"
               },
               {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
                 "$ref": "#/$defs/LoggerEvent"
               },
               {
@@ -1357,6 +1359,7 @@
       "additionalProperties": false
     },
     "InfoEvent": {
+      "description": "Event with custom info/data.",
       "properties": {
         "timestamp": {
           "format": "date-time",
@@ -1378,6 +1381,7 @@
       "additionalProperties": false
     },
     "JsonChange": {
+      "description": "Describes a change to data using JSON Patch format.",
       "properties": {
         "op": {
           "enum": ["remove", "add", "replace", "move", "test", "copy"],
@@ -1416,6 +1420,7 @@
     },
     "JsonValue": {},
     "LoggerEvent": {
+      "description": "Log message recorded with Python logger.",
       "properties": {
         "timestamp": {
           "format": "date-time",
@@ -1532,6 +1537,7 @@
       "additionalProperties": false
     },
     "ModelEvent": {
+      "description": "Call to a language model.",
       "properties": {
         "timestamp": {
           "format": "date-time",
@@ -1539,9 +1545,9 @@
           "type": "string"
         },
         "event": {
+          "const": "model",
           "default": "model",
-          "title": "Event",
-          "type": "string"
+          "title": "Event"
         },
         "model": {
           "title": "Model",
@@ -1777,7 +1783,30 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ScoreEvent": {
+      "description": "Event with sample score.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "score",
+          "default": "score",
+          "title": "Event"
+        },
+        "score": {
+          "$ref": "#/$defs/Score"
+        }
+      },
+      "required": ["timestamp", "event", "score"],
+      "title": "ScoreEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "StateEvent": {
+      "description": "Change to the current `TaskState`",
       "properties": {
         "timestamp": {
           "format": "date-time",
@@ -1803,6 +1832,7 @@
       "additionalProperties": false
     },
     "StepEvent": {
+      "description": "Step within current sample or subtask.",
       "properties": {
         "timestamp": {
           "format": "date-time",
@@ -1842,6 +1872,7 @@
       "additionalProperties": false
     },
     "StoreEvent": {
+      "description": "Change to data within the current `Store`.",
       "properties": {
         "timestamp": {
           "format": "date-time",
@@ -1867,6 +1898,7 @@
       "additionalProperties": false
     },
     "SubtaskEvent": {
+      "description": "Subtask spawned.",
       "properties": {
         "timestamp": {
           "format": "date-time",
@@ -1938,6 +1970,30 @@
       },
       "required": ["id", "function", "arguments", "type", "parse_error"],
       "title": "ToolCall",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolCallError": {
+      "properties": {
+        "type": {
+          "enum": [
+            "parsing",
+            "timeout",
+            "unicode_decode",
+            "permission",
+            "file_not_found",
+            "unknown"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": ["type", "message"],
+      "title": "ToolCallError",
       "type": "object",
       "additionalProperties": false
     },
@@ -2041,6 +2097,7 @@
       "additionalProperties": false
     },
     "Transcript": {
+      "description": "Transcript of events.",
       "properties": {
         "name": {
           "default": "",
@@ -2059,6 +2116,9 @@
               },
               {
                 "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
               },
               {
                 "$ref": "#/$defs/LoggerEvent"
