@@ -16,7 +16,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.scorer._reducer import ScoreReducer, avg
+from inspect_ai.scorer._reducer import ScoreReducer, avg, reducer_name
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
     scorer_metrics,
@@ -52,7 +52,7 @@ def eval_results(
             # Group the scores by sample_id
             reducers, use_reducer_name = resolve_reducer(reducers)
             for reducer in reducers:
-                reducer_name = reducer.__name__ if use_reducer_name else None
+                reducer_nm = reducer_name(reducer) if use_reducer_name else None
                 reduced_scores = reduce_scores(resolved_scores, reducer=reducer)
 
                 # Compute metrics for this scorer
@@ -67,7 +67,7 @@ def eval_results(
                             metadata=metadata,
                             scores=reduced_scores,
                             metrics=targets,
-                            reducer_name=reducer_name,
+                            reducer_name=reducer_nm,
                         )
                     )
                 else:
@@ -84,7 +84,7 @@ def eval_results(
                             metadata=metadata,
                             scores=reduced_scores,
                             metrics=targets,
-                            reducer_name=reducer_name,
+                            reducer_name=reducer_nm,
                         )
                     )
             # build results

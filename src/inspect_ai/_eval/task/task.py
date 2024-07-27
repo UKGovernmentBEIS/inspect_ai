@@ -10,7 +10,7 @@ from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import Metric, Scorer
-from inspect_ai.scorer._reducer import ScoreReducer, at_least, best_of
+from inspect_ai.scorer._reducer import ScoreReducer
 from inspect_ai.solver import Plan, Solver, generate
 
 logger = getLogger(__name__)
