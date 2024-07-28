@@ -1,7 +1,16 @@
 import statistics
 from collections import Counter
-from typing import Callable, Protocol, cast, runtime_checkable
+from typing import Any, Callable, Protocol, TypeVar, cast, runtime_checkable
 
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.registry import (
+    RegistryInfo,
+    registry_add,
+    registry_create,
+    registry_lookup,
+    registry_name,
+    registry_tag,
+)
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
 
@@ -13,6 +22,100 @@ class ScoreReducer(Protocol):
     def __name__(self) -> str: ...
 
 
+ScoreReducerType = TypeVar("ScoreReducerType", bound=Callable[..., ScoreReducer])
+
+
+def score_reducer_create(name: str) -> ScoreReducer:
+    r"""Create a ScoreReducer based on its registered name.
+
+    Args:
+        name (str): Name of reducer (Optional, defaults to object name)
+
+    Returns:
+        Task with registry info attribute
+    """
+    # match kwargs params to signature (warn if param not found)
+    # (note that we always pass the 'model' param but tasks aren't
+    # required to consume it, so we don't warn for 'model')
+    score_reducer = registry_lookup("score_reducer", name)
+    if not score_reducer:
+        raise PrerequisiteError(f"Score Reducer named '{name}' not found.\n")
+    return cast(ScoreReducer, registry_create("score_reducer", name))
+
+
+def reducer_register(score_reducer: ScoreReducerType, name: str) -> ScoreReducerType:
+    r"""Register a task.
+
+    Args:
+        score_reducer (ReducerType):
+            function that returns a Task or class
+            deriving from Task
+        name (str): Name of task
+
+    Returns:
+        ScoreReducer with registry attributes.
+    """
+    registry_add(
+        score_reducer,
+        RegistryInfo(type="score_reducer", name=name),
+    )
+    return score_reducer
+
+
+def score_reducer(
+    *score_reducer: ScoreReducerType | None, name: str | None = None
+) -> Callable[..., ScoreReducerType] | ScoreReducerType:
+    r"""Decorator for registering Score Reducers.
+
+    Args:
+      *score_reducer (ScoreReducerType): Function returning `ScoreReduver` targeted by
+        plain task decorator without attributes (e.g. `@score_reducer`)
+      name (str | None):
+        Optional name for reducer. If the decorator has no name
+        argument then the name of the function
+        will be used to automatically assign a name.
+
+    Returns:
+        ScoreReducer with registry attributes.
+    """
+
+    def create_reducer_wrapper(reducer_type: ScoreReducerType) -> ScoreReducerType:
+        # get the name and params
+        reducer_name = name or registry_name(
+            reducer_type, getattr(reducer_type, "__name__")
+        )
+
+        # create and return the wrapper
+        def wrapper(*w_args: Any, **w_kwargs: Any) -> ScoreReducer:
+            # create the task
+            score_reducer = reducer_type(*w_args, **w_kwargs)
+
+            # tag it
+            registry_tag(
+                reducer_type,
+                score_reducer,
+                RegistryInfo(
+                    type="score_reducer",
+                    name=reducer_name,
+                ),
+                *w_args,
+                **w_kwargs,
+            )
+
+            # return it
+            return score_reducer
+
+        return reducer_register(
+            score_reducer=cast(ScoreReducerType, wrapper), name=reducer_name
+        )
+
+    if score_reducer:
+        return create_reducer_wrapper(cast(ScoreReducerType, score_reducer[0]))
+    else:
+        return create_reducer_wrapper
+
+
+@score_reducer
 def majority() -> ScoreReducer:
     def majority(scores: list[Score]) -> Score:
         r"""A utility function for taking a majority vote over a list of scores.
@@ -36,6 +139,7 @@ def majority() -> ScoreReducer:
     return majority
 
 
+@score_reducer
 def avg(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     def avg(scores: list[Score]) -> Score:
         r"""A utility function for taking a mean value over a list of scores.
@@ -53,6 +157,7 @@ def avg(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     return avg
 
 
+@score_reducer
 def median(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     def median(scores: list[Score]) -> Score:
         r"""A utility function for taking a median value over a list of scores.
@@ -70,6 +175,7 @@ def median(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     return median
 
 
+@score_reducer
 def at_least(
     n: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
 ) -> ScoreReducer:
@@ -100,6 +206,7 @@ def at_least(
     return at_least
 
 
+@score_reducer
 def best_of(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     def best_of(scores: list[Score]) -> Score:
         r"""A utility function for taking the best value from a list of scores
