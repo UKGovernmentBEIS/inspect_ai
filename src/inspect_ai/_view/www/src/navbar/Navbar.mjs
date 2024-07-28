@@ -287,6 +287,7 @@ const MultiScorerMetric = ({ scorer, isFirst }) => {
           fontWeight: "200",
           textAlign: "center",
           textTransform: "uppercase",
+          marginBottom: "-0.3rem",
         }}
       >
         ${scorer.reducer}
@@ -301,6 +302,7 @@ const MultiScorerMetric = ({ scorer, isFirst }) => {
         textAlign: "center",
         borderBottom: "solid var(--bs-border-color) 1px",
         textTransform: "uppercase",
+        marginBottom: "-0.1rem",
       }}
       class="multi-score-label"
     >
