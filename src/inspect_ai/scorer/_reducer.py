@@ -152,12 +152,12 @@ def avg(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
         elif isinstance(scores[0].value, list):
             return _compute_list_stat(scores, value_to_float, statistics.mean)
         else:
-            return _compute_primitive_stat(scores, value_to_float, statistics.mean)
+            return _compute_scalar_stat(scores, value_to_float, statistics.mean)
 
     return avg
 
 
-@score_reducer
+@score_reducer(name="Median It Bro")
 def median(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     def median(scores: list[Score]) -> Score:
         r"""A utility function for taking a median value over a list of scores.
@@ -170,7 +170,7 @@ def median(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
         elif isinstance(scores[0].value, list):
             return _compute_list_stat(scores, value_to_float, statistics.median)
         else:
-            return _compute_primitive_stat(scores, value_to_float, statistics.median)
+            return _compute_scalar_stat(scores, value_to_float, statistics.median)
 
     return median
 
@@ -250,6 +250,12 @@ def _count_scalar(
     scores: list[Score],
     counter_fn: Callable[[Counter[str | int | float | bool]], str | int | float | bool],
 ) -> Score:
+    r"""Counts scores and provides Counter to a counter_fn
+
+    Args:
+        scores: a list of Scores.
+        counter_fn: a function which returns a scalar value based upon the counter
+    """
     counts = Counter([score._as_scalar() for score in scores])
     return _reduced_score(counter_fn(counts), scores)
 
@@ -258,6 +264,12 @@ def _count_dict(
     scores: list[Score],
     counter_fn: Callable[[Counter[str | int | float | bool]], str | int | float | bool],
 ) -> Score:
+    r"""Counts scores within a dictionary and provides Counter (for each key) to a counter_fn
+
+    Args:
+        scores: a list of Scores.
+        counter_fn: a function which returns a scalar value based upon the counter
+    """
     # Make sure these are all dictionaries be we proceed
     _check_value_dict(scores)
 
@@ -277,6 +289,12 @@ def _count_list(
     scores: list[Score],
     counter_fn: Callable[[Counter[str | int | float | bool]], str | int | float | bool],
 ) -> Score:
+    r"""Counts scores within a list and provides Counter (for each index) to a counter_fn
+
+    Args:
+        scores: a list of Scores.
+        counter_fn: a function which returns a scalar value based upon the counter
+    """
     # Make sure these are all lists before we continue
     _check_value_list(scores)
 
@@ -295,6 +313,13 @@ def _compute_dict_stat(
     value_to_float: ValueToFloat,
     statistic: Callable[[list[float]], float],
 ) -> Score:
+    r"""Applies a statistic function to reduce key by key a dictionary
+
+    Args:
+        scores: a list of Scores.
+        value_to_float: function to convert the value to a float
+        statistic: the statistic to apply
+    """
     # Make sure these are all dictionaries be we proceed
     _check_value_dict(scores)
 
@@ -310,6 +335,13 @@ def _compute_list_stat(
     value_to_float: ValueToFloat,
     statistic: Callable[[list[float]], float],
 ) -> Score:
+    r"""Applies a statistic function to reduce index by index a list
+
+    Args:
+        scores: a list of Scores.
+        value_to_float: function to convert the value to a float
+        statistic: the statistic to apply
+    """
     # Make sure these are all lists before we continue
     _check_value_list(scores)
 
@@ -321,17 +353,29 @@ def _compute_list_stat(
     return _reduced_score(list_result, scores)
 
 
-def _compute_primitive_stat(
+def _compute_scalar_stat(
     scores: list[Score],
     value_to_float: ValueToFloat,
     statistic: Callable[[list[float]], float],
 ) -> Score:
+    r"""Applies a statistic function to reduce scalar scores
+
+    Args:
+        scores: a list of Scores.
+        value_to_float: function to convert the value to a float
+        statistic: the statistic to apply
+    """
     values = [value_to_float(score.value) for score in scores]
     result = statistic(values)
     return _reduced_score(result, scores)
 
 
 def _check_value_dict(scores: list[Score]) -> None:
+    r"""Ensure that all score values are dictionaries
+
+    Args:
+        scores: a list of Scores.
+    """
     for score in scores:
         if not isinstance(score.value, dict):
             raise ValueError(
@@ -340,12 +384,23 @@ def _check_value_dict(scores: list[Score]) -> None:
 
 
 def _check_value_list(scores: list[Score]) -> None:
+    r"""Ensure that all score values are lists
+
+    Args:
+        scores: a list of Scores.
+    """
     for score in scores:
         if not isinstance(score.value, list):
             raise ValueError("Attempting to reduce a list score for a non-list value")
 
 
 def _reduced_score(value: Value, scores: list[Score]) -> Score:
+    r"""Create a Score based upon a single Value and list of Scores that produced it
+
+    Args:
+        value: the reduced Value
+        scores: a list of Scores.
+    """
     return Score(
         value=value,
         answer=scores[0].answer,
@@ -360,4 +415,9 @@ REDUCER_NAME = "__REDUCER_NAME__"
 
 
 def reducer_name(reducer: ScoreReducer) -> str:
+    r"""Get the name of the reducer
+
+    Args:
+        reducer: Fetch name for the given reducer
+    """
     return getattr(reducer, REDUCER_NAME, reducer.__name__)
