@@ -71,13 +71,19 @@ def parse_tool_call(
         )
         if tool_info:
             all_params = [param.name for param in tool_info.params]
-            non_optional_parameters = [param.name for param in tool_info.params if not param.optional]
-            potential_params = non_optional_parameters if len(non_optional_parameters) > 0 else all_params
+            non_optional_parameters = [
+                param.name for param in tool_info.params if not param.optional
+            ]
+            potential_params = (
+                non_optional_parameters
+                if len(non_optional_parameters) > 0
+                else all_params
+            )
 
             try:
                 value = yaml.safe_load(arguments)
                 arguments_dict[potential_params[0]] = value
-            except yaml.error.YAMLError as ex:
+            except yaml.error.YAMLError:
                 # If the yaml parser fails, we treat it as a string argument.
                 arguments_dict[potential_params[0]] = arguments
 
