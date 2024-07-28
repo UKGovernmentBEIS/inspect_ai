@@ -441,12 +441,13 @@ The additional `model_args` are forwarded as follows for the various providers:
 | vLLM         | `SamplingParams`                       |
 | Ollama       | `AsyncOpenAI`                          |
 | TogetherAI   | `AsyncOpenAI`                          |
+| Groq         | `AsyncGroq`                            |
 | AzureAI      | Chat HTTP Post Body                    |
 | Cloudflare   | Chat HTTP Post Body                    |
 
 : {tbl-colwidths="\[30,70\]"}
 
-See the OpenAI, Anthropic, Google, Mistral, Hugging Face, vLLM, Ollama, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.
+See the documentation for the requisite model provider for more information on the additional model options that can be passed to these functions and classes.
 
 ## Custom Models
 
