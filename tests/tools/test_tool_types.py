@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
 )
@@ -167,6 +168,11 @@ def test_google_tool_types() -> None:
 @skip_if_no_mistral
 def test_mistral_tool_types() -> None:
     check_tool_types("mistral/mistral-large-latest")
+
+
+@skip_if_no_groq
+def test_groq_tool_types() -> None:
+    check_tool_types("groq/mixtral-8x7b-32768")
 
 
 def verify_tool_call(log: EvalLog, startswith: str):
