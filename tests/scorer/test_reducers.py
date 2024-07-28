@@ -1,4 +1,8 @@
+from functools import reduce
+
 from inspect_ai.scorer import Score, at_least, avg, best_of, majority, median
+from inspect_ai.scorer._metric import ValueToFloat, value_to_float
+from inspect_ai.scorer._reducer import ScoreReducer, score_reducer, score_reducer_create
 
 avg_reducer = avg()
 median_reducer = median()
@@ -12,16 +16,16 @@ at_least_5_reducer = at_least(5, 3)
 def test_simple_reducers() -> None:
     simple_scores = [
         Score(value=6),
-        Score(value=2),
-        Score(value=2),
-        Score(value=3),
-        Score(value=2),
-        Score(value=3),
+        Score(value=0),
+        Score(value=0),
+        Score(value=0),
+        Score(value=8),
+        Score(value=4),
     ]
-    assert avg_reducer(simple_scores).value == 3.0
-    assert median_reducer(simple_scores).value == 2.5
-    assert majority_reducer(simple_scores).value == 2.0
-    assert best_reducer(simple_scores).value == 6.0
+    assert avg_reducer(simple_scores).value == 3
+    assert median_reducer(simple_scores).value == 2
+    assert majority_reducer(simple_scores).value == 0
+    assert best_reducer(simple_scores).value == 8
     assert at_least_3_reducer(simple_scores).value == 1
     assert at_least_4_reducer(simple_scores).value == 0
 
@@ -39,7 +43,7 @@ def test_list_reducers() -> None:
     assert majority_reducer(list_scores).value == [1, 2]
     assert best_reducer(list_scores).value == [4, 3]
     assert at_least_3_reducer(list_scores).value == [1, 1]
-    assert at_least_4_reducer(list_scores).value == [0, 0]
+    assert at_least_4_reducer(list_scores).value == [1, 1]
 
 
 def test_dict_reducers() -> None:
@@ -57,3 +61,17 @@ def test_dict_reducers() -> None:
     assert at_least_3_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
+
+
+@score_reducer(name="add_em_up")
+def sum(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
+    def sum(scores: list[Score]) -> Score:
+        value = reduce(lambda x, y: x + value_to_float(y.value), scores, 0.0)
+        return Score(value=value)
+
+    return sum
+
+
+def test_scorer_lookup():
+    scorer = score_reducer_create("add_em_up")
+    assert scorer
