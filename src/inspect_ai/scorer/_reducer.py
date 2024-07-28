@@ -7,11 +7,15 @@ from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
     registry_create,
+    registry_info,
     registry_lookup,
     registry_name,
     registry_tag,
+    set_registry_info,
 )
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
+
+REDUCER_NAME = "__REDUCER_NAME__"
 
 
 @runtime_checkable
@@ -90,13 +94,16 @@ def score_reducer(
             # create the task
             score_reducer = reducer_type(*w_args, **w_kwargs)
 
+            # If a name has been explicitly set, use that
+            reducer_nm = getattr(score_reducer, REDUCER_NAME, reducer_name)
+
             # tag it
             registry_tag(
                 reducer_type,
                 score_reducer,
                 RegistryInfo(
                     type="score_reducer",
-                    name=reducer_name,
+                    name=reducer_nm,
                 ),
                 *w_args,
                 **w_kwargs,
@@ -202,7 +209,6 @@ def at_least(
             return _count_scalar(scores, gte_n)
 
     setattr(at_least, REDUCER_NAME, f"at_least_{n}")
-
     return at_least
 
 
@@ -411,13 +417,17 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
     )
 
 
-REDUCER_NAME = "__REDUCER_NAME__"
-
-
 def reducer_name(reducer: ScoreReducer) -> str:
     r"""Get the name of the reducer
 
     Args:
         reducer: Fetch name for the given reducer
     """
-    return getattr(reducer, REDUCER_NAME, reducer.__name__)
+    return registry_info(reducer).name
+
+
+def set_reducer_name(reducer: ScoreReducer, name: str) -> None:
+    info = registry_info(reducer)
+    set_registry_info(
+        reducer, RegistryInfo(type="score_reducer", name=name, metadata=info.metadata)
+    )
