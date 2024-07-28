@@ -6,6 +6,7 @@ from typing import (
     cast,
 )
 
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.registry import registry_info
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
@@ -32,7 +33,7 @@ async def call_tools(
         tdefs = tool_defs(tools)
 
         async def call_tool_task(call: ToolCall) -> ChatMessageTool:
-            result = ""
+            result: Any = ""
             tool_error: ToolCallError | None = None
             try:
                 result = await call_tool(tdefs, call)
@@ -60,8 +61,17 @@ async def call_tools(
             except ToolError as ex:
                 tool_error = ToolCallError("unknown", ex.message)
 
+            # massage result, leave list[Content] alone, convert all other
+            # types to string as that is what the model APIs accept
+            if isinstance(result, list) and (
+                isinstance(result[0], ContentText | ContentImage)
+            ):
+                content: str | list[Content] = result
+            else:
+                content = str(result)
+
             return ChatMessageTool(
-                content=result if isinstance(result, list) else str(result),
+                content=content,
                 tool_call_id=call.id,
                 error=tool_error,
             )
