@@ -1,4 +1,5 @@
 import pytest
+from test_helpers.tools import addition
 from test_helpers.utils import skip_if_no_anthropic
 
 from inspect_ai.model import (
@@ -10,7 +11,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._model import collapse_consecutive_user_messages
-from inspect_ai.tool import ToolCall, ToolInfo, ToolParam
+from inspect_ai.tool import ToolCall
 
 
 @pytest.fixture
@@ -66,7 +67,7 @@ def test_collapse_consecutive_user_messages_with_image_message(
 
 @pytest.mark.asyncio
 @skip_if_no_anthropic
-async def test_anthropic_user_tool_messages():
+async def test_anthropic_user_tool_messages() -> None:
     # Anthropic converts 'tool' messages into 'user' messages with tool content.
     # In the case where an additional user message is appended after the tool
     # call response, this results in an error unless the user messages are
@@ -81,8 +82,8 @@ async def test_anthropic_user_tool_messages():
                     tool_calls=[
                         ToolCall(
                             id="toolu_01AhP9RozXEJSnuxMLcY8Xaf",
-                            type="funciton",
-                            function="add",
+                            type="function",
+                            function="addition",
                             arguments={"x": 1, "y": 1},
                         )
                     ],
@@ -92,16 +93,7 @@ async def test_anthropic_user_tool_messages():
                 ),
                 ChatMessageUser(content="Keep going!"),
             ],
-            tools=[
-                ToolInfo(
-                    name="addition",
-                    description="Add two numbers",
-                    params=[
-                        ToolParam("x", "number", "Number", False),
-                        ToolParam("y", "number", "Number", False),
-                    ],
-                )
-            ],
+            tools=[addition()],
         )
     except Exception as ex:
         pytest.fail(f"Exception raised: {ex}")

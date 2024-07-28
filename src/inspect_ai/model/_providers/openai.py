@@ -44,7 +44,6 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
 )
-from .._util import chat_api_tool
 from .util import (
     as_stop_reason,
     model_base_url,
@@ -306,12 +305,12 @@ def chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
 
 
 def chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    chat_tools = [chat_api_tool(tool) for tool in tools]
     return [
         ChatCompletionToolParam(
-            type=tool["type"], function=cast(FunctionDefinition, tool["function"])
+            type="function",
+            function=cast(FunctionDefinition, tool.model_dump(exclude_none=True)),
         )
-        for tool in chat_tools
+        for tool in tools
     ]
 
 

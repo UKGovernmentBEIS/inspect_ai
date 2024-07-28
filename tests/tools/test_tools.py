@@ -1,7 +1,7 @@
 from random import randint
 from typing import Literal
 
-from test_helpers.tools import addition, exec, read_file
+from test_helpers.tools import addition, raise_error, read_file
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
@@ -261,8 +261,8 @@ def test_tool_error():
 @skip_if_no_openai
 def test_tool_eval_error():
     task = Task(
-        dataset=[Sample(input="Run the program 'floozle'")],
-        plan=[use_tools([exec()]), generate()],
+        dataset=[Sample(input="Please raise an error.")],
+        plan=[use_tools([raise_error()]), generate()],
         scorer=match(),
         sandbox="local",
     )

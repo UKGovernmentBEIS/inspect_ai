@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from inspect_ai.tool._tool_parse import (
+from inspect_ai.tool._tool_info import (
     ToolParam,
     parse_dataclass_or_pydantic,
     parse_docstring,
