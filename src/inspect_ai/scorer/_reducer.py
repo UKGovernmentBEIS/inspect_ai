@@ -1,6 +1,6 @@
 import statistics
 from collections import Counter
-from typing import Any, Callable, Protocol, TypeVar, cast, runtime_checkable
+from typing import Any, Callable, Protocol, TypeVar, cast, overload, runtime_checkable
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
@@ -66,25 +66,36 @@ def reducer_register(score_reducer: ScoreReducerType, name: str) -> ScoreReducer
     return score_reducer
 
 
+@overload
+def score_reducer(func: ScoreReducerType) -> ScoreReducerType: ...
+
+
+@overload
+def score_reducer() -> Callable[[ScoreReducerType], ScoreReducerType]: ...
+
+
+@overload
+def score_reducer(*, name: str) -> Callable[[ScoreReducerType], ScoreReducerType]: ...
+
+
 def score_reducer(
-    *score_reducer: ScoreReducerType | None, name: str | None = None
-) -> Callable[..., ScoreReducerType] | ScoreReducerType:
-    r"""Decorator for registering Score Reducers.
+    func: ScoreReducerType | None = None, *, name: str | None = None
+) -> Callable[[ScoreReducerType], ScoreReducerType] | ScoreReducerType:
+    """Decorator for registering Score Reducers.
 
     Args:
-      *score_reducer (ScoreReducerType): Function returning `ScoreReduver` targeted by
-        plain task decorator without attributes (e.g. `@score_reducer`)
-      name (str | None):
-        Optional name for reducer. If the decorator has no name
-        argument then the name of the function
-        will be used to automatically assign a name.
+        func (ScoreReducerType | None): Function returning `ScoreReducer` targeted by
+            plain task decorator without attributes (e.g. `@score_reducer`)
+        name (str | None): Optional name for reducer. If the decorator has no name
+            argument then the name of the function will be used to automatically assign a name.
 
     Returns:
-        ScoreReducer with registry attributes.
+        ScoreReducer with registry attributes or a decorator function.
     """
 
     def create_reducer_wrapper(reducer_type: ScoreReducerType) -> ScoreReducerType:
         # get the name and params
+        nonlocal name
         reducer_name = name or registry_name(
             reducer_type, getattr(reducer_type, "__name__")
         )
@@ -93,10 +104,8 @@ def score_reducer(
         def wrapper(*w_args: Any, **w_kwargs: Any) -> ScoreReducer:
             # create the task
             score_reducer = reducer_type(*w_args, **w_kwargs)
-
             # If a name has been explicitly set, use that
             reducer_nm = getattr(score_reducer, REDUCER_NAME, reducer_name)
-
             # tag it
             registry_tag(
                 reducer_type,
@@ -108,7 +117,6 @@ def score_reducer(
                 *w_args,
                 **w_kwargs,
             )
-
             # return it
             return score_reducer
 
@@ -116,8 +124,8 @@ def score_reducer(
             score_reducer=cast(ScoreReducerType, wrapper), name=reducer_name
         )
 
-    if score_reducer:
-        return create_reducer_wrapper(cast(ScoreReducerType, score_reducer[0]))
+    if func is not None:
+        return create_reducer_wrapper(func)
     else:
         return create_reducer_wrapper
 
