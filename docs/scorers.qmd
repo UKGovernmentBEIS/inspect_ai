@@ -440,6 +440,87 @@ def var() -> Metric:
 
 Note that the `Score` class contains a `Value` that is a union over several scalar and collection types. As a convenience, `Score` includes a set of accessor methods to treat the value as a simpler form (e.g. above we use the `score.as_float()` accessor).
 
+
+## Reducing Epochs
+
+When a task is run, it may be run using epochs- running each sample mulitple times. When metrics are computed for an evaluation task which was run with multiple epochs, the samples will be reduced to a single score representing the score for a sample across all the epochs. By default, the scores will be reduced using an average of the all the sample scores, but you may specify other strategies for reducing the samples when computing metrics using `epochs_reducer` when defining your task. For example:
+
+```python
+@task
+def gpqa():
+    return Task(
+        dataset=csv_dataset(
+            csv_file="datasets/gpqa_main.csv",
+            sample_fields=record_to_sample,
+        ),
+        plan=[
+            system_message("Be sure that your answer consists only of the word 'ANSWER:' followed by a single letter. This is very important."),
+            multiple_choice(shuffle=True),
+        ],
+        scorer=choice(),
+        config=GenerateConfig(temperature=0.5),
+        epochs=5,
+        epochs_reducer=at_least(1)
+    )
+```
+
+In addition, you may specify more than one reducer which will compute metrics using each of the reducers. For example:
+
+```python
+@task
+def gpqa():
+    return Task(
+        ...
+        epochs=5,
+        epochs_reducer=[at_least(1), at_least(2), at_least(5)]
+    )
+```
+
+### Built-in Reducers
+
+Inspect includes some built in reducers for reducing epochs. Built in reducers can be imported from the `inspect_ai.scorer` module. Below is a summary of these reducers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the **Go to Definition** command in your source editor.
+
+
+-   `average()`
+
+     Reduce to the average of all scores. 
+
+-   `median()`
+
+    Reduce to the median of all scores. 
+
+-   `at_least(n=int, value=float)`
+
+    Reduce to `1` if at least `n` of the samples have a value greater than or equal to `value`, otherwise reduce to `0`.
+
+-   `majority()`
+
+    Reduce to the most common value among the sample values.
+
+-   `best_of()`
+
+    Reduce to the maximum value of the samples.
+
+:::{.note}
+
+If a score produces a value that is a list or dictionary, the reducer will reduce the individual values and return a single Score containing the list or dictionary of reduced values.
+
+:::
+
+###  Custom Reducers
+
+You may also implement your own custom reducer for use when computing metrics across epochs. A `ScoreReducer` is a function which takes a list of scores and produces a single score. To implement a custom reducer, create a function which returns a `ScoreReducer` and decorate ut using `@score_reducer`. For example:
+
+```python
+@score_reducer
+def sum(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
+    def sum(scores: list[Score]) -> Score:
+        value = reduce(lambda x, y: x + value_to_float(y.value), scores, 0.0)
+        return Score(value=value)
+
+    return sum
+```
+
 ## Workflow {#sec-scorer-workflow}
 
 ### Score Command
