@@ -1,5 +1,7 @@
+from dataclasses import dataclass
 from typing import Literal
 
+import numpy as np
 from pydantic import BaseModel
 from test_helpers.utils import (
     skip_if_no_anthropic,
@@ -16,16 +18,59 @@ from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import ToolFunction, tool
 
 
+@tool(prompt="Use the mean tool if asked to take the mean of a set of numbers.")
+def mean():
+    async def execute(numbers: list[float]) -> float:
+        """
+        Take the mean of a set of numbers.
+
+        Args:
+          numbers: A list of integers to take the mean of
+
+        Returns:
+          The mean of the numbers
+        """
+        return np.mean(numbers).item()
+
+    return execute
+
+
+@dataclass
+class Point:
+    x: int
+    y: int
+
+
+@tool(
+    prompt="Use the offset tool if you are asked to offset a point by a certain amount."
+)
+def offset():
+    async def execute(point: Point, offset: int):
+        """
+        Offsets a point by the specified offset value
+
+        Args:
+          point: Point to offset
+          offset: Offset value
+
+        Returns:
+          A Point with the x and y values offset
+        """
+        return str(Point(x=point.x + offset, y=point.y + offset))
+
+    return execute
+
+
 class Word(BaseModel):
     type: Literal["adjective", "noun"]
     word: str
 
 
 @tool(
-    prompt="Use the extract words tool if you are asked to extract the nouns and adjectives from a sentence."
+    prompt="Use the extract_words tool if you are asked to extract the nouns and adjectives from a sentence."
 )
 def extract_words():
-    async def extract(extracted: list[Word]):
+    async def execute(extracted: list[Word]):
         """
         Accepts the extracted nouns and adjectives from the sentence
 
@@ -37,10 +82,49 @@ def extract_words():
         """
         return str(extracted)
 
-    return extract
+    return execute
 
 
-def check_list_of_pydantic_objects(model: str) -> None:
+def check_object(model: str) -> None:
+    task = Task(
+        dataset=MemoryDataset(
+            [
+                Sample(
+                    input="Start with the point x=10, y=10 then offset it by 5.",
+                )
+            ]
+        ),
+        plan=[
+            use_tools([offset()], tool_choice=ToolFunction("offset")),
+            generate(),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    verify_tool_call(log, "Point")
+
+
+def check_list_of_numbers(model: str) -> None:
+    task = Task(
+        dataset=MemoryDataset(
+            [
+                Sample(
+                    input="Take the mean of the following numbers: 5, 10, 15",
+                    target="15",
+                )
+            ]
+        ),
+        plan=[
+            use_tools([mean()], tool_choice=ToolFunction("mean")),
+            generate(),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    verify_tool_call(log, "10")
+
+
+def check_list_of_objects(model: str) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -55,12 +139,13 @@ def check_list_of_pydantic_objects(model: str) -> None:
         ],
     )
 
-    log = eval(task, model="openai/gpt-4o")[0]
+    log = eval(task, model=model)[0]
     verify_tool_call(log, "[{'type':")
 
 
 def check_tool_types(model: str):
-    check_list_of_pydantic_objects(model)
+    check_list_of_numbers(model)
+    check_list_of_objects(model)
 
 
 @skip_if_no_openai
@@ -75,7 +160,8 @@ def test_anthropoic_tool_types() -> None:
 
 @skip_if_no_google
 def test_google_tool_types() -> None:
-    check_tool_types("google/gemini-1.5-pro")
+    # google doesn't yet support rich types in tool calling
+    pass
 
 
 @skip_if_no_mistral
