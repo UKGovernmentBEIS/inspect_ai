@@ -13,6 +13,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.scorer._reducer import create_reducers
 
 from .common import CommonOptions, common_options, resolve_common_options
 from .util import parse_cli_args, parse_sandbox
@@ -83,6 +84,11 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     "--epochs",
     type=int,
     help=f"Number of times to repeat dataset (defaults to {DEFAULT_EPOCHS}) ",
+)
+@click.option(
+    "--epochs-reducer",
+    type=str,
+    help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'mean', 'median', 'mode', 'max', and 'at_least_{n}'.",
 )
 @click.option("--max-connections", type=int, help=MAX_CONNECTIONS_HELP)
 @click.option("--max-retries", type=int, help=MAX_RETRIES_HELP)
@@ -191,6 +197,7 @@ def eval_command(
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
+    epochs_reducer: str | None,
     limit: str | None,
     max_retries: int | None,
     timeout: int | None,
@@ -239,6 +246,9 @@ def eval_command(
     task_args = parse_cli_args(t)
     model_args = parse_cli_args(m)
 
+    # resolve epochs_reducer
+    eval_epochs_reducer = create_reducers(parse_comma_separated(epochs_reducer))
+
     # resolve range
     eval_limit = parse_samples_limit(limit)
 
@@ -264,6 +274,7 @@ def eval_command(
         log_dir=log_dir,
         limit=eval_limit,
         epochs=epochs,
+        epochs_reducer=eval_epochs_reducer,
         max_messages=max_messages,
         max_samples=max_samples,
         max_tasks=max_tasks,
@@ -282,6 +293,13 @@ def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
         return dict(
             zip([int(key) for key in logit_biases.keys()], logit_biases.values())
         )
+    else:
+        return None
+
+
+def parse_comma_separated(value: str | None) -> list[str] | None:
+    if value is not None:
+        return value.split(",")
     else:
         return None
 

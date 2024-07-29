@@ -8,6 +8,7 @@
 - Rename `ToolEnvironment` to `SandboxEnvironment` and `tool_environment()` to `sandbox()` (moving the renamed types from `inspect_ai.tool` to `inspect_ai.util`). Existing symbols will continue to work but will print deprecation errors.
 - Moved the `bash()`, `python()`, and `web_search()` functions from `inspect_ai.solver` to `inspect_ai.tool`.  Existing symbols will continue to work but will print deprecation errors.
 - Replace the use of the `bootstrap_std` metric with `stderr` for built in scorers (see [rationale](https://inspect.ai-safety-institute.org.uk/scorers.html#stderr-note) for details).
+- Use `ScoreReducer` to reduce samples in multi-epochs tasks before computing metrics (defaults to averaging sample values).
 - Enable parallel execution of tasks that share a working directory.
 - Add `chdir` option to `@task` to opt-out of changing the working directory during task execution.
 - Enable overriding of default safety settings for Google models.
@@ -32,6 +33,7 @@
 - Validate name passed to `example_dataset()` (and print available example dataset names).
 - Resolve relative image paths within Dataset samples against the directory containing the dataset.
 - Preserve `tool_error` text for Anthropic tool call responses.
+
 
 
 ## v0.3.18 (14 July 2024)
