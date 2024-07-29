@@ -159,7 +159,7 @@ export type Metadata4 = {} | null;
 export type Level =
   | "debug"
   | "http"
-  | "tools"
+  | "sandbox"
   | "info"
   | "warning"
   | "error"
