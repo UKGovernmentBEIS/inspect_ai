@@ -415,6 +415,15 @@ Note that the `Score` class contains a `Value` that is a union over several scal
 
 ## Reducing Epochs
 
+
+::: {.callout-note appearance="simple"}
+The reducing epochs feature described below is currently available only in the development version of Inspect. You can install the development version with:
+
+``` bash
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
 If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs. By default, this is done by taking the average of the all the sample scores, but you may specify other strategies for reducing the samples using the `epochs_reducer` parameter. For example:
 
 ``` python
