@@ -21,7 +21,7 @@ Based on: https://github.com/openai/simple-evals/blob/main/humaneval_eval.py
 import re
 
 from inspect_ai import Task, task
-from inspect_ai.dataset import Sample, csv_dataset
+from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -51,9 +51,10 @@ this function.\n
 
 @task
 def humaneval():
-    dataset = csv_dataset("humaneval.csv", record_to_sample)
     return Task(
-        dataset=dataset,
+        dataset=hf_dataset(
+            path="openai_humaneval", split="test", sample_fields=record_to_sample
+        ),
         plan=[generate()],
         scorer=verify(),
         epochs=NUM_EPOCHS,
