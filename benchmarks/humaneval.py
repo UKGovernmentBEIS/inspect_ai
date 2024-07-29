@@ -28,8 +28,6 @@ from inspect_ai.scorer import (
     Score,
     Scorer,
     Target,
-    at_least,
-    avg,
     mean,
     scorer,
     std,
@@ -59,7 +57,7 @@ def humaneval():
         plan=[generate()],
         scorer=verify(),
         epochs=NUM_EPOCHS,
-        epochs_reducer=[avg(), at_least(1), at_least(2), at_least(5)],
+        epochs_reducer=["mean", "at_least_1", "at_least_2", "at_least_5"],
         sandbox="docker",
     )
 
