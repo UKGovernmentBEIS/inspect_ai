@@ -5,7 +5,7 @@ import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import AsyncGenerator, Callable, Literal, cast
+from typing import AsyncGenerator, Callable, Literal
 
 from typing_extensions import Unpack
 
@@ -47,7 +47,7 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
-from inspect_ai.scorer import Score, Scorer, Target
+from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
@@ -218,9 +218,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             completed_scores = [
                 score_dict for score_dict in scores if isinstance(score_dict, dict)
             ]
-
-            # normalize to list of reducers
-            task.epochs_reducer
 
             if len(completed_scores) > 0:
                 results = eval_results(
@@ -393,9 +390,7 @@ async def task_run_sample(
                 state = (await states_with_base64_images([state]))[0]
 
             # log the sample
-            logger.log_sample(
-                state.epoch, sample, state, cast(dict[str, Score], results), True
-            )
+            logger.log_sample(state.epoch, sample, state, results, True)
 
         # return
         return results

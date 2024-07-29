@@ -38,7 +38,8 @@ class Task:
         sandbox (str | tuple[str,str] | None): Sandbox
            environment type (or optionally a tuple with type and config file)
         epochs (int): Default number of epochs to run for.
-        epochs_reducer (ScoreReducer | list[ScoreReducer])
+        epochs_reducer (ScoreReducer | list[ScoreReducer] | None):
+           Reducer function for aggregating scores in each sample (defaults to average).
         max_messages (int | None): Limit on total messages in the conversation.
         name: (str | None): Task name. If not specified is automatically
           determined based on the name of the task directory (or "task")
