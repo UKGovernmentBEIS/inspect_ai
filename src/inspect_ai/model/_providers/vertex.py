@@ -168,7 +168,6 @@ async def content_dict(
         return VertexContent(role="user", parts=parts)
     elif isinstance(message, ChatMessageAssistant):
         if message.tool_calls is not None:
-            print(f"Message is ChatMessageAssistant: {message}")
             content_parts = [
                 # For some reason there's no `Parts.from_function_call`
                 # function, but there's a generic `from_dict` instead
