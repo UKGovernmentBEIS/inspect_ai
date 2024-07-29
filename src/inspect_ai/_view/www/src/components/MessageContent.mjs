@@ -30,6 +30,7 @@ const messageRenderers = {
     render: (content, isLast) => {
       return html`<${MarkdownDiv}
         markdown=${content.text}
+        style=${{ wordBreak: "break-all" }}
         class=${isLast ? "no-last-para-padding" : ""}
       />`;
     },
