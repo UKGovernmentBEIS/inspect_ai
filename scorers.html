@@ -304,7 +304,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#built-in-metrics" id="toc-built-in-metrics" class="nav-link" data-scroll-target="#built-in-metrics">Built-In Metrics</a></li>
   <li><a href="#custom-metrics" id="toc-custom-metrics" class="nav-link" data-scroll-target="#custom-metrics">Custom Metrics</a></li>
   </ul></li>
-  <li><a href="#reducing-epochs" id="toc-reducing-epochs" class="nav-link" data-scroll-target="#reducing-epochs">Reducing Epochs</a>
+  <li><a href="#sec-reducing-epochs" id="toc-sec-reducing-epochs" class="nav-link" data-scroll-target="#sec-reducing-epochs">Reducing Epochs</a>
   <ul class="collapse">
   <li><a href="#built-in-reducers" id="toc-built-in-reducers" class="nav-link" data-scroll-target="#built-in-reducers">Built-in Reducers</a></li>
   </ul></li>
@@ -734,8 +734,8 @@ Note
 <p>Note that the <code>Score</code> class contains a <code>Value</code> that is a union over several scalar and collection types. As a convenience, <code>Score</code> includes a set of accessor methods to treat the value as a simpler form (e.g.&nbsp;above we use the <code>score.as_float()</code> accessor).</p>
 </section>
 </section>
-<section id="reducing-epochs" class="level2">
-<h2 class="anchored" data-anchor-id="reducing-epochs">Reducing Epochs</h2>
+<section id="sec-reducing-epochs" class="level2">
+<h2 class="anchored" data-anchor-id="sec-reducing-epochs">Reducing Epochs</h2>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
@@ -747,7 +747,8 @@ Note
 </div>
 </div>
 </div>
-<p>If a task is run over more than one <code>epoch</code>, multiple scores will be generated for each sample. These scores are then <em>reduced</em> to a single score representing the score for the sample across all the epochs. By default, this is done by taking the average of the all the sample scores, but you may specify other strategies for reducing the samples using the <code>epochs_reducer</code> parameter. For example:</p>
+<p>If a task is run over more than one <code>epoch</code>, multiple scores will be generated for each sample. These scores are then <em>reduced</em> to a single score representing the score for the sample across all the epochs.</p>
+<p>By default, this is done by taking the mean of the all the sample scores, but you may specify other strategies for reducing the samples using the <code>epochs_reducer</code> parameter. For example, here we specify that we we want to use the most commonly occurring value (the mode):</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gpqa():</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -770,7 +771,7 @@ Note
 <span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="built-in-reducers" class="level3">
 <h3 class="anchored" data-anchor-id="built-in-reducers">Built-in Reducers</h3>
-<p>Inspect includes several built in reducers, whic can be imported from the <code>inspect_ai.scorer</code> module. Below is a summary of these reducers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the <strong>Go to Definition</strong> command in your source editor.</p>
+<p>Inspect includes several built in reducers which are summarised below.</p>
 <table class="table">
 <colgroup>
 <col style="width: 40%">
@@ -793,11 +794,11 @@ Note
 </tr>
 <tr class="odd">
 <td>mode</td>
-<td>Reduce to the most common value among the sample values.</td>
+<td>Reduce to the most common score.</td>
 </tr>
 <tr class="even">
 <td>max</td>
-<td>Reduce to the maximum value of the samples.</td>
+<td>Reduce to the maximum of all scores.</td>
 </tr>
 <tr class="odd">
 <td>at_least_{n}</td>
@@ -805,9 +806,6 @@ Note
 </tr>
 </tbody>
 </table>
-<div class="note">
-<p>If a score produces a value that is a list or dictionary, the reducer will reduce the individual values and return a single Score containing the list or dictionary of reduced values.</p>
-</div>
 </section>
 </section>
 <section id="sec-scorer-workflow" class="level2">
