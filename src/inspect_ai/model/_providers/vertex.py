@@ -38,7 +38,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._util import chat_api_tool
 
 SAFETY_SETTINGS = "safety_settings"
 VERTEX_INIT_ARGS = "vertex_init_args"
@@ -232,14 +231,13 @@ def prepend_system_messages(
 
 
 def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
-    chat_tools = [chat_api_tool(tool) for tool in tools]
     declarations = [
         FunctionDeclaration(
-            name=tool["function"]["name"],
-            description=tool["function"]["description"],
-            parameters=tool["function"]["parameters"],
+            name=tool.name,
+            description=tool.description,
+            parameters=tool.parameters.model_dump(exclude_none=True),
         )
-        for tool in chat_tools
+        for tool in tools
     ]
     return [Tool(declarations)]
 
