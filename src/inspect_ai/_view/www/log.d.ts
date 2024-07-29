@@ -61,7 +61,7 @@ export type ParallelToolCalls = boolean | null;
 export type Name2 = string;
 export type Scorer = string;
 export type Name3 = string;
-export type Value = number | number;
+export type Value = number;
 export type Metadata1 = {} | null;
 export type Metadata2 = {} | null;
 export type Scores = EvalScore[];
@@ -109,7 +109,14 @@ export type Content3 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate" | "cache") | null;
 export type Role3 = "tool";
 export type ToolCallId = string | null;
-export type ToolError = string | null;
+export type Type4 =
+  | "parsing"
+  | "timeout"
+  | "unicode_decode"
+  | "permission"
+  | "file_not_found"
+  | "unknown";
+export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];
 export type Messages = (
@@ -141,11 +148,10 @@ export type Scores1 = {
 export type Value1 =
   | string
   | number
-  | number
   | boolean
-  | (string | number | number | boolean)[]
+  | (string | number | boolean)[]
   | {
-      [k: string]: string | number | number | boolean | null;
+      [k: string]: string | number | boolean | null;
     };
 export type Answer = string | null;
 export type Explanation = string | null;
@@ -153,12 +159,12 @@ export type Metadata4 = {} | null;
 export type Level =
   | "debug"
   | "http"
-  | "tools"
+  | "sandbox"
   | "info"
   | "warning"
   | "error"
   | "critical";
-export type Message1 = string;
+export type Message2 = string;
 export type Created1 = number;
 export type Logging = LoggingMessage[];
 
@@ -346,7 +352,11 @@ export interface ChatMessageTool {
   source: Source3;
   role: Role3;
   tool_call_id: ToolCallId;
-  tool_error: ToolError;
+  error: ToolCallError | null;
+}
+export interface ToolCallError {
+  type: Type4;
+  message: Message1;
 }
 export interface ModelOutput {
   model: Model1;
@@ -400,6 +410,6 @@ export interface Score {
 export interface Metadata5 {}
 export interface LoggingMessage {
   level: Level;
-  message: Message1;
+  message: Message2;
   created: Created1;
 }

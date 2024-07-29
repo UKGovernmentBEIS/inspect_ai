@@ -1,9 +1,13 @@
-from typing import Literal, Union
+from logging import getLogger
+from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolCall
+from inspect_ai.tool._tool_call import ToolCallError
+
+logger = getLogger(__name__)
 
 
 class ChatMessageBase(BaseModel):
@@ -89,8 +93,29 @@ class ChatMessageTool(ChatMessageBase):
     tool_call_id: str | None = Field(default=None)
     """ID of tool call."""
 
-    tool_error: str | None = Field(default=None)
-    """Error calling tool."""
+    error: ToolCallError | None = Field(default=None)
+    """Error which occurred during tool call."""
+
+    @property
+    def tool_error(self) -> str | None:
+        """Tool error (deprecated)."""
+        logger.warning(
+            "The 'tool_error' field is deprecated. Access error information via 'error' instead."
+        )
+        if self.error:
+            return self.error.message
+        else:
+            return None
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_tool_error_to_error(
+        cls: Type["ChatMessageTool"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        tool_error = values.get("tool_error", None)
+        if tool_error:
+            values["error"] = ToolCallError("unknown", tool_error)
+        return values
 
 
 ChatMessage = Union[

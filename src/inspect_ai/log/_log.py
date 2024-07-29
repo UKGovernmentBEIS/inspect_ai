@@ -34,6 +34,9 @@ class EvalConfig(BaseModel):
     epochs: int | None = Field(default=None)
     """Number of epochs to run samples over."""
 
+    epochs_reducer: list[str] | None = Field(default=None)
+    """Reducers for aggregating per-sample scores."""
+
     max_messages: int | None = Field(default=None)
     """Maximum messages to allow in a chat conversation."""
 
@@ -159,6 +162,9 @@ class EvalScore(BaseModel):
 
     scorer: str
     """Scorer name."""
+
+    reducer: str | None = Field(default=None)
+    """Reducer name."""
 
     params: dict[str, Any] = Field(default={})
     """Parameters specified when creating scorer."""
@@ -365,7 +371,9 @@ class EvalStats(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-LoggingLevel = Literal["debug", "http", "tools", "info", "warning", "error", "critical"]
+LoggingLevel = Literal[
+    "debug", "http", "sandbox", "info", "warning", "error", "critical"
+]
 """Logging level."""
 
 
@@ -395,6 +403,18 @@ class LoggingMessage(BaseModel):
             message=record.getMessage(),
             created=record.created * 1000,
         )
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_log_levels(
+        cls: Type["LoggingMessage"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        if "level" in values:
+            level = values["level"]
+            if level == "tools":
+                values["level"] = "sandbox"
+
+        return values
 
 
 class EvalLog(BaseModel):

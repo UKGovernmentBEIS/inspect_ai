@@ -14,7 +14,8 @@ from inspect_ai._util.error import exception_message
 from inspect_ai._util.json import python_type_to_json_type
 from inspect_ai._util.registry import registry_info
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo, ToolParam
-from inspect_ai.tool._tool import TOOL_PROMPT
+from inspect_ai.tool._tool import TOOL_PROMPT, ToolParsingError
+from inspect_ai.tool._tool_call import ToolCallError
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 
@@ -35,33 +36,38 @@ async def call_tools(
         tdefs = tool_defs(tools)
 
         async def call_tool_task(call: ToolCall) -> ChatMessageTool:
-            tool_error: str | None = None
+            result = ""
+            tool_error: ToolCallError | None = None
             try:
                 result = await call_tool(tdefs, call)
             except TimeoutError:
-                result = ""
-                tool_error = "Command timed out before completing."
-            except UnicodeDecodeError:
-                result = ""
-                tool_error = "Unicode decoding error (file or command output is likely binary rather than text)"
-            except PermissionError:
-                # TODO: Crash the sample not the eval; error state for sample
-                # TODO: Ascertain PermissionError for docker read/write file
-                # TODO: Preflight check for sandbox environment for better errors
-                # TODO: Document the error requirements for sandboxenvs and tools
-
-                # TODO: Consider: Should there by typeinfo on error
-                # TODO: Consider: Raw mode with no fault barrier?
-                result = ""
-                tool_error = "The user does not have permission to write to the specified location."
+                tool_error = ToolCallError(
+                    "timeout", "Command timed out before completing."
+                )
+            except UnicodeDecodeError as ex:
+                tool_error = ToolCallError(
+                    "unicode_decode",
+                    f"Error decoding bytes to {ex.encoding}: {ex.reason}",
+                )
+            except PermissionError as ex:
+                message = f"{ex.strerror}."
+                if isinstance(ex.filename, str):
+                    message = f"{message} Filename '{ex.filename}'."
+                tool_error = ToolCallError("permission", message)
+            except FileNotFoundError as ex:
+                tool_error = ToolCallError(
+                    "file_not_found",
+                    f"File '{ex.filename}' was not found.",
+                )
+            except ToolParsingError as ex:
+                tool_error = ToolCallError("parsing", ex.message)
             except ToolError as ex:
-                result = ""
-                tool_error = ex.message
+                tool_error = ToolCallError("unknown", ex.message)
 
             return ChatMessageTool(
                 content=result if isinstance(result, list) else str(result),
-                tool_error=tool_error,
                 tool_call_id=call.id,
+                error=tool_error,
             )
 
         tasks = [call_tool_task(call) for call in message.tool_calls]
@@ -92,18 +98,18 @@ class ToolDef:
 async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
-        raise ToolError(call.parse_error)
+        raise ToolParsingError(call.parse_error)
 
     # find the tool
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
-        raise ToolError(f"Tool {call.function} not found")
+        raise ToolParsingError(f"Tool {call.function} not found")
 
     # call the tool
     try:
         return await tool_def.tool(**call.arguments)
     except TypeError as ex:
-        raise ToolError(exception_message(ex))
+        raise ToolParsingError(exception_message(ex))
 
 
 def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:

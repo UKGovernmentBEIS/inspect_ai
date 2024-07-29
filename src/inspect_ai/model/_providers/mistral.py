@@ -182,7 +182,7 @@ def mistral_chat_message(message: ChatMessage) -> MistralChatMessage:
             role=message.role,
             name=message.tool_call_id,
             content=(
-                f"Error: {message.tool_error}" if message.tool_error else message.text
+                f"Error: {message.error.message}" if message.error else message.text
             ),
         )
     else:

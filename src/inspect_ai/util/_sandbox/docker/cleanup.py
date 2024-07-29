@@ -33,7 +33,8 @@ async def project_cleanup(project: ComposeProject, quiet: bool = True) -> None:
     await compose_down(project=project, quiet=quiet)
 
     # remove the project from the list of running projects
-    running_projects().remove(project)
+    if project in running_projects():
+        running_projects().remove(project)
 
 
 async def project_cleanup_shutdown(cleanup: bool) -> None:

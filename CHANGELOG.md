@@ -4,20 +4,24 @@
 
 - [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
 - [Groq](https://groq.com/) model provider.
+- [Google Vertex](https://inspect.ai-safety-institute.org.uk/models.html#google-vertex) model provider.
+- [Reduce scores](https://inspect.ai-safety-institute.org.uk/scorers.html##sec-reducing-epoch) in multi-epoch tasks before computing metrics (defaults to averaging sample values).
+- Replace the use of the `bootstrap_std` metric with `stderr` for built in scorers (see [rationale](https://inspect.ai-safety-institute.org.uk/scorers.html#stderr-note) for details).
 - Rename `ToolEnvironment` to `SandboxEnvironment` and `tool_environment()` to `sandbox()` (moving the renamed types from `inspect_ai.tool` to `inspect_ai.util`). Existing symbols will continue to work but will print deprecation errors.
 - Moved the `bash()`, `python()`, and `web_search()` functions from `inspect_ai.solver` to `inspect_ai.tool`.  Existing symbols will continue to work but will print deprecation errors.
-- Replace the use of the `bootstrap_std` metric with `stderr` for built in scorers (see [rationale](https://inspect.ai-safety-institute.org.uk/scorers.html#stderr-note) for details).
 - Enable parallel execution of tasks that share a working directory.
 - Add `chdir` option to `@task` to opt-out of changing the working directory during task execution.
 - Enable overriding of default safety settings for Google models.
 - Gracefully handle tool calls that include only a single value (rather than a named dict of parameters).
 - Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
 - Make multiple tool calls in parallel. Parallel tool calls occur by default for OpenAI, Anthropic, Mistral, and Groq. You can disable this behavior for OpenAI and Groq with `--parallel-tool-calls false`.
+- Invoke rate limit retry for OpenAI APITimeoutError (which they have recently begun returning a lot of more of as a result of httpx.ConnectTimeout, which is only 5 seconds by default.).
 - Add `cwd` argument to `SandboxEnvironment.exec()`
 - Use `tee` rather than `docker cp` for Docker sandbox environment implementation of `write_file()`.
 - Handle duplicate tool call ids in Inspect View.
 - Handle sorting sample ids of different types in Inspect View.
 - Correctly resolve default model based on CLI --model argument.
+- Fix issue with propagating API keys to Azure OpenAI provider.
 - Add `azure` model arg for OpenAI provider to force binding (or not binding) to the Azure OpenAI back-end.
 - Add `setup` field to `Sample` for providing a per-sample setup script.
 - Score multiple choice questions without parsed answers as incorrect (rather than being an error). Llama 3 and 3.1 models especially often fail to yield an answer.
@@ -28,6 +32,8 @@
 - Throw `TimeoutError` if a call to `subprocess()` or `sandbox().exec()` times out (formerly a textual error was returned along with a non-zero exit code).
 - Validate name passed to `example_dataset()` (and print available example dataset names).
 - Resolve relative image paths within Dataset samples against the directory containing the dataset.
+- Preserve `tool_error` text for Anthropic tool call responses.
+
 
 
 ## v0.3.18 (14 July 2024)
