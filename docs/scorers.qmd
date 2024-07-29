@@ -411,7 +411,7 @@ def var() -> Metric:
 
 Note that the `Score` class contains a `Value` that is a union over several scalar and collection types. As a convenience, `Score` includes a set of accessor methods to treat the value as a simpler form (e.g. above we use the `score.as_float()` accessor).
 
-## Reducing Epochs
+## Reducing Epochs {#sec-reducing-epochs}
 
 
 ::: {.callout-note appearance="simple"}
@@ -422,7 +422,9 @@ $ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
 ```
 :::
 
-If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs. By default, this is done by taking the average of the all the sample scores, but you may specify other strategies for reducing the samples using the `epochs_reducer` parameter. For example:
+If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs. 
+
+By default, this is done by taking the mean of the all the sample scores, but you may specify other strategies for reducing the samples using the `epochs_reducer` parameter. For example, here we specify that we we want to use the most commonly occurring value (the mode):
 
 ``` python
 @task
@@ -453,21 +455,18 @@ def gpqa():
 
 ### Built-in Reducers
 
-Inspect includes several built in reducers, whic can be imported from the `inspect_ai.scorer` module. Below is a summary of these reducers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the **Go to Definition** command in your source editor.
+Inspect includes several built in reducers which are summarised below.
 
 | Reducer                  | Description                                                                                                          |
 |--------------------------|----------------------------------------------------------------------------------------------------------------------|
 | mean                  | Reduce to the average of all scores.                                                                                 |
 | median               | Reduce to the median of all scores                                                                                   |
-| mode             | Reduce to the most common value among the sample values.                                                             |
-| max              | Reduce to the maximum value of the samples.                                                                          |
+| mode             | Reduce to the most common score.                                                             |
+| max              | Reduce to the maximum of all scores.                                                            |
 | at_least_{n} | Reduce to `1` if at least `n` of the samples have a value greater than or equal to 1, otherwise reduce to `0`. |
 
 : {tbl-colwidths="\[40,60\]"}
 
-::: note
-If a score produces a value that is a list or dictionary, the reducer will reduce the individual values and return a single Score containing the list or dictionary of reduced values.
-:::
 
 
 ## Workflow {#sec-scorer-workflow}
