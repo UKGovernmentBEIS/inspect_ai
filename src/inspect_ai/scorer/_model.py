@@ -8,7 +8,6 @@ from inspect_ai.util import resource
 from ._metric import INCORRECT, Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
-from ._reducer.reducer import majority
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -95,7 +94,7 @@ def model_graded_qa(
     # otherwise, use multi scorer
     assert isinstance(model, list)
     scorers = [get_scorer(model) for model in model]
-    return multi_scorer(scorers, majority())
+    return multi_scorer(scorers, "mode")
 
 
 @scorer(metrics=[accuracy(), stderr()])

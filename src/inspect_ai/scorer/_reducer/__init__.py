@@ -1,5 +1,10 @@
-from .reducer import at_least, avg, best_of, majority, median
-from .registry import create_reducers, reducer_log_names, score_reducer
+from .reducer import at_least, max_score, mean_score, median_score, mode_score
+from .registry import (
+    create_reducers,
+    reducer_log_name,
+    reducer_log_names,
+    score_reducer,
+)
 from .types import ScoreReducer, ScoreReducers
 
 __all__ = [
@@ -7,10 +12,11 @@ __all__ = [
     "ScoreReducers",
     "score_reducer",
     "create_reducers",
+    "reducer_log_name",
     "reducer_log_names",
-    "avg",
-    "median",
-    "majority",
-    "best_of",
+    "mean_score",
+    "median_score",
+    "mode_score",
+    "max_score",
     "at_least",
 ]

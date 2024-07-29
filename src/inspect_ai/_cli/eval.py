@@ -88,7 +88,7 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
 @click.option(
     "--epochs-reducer",
     type=str,
-    help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'avg', 'median', 'majority', 'best_of', and 'at_least_x'.",
+    help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'mean', 'median', 'mode', 'max', and 'at_least_{n}'.",
 )
 @click.option("--max-connections", type=int, help=MAX_CONNECTIONS_HELP)
 @click.option("--max-retries", type=int, help=MAX_RETRIES_HELP)

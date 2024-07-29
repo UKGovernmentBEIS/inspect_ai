@@ -9,6 +9,7 @@ from inspect_ai._util.registry import (
     registry_info,
     registry_log_name,
     registry_name,
+    registry_params,
     registry_tag,
     set_registry_info,
 )
@@ -109,10 +110,18 @@ def reducer_log_names(
 ) -> list[str] | None:
     reducer = [reducer] if isinstance(reducer, ScoreReducer) else reducer
     if reducer is not None:
-        names = [registry_log_name(r) for r in reducer]
+        names = [reducer_log_name(r) for r in reducer]
         return names
     else:
         return None
+
+
+def reducer_log_name(reducer: ScoreReducer) -> str:
+    name = registry_log_name(reducer)
+    params = registry_params(reducer)
+    if "n" in params:
+        name = f"{name}_{params.get('n')}"
+    return name
 
 
 def create_reducers(

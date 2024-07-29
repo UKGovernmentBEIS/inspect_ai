@@ -8,10 +8,10 @@ from .registry import REDUCER_NAME, score_reducer
 from .types import ScoreReducer
 
 
-@score_reducer
-def majority() -> ScoreReducer:
-    def majority(scores: list[Score]) -> Score:
-        r"""A utility function for taking a majority vote over a list of scores.
+@score_reducer(name="mode")
+def mode_score() -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        r"""A utility function for the most common score in a list of scores.
 
         Args:
             scores: a list of Scores.
@@ -29,12 +29,12 @@ def majority() -> ScoreReducer:
         else:
             return _count_scalar(scores, most_common)
 
-    return majority
+    return reduce
 
 
-@score_reducer
-def avg(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def avg(scores: list[Score]) -> Score:
+@score_reducer(name="mean")
+def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
         r"""A utility function for taking a mean value over a list of scores.
 
         Args:
@@ -47,12 +47,12 @@ def avg(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
         else:
             return _compute_scalar_stat(scores, value_to_float, statistics.mean)
 
-    return avg
+    return reduce
 
 
-@score_reducer
-def median(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def median(scores: list[Score]) -> Score:
+@score_reducer(name="median")
+def median_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
         r"""A utility function for taking a median value over a list of scores.
 
         Args:
@@ -65,14 +65,14 @@ def median(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
         else:
             return _compute_scalar_stat(scores, value_to_float, statistics.median)
 
-    return median
+    return reduce
 
 
 @score_reducer
 def at_least(
     n: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
 ) -> ScoreReducer:
-    def at_least(scores: list[Score]) -> Score:
+    def reduce(scores: list[Score]) -> Score:
         r"""A utility function for scoring a value as correct if there are at least n score values greater than or equal to the value
 
         Args:
@@ -95,13 +95,13 @@ def at_least(
             return _count_scalar(scores, gte_n)
 
     setattr(at_least, REDUCER_NAME, f"at_least_{n}")
-    return at_least
+    return reduce
 
 
-@score_reducer
-def best_of(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def best_of(scores: list[Score]) -> Score:
-        r"""A utility function for taking the best value from a list of scores
+@score_reducer(name="max")
+def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        r"""A utility function for taking the maximum value from a list of scores
 
         Args:
             scores: a list of Scores.
@@ -126,7 +126,7 @@ def best_of(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
                 )
                 if max_value is None:
                     raise ValueError(
-                        "List of scores values unexpectedly had a `None` best score"
+                        "List of scores values unexpectedly had a `None` max score"
                     )
                 else:
                     list_result.append(max_value)
@@ -135,7 +135,7 @@ def best_of(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
             max_score = max(scores, key=lambda score: value_to_float(score.value))
             return _reduced_score(max_score.value, scores)
 
-    return best_of
+    return reduce
 
 
 def _count_scalar(

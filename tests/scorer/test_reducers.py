@@ -8,20 +8,20 @@ from inspect_ai.scorer import (
     ScoreReducer,
     ValueToFloat,
     at_least,
-    avg,
-    best_of,
-    majority,
     match,
-    median,
+    max_score,
+    mean_score,
+    median_score,
+    mode_score,
     score_reducer,
     value_to_float,
 )
 from inspect_ai.scorer._reducer import create_reducers
 
-avg_reducer = avg()
-median_reducer = median()
-majority_reducer = majority()
-best_reducer = best_of()
+avg_reducer = mean_score()
+median_reducer = median_score()
+mode_reducer = mode_score()
+max_reducer = max_score()
 at_least_3_reducer = at_least(3)
 at_least_4_reducer = at_least(4)
 at_least_5_reducer = at_least(5, 3)
@@ -38,8 +38,8 @@ def test_simple_reducers() -> None:
     ]
     assert avg_reducer(simple_scores).value == 3
     assert median_reducer(simple_scores).value == 2
-    assert majority_reducer(simple_scores).value == 0
-    assert best_reducer(simple_scores).value == 8
+    assert mode_reducer(simple_scores).value == 0
+    assert max_reducer(simple_scores).value == 8
     assert at_least_3_reducer(simple_scores).value == 1
     assert at_least_4_reducer(simple_scores).value == 0
 
@@ -54,8 +54,8 @@ def test_list_reducers() -> None:
     ]
     assert avg_reducer(list_scores).value == [2, 2]
     assert median_reducer(list_scores).value == [1, 2]
-    assert majority_reducer(list_scores).value == [1, 2]
-    assert best_reducer(list_scores).value == [4, 3]
+    assert mode_reducer(list_scores).value == [1, 2]
+    assert max_reducer(list_scores).value == [4, 3]
     assert at_least_3_reducer(list_scores).value == [1, 1]
     assert at_least_4_reducer(list_scores).value == [1, 1]
 
@@ -70,8 +70,8 @@ def test_dict_reducers() -> None:
     ]
     assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 5}
     assert median_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
-    assert majority_reducer(dict_scores).value == {"coolness": 5, "spiciness": 1}
-    assert best_reducer(dict_scores).value == {"coolness": 5, "spiciness": 21}
+    assert mode_reducer(dict_scores).value == {"coolness": 5, "spiciness": 1}
+    assert max_reducer(dict_scores).value == {"coolness": 5, "spiciness": 21}
     assert at_least_3_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
@@ -92,7 +92,7 @@ def test_scorer_lookup():
 
 def eval_with_reducer():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
-    return eval(task, model="mockllm/model", epochs=5, epochs_reducer=best_of())[0]
+    return eval(task, model="mockllm/model", epochs=5, epochs_reducer=max_score())[0]
 
 
 def test_reducer_by_name():
@@ -103,12 +103,12 @@ def test_reducer_by_name():
 
 def test_eval_reducer():
     log = eval_with_reducer()
-    assert log.eval.config.epochs_reducer == ["best_of"]
+    assert log.eval.config.epochs_reducer == ["max"]
 
 
 def test_score_reducer():
     log = score(eval_with_reducer(), match())
-    assert log.eval.config.epochs_reducer == ["best_of"]
+    assert log.eval.config.epochs_reducer == ["max"]
 
-    log = score(eval_with_reducer(), match(), [majority(), avg()])
-    assert log.eval.config.epochs_reducer == ["majority", "avg"]
+    log = score(eval_with_reducer(), match(), [mode_score(), mean_score()])
+    assert log.eval.config.epochs_reducer == ["mode", "mean"]

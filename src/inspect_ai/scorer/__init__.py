@@ -23,10 +23,10 @@ from ._reducer import (
     ScoreReducer,
     ScoreReducers,
     at_least,
-    avg,
-    best_of,
-    majority,
-    median,
+    max_score,
+    mean_score,
+    median_score,
+    mode_score,
     score_reducer,
 )
 from ._scorer import Scorer, scorer
@@ -63,9 +63,9 @@ __all__ = [
     "ScoreReducer",
     "ScoreReducers",
     "score_reducer",
-    "majority",
-    "avg",
-    "median",
+    "mode_score",
+    "mean_score",
+    "median_score",
+    "max_score",
     "at_least",
-    "best_of",
 ]
