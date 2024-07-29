@@ -4,6 +4,7 @@
 
 - [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
 - [Groq](https://groq.com/) model provider.
+- [Google Vertex](https://inspect.ai-safety-institute.org.uk/models.html#google-vertex) model provider.
 - Rename `ToolEnvironment` to `SandboxEnvironment` and `tool_environment()` to `sandbox()` (moving the renamed types from `inspect_ai.tool` to `inspect_ai.util`). Existing symbols will continue to work but will print deprecation errors.
 - Moved the `bash()`, `python()`, and `web_search()` functions from `inspect_ai.solver` to `inspect_ai.tool`.  Existing symbols will continue to work but will print deprecation errors.
 - Replace the use of the `bootstrap_std` metric with `stderr` for built in scorers (see [rationale](https://inspect.ai-safety-institute.org.uk/scorers.html#stderr-note) for details).
