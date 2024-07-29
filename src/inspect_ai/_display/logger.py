@@ -60,6 +60,10 @@ class LogHandler(RichHandler):
 # initialize logging -- this function can be called multiple times
 # in the lifetime of the process (the levelno will update globally)
 def init_logger(log_level: str | None = None) -> None:
+    # backwards compatiblity for 'tools'
+    if log_level == "tools":
+        log_level = "sandbox"
+
     # register http and tools levels
     addLevelName(HTTP, HTTP_LOG_LEVEL)
     addLevelName(SANDBOX, SANDBOX_LOG_LEVEL)
