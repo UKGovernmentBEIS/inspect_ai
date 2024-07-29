@@ -365,7 +365,9 @@ class EvalStats(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-LoggingLevel = Literal["debug", "http", "tools", "info", "warning", "error", "critical"]
+LoggingLevel = Literal[
+    "debug", "http", "sandbox", "info", "warning", "error", "critical"
+]
 """Logging level."""
 
 
@@ -395,6 +397,18 @@ class LoggingMessage(BaseModel):
             message=record.getMessage(),
             created=record.created * 1000,
         )
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_log_levels(
+        cls: Type["LoggingMessage"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        if "level" in values:
+            level = values["level"]
+            if level == "tools":
+                values["level"] = "sandbox"
+
+        return values
 
 
 class EvalLog(BaseModel):

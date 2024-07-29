@@ -72,7 +72,7 @@ def eval(
           (defaults to True)
         plan (Plan | Solver | list[Solver] | None): Alternative plan
            for evaluating task(s). Optional (uses task plan by default).
-        log_level (str | None): "debug", "http", "info", "warning", "error",
+        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
@@ -170,7 +170,7 @@ async def eval_async(
            (defaults to True)
         plan (Plan | Solver | list[Solver] | None): Alternative plan
            for evaluating task(s). Optional (uses task plan by default).
-        log_level (str | None): "debug", "http", "info", "warning", "error",
+        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
             or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
             (defaults to file log in ./logs directory).
@@ -332,7 +332,7 @@ def eval_retry(
     Args:
         tasks: (str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog]):
             Log files for task(s) to retry.
-        log_level (str | None): "debug", "http", "info", "warning", "error",
+        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
@@ -403,7 +403,7 @@ async def eval_retry_async(
     Args:
         tasks: (str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog]):
             Log files for task(s) to retry.
-        log_level (str | None): "debug", "http", "info", "warning", "error",
+        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
