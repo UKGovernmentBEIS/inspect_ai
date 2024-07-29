@@ -8,7 +8,7 @@ To get started with Inspect, please see the documentation at <https://inspect.ai
 
 ***
 
-#### Development
+
 
 To work on development of Inspect, clone the repository and install with the `-e` flag and `[dev]` optional dependencies:
 
