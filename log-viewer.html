@@ -296,7 +296,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#scores-and-answers" id="toc-scores-and-answers" class="nav-link" data-scroll-target="#scores-and-answers">Scores and Answers</a></li>
   <li><a href="#filtering-and-sorting" id="toc-filtering-and-sorting" class="nav-link" data-scroll-target="#filtering-and-sorting">Filtering and Sorting</a></li>
-  <li><a href="#python-logging" id="toc-python-logging" class="nav-link" data-scroll-target="#python-logging">Python Logging</a></li>
+  <li><a href="#python-logging" id="toc-python-logging" class="nav-link" data-scroll-target="#python-logging">Python Logging</a>
+  <ul class="collapse">
+  <li><a href="#sec-external-file" id="toc-sec-external-file" class="nav-link" data-scroll-target="#sec-external-file">External File</a></li>
+  </ul></li>
   <li><a href="#task-information" id="toc-task-information" class="nav-link" data-scroll-target="#task-information">Task Information</a></li>
   <li><a href="#viewer-embedding" id="toc-viewer-embedding" class="nav-link" data-scroll-target="#viewer-embedding">Viewer Embedding</a></li>
   </ul>
@@ -411,6 +414,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><a href="images/inspect-view-logging-console.png" class="lightbox" data-gallery="quarto-lightbox-gallery-10"><img src="images/inspect-view-logging-console.png" class="img-fluid" alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display."></a></p>
 <p>A default log level of <code>warning</code> enables you to include many calls to <code>logger.info()</code> in your code without having them show by default, while also making them available in the log viewer should you need them.</p>
 <p>Note that you can also set the log level using the <code>INSPECT_LOG_LEVEL</code> environment variable (which is often included in a <a href="workflow.html#sec-workflow-configuration">.env configuration file</a>).</p>
+<section id="sec-external-file" class="level3">
+<h3 class="anchored" data-anchor-id="sec-external-file">External File</h3>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The external file logging feature described below is currently available only in the development version of Inspect. You can install the development version with:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> pip install git+https://github.com/ukgovernmentbeis/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
+<p>In addition to seeing the Python logging activity at the end of an eval run in the log viewer, you can also arrange to have Python logger entries written to an external file. Set the <code>INSPECT_PY_LOGGER_FILE</code> environment variable to do this:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_PY_LOGGER_FILE</span><span class="op">=</span>/tmp/inspect.log</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can set this in the shell or within your global <code>.env</code> file. By default, messages of level <code>info</code> and higher will be written to the log file. If you set your main <code>--log-level</code> lower than that (e.g.&nbsp;to <code>http</code>) then the log file will follow. To set a distinct log level for the file, set the <code>INSPECT_PY_LOGGER_FILE</code> environment variable. For example:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_PY_LOGGER_LEVEL</span><span class="op">=</span>http</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Use <code>tail --follow</code> to track the contents of the log file in realtime. For example:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tail</span> <span class="at">--follow</span> /tmp/inspect.log</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
 </section>
 <section id="task-information" class="level2">
 <h2 class="anchored" data-anchor-id="task-information">Task Information</h2>
@@ -958,7 +981,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"openEffect":"zoom","selector":".lightbox","descPosition":"bottom","closeEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","openEffect":"zoom","closeEffect":"zoom","selector":".lightbox","loop":false});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;
