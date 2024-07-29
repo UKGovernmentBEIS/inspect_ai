@@ -12,6 +12,7 @@ from inspect_ai._util.path import chdir_python
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._log import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
+from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.solver import Plan, Solver
 from inspect_ai.util._sandbox.environment import TaskCleanup, TaskInit
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
@@ -31,6 +32,7 @@ async def eval_run(
     eval_config: EvalConfig,
     recorder: Recorder,
     model_args: dict[str, Any],
+    epochs_reducer: ScoreReducer | list[ScoreReducer] | None = None,
     plan: Plan | Solver | list[Solver] | None = None,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -71,6 +73,16 @@ async def eval_run(
                     task_eval_config.epochs = task.epochs
                 if task.max_messages is not None:
                     task_eval_config.max_messages = task.max_messages
+
+                # eval epochs_reducer can override the task epochs_reducer
+                if epochs_reducer is not None:
+                    # override task (eval_config already reflects epochs_reducer)
+                    task.epochs_reducer = epochs_reducer
+                else:
+                    # use task (eval_config needs to be updated to reflect task reducer)
+                    task_eval_config.epochs_reducer = reducer_log_names(
+                        task.epochs_reducer
+                    )
 
                 # create and track the logger
                 logger = TaskLogger(

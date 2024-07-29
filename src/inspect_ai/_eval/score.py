@@ -14,7 +14,7 @@ from inspect_ai.log import (
 from inspect_ai.model import ModelName
 from inspect_ai.scorer import Metric, Score, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.scorer._reducer import avg
+from inspect_ai.scorer._reducer import ScoreReducer, create_reducers, reducer_log_names
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import TaskState
 
@@ -23,14 +23,19 @@ from .task.results import eval_results
 from .task.util import task_run_dir
 
 
-def score(log: EvalLog, scorers: Scorer | list[Scorer]) -> EvalLog:
+def score(
+    log: EvalLog,
+    scorers: Scorer | list[Scorer],
+    epochs_reducer: ScoreReducer | list[ScoreReducer] | None = None,
+) -> EvalLog:
     """Score an evaluation log.
 
     Args:
        log (EvalLog): Evaluation log.
        scorers (Scorer): List of Scorers to apply to log
-       metrics: (list[Metric]): Additional metrics to compute
-         (Scorer built-in metrics are always computed).
+       epochs_reducer (ScoreReducer | list[ScoreReducer] | None):
+           Reducer function(s) for aggregating scores in each sample.
+           Defaults to previously used reducer(s).
 
     Returns:
        Log with scores yielded by scorer.
@@ -41,15 +46,23 @@ def score(log: EvalLog, scorers: Scorer | list[Scorer]) -> EvalLog:
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
 
-    return asyncio.run(score_async(log, scorers))
+    return asyncio.run(score_async(log, scorers, epochs_reducer))
 
 
-async def score_async(log: EvalLog, scorers: list[Scorer]) -> EvalLog:
+async def score_async(
+    log: EvalLog,
+    scorers: list[Scorer],
+    epochs_reducer: ScoreReducer | list[ScoreReducer] | None = None,
+) -> EvalLog:
     """Score an evaluation log.
 
     Args:
        log (EvalLog): Evaluation log.
        scorers (list[Scorer]): Scorers to apply to log
+       epochs_reducer (ScoreReducer | list[ScoreReducer] | None):
+         Reducer function(s) for aggregating scores in each sample.
+         Defaults to previously used reducer(s).
+
 
     Returns:
        Log with scores yielded by scorer.
@@ -97,9 +110,14 @@ async def score_async(log: EvalLog, scorers: list[Scorer]) -> EvalLog:
         # that will be taken care of in eval_results)
         log_metrics = metrics_from_log(log)
 
+        # override epochs_reducer if specified
+        if epochs_reducer:
+            log.eval.config.epochs_reducer = reducer_log_names(epochs_reducer)
+        else:
+            epochs_reducer = reducers_from_log(log)
+
         # compute metrics
-        # TODO: Need to actually read reducer from somewhere (e.g. maybe command line?)
-        log.results = eval_results(scores, [avg()], scorers, log_metrics)
+        log.results = eval_results(scores, epochs_reducer, scorers, log_metrics)
 
     return log
 
@@ -182,3 +200,7 @@ def metrics_from_log(log: EvalLog) -> list[Metric]:
 
 def metric_from_log(metric: EvalMetric) -> Metric:
     return cast(Metric, registry_create("metric", metric.name, **metric.options))
+
+
+def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:
+    return create_reducers(log.eval.config.epochs_reducer)

@@ -1,13 +1,16 @@
+import re
 import statistics
 from collections import Counter
 from typing import Any, Callable, Protocol, TypeVar, cast, overload, runtime_checkable
 
+from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
     registry_create,
     registry_info,
+    registry_log_name,
     registry_lookup,
     registry_name,
     registry_tag,
@@ -172,7 +175,7 @@ def avg(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     return avg
 
 
-@score_reducer(name="Median It Bro")
+@score_reducer
 def median(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     def median(scores: list[Score]) -> Score:
         r"""A utility function for taking a median value over a list of scores.
@@ -425,17 +428,48 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
     )
 
 
-def reducer_name(reducer: ScoreReducer) -> str:
-    r"""Get the name of the reducer
+def reducer_log_names(
+    reducer: ScoreReducer | list[ScoreReducer] | None,
+) -> list[str] | None:
+    reducer = [reducer] if isinstance(reducer, ScoreReducer) else reducer
+    if reducer is not None:
+        names = [registry_log_name(r) for r in reducer]
+        return names
+    else:
+        return None
 
-    Args:
-        reducer: Fetch name for the given reducer
-    """
-    return registry_info(reducer).name
+
+def create_reducers(
+    reducer: str | list[str] | None, params: dict[str, Any] = {}
+) -> list[ScoreReducer] | None:
+    if reducer is None:
+        return None
+    elif isinstance(reducer, str):
+        reducer = [reducer]
+
+    ensure_entry_points()
+
+    def create_reducer(name: str) -> ScoreReducer:
+        # special case to get digit parameters
+        match = re.match(r"^(.*?)_(\d+)$", name)
+        if match:
+            name = match.group(1)
+            params["n"] = int(match.group(2))
+
+        return cast(
+            Callable[..., ScoreReducer], registry_create("score_reducer", name)
+        )(**params)
+
+    return [create_reducer(r) for r in reducer]
 
 
 def set_reducer_name(reducer: ScoreReducer, name: str) -> None:
     info = registry_info(reducer)
     set_registry_info(
-        reducer, RegistryInfo(type="score_reducer", name=name, metadata=info.metadata)
+        reducer,
+        RegistryInfo(
+            type="score_reducer",
+            name=name,
+            metadata=info.metadata,
+        ),
     )

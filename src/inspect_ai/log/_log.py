@@ -34,6 +34,9 @@ class EvalConfig(BaseModel):
     epochs: int | None = Field(default=None)
     """Number of epochs to run samples over."""
 
+    epochs_reducer: list[str] | None = Field(default=None)
+    """Reducers for aggregating per-sample scores."""
+
     max_messages: int | None = Field(default=None)
     """Maximum messages to allow in a chat conversation."""
 

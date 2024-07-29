@@ -1,8 +1,21 @@
 from functools import reduce
 
-from inspect_ai.scorer import Score, at_least, avg, best_of, majority, median
-from inspect_ai.scorer._metric import ValueToFloat, value_to_float
-from inspect_ai.scorer._reducer import ScoreReducer, score_reducer, score_reducer_create
+from inspect_ai import Task, eval
+from inspect_ai._eval.score import score
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import (
+    Score,
+    ScoreReducer,
+    ValueToFloat,
+    at_least,
+    avg,
+    best_of,
+    majority,
+    match,
+    median,
+    value_to_float,
+)
+from inspect_ai.scorer._reducer import score_reducer, score_reducer_create
 
 avg_reducer = avg()
 median_reducer = median()
@@ -75,3 +88,21 @@ def sum(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
 def test_scorer_lookup():
     scorer = score_reducer_create("add_em_up")
     assert scorer
+
+
+def eval_with_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    return eval(task, model="mockllm/model", epochs=5, epochs_reducer=best_of())[0]
+
+
+def test_eval_reducer():
+    log = eval_with_reducer()
+    assert log.eval.config.epochs_reducer == ["best_of"]
+
+
+def test_score_reducer():
+    log = score(eval_with_reducer(), match())
+    assert log.eval.config.epochs_reducer == ["best_of"]
+
+    log = score(eval_with_reducer(), match(), [majority(), avg()])
+    assert log.eval.config.epochs_reducer == ["majority", "avg"]

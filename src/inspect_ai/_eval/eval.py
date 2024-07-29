@@ -20,6 +20,7 @@ from inspect_ai.model import (
     Model,
 )
 from inspect_ai.model._model import init_active_model, resolve_models
+from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.solver import Plan, Solver
 from inspect_ai.util import SandboxEnvironmentSpec
 
@@ -44,6 +45,7 @@ def eval(
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | None = None,
+    epochs_reducer: ScoreReducer | list[ScoreReducer] | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -80,6 +82,8 @@ def eval(
             (defaults to all samples).
         epochs (int | None): Number of times to repeat evaluation of
             samples (defaults to 1)
+        epochs_reducer (ScoreReducer | list[ScoreReducer] | None):
+           Reducer function(s) for aggregating scores in each sample (defaults to avg).
         max_messages (int | None): Maximum number of messages to allow
            in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -116,6 +120,7 @@ def eval(
             log_dir=log_dir,
             limit=limit,
             epochs=epochs,
+            epochs_reducer=epochs_reducer,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -142,6 +147,7 @@ async def eval_async(
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | None = None,
+    epochs_reducer: ScoreReducer | list[ScoreReducer] | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -178,6 +184,8 @@ async def eval_async(
             (defaults to all samples).
         epochs (int | None): Number of times to repeat evaluation of
             samples (defaults to 1)
+        epochs_reducer (ScoreReducer | list[ScoreReducer] | None):
+           Reducer function(s) for aggregating scores in each sample (defaults to avg).
         max_messages (int | None): Maximum number of messages to allow
             in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -244,6 +252,7 @@ async def eval_async(
         eval_config = EvalConfig(
             limit=limit,
             epochs=epochs,
+            epochs_reducer=reducer_log_names(epochs_reducer),
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -276,6 +285,7 @@ async def eval_async(
                         eval_config=eval_config,
                         recorder=recorder,
                         model_args=model_args,
+                        epochs_reducer=epochs_reducer,
                         plan=plan,
                         score=score,
                         **kwargs,
@@ -297,6 +307,7 @@ async def eval_async(
                 eval_config=eval_config,
                 recorder=recorder,
                 model_args=model_args,
+                epochs_reducer=epochs_reducer,
                 plan=plan,
                 score=score,
                 **kwargs,
