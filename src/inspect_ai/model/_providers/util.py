@@ -62,30 +62,20 @@ def parse_tool_call(
         except json.JSONDecodeError as ex:
             report_parse_error(ex)
 
-    # if the model hasn't returned a dictionary, we assume that the model's output corresponds to the first-non-default parameter of the tool.
-    # we do this by parsing it as a YAML, which will handle unquoted strings, numbers, and true/false.
+    # otherwise parse it as yaml (which will pickup unquoted strings, numbers, and true/false)
+    # and then create a dict that maps it to the first function argumen
     else:
         tool_info = next(
             (tool for tool in tools if tool.name == function and len(tool.params) > 0),
             None,
         )
         if tool_info:
-            all_params = [param.name for param in tool_info.params]
-            non_optional_parameters = [
-                param.name for param in tool_info.params if not param.optional
-            ]
-            potential_params = (
-                non_optional_parameters
-                if len(non_optional_parameters) > 0
-                else all_params
-            )
-
             try:
                 value = yaml.safe_load(arguments)
-                arguments_dict[potential_params[0]] = value
+                arguments_dict[tool_info.params[0].name] = value
             except yaml.error.YAMLError:
                 # If the yaml parser fails, we treat it as a string argument.
-                arguments_dict[potential_params[0]] = arguments
+                arguments_dict[tool_info.params[0].name] = arguments
 
     # return ToolCall with error payload
     return ToolCall(

@@ -6,7 +6,10 @@ testing_tool = ToolInfo(
     description="This is a testing tool.",
     params=[
         ToolParam(
-            name="param1", type="str", description="This is parameter1", optional=False
+            name="param1",
+            type="string",
+            description="This is parameter1",
+            optional=False,
         )
     ],
 )
@@ -15,7 +18,10 @@ testing_tool_bool = ToolInfo(
     description="This is a testing tool, with a boolean parameter.",
     params=[
         ToolParam(
-            name="param1", type="bool", description="This is parameter1", optional=False
+            name="param1",
+            type="boolean",
+            description="This is parameter1",
+            optional=False,
         )
     ],
 )
