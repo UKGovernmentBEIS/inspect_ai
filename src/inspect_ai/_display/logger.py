@@ -2,6 +2,7 @@ import os
 from logging import (
     INFO,
     WARNING,
+    FileHandler,
     LogRecord,
     addLevelName,
     getLevelName,
@@ -32,6 +33,16 @@ class LogHandler(RichHandler):
     def __init__(self, levelno: int) -> None:
         super().__init__(levelno, console=rich_console())
         self.display_level = WARNING
+        # log into an external file if requested via env var
+        file_logger = os.environ.get("INSPECT_PY_LOGGER_FILE", None)
+        self.file_logger = FileHandler(file_logger) if file_logger else None
+
+        # see if the user has a special log level for the file
+        file_logger_level = os.environ.get("INSPECT_PY_LOGGER_LEVEL", "")
+        if file_logger_level:
+            self.file_logger_level = int(getLevelName(file_logger_level.upper()))
+        else:
+            self.file_logger_level = 0
 
     @override
     def emit(self, record: LogRecord) -> None:
@@ -47,6 +58,14 @@ class LogHandler(RichHandler):
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level:
             super().emit(record)
+
+        # write to file if the log file level matches. if the
+        # user hasn't explicitly specified a level then we
+        # take the minimum of 'info' and the display level
+        if self.file_logger and record.levelno >= (
+            self.file_logger_level or min(self.display_level, INFO)
+        ):
+            self.file_logger.emit(record)
 
         # eval log always gets info level and higher records
         # eval log only gets debug or http if we opt-in
