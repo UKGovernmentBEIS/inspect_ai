@@ -135,6 +135,34 @@ A default log level of `warning` enables you to include many calls to `logger.in
 
 Note that you can also set the log level using the `INSPECT_LOG_LEVEL` environment variable (which is often included in a [.env configuration file](#sec-workflow-configuration)).
 
+### External File {#sec-external-file}
+
+::: {.callout-note appearance="simple"}
+The external file logging feature described below is currently available only in the development version of Inspect. You can install the development version with:
+
+``` bash
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+In addition to seeing the Python logging activity at the end of an eval run in the log viewer, you can also arrange to have Python logger entries written to an external file. Set the `INSPECT_PY_LOGGER_FILE` environment variable to do this:
+
+```bash
+export INSPECT_PY_LOGGER_FILE=/tmp/inspect.log
+```
+
+You can set this in the shell or within your global `.env` file. By default, messages of level `info` and higher will be written to the log file. If you set your main `--log-level` lower than that (e.g. to `http`) then the log file will follow. To set a distinct log level for the file, set the `INSPECT_PY_LOGGER_FILE` environment variable. For example:
+
+```bash
+export INSPECT_PY_LOGGER_LEVEL=http
+```
+
+Use `tail --follow` to track the contents of the log file in realtime. For example:
+
+```bash
+tail --follow /tmp/inspect.log
+```
+
 ## Task Information
 
 The **Info** panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, plan, and scorer details, git revision, and model token usage:
