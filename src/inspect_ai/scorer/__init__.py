@@ -21,6 +21,7 @@ from ._multi import multi_scorer
 from ._pattern import pattern
 from ._reducer import (
     ScoreReducer,
+    ScoreReducers,
     at_least,
     avg,
     best_of,
@@ -60,6 +61,7 @@ __all__ = [
     "NOANSWER",
     "multi_scorer",
     "ScoreReducer",
+    "ScoreReducers",
     "score_reducer",
     "majority",
     "avg",

@@ -13,7 +13,7 @@ from inspect_ai._util.registry import (
     set_registry_info,
 )
 
-from .types import ScoreReducer
+from .types import ScoreReducer, ScoreReducers
 
 REDUCER_NAME = "__REDUCER_NAME__"
 
@@ -116,17 +116,16 @@ def reducer_log_names(
 
 
 def create_reducers(
-    reducer: str | list[str] | None, params: dict[str, Any] = {}
+    reducers: ScoreReducers | None, params: dict[str, Any] = {}
 ) -> list[ScoreReducer] | None:
-    if reducer is None:
+    if reducers is None:
         return None
-    elif isinstance(reducer, str):
-        reducer = [reducer]
 
     ensure_entry_points()
 
     def create_reducer(name: str) -> ScoreReducer:
         # special case to get digit parameters
+        params: dict[str, Any] = {}
         match = re.match(r"^(.*?)_(\d+)$", name)
         if match:
             name = match.group(1)
@@ -136,7 +135,14 @@ def create_reducers(
             Callable[..., ScoreReducer], registry_create("score_reducer", name)
         )(**params)
 
-    return [create_reducer(r) for r in reducer]
+    if isinstance(reducers, ScoreReducer):
+        return [reducers]
+    elif isinstance(reducers, str):
+        return [create_reducer(reducers)]
+    else:
+        return [
+            r if isinstance(r, ScoreReducer) else create_reducer(r) for r in reducers
+        ]
 
 
 def set_reducer_name(reducer: ScoreReducer, name: str) -> None:

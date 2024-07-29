@@ -32,7 +32,7 @@ async def eval_run(
     eval_config: EvalConfig,
     recorder: Recorder,
     model_args: dict[str, Any],
-    epochs_reducer: ScoreReducer | list[ScoreReducer] | None = None,
+    epochs_reducer: list[ScoreReducer] | None = None,
     plan: Plan | Solver | list[Solver] | None = None,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],

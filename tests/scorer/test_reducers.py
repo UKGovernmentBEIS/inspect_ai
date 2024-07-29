@@ -95,6 +95,12 @@ def eval_with_reducer():
     return eval(task, model="mockllm/model", epochs=5, epochs_reducer=best_of())[0]
 
 
+def test_reducer_by_name():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    log = eval(task, model="mockllm/model", epochs=5, epochs_reducer="at_least_2")[0]
+    assert log.eval.config.epochs_reducer == ["at_least_2"]
+
+
 def test_eval_reducer():
     log = eval_with_reducer()
     assert log.eval.config.epochs_reducer == ["best_of"]

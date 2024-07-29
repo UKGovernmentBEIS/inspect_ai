@@ -14,7 +14,12 @@ from inspect_ai.log import (
 from inspect_ai.model import ModelName
 from inspect_ai.scorer import Metric, Score, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.scorer._reducer import ScoreReducer, create_reducers, reducer_log_names
+from inspect_ai.scorer._reducer import (
+    ScoreReducer,
+    ScoreReducers,
+    create_reducers,
+    reducer_log_names,
+)
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import TaskState
 
@@ -26,14 +31,14 @@ from .task.util import task_run_dir
 def score(
     log: EvalLog,
     scorers: Scorer | list[Scorer],
-    epochs_reducer: ScoreReducer | list[ScoreReducer] | None = None,
+    epochs_reducer: ScoreReducers | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
     Args:
        log (EvalLog): Evaluation log.
        scorers (Scorer): List of Scorers to apply to log
-       epochs_reducer (ScoreReducer | list[ScoreReducer] | None):
+       epochs_reducer (ScoreReducers | None):
            Reducer function(s) for aggregating scores in each sample.
            Defaults to previously used reducer(s).
 
@@ -52,14 +57,14 @@ def score(
 async def score_async(
     log: EvalLog,
     scorers: list[Scorer],
-    epochs_reducer: ScoreReducer | list[ScoreReducer] | None = None,
+    epochs_reducer: ScoreReducers | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
     Args:
        log (EvalLog): Evaluation log.
        scorers (list[Scorer]): Scorers to apply to log
-       epochs_reducer (ScoreReducer | list[ScoreReducer] | None):
+       epochs_reducer (ScoreReducers  | None):
          Reducer function(s) for aggregating scores in each sample.
          Defaults to previously used reducer(s).
 
@@ -111,6 +116,7 @@ async def score_async(
         log_metrics = metrics_from_log(log)
 
         # override epochs_reducer if specified
+        epochs_reducer = create_reducers(epochs_reducer)
         if epochs_reducer:
             log.eval.config.epochs_reducer = reducer_log_names(epochs_reducer)
         else:
