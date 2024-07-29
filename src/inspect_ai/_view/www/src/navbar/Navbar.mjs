@@ -184,14 +184,18 @@ const RunningPanel = () => {
 
 const ResultsPanel = ({ results }) => {
   // Map the scores into a list of key/values
-  const scorers = {};
-  results.scores.map((score) => {
-    scorers[score.name] = Object.keys(score.metrics).map((key) => {
-      return { name: key, value: score.metrics[key].value };
-    });
-  });
-
   if (results.scores.length === 1) {
+    const scorers = {};
+    results.scores.map((score) => {
+      scorers[score.name] = Object.keys(score.metrics).map((key) => {
+        return {
+          name: key,
+          value: score.metrics[key].value,
+          reducer: score.reducer,
+        };
+      });
+    });
+
     const metrics = Object.values(scorers)[0];
     return html`<div
       style=${{
@@ -232,18 +236,35 @@ const ResultsPanel = ({ results }) => {
 };
 
 const VerticalMetric = ({ metric, isFirst }) => {
+  const reducer_component = metric.reducer
+    ? html` <div
+        style=${{
+          fontSize: "0.7rem",
+          fontWeight: "200",
+          textAlign: "center",
+          paddingTop: "0.3rem",
+          marginBottom: "-0.3rem",
+        }}
+      >
+        ${metric.reducer}
+      </div>`
+    : "";
+
   return html`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
     <div
       style=${{
         fontSize: "0.8rem",
         fontWeight: "200",
         textAlign: "center",
-        marginBottom: "-0.3rem",
         paddingTop: "0.3rem",
+        marginBottom: "-0.3rem",
+        textTransform: "uppercase",
+        borderBottom: "solid var(--bs-border-color) 1px",
       }}
     >
       ${metric.name}
     </div>
+    ${reducer_component}
     <div
       style=${{
         fontSize: "1.5rem",
@@ -258,6 +279,21 @@ const VerticalMetric = ({ metric, isFirst }) => {
 
 const MultiScorerMetric = ({ scorer, isFirst }) => {
   const baseFontSize = Object.keys(scorer.metrics).length === 1 ? 0.9 : 0.7;
+
+  const reducer_component = scorer.reducer
+    ? html`<div
+        style=${{
+          fontSize: `${baseFontSize - 0.1}rem`,
+          fontWeight: "200",
+          textAlign: "center",
+          textTransform: "uppercase",
+          marginBottom: "-0.3rem",
+        }}
+      >
+        ${scorer.reducer}
+      </div>`
+    : "";
+
   return html`<div style=${{ paddingLeft: isFirst ? "0" : "1.5em" }}>
     <div
       style=${{
@@ -266,11 +302,13 @@ const MultiScorerMetric = ({ scorer, isFirst }) => {
         textAlign: "center",
         borderBottom: "solid var(--bs-border-color) 1px",
         textTransform: "uppercase",
+        marginBottom: "-0.1rem",
       }}
       class="multi-score-label"
     >
       ${scorer.name}
     </div>
+    ${reducer_component}
     <div
       style=${{
         display: "grid",
