@@ -63,7 +63,7 @@ def parse_tool_call(
             report_parse_error(ex)
 
     # otherwise parse it as yaml (which will pickup unquoted strings, numbers, and true/false)
-    # and then create a dict that maps it to the first function argumen
+    # and then create a dict that maps it to the first function argument
     else:
         tool_info = next(
             (tool for tool in tools if tool.name == function and len(tool.params) > 0),
