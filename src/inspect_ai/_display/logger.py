@@ -14,6 +14,7 @@ from rich.text import Text
 from typing_extensions import override
 
 from inspect_ai._util.constants import (
+    ALL_LOG_LEVELS,
     DEFAULT_LOG_LEVEL,
     HTTP,
     HTTP_LOG_LEVEL,
@@ -71,10 +72,17 @@ def init_logger(log_level: str | None = None) -> None:
     # resolve default log level
     log_level = (
         log_level if log_level else os.getenv("INSPECT_LOG_LEVEL", DEFAULT_LOG_LEVEL)
-    )
+    ).upper()
+
+    # validate the log-level
+    if log_level not in ALL_LOG_LEVELS:
+        log_levels = ", ".join([level.lower() for level in ALL_LOG_LEVELS])
+        raise RuntimeError(
+            f"Invald log level '{log_level.lower()}'. Log level must be one of {log_levels}"
+        )
 
     # convert to integer
-    levelno = getLevelName(log_level.upper())
+    levelno = getLevelName(log_level)
 
     # init logging handler on demand
     global _logHandler
