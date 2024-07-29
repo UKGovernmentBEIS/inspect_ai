@@ -295,6 +295,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#azure-ai" id="toc-azure-ai" class="nav-link" data-scroll-target="#azure-ai">Azure AI</a></li>
   <li><a href="#aws-bedrock" id="toc-aws-bedrock" class="nav-link" data-scroll-target="#aws-bedrock">AWS Bedrock</a></li>
   <li><a href="#google" id="toc-google" class="nav-link" data-scroll-target="#google">Google</a></li>
+  <li><a href="#google-vertex" id="toc-google-vertex" class="nav-link" data-scroll-target="#google-vertex">Google Vertex AI</a></li>
   <li><a href="#sec-hugging-face-transformers" id="toc-sec-hugging-face-transformers" class="nav-link" data-scroll-target="#sec-hugging-face-transformers">Hugging Face</a></li>
   <li><a href="#sec-vllm" id="toc-sec-vllm" class="nav-link" data-scroll-target="#sec-vllm">vLLM</a></li>
   </ul></li>
@@ -403,6 +404,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>pip install openai</code></td>
 <td>None required</td>
 </tr>
+<tr class="odd">
+<td>Vertex</td>
+<td><code>pip install google-cloud-aiplatform</code></td>
+<td>None required</td>
+</tr>
 </tbody>
 </table>
 <div class="callout callout-style-simple callout-note no-icon">
@@ -484,11 +490,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><a href="https://ai.azure.com/explore/models">Azure AI Models</a></td>
 </tr>
 <tr class="odd">
+<td>Vertex</td>
+<td><code>vertex/gemini-1.5-flash</code></td>
+<td><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models">Google Models</a></td>
+</tr>
+<tr class="even">
 <td>Groq</td>
 <td><code>groq/mixtral-8x7b-32768</code></td>
 <td><a href="https://console.groq.com/docs/models">Groq Models</a></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Cloudflare</td>
 <td><code>cf/meta/llama-2-7b-chat-fp16</code></td>
 <td><a href="https://developers.cloudflare.com/workers-ai/models/#text-generation">Cloudflare Models</a></td>
@@ -767,16 +778,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  hate_speech <span class="op">=</span> <span class="st">"low_and_above"</span></span>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">"eval.py"</span>, </span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">"eval.py"</span>,</span>
 <span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  model_args<span class="op">=</span><span class="bu">dict</span>(safety_settings<span class="op">=</span>safety_settings)</span>
 <span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>This also can be done from the command line:</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval eval.py <span class="at">-M</span> <span class="st">"safety_settings={'hate_speech': 'low_and_above'}"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
+<section id="google-vertex" class="level3">
+<h3 class="anchored" data-anchor-id="google-vertex">Google Vertex AI</h3>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Vertex AI is a different service to Google AI, see a comparison matrix <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai#google-ai">here</a>. Make sure you are using the appropriate model provider.</p>
+</div>
+</div>
+</div>
+<p>The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn’t use the standard <code>BASE_URL</code>/<code>API_KEY</code> approach that others do. Consequently you don’t need to set these environment variables, instead you should <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1">configure your environment</a> appropriately. Additional configuration can be passed in through the <code>vertex_init_args</code> parameter if required:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval eval.py <span class="at">-M</span> <span class="st">"vertex_init_args={'project': 'my-project', location: 'eu-west2-b'}"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Vertex AI provides the same <code>safety_settings</code> outlined in the <a href="#google">Google</a> provider.</p>
+</section>
 <section id="sec-hugging-face-transformers" class="level3">
 <h3 class="anchored" data-anchor-id="sec-hugging-face-transformers">Hugging Face</h3>
 <p>The Hugging Face provider implements support for local models using the <a href="https://pypi.org/project/transformers/">transformers</a> package. You can use any Hugging Face model by specifying it with the <code>hf/</code> prefix. For example:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> hf/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> hf/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="batching" class="level4">
 <h4 class="anchored" data-anchor-id="batching">Batching</h4>
 <p>Concurrency for REST API based models is managed using the <code>max_connections</code> option. The same option is used for <code>transformers</code> inference—up to <code>max_connections</code> calls to <code>generate()</code> will be batched together (note that batches will proceed at a smaller size if no new calls to <code>generate()</code> have occurred in the last 2 seconds).</p>
@@ -785,20 +812,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="device" class="level4">
 <h4 class="anchored" data-anchor-id="device">Device</h4>
 <p>The PyTorch <code>cuda</code> device will be used automatically if CUDA is available (as will the Mac OS <code>mps</code> device). If you want to override the device used, use the <code>device</code> model argument. For example:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> hf/openai-community/gpt2 <span class="at">-M</span> device=cuda:0</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> hf/openai-community/gpt2 <span class="at">-M</span> device=cuda:0</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>This also works in calls to <code>eval()</code>:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"hf/openai-community/gpt2"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(device<span class="op">=</span><span class="st">"cuda:0"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"hf/openai-community/gpt2"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(device<span class="op">=</span><span class="st">"cuda:0"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or in a call to <code>get_model()</code></p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/openai-community/gpt2"</span>, device<span class="op">=</span><span class="st">"cuda:0"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/openai-community/gpt2"</span>, device<span class="op">=</span><span class="st">"cuda:0"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="local-models" class="level4">
 <h4 class="anchored" data-anchor-id="local-models">Local Models</h4>
 <p>In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g.&nbsp;for a locally fine tuned model). Use <code>hf/local</code> along with the <code>model_path</code>, and (optionally) <code>tokenizer_path</code> arguments to select a local model. For example, from the command line, use the <code>-M</code> flag to pass the model arguments:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> hf/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> hf/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or using the <code>eval()</code> function:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"hf/local"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(model_path<span class="op">=</span><span class="st">"./my-model"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"hf/local"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(model_path<span class="op">=</span><span class="st">"./my-model"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or in a call to <code>get_model()</code></p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/local"</span>, model_path<span class="op">=</span><span class="st">"./my-model"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/local"</span>, model_path<span class="op">=</span><span class="st">"./my-model"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="sec-vllm" class="level3">
@@ -810,12 +837,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <div class="callout-body-container">
 <p>The vLLM provider is currently available only in the development version of Inspect. You can install the development version with:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
 <p>The <code>vllm</code> provider also implements support for Hugging Face models using the <a href="https://github.com/vllm-project/vllm/">vllm</a> package. You can access any Hugging Face model by specifying it with the <code>vllm/</code> prefix. For example:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> vllm/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> vllm/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also access models from ModelScope rather than Hugging Face, see the <a href="https://docs.vllm.ai/en/latest/getting_started/quickstart.html">vLLM documentation</a> for details on this.</p>
 <p>vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.</p>
 <div class="callout callout-style-simple callout-tip">
@@ -831,7 +858,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="device-1" class="level4">
 <h4 class="anchored" data-anchor-id="device-1">Device</h4>
 <p>The <code>device</code> option is also available for vLLM models, and you can use it to specify the device(s) to run the model on. For example:</p>
-<div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> vllm/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">-M</span> device=<span class="st">'0,1,2,3'</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> vllm/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">-M</span> device=<span class="st">'0,1,2,3'</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="batching-1" class="level4">
 <h4 class="anchored" data-anchor-id="batching-1">Batching</h4>
@@ -840,14 +867,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="local-models-1" class="level4">
 <h4 class="anchored" data-anchor-id="local-models-1">Local Models</h4>
 <p>Similar to the Hugging Face provider, you can also use local models with the vLLM provider. Use <code>vllm/local</code> along with the <code>model_path</code>, and (optionally) <code>tokenizer_path</code> arguments to select a local model. For example, from the command line, use the <code>-M</code> flag to pass the model arguments:</p>
-<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> vllm/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> vllm/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="vllm-server" class="level4">
 <h4 class="anchored" data-anchor-id="vllm-server">vLLM Server</h4>
 <p>vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the OpenAI provider rather than the vLLM provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_BASE_URL=http://localhost:8080/v1</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_API_KEY=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py <span class="at">--model</span> openai/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_BASE_URL=http://localhost:8080/v1</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_API_KEY=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py <span class="at">--model</span> openai/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also use the CLI arguments <code>--model-base-url</code> and <code>-M api-key=&lt;your-key&gt;</code> rather than setting environment variables.</p>
 <p>See the vLLM documentation on <a href="https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html">Server Mode</a> for additional details.</p>
 </section>
@@ -857,38 +884,38 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="helper-models">Helper Models</h2>
 <p>Often you’ll want to use language models in the implementation of <a href="solvers.html">Solvers</a> and <a href="scorers.html">Scorers</a>. Inspect includes some critique solvers and model graded scorers that do this, and you’ll often want to do the same in your own.</p>
 <p>Helper models will by default use the same model instance and configuration as the model being evaluated, however this can be overridden using the <code>model</code> argument.</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>self_critique(model <span class="op">=</span> <span class="st">"google/gemini-1.0-pro"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>self_critique(model <span class="op">=</span> <span class="st">"google/gemini-1.0-pro"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also pass a fully instantiated <code>Model</code> object (for example, if you wanted to override its default configuration) by using the <code>get_model()</code> function. For example, here we’ll provide custom models for both critique and scoring:</p>
-<div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> GenerateConfig, get_model</span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
-<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> chain_of_thought, generate, self_critique</span>
-<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
-<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>  critique_model <span class="op">=</span> get_model(<span class="st">"google/gemini-1.0-pro"</span>)</span>
-<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>  grader_model <span class="op">=</span> get_model(<span class="st">"anthropic/claude-2.1"</span>, config <span class="op">=</span> GenerateConfig(</span>
-<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>    temperature <span class="op">=</span> <span class="fl">0.9</span>,</span>
-<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>    max_connections <span class="op">=</span> <span class="dv">10</span></span>
-<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>  ))</span>
-<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>     dataset<span class="op">=</span>json_dataset(<span class="st">"theory_of_mind.jsonl"</span>),</span>
-<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>     plan<span class="op">=</span>[</span>
-<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a>         chain_of_thought(),</span>
-<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a>         generate(),</span>
-<span id="cb28-22"><a href="#cb28-22" aria-hidden="true" tabindex="-1"></a>         self_critique(model <span class="op">=</span> critique_model)</span>
-<span id="cb28-23"><a href="#cb28-23" aria-hidden="true" tabindex="-1"></a>     ],</span>
-<span id="cb28-24"><a href="#cb28-24" aria-hidden="true" tabindex="-1"></a>     scorer<span class="op">=</span>model_graded_fact(model <span class="op">=</span> grader_model),</span>
-<span id="cb28-25"><a href="#cb28-25" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> GenerateConfig, get_model</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> chain_of_thought, generate, self_critique</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>  critique_model <span class="op">=</span> get_model(<span class="st">"google/gemini-1.0-pro"</span>)</span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>  grader_model <span class="op">=</span> get_model(<span class="st">"anthropic/claude-2.1"</span>, config <span class="op">=</span> GenerateConfig(</span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>    temperature <span class="op">=</span> <span class="fl">0.9</span>,</span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>    max_connections <span class="op">=</span> <span class="dv">10</span></span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a>  ))</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>     dataset<span class="op">=</span>json_dataset(<span class="st">"theory_of_mind.jsonl"</span>),</span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>     plan<span class="op">=</span>[</span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>         chain_of_thought(),</span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a>         generate(),</span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>         self_critique(model <span class="op">=</span> critique_model)</span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a>     ],</span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a>     scorer<span class="op">=</span>model_graded_fact(model <span class="op">=</span> grader_model),</span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="model-args" class="level2">
 <h2 class="anchored" data-anchor-id="model-args">Model Args</h2>
 <p>The section above illustrates passing model specific arguments to local models on the command line, in <code>eval()</code>, and in <code>get_model()</code>. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn’t covered by the <code>GenerateConfig</code>, you can use this method to do it. For example, here we specify the <code>transport</code> option for a Google Gemini model:</p>
-<div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity <span class="at">--model</span> google/gemini-1.0-pro <span class="at">-M</span> transport:grpc</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity <span class="at">--model</span> google/gemini-1.0-pro <span class="at">-M</span> transport:grpc</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The additional <code>model_args</code> are forwarded as follows for the various providers:</p>
 <table class="table">
 <colgroup>
@@ -935,16 +962,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>AsyncOpenAI</code></td>
 </tr>
 <tr class="odd">
+<td>Groq</td>
+<td><code>AsyncGroq</code></td>
+</tr>
+<tr class="even">
 <td>AzureAI</td>
 <td>Chat HTTP Post Body</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Cloudflare</td>
 <td>Chat HTTP Post Body</td>
 </tr>
 </tbody>
 </table>
-<p>See the OpenAI, Anthropic, Google, Mistral, Hugging Face, vLLM, Ollama, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.</p>
+<p>See the documentation for the requisite model provider for more information on the additional model options that can be passed to these functions and classes.</p>
 </section>
 <section id="custom-models" class="level2">
 <h2 class="anchored" data-anchor-id="custom-models">Custom Models</h2>

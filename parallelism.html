@@ -293,7 +293,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#max-tasks-option" id="toc-max-tasks-option" class="nav-link" data-scroll-target="#max-tasks-option">Max Tasks Option</a></li>
   <li><a href="#working-directory" id="toc-working-directory" class="nav-link" data-scroll-target="#working-directory">Working Directory</a></li>
   </ul></li>
-  <li><a href="#sec-parallel-tool-environments" id="toc-sec-parallel-tool-environments" class="nav-link" data-scroll-target="#sec-parallel-tool-environments">Tool Environments</a>
+  <li><a href="#sec-parallel-tool-environments" id="toc-sec-parallel-tool-environments" class="nav-link" data-scroll-target="#sec-parallel-tool-environments">Sandbox Environments</a>
   <ul class="collapse">
   <li><a href="#max-samples" id="toc-max-samples" class="nav-link" data-scroll-target="#max-samples">Max Samples</a></li>
   <li><a href="#max-subprocesses" id="toc-max-subprocesses" class="nav-link" data-scroll-target="#max-subprocesses">Max Subprocesses</a></li>
@@ -335,9 +335,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>There are a progression of concurrency concerns, and while most evaluations can rely on the Inspect default behaviour, others will benefit from more customisation. Below we’ll cover the following:</p>
 <ol type="1">
 <li>Model API connection concurrency.</li>
-<li>Evaluting multiple models in parallel.</li>
-<li>Tool environment concurrency.</li>
-<li>Writing parallel code in custom solvers and scorers.</li>
+<li>Evaluating multiple models in parallel.</li>
+<li>Evaluating mulitple tasks in paralle.</li>
+<li>Sandbox environment concurrency.</li>
+<li>Writing parallel code in custom tools, solvers, and scorers.</li>
 </ol>
 </section>
 <section id="model-connections" class="level2">
@@ -448,17 +449,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 </section>
 <section id="sec-parallel-tool-environments" class="level2">
-<h2 class="anchored" data-anchor-id="sec-parallel-tool-environments">Tool Environments</h2>
-<p><a href="agents.html#sec-tool-environments">Tool Environments</a> (e.g.&nbsp;Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect <code>subprocess()</code> function for executing commands within the environment.</p>
+<h2 class="anchored" data-anchor-id="sec-parallel-tool-environments">Sandbox Environments</h2>
+<p><a href="agents.html#sec-sandbox-environments">Sandbox Environments</a> (e.g.&nbsp;Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect <code>subprocess()</code> function for executing commands within the environment.</p>
 <section id="max-samples" class="level3">
 <h3 class="anchored" data-anchor-id="max-samples">Max Samples</h3>
 <p>The <code>max_samples</code> option determines how many samples are executed in parallel (and in the case of Docker containers how many containers are run in parallel). By default, <code>max_samples</code> is set to <code>max_connections</code> so that the connection to the Model API can be fully utilised.</p>
-<p>Since Tool enviroinments include additional expensive operations beyond calling models, you may want to increase <code>max_samples</code> to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you’ll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing <code>max_samples</code>.</p>
-<p>Note that setting <code>max_samples</code> to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using tool environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).</p>
+<p>Since sandbox enviroinments include additional expensive operations beyond calling models, you may want to increase <code>max_samples</code> to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you’ll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing <code>max_samples</code>.</p>
+<p>Note that setting <code>max_samples</code> to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using sandbox environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).</p>
 </section>
 <section id="max-subprocesses" class="level3">
 <h3 class="anchored" data-anchor-id="max-subprocesses">Max Subprocesses</h3>
-<p>The <code>max_subprocesses</code> option determines how many subprocesses calls can run in parallel. By defualt, this is set to <code>os.cpu_count()</code>. Depending on the nature of execution done inside tool environments, you might benefit from increasing or decreasting <code>max_subprocesses</code>.</p>
+<p>The <code>max_subprocesses</code> option determines how many subprocesses calls can run in parallel. By defualt, this is set to <code>os.cpu_count()</code>. Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasting <code>max_subprocesses</code>.</p>
 </section>
 </section>
 <section id="sec-parallel-solvers-and-scorers" class="level2">
@@ -571,8 +572,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="timeouts" class="level4">
 <h4 class="anchored" data-anchor-id="timeouts">Timeouts</h4>
 <p>If you need to ensure that your subprocess runs for no longer than a specified interval, you can use the <code>timeout</code> option. For example:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> <span class="cf">await</span> subprocess([<span class="st">"ls"</span>, <span class="bu">dir</span>], timeout <span class="op">=</span> <span class="dv">30</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If a timeout occurs, then the <code>result.status</code> will be <code>False</code> and a timeout error message will be included in <code>result.stderr</code>.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  result <span class="op">=</span> <span class="cf">await</span> subprocess([<span class="st">"ls"</span>, <span class="bu">dir</span>], timeout <span class="op">=</span> <span class="dv">30</span>)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="cf">except</span> <span class="pp">TimeoutError</span>:</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If a timeout occurs, then a <code>TimeoutError</code> will be thrown (which your code should generally handle in whatever manner is appropriate).</p>
 
 
 </section>

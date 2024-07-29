@@ -285,7 +285,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#model-registration" id="toc-model-registration" class="nav-link" data-scroll-target="#model-registration">Model Registration</a></li>
   <li><a href="#model-usage" id="toc-model-usage" class="nav-link" data-scroll-target="#model-usage">Model Usage</a></li>
   </ul></li>
-  <li><a href="#sec-tool-environment-extensions" id="toc-sec-tool-environment-extensions" class="nav-link" data-scroll-target="#sec-tool-environment-extensions">Tool Environments</a>
+  <li><a href="#sec-sandbox-environment-extensions" id="toc-sec-sandbox-environment-extensions" class="nav-link" data-scroll-target="#sec-sandbox-environment-extensions">Sandbox Environments</a>
   <ul class="collapse">
   <li><a href="#environment-registration" id="toc-environment-registration" class="nav-link" data-scroll-target="#environment-registration">Environment Registration</a></li>
   <li><a href="#environment-usage" id="toc-environment-usage" class="nav-link" data-scroll-target="#environment-usage">Environment Usage</a></li>
@@ -326,7 +326,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>There are several ways to extend Inspect to integrate with systems not directly supported by the core package. These include:</p>
 <ol type="1">
 <li><p>Model APIs (model hosting services, local inference engines, etc.)</p></li>
-<li><p>Tool Environments (local or cloud container runtimes)</p></li>
+<li><p>Sandbox Environments (local or cloud container runtimes)</p></li>
 <li><p>Storage Systems (for datasets, prompts, and evaluation logs)</p></li>
 </ol>
 <p>For each of these, you can create an extension within a Python package, and then use it without any special registration with Inspect (this is done via <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry points</a>).</p>
@@ -342,7 +342,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        base_url: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        api_key: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        config: GenerateConfig <span class="op">=</span> GenerateConfig(),</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="op">**</span>model_args: <span class="bu">dict</span>[<span class="bu">str</span>,Any]</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="op">**</span>model_args: Any</span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>(model_name, base_url, api_key, config)</span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>  </span>
@@ -355,6 +355,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ModelOutput:</span>
 <span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>__init__()</code> method <em>must</em> call the <code>super().__init__()</code> method, and typically instantiates the model client library.</p>
+<p>The <code>__init__()</code> method receive a <code>**model_args</code> parameter that will carry any custom <code>model_args</code> (or <code>-M</code> arguments from the CLI) specified by the user. You can then pass these on to the approriate place in your model initialisation code (for example, here is what many of the built-in providers do with <code>model_args</code> passed to them: <a href="https://inspect.ai-safety-institute.org.uk/models.html#model-args" class="uri">https://inspect.ai-safety-institute.org.uk/models.html#model-args</a>).</p>
 <p>The <code>generate()</code> method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. In addition, there are some optional properties you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, whether to collapse consecutive user and/or assistant messages, etc.).</p>
 <p>See the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_model.py">ModelAPI</a> source code for further documentation on these properties. See the implementation of the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_providers">built-in model providers</a> for additional insight on building a custom provider.</p>
 <section id="model-registration" class="level3">
@@ -388,9 +389,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(math, model <span class="op">=</span> <span class="st">"custom/my-model"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
-<section id="sec-tool-environment-extensions" class="level2">
-<h2 class="anchored" data-anchor-id="sec-tool-environment-extensions">Tool Environments</h2>
-<p><a href="agents.html#sec-tool-environments">Tool Environments</a> provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g.&nbsp;creating network hosts for a cybersecurity eval). Inspect comes with two tool environments built in:</p>
+<section id="sec-sandbox-environment-extensions" class="level2">
+<h2 class="anchored" data-anchor-id="sec-sandbox-environment-extensions">Sandbox Environments</h2>
+<p><a href="agents.html#sec-sandbox-environments">Sandbox Environments</a> provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g.&nbsp;creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:</p>
 <table class="table">
 <colgroup>
 <col style="width: 38%">
@@ -405,17 +406,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>local</code></td>
-<td>Run <code>tool_environment()</code> methods in the same file system as the running evaluation (should <em>only be used</em> if you are already running your evaluation in another sandbox).</td>
+<td>Run <code>sandbox()</code> methods in the same file system as the running evaluation (should <em>only be used</em> if you are already running your evaluation in another sandbox).</td>
 </tr>
 <tr class="even">
 <td><code>docker</code></td>
-<td>Run <code>tool_environment()</code> methods within a Docker container</td>
+<td>Run <code>sandbox()</code> methods within a Docker container</td>
 </tr>
 </tbody>
 </table>
-<p>To create a custom tool environment, derive a class from <code>ToolEnvironment</code>, implement the required static and instance methods, and add the <code>@toolenv</code> decorator to it. For example:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@toolenv</span>(name<span class="op">=</span><span class="st">"podman"</span>)</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PodmanToolEnvironment(ToolEnvironment):</span>
+<p>To create a custom sandbox environment, derive a class from <code>SandboxEnvironment</code>, implement the required static and instance methods, and add the <code>@sandboxenv</code> decorator to it.</p>
+<p>The static class methods control the lifecycle of containers and other computing resources associated with the <code>SandboxEnvironment</code>:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@sandboxenv</span>(name<span class="op">=</span><span class="st">"podman"</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PodmanSandboxEnvironment(SandboxEnvironment):</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">@classmethod</span></span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> task_init(</span>
@@ -429,7 +431,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        task_name: <span class="bu">str</span>, </span>
 <span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        config: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>, </span>
 <span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        metadata: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>]</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, ToolEnvironment]:</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, SandboxEnvironment]:</span>
 <span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>        ...</span>
 <span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">@classmethod</span></span>
@@ -437,7 +439,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>        cls,</span>
 <span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>        task_name: <span class="bu">str</span>,</span>
 <span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>        config: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>,</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>        environments: <span class="bu">dict</span>[<span class="bu">str</span>, ToolEnvironment],</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>        environments: <span class="bu">dict</span>[<span class="bu">str</span>, SandboxEnvironment],</span>
 <span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>        interrupted: <span class="bu">bool</span>,</span>
 <span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
 <span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>        ...</span>
@@ -452,37 +454,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> cli_cleanup(cls, <span class="bu">id</span>: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
 <span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>        ...</span>
 <span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="bu">exec</span>(</span>
-<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
-<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>        cmd: <span class="bu">list</span>[<span class="bu">str</span>],</span>
-<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>        cwd: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>        env: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
-<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>        timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ExecResult[<span class="bu">str</span>]:</span>
-<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> write_file(</span>
-<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, contents: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span></span>
-<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
-<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>    <span class="at">@overload</span></span>
-<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(</span>
-<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: Literal[<span class="va">True</span>] <span class="op">=</span> <span class="va">True</span></span>
-<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">str</span>: </span>
-<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a>      </span>
-<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a>    <span class="at">@overload</span></span>
-<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(</span>
-<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: Literal[<span class="va">False</span>]</span>
-<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">bytes</span>: </span>
-<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb6-65"><a href="#cb6-65" aria-hidden="true" tabindex="-1"></a>      </span>
-<span id="cb6-66"><a href="#cb6-66" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(</span>
-<span id="cb6-67"><a href="#cb6-67" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
-<span id="cb6-68"><a href="#cb6-68" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Union[<span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>]:</span>
-<span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>    <span class="co"># (instance methods shown below)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The class methods take care of various stages of initialisation, setup, and teardown:</p>
 <table class="table">
 <colgroup>
@@ -500,82 +472,122 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>task_init()</code></td>
-<td>Called once for each unique tool environment config before executing the tasks in an <code>eval()</code> run.</td>
+<td>Called once for each unique sandbox environment config before executing the tasks in an <code>eval()</code> run.</td>
 <td>Expensive initialisation operations (e.g.&nbsp;pulling or building images)</td>
 </tr>
 <tr class="even">
 <td><code>sample_init()</code></td>
 <td>Called at the beginning of each <code>Sample</code>.</td>
-<td>Create <code>ToolEnvironment</code> instances for the sample.</td>
+<td>Create <code>SandboxEnvironment</code> instances for the sample.</td>
 </tr>
 <tr class="odd">
 <td><code>sample_cleanup()</code></td>
 <td>Called at the end of each <code>Sample</code></td>
-<td>Cleanup <code>ToolEnvironment</code> instances for the sample.</td>
+<td>Cleanup <code>SandboxEnvironment</code> instances for the sample.</td>
 </tr>
 <tr class="even">
 <td><code>task_cleanup()</code></td>
-<td>Called once for each unique tool environment config after executing the tasks in an <code>eval()</code> run.</td>
+<td>Called once for each unique sandbox environment config after executing the tasks in an <code>eval()</code> run.</td>
 <td>Last chance handler for any resources not yet cleaned up (see also discussion below).</td>
 </tr>
 <tr class="odd">
 <td><code>cli_cleanup()</code></td>
-<td>Called via <code>inspect toolenv cleanup</code></td>
-<td>CLI invoked manual cleanup of resources created by this <code>ToolEnvironment</code>.</td>
+<td>Called via <code>inspect sandbox cleanup</code></td>
+<td>CLI invoked manual cleanup of resources created by this <code>SandboxEnvironment</code>.</td>
 </tr>
 </tbody>
 </table>
-<p>In the case of parallel execution of a group of tasks within the same working directory, the <code>task_init()</code> and <code>task_cleanup()</code> functions will be called once for each unique tool environment configuration (e.g.&nbsp;Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.</p>
+<p>In the case of parallel execution of a group of tasks within the same working directory, the <code>task_init()</code> and <code>task_cleanup()</code> functions will be called once for each unique sandbox environment configuration (e.g.&nbsp;Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.</p>
 <p>The <code>task_cleanup()</code> has a number of important functions:</p>
 <ol type="1">
 <li>There may be global resources that are not tied to samples that need to be cleaned up.</li>
 <li>It’s possible that <code>sample_cleanup()</code> will be interrupted (e.g.&nbsp;via a Ctrl+C) during execution. In that case its resources are still not cleaned up.</li>
 <li>The <code>sample_cleanup()</code> function might be long running, and in the case of error or interruption you want to provide explicit user feedback on the cleanup in the console (which isn’t possible when cleanup is run “inline” with samples). An <code>interrupted</code> flag is passed to <code>sample_cleanup()</code> which allows for varying behaviour for this scenario.</li>
-<li>Cleanup may be disabled (e.g.&nbsp;when the user passes <code>--no-toolenv-cleanup</code>) in which case it should print container IDs and instructions for cleaning up after the containers are no longer needed.</li>
+<li>Cleanup may be disabled (e.g.&nbsp;when the user passes <code>--no-sandbox-cleanup</code>) in which case it should print container IDs and instructions for cleaning up after the containers are no longer needed.</li>
 </ol>
-<p>To implement <code>task_cleanup()</code> properly, you’ll likely need to track running environments using a per-coroutine <code>ContextVar</code>. The <code>DockerToolEnvironment</code> provides an example of this. Note that the <code>cleanup</code> argument passed to <code>task_cleanup()</code> indicates whether to actually clean up (it would be <code>False</code> if <code>--no-toolenv-cleanup</code> was passed to <code>inspect eval</code>). In this case you might want to print a list of the resources that were not cleaned up and provide directions on how to clean them up manually.</p>
+<p>To implement <code>task_cleanup()</code> properly, you’ll likely need to track running environments using a per-coroutine <code>ContextVar</code>. The <code>DockerSandboxEnvironment</code> provides an example of this. Note that the <code>cleanup</code> argument passed to <code>task_cleanup()</code> indicates whether to actually clean up (it would be <code>False</code> if <code>--no-sandbox-cleanup</code> was passed to <code>inspect eval</code>). In this case you might want to print a list of the resources that were not cleaned up and provide directions on how to clean them up manually.</p>
 <p>The <code>cli_cleanup()</code> function is a global cleanup handler that should be able to do the following:</p>
 <ol type="1">
-<li>Cleanup <em>all</em> environments created by this provider (corresponds to e.g.&nbsp;<code>inspect toolenv cleanup docker</code> at the CLI).</li>
-<li>Cleanup a single environment created by this provider (corresponds to e.g.&nbsp;<code>inspect toolenv cleanup docker &lt;id&gt;</code> at the CLI).</li>
+<li>Cleanup <em>all</em> environments created by this provider (corresponds to e.g.&nbsp;<code>inspect sandbox cleanup docker</code> at the CLI).</li>
+<li>Cleanup a single environment created by this provider (corresponds to e.g.&nbsp;<code>inspect sandbox cleanup docker &lt;id&gt;</code> at the CLI).</li>
 </ol>
-<p>The <code>task_cleanup()</code> function will typically print out the information required to invoke <code>cli_cleanup()</code> when it is invoked with <code>cleanup = False</code>. Try invoking the <code>DockerToolEnvironmet</code> with <code>--no-toolenv-cleanup</code> to see an example.</p>
-<p>The <code>ToolEnvironment</code> instance methods provide access to process execution and file input/output within the environment. A few notes on implementing these methods:</p>
-<ol type="1">
-<li><p>The <code>exec()</code> method currently only handles text output. If a call results in binary output then a <code>UnicodeDecodeError</code> will be raised. Tool environments should catch this and raise a <code>ToolError</code>.</p></li>
-<li><p>The <code>read_file()</code> method raise a <code>FileNotFoundError</code> if the specified <code>file</code> does not exist in the tool environment, as tools calling <code>read_file()</code> will often want to catch the <code>FileNotFoundError</code> and re-throw a <code>ToolError</code> (since models will frequently attempt to read files that do not exist).</p></li>
-</ol>
-<p>The best way to learn about writing tool environments is to look at the source code for the built in environments, <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_environment/local.py">LocalToolEnvironment</a> and <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_environment/docker/docker.py">DockerToolEnvironment</a>.</p>
+<p>The <code>task_cleanup()</code> function will typically print out the information required to invoke <code>cli_cleanup()</code> when it is invoked with <code>cleanup = False</code>. Try invoking the <code>DockerSandboxEnvironment</code> with <code>--no-sandbox-cleanup</code> to see an example.</p>
+<p>The <code>SandboxEnvironment</code> instance methods provide access to process execution and file input/output within the environment.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxEnvironment:</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>   </span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="bu">exec</span>(</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        cmd: <span class="bu">list</span>[<span class="bu">str</span>],</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        cwd: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        env: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ExecResult[<span class="bu">str</span>]:</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co">        Raises:</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co">          FileNotFoundError: If the file does not exist.</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">          UnicodeDecodeError: If an error occurs while</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">            decoding the command output.</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">          PermissionError: If the user does not have</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="co">            permission to execute the command.</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> write_file(</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, contents: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="co">        Raises:</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a><span class="co">          PermissionError: If the user does not have</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="co">            permission to write to the specified path.</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Union[<span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>]:</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a><span class="co">        Raises:</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a><span class="co">          FileNotFoundError: If the file does not exist.</span></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a><span class="co">          UnicodeDecodeError: If an encoding error occurs </span></span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a><span class="co">            while reading the file.</span></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a><span class="co">          PermissionError: If the user does not have</span></span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a><span class="co">            permission to read from the specified path.</span></span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that <code>write_file()</code> automatically creates parent directories as required if they don’t exist.</p>
+<p>For each method there is a documented set of errors that are raised: these are <em>expected</em> errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, <em>unexpected</em> errors may occur (e.g.&nbsp;a networking error connecting to a remote container): these errors are not reported to the model and fail the <code>Sample</code> with an error state.</p>
+<p>The best way to learn about writing sandbox environments is to look at the source code for the built in environments, <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/local.py">LocalSandboxEnvironment</a> and <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/docker/docker.py">DockerSandboxEnvironment</a>.</p>
 <section id="environment-registration" class="level3">
 <h3 class="anchored" data-anchor-id="environment-registration">Environment Registration</h3>
-<p>You should build your custom tool environment within a Python package, and then register an <code>inspect_ai</code> <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect loads your extension before it attempts to resolve a tool environment that uses your provider.</p>
-<p>For example, if your package was named <code>inspect_package</code> and your tool environment provider was exported from a source file named <code>inspect_extensions.py</code> at the root of your package, you would register it like this in <code>pyproject.toml</code>:</p>
+<p>You should build your custom sandbox environment within a Python package, and then register an <code>inspect_ai</code> <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect loads your extension before it attempts to resolve a sandbox environment that uses your provider.</p>
+<p>For example, if your package was named <code>inspect_package</code> and your sandbox environment provider was exported from a source file named <code>inspect_extensions.py</code> at the root of your package, you would register it like this in <code>pyproject.toml</code>:</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset" data-group="entry-points">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-2-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-1" role="tab" aria-controls="tabset-2-1" aria-selected="true">Setuptools</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-2-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-2" role="tab" aria-controls="tabset-2-2" aria-selected="false">Poetry</a></li></ul>
 <div class="tab-content" data-group="entry-points">
 <div id="tabset-2-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-2-1-tab">
-<div class="sourceCode" id="cb7"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">inspect_package</span> <span class="op">=</span> <span class="st">"inspect_package.inspect_extensions"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="dt">inspect_package</span> <span class="op">=</span> <span class="st">"inspect_package.inspect_extensions"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div id="tabset-2-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-2-2-tab">
-<div class="sourceCode" id="cb8"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[tool.poetry.plugins.inspect_ai]</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="dt">inspect_package</span> <span class="op">=</span> <span class="st">"inspect_package.inspect_extensions"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[tool.poetry.plugins.inspect_ai]</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="dt">inspect_package</span> <span class="op">=</span> <span class="st">"inspect_package.inspect_extensions"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
 </section>
 <section id="environment-usage" class="level3">
 <h3 class="anchored" data-anchor-id="environment-usage">Environment Usage</h3>
-<p>Once the package is installed, you can refer to the custom tool environment the same way you’d refer to a built in tool environment. For example:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    tool_environment<span class="op">=</span><span class="st">"podman"</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Tool environments can be invoked with an optional configuration parameter, which is passed as the <code>config</code> argument to the <code>startup()</code> and <code>setup()</code> methods. In Python this is done with a tuple</p>
+<p>Once the package is installed, you can refer to the custom sandbox environment the same way you’d refer to a built in sandbox environment. For example:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    tool_environment<span class="op">=</span>(<span class="st">"podman"</span>,<span class="st">"config.yaml"</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    sandbox<span class="op">=</span><span class="st">"podman"</span></span>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Sandbox environments can be invoked with an optional configuration parameter, which is passed as the <code>config</code> argument to the <code>startup()</code> and <code>setup()</code> methods. In Python this is done with a tuple</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    sandbox<span class="op">=</span>(<span class="st">"podman"</span>,<span class="st">"config.yaml"</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="storage" class="level2">
@@ -602,14 +614,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><code>list_eval_logs()</code> , <code>read_eval_log()</code>, <code>write_eval_log()</code>, and <code>retryable_eval_logs()</code>.</p></li>
 </ul>
 <p>For example, to use S3 you would prefix your paths with <code>s3://</code>:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read a prompt template from s3</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>prompt_template(<span class="st">"s3://inspect-prompts/ctf.txt"</span>)</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co"># read a dataset from S3</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>csv_dataset(<span class="st">"s3://inspect-datasets/ctf-12.csv"</span>)</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co"># read eval logs from S3</span></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>list_eval_logs(<span class="st">"s3://my-s3-inspect-log-bucket"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read a prompt template from s3</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>prompt_template(<span class="st">"s3://inspect-prompts/ctf.txt"</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># read a dataset from S3</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>csv_dataset(<span class="st">"s3://inspect-datasets/ctf-12.csv"</span>)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co"># read eval logs from S3</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>list_eval_logs(<span class="st">"s3://my-s3-inspect-log-bucket"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="custom-filesystems" class="level3">
 <h3 class="anchored" data-anchor-id="custom-filesystems">Custom Filesystems</h3>
@@ -626,17 +638,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><code>unstrip_protocol()</code></li>
 <li><code>invalidate_cache()</code></li>
 </ul>
-<p>As with Model APIs and Tool Environments, fsspec filesystems should be registered using a <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. For example, if your package is named <code>inspect_package</code> and you have implemented a <code>myfs://</code> filesystem using the <code>MyFs</code> class exported from the root of the package, you would register it like this in <code>pyproject.toml</code>:</p>
+<p>As with Model APIs and Sandbox Environments, fsspec filesystems should be registered using a <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. For example, if your package is named <code>inspect_package</code> and you have implemented a <code>myfs://</code> filesystem using the <code>MyFs</code> class exported from the root of the package, you would register it like this in <code>pyproject.toml</code>:</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset" data-group="entry-points">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-3-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-3-1" role="tab" aria-controls="tabset-3-1" aria-selected="true">Setuptools</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-3-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-3-2" role="tab" aria-controls="tabset-3-2" aria-selected="false">Poetry</a></li></ul>
 <div class="tab-content" data-group="entry-points">
 <div id="tabset-3-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-3-1-tab">
-<div class="sourceCode" id="cb12"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points."</span><span class="dt">fsspec.specs"</span><span class="kw">]</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="dt">myfs</span> <span class="op">=</span> <span class="st">"inspect_package:MyFs"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points."</span><span class="dt">fsspec.specs"</span><span class="kw">]</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="dt">myfs</span> <span class="op">=</span> <span class="st">"inspect_package:MyFs"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div id="tabset-3-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-3-2-tab">
-<div class="sourceCode" id="cb13"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[tool.poetry.plugins."</span><span class="dt">fsspec.specs"</span><span class="kw">]</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="dt">myfs</span> <span class="op">=</span> <span class="st">"inspect_package:MyFs"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[tool.poetry.plugins."</span><span class="dt">fsspec.specs"</span><span class="kw">]</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="dt">myfs</span> <span class="op">=</span> <span class="st">"inspect_package:MyFs"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
