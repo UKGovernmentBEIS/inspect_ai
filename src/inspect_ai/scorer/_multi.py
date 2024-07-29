@@ -3,7 +3,7 @@ import asyncio
 from inspect_ai.solver import TaskState
 
 from ._metric import Score
-from ._reducer import ScoreReducer
+from ._reducer.types import ScoreReducer
 from ._scorer import Scorer
 from ._target import Target
 

@@ -19,7 +19,15 @@ from ._metrics.std import bootstrap_std, std, stderr
 from ._model import model_graded_fact, model_graded_qa
 from ._multi import multi_scorer
 from ._pattern import pattern
-from ._reducer import ScoreReducer, at_least, avg, best_of, majority, median
+from ._reducer import (
+    ScoreReducer,
+    at_least,
+    avg,
+    best_of,
+    majority,
+    median,
+    score_reducer,
+)
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -52,6 +60,7 @@ __all__ = [
     "NOANSWER",
     "multi_scorer",
     "ScoreReducer",
+    "score_reducer",
     "majority",
     "avg",
     "median",

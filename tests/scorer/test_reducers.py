@@ -13,9 +13,10 @@ from inspect_ai.scorer import (
     majority,
     match,
     median,
+    score_reducer,
     value_to_float,
 )
-from inspect_ai.scorer._reducer import score_reducer, score_reducer_create
+from inspect_ai.scorer._reducer import create_reducers
 
 avg_reducer = avg()
 median_reducer = median()
@@ -86,8 +87,7 @@ def sum(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
 
 
 def test_scorer_lookup():
-    scorer = score_reducer_create("add_em_up")
-    assert scorer
+    assert create_reducers("add_em_up")
 
 
 def eval_with_reducer():

@@ -8,7 +8,7 @@ from inspect_ai.util import resource
 from ._metric import INCORRECT, Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
-from ._reducer import majority
+from ._reducer.reducer import majority
 from ._scorer import Scorer, scorer
 from ._target import Target
 
