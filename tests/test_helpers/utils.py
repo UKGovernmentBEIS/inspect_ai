@@ -63,6 +63,10 @@ def skip_if_no_azureai(func):
     return skip_if_env_var("AZURE_API_KEY", exists=False)(func)
 
 
+def skip_if_no_vertex(func):
+    return skip_if_env_var("ENABLE_VERTEX_TESTS", exists=False)(func)
+
+
 def skip_if_github_action(func):
     return skip_if_env_var("GITHUB_ACTIONS", exists=True)(func)
 
