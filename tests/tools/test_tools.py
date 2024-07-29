@@ -8,6 +8,7 @@ from test_helpers.utils import (
     skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
+    skip_if_no_vertex,
 )
 from tool_call_utils import get_tool_call, get_tool_calls, get_tool_response
 
@@ -183,6 +184,11 @@ def test_groq_tools():
 @skip_if_no_google
 def test_google_tools():
     check_tools("google/gemini-1.0-pro")
+
+
+@skip_if_no_vertex
+def test_vertex_tools():
+    check_tools("vertex/gemini-1.5-flash")
 
 
 @skip_if_no_openai
