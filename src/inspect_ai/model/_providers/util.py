@@ -73,8 +73,9 @@ def parse_tool_call(
             try:
                 value = yaml.safe_load(arguments)
                 arguments_dict[tool_info.params[0].name] = value
-            except yaml.parser.ParserError as ex:
-                report_parse_error(ex)
+            except yaml.error.YAMLError:
+                # If the yaml parser fails, we treat it as a string argument.
+                arguments_dict[tool_info.params[0].name] = arguments
 
     # return ToolCall with error payload
     return ToolCall(
