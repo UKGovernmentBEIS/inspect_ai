@@ -6,8 +6,11 @@ from google.ai.generativelanguage import (
     Blob,
     Candidate,
     FunctionCall,
+    FunctionDeclaration,
     FunctionResponse,
     Part,
+    Schema,
+    Type,
 )
 from google.api_core.exceptions import TooManyRequests
 from google.api_core.retry.retry_base import if_transient_error
@@ -20,7 +23,6 @@ from google.generativeai.types import (  # type: ignore
     AsyncGenerateContentResponse,
     ContentDict,
     ContentsType,
-    FunctionDeclaration,
     HarmBlockThreshold,
     HarmCategory,
     PartDict,
@@ -33,7 +35,7 @@ from typing_extensions import override
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data
-from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
+from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
 
 from .._chat_message import (
     ChatMessage,
@@ -251,16 +253,52 @@ def prepend_system_messages(
         messages.insert(0, ContentDict(role="user", parts=system_parts))
 
 
+# https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
+
+
 def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
     declarations = [
         FunctionDeclaration(
             name=tool.name,
             description=tool.description,
-            parameters=tool.parameters.model_dump(exclude_none=True),
+            parameters=schema_from_param(tool.parameters),
         )
         for tool in tools
     ]
     return [Tool(declarations)]
+
+
+def schema_from_param(param: ToolParam | ToolParams) -> Schema:
+    if isinstance(param, ToolParams):
+        param = ToolParam(
+            type=param.type, properties=param.properties, required=param.required
+        )
+
+    if param.type == "number":
+        return Schema(type=Type.NUMBER, description=param.description)
+    elif param.type == "integer":
+        return Schema(type=Type.INTEGER, description=param.description)
+    elif param.type == "boolean":
+        return Schema(type=Type.BOOLEAN, description=param.description)
+    elif param.type == "string":
+        return Schema(type=Type.STRING, description=param.description)
+    elif param.type == "array":
+        return Schema(
+            type=Type.ARRAY,
+            description=param.description,
+            items=schema_from_param(param.items) if param.items else None,
+        )
+    elif param.type == "object":
+        return Schema(
+            type=Type.OBJECT,
+            description=param.description,
+            properties={k: schema_from_param(v) for k, v in param.properties.items()}
+            if param.properties is not None
+            else None,
+            required=param.required,
+        )
+    else:
+        return Schema(type=Type.TYPE_UNSPECIFIED)
 
 
 def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
