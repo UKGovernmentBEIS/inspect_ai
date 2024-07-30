@@ -4,7 +4,7 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from ._tool import Tool, ToolError, ToolResult, tool
 from ._tool_call import ToolCall
 from ._tool_choice import ToolChoice, ToolFunction
-from ._tool_info import ToolInfo, ToolParam
+from ._tool_info import ToolInfo, ToolParam, ToolParams
 from ._tools._execute import bash, python
 from ._tools._web_search import web_search
 
@@ -24,6 +24,7 @@ __all__ = [
     "ToolFunction",
     "ToolInfo",
     "ToolParam",
+    "ToolParams",
 ]
 
 _UTIL_MODULE_VERSION = "0.3.19"

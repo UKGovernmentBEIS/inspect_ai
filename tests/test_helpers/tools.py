@@ -8,7 +8,7 @@ from inspect_ai.util import sandbox
     please use the addition tool to compute the result."""
 )
 def addition():
-    async def add(x: int, y: int):
+    async def execute(x: int, y: int):
         """
         Tool for adding two numbers.
 
@@ -22,7 +22,7 @@ def addition():
         # return as list[Content] to confirm that codepath works
         return [ContentText(text=str(x + y))]
 
-    return add
+    return execute
 
 
 @tool(prompt="If you need to read a file, use the read_file tool.")
@@ -70,21 +70,10 @@ def list_files():
     return execute
 
 
-@tool(prompt="Use the exec tool to run programs")
-def exec():
-    async def execute(program: str):
-        """Run a program
-
-        Args:
-            program (str): Program to run
-
-        Returns:
-            Program output
-        """
-        result = await sandbox().exec([program])
-        if result.success:
-            return result.stdout
-        else:
-            raise ToolError(result.stderr)
+@tool(prompt="Use the raise_error tool if asked to raise an error.")
+def raise_error():
+    async def execute():
+        """Raise an error."""
+        raise RuntimeError("Raising an error.")
 
     return execute
