@@ -22,6 +22,7 @@ export type Model = string;
 export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type Epochs = number | null;
+export type EpochsReducer = string[] | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
@@ -60,6 +61,7 @@ export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
 export type Name2 = string;
 export type Scorer = string;
+export type Reducer = string | null;
 export type Name3 = string;
 export type Value = number;
 export type Metadata1 = {} | null;
@@ -210,6 +212,7 @@ export interface ModelArgs {}
 export interface EvalConfig {
   limit: Limit;
   epochs: Epochs;
+  epochs_reducer: EpochsReducer;
   max_messages: MaxMessages;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
@@ -269,6 +272,7 @@ export interface EvalResults {
 export interface EvalScore {
   name: Name2;
   scorer: Scorer;
+  reducer: Reducer;
   params: Params1;
   metrics: Metrics;
   metadata: Metadata2;
