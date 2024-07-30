@@ -17,6 +17,8 @@ from typing import (
 from docstring_parser import Docstring, parse
 from pydantic import BaseModel, Field
 
+# see https://github.com/konradhalas/dacite for dataclass from dict
+
 
 class ToolParam(BaseModel):
     type: Literal[
