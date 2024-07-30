@@ -142,7 +142,7 @@ def parse_type(type_hint: Type[Any]) -> ToolParam:
             or (isinstance(type_hint, type) and issubclass(type_hint, BaseModel))
         ):
             return parse_object(type_hint)
-        elif type_hint == Any:
+        else:
             return ToolParam()
     elif origin is list or origin is List:
         return ToolParam(
