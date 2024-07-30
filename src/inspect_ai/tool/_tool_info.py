@@ -18,12 +18,13 @@ from typing import (
 from docstring_parser import Docstring, parse
 from pydantic import BaseModel, Field
 
-# see https://github.com/konradhalas/dacite for dataclass from dict
-
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
+"""Validate types within JSON schema."""
 
 
 class ToolParam(BaseModel):
+    """Description of tool parameter in JSON Schema format."""
+
     type: JSONType = Field(default="null")
     description: str | None = Field(default=None)
     default: Any = Field(default=None)
@@ -35,15 +36,46 @@ class ToolParam(BaseModel):
 
 
 class ToolParams(BaseModel):
+    """Descrition of tool parameters object in JSON Schema format."""
+
     type: Literal["object"] = Field(default="object")
     properties: dict[str, ToolParam] = Field(default_factory=dict)
     required: list[str] = Field(default_factory=list)
 
 
 class ToolInfo(BaseModel):
+    """Specification of a tool (JSON Schema compatible)
+
+    If you are implementing a ModelAPI, most LLM libraries can
+    be passed this object (dumped to a dict) directly as a function
+    specification. For example, in the OpenAI provider:
+
+    ```python
+    ChatCompletionToolParam(
+        type="function",
+        function=tool.model_dump(exclude_none=True),
+    )
+    ```
+
+    In some cases the field names don't match up exactly. In that case
+    call `model_dump()` on the `parameters` field. For example, in the
+    Anthropic provider:
+
+    ```python
+    ToolParam(
+        name=tool.name,
+        description=tool.description,
+        input_schema=tool.parameters.model_dump(exclude_none=True),
+    )
+    ```
+    """
+
     name: str
+    """Name of tool."""
     description: str
+    """Short description of tool."""
     parameters: ToolParams = Field(default_factory=ToolParams)
+    """JSON Schema of tool parameters object."""
 
 
 def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
