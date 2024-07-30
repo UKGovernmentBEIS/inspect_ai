@@ -4,6 +4,7 @@ from typing import Any
 
 import vertexai  # type: ignore
 from google.api_core.exceptions import TooManyRequests
+from google.protobuf.json_format import MessageToDict
 from typing_extensions import override
 from vertexai.generative_models import (  # type: ignore
     Candidate,
@@ -38,7 +39,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._util import chat_api_tool
 
 SAFETY_SETTINGS = "safety_settings"
 VERTEX_INIT_ARGS = "vertex_init_args"
@@ -169,7 +169,6 @@ async def content_dict(
         return VertexContent(role="user", parts=parts)
     elif isinstance(message, ChatMessageAssistant):
         if message.tool_calls is not None:
-            print(f"Message is ChatMessageAssistant: {message}")
             content_parts = [
                 # For some reason there's no `Parts.from_function_call`
                 # function, but there's a generic `from_dict` instead
@@ -232,14 +231,13 @@ def prepend_system_messages(
 
 
 def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
-    chat_tools = [chat_api_tool(tool) for tool in tools]
     declarations = [
         FunctionDeclaration(
-            name=tool["function"]["name"],
-            description=tool["function"]["description"],
-            parameters=tool["function"]["parameters"],
+            name=tool.name,
+            description=tool.description,
+            parameters=tool.parameters.model_dump(exclude_none=True),
         )
-        for tool in chat_tools
+        for tool in tools
     ]
     return [Tool(declarations)]
 
@@ -258,16 +256,13 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     tool_calls: list[ToolCall] = []
     for part in candidate.content.parts:
         if part.function_call:
-            arguments: dict[str, Any] = {}
-            for key in part.function_call.args:
-                val = part.function_call.args[key]
-                arguments[key] = val
+            function_call = MessageToDict(getattr(part.function_call, "_pb"))
             tool_calls.append(
                 ToolCall(
                     type="function",
-                    id=part.function_call.name,
-                    function=part.function_call.name,
-                    arguments=arguments,
+                    id=function_call["name"],
+                    function=function_call["name"],
+                    arguments=function_call["args"],
                 )
             )
 

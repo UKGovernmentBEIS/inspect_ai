@@ -13,6 +13,10 @@
 - Enable parallel execution of tasks that share a working directory.
 - Add `chdir` option to `@task` to opt-out of changing the working directory during task execution.
 - Enable overriding of default safety settings for Google models.
+- Use Python type annotations as the first source of type info for tool functions (fallback to docstrings only if necessary)
+- Support for richer types (list, TypeDict, dataclass, Pydantic, etc.) in tool calling.
+- Change `ToolInfo` parameters to be directly expressed in JSON Schema (making it much easier to pass them to model provider libraries).
+- Validate tool call inputs using JSON Schema and report errors to the model.
 - Gracefully handle tool calls that include only a single value (rather than a named dict of parameters).
 - Support `tool_choice="any"` for OpenAI models (requires >= 1.24.0 of openai package).
 - Make multiple tool calls in parallel. Parallel tool calls occur by default for OpenAI, Anthropic, Mistral, and Groq. You can disable this behavior for OpenAI and Groq with `--parallel-tool-calls false`.

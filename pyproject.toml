@@ -132,6 +132,7 @@ dev = [
     "types-beautifulsoup4",
     "types-boto3",
     "types-botocore",
+    "types-jsonschema",
     "types-protobuf",
     "types-psutil",
     "types-python-dateutil",

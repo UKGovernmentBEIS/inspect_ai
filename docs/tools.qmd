@@ -14,7 +14,7 @@ One application of tools is to run them within an agent scaffold that pursues an
 
 ## Tool Basics
 
-To demonstrate the use of tools, we'll define a simple tool that adds two numbers. We use the `@tool` decorator to register it with the system, and we provide a documentation comment (including argument types) that is used to provide details to the model about the tool:
+To demonstrate the use of tools, we'll define a simple tool that adds two numbers. We use the `@tool` decorator to register it with the system, and we provide documentation comments that iare used to provide details to the model about the tool and its arguments:
 
 ``` python
 @tool(prompt="""
@@ -27,8 +27,8 @@ def add():
         Tool for adding two numbers.
 
         Args:
-            x (int): First number to add.
-            y (int): Second number to add.
+            x: First number to add.
+            y: Second number to add.
 
         Returns:
             The sum of the two numbers.
@@ -37,6 +37,26 @@ def add():
 
     return execute
 ```
+
+### Annotations
+
+Note that we provide type annotations for both arguments:
+
+``` python
+async def execute(x: int, y: int)
+```
+
+Further, we provide descriptions for each parameter in the documention comment:
+
+```python
+Args:
+    x: First number to add.
+    y: Second number to add.
+```
+
+Type annotations and descriptions are *required* for tool declarations so that the model can be informed which types to pass back to the tool function and what the purpose of each parameter is.
+
+### Using Tools
 
 We can use this tool in an evaluation by passing it to the `use_tools()` Solver:
 
@@ -112,7 +132,6 @@ except TimeoutError:
 
 Tools may have a need to interact with a sandboxed environment (e.g. to provide models with the ability to execute arbitrary bash or python commands). The active sandbox environment can be obtained via the `sandbox()` function. For example:
 
-
 ``` python
 from inspect_ai.tool import ToolError, tool
 from inspect_ai.util import sandbox
@@ -136,7 +155,6 @@ def list_files():
 
     return execute
 ```
-
 
 The following instance methods are available to tools that need to interact with a `SandboxEnvironment`:
 

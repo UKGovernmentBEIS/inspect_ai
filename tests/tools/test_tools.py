@@ -1,7 +1,7 @@
 from random import randint
 from typing import Literal
 
-from test_helpers.tools import addition, exec, read_file
+from test_helpers.tools import addition, raise_error, read_file
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
@@ -107,7 +107,7 @@ def check_tools_calls(model: Model, **model_args) -> None:
     log: list[EvalLog] = eval(task, model=model, model_args=model_args)
 
     # check that we got the answer right
-    assert log[0].results and log[0].results.metrics["accuracy"].value == 1
+    assert log[0].results and log[0].results.scores[0].metrics["accuracy"].value == 1
 
     # check that there is a tool_call
     assert log[0].samples
@@ -267,8 +267,8 @@ def test_tool_error():
 @skip_if_no_openai
 def test_tool_eval_error():
     task = Task(
-        dataset=[Sample(input="Run the program 'floozle'")],
-        plan=[use_tools([exec()]), generate()],
+        dataset=[Sample(input="Please raise an error.")],
+        plan=[use_tools([raise_error()]), generate()],
         scorer=match(),
         sandbox="local",
     )
