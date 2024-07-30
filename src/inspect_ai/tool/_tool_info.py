@@ -19,11 +19,11 @@ from pydantic import BaseModel, Field
 
 # see https://github.com/konradhalas/dacite for dataclass from dict
 
+JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
+
 
 class ToolParam(BaseModel):
-    type: Literal[
-        "string", "integer", "number", "boolean", "array", "object", "null"
-    ] = Field(default="null")
+    type: JSONType = Field(default="null")
     description: str | None = Field(default=None)
     default: Any = Field(default=None)
     items: Optional["ToolParam"] = Field(default=None)
@@ -56,9 +56,19 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
     for param_name, param in signature.parameters.items():
         tool_param = ToolParam()
 
+        # Parse docstring
+        docstring_info = parse_docstring(docstring, param_name)
+
         # Get type information from type annotations
         if param_name in type_hints:
             tool_param = parse_type(type_hints[param_name])
+        # as a fallback try to parse it from the docstring
+        # (this is minimally necessary for backwards compatiblity
+        #  with tools gen1 type parsing, which only used docstrings)
+        elif "docstring_type" in docstring_info:
+            json_type = python_type_to_json_type(docstring_info["docstring_type"])
+            if json_type and (json_type in get_args(JSONType)):
+                tool_param = ToolParam(type=json_type)
 
         # Get default value
         if param.default is param.empty:
@@ -66,16 +76,9 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
         else:
             tool_param.default = param.default
 
-        # Parse docstring for additional info
-        docstring_info = parse_docstring(docstring, param_name)
-
         # Add description from docstring
         if "description" in docstring_info:
             tool_param.description = docstring_info["description"]
-
-        # Only add docstring type if no type annotation is present
-        if tool_param.type is None and "docstring_type" in docstring_info:
-            tool_param.type = docstring_info["docstring_type"]
 
         # append the tool param
         info.parameters.properties[param_name] = tool_param
@@ -160,3 +163,23 @@ def parse_docstring(docstring: str | None, param_name: str) -> Dict[str, str]:
             return schema
 
     return {}
+
+
+def python_type_to_json_type(python_type: str) -> JSONType | None:
+    match python_type:
+        case "str":
+            return "string"
+        case "int":
+            return "integer"
+        case "float":
+            return "number"
+        case "bool":
+            return "boolean"
+        case "list":
+            return "array"
+        case "dict":
+            return "object"
+        case "None":
+            return "null"
+        case _:
+            return None

@@ -141,8 +141,32 @@ def tool_defs(tools: list[Tool]) -> list[ToolDef]:
 
 
 def tool_def(tool: Tool) -> ToolDef:
+    # get tool_info
     name, prompt = tool_name_and_prompt(tool)
     tool_info = parse_tool_info(tool)
+
+    # if there is no description and there is a prompt,
+    # then use the prompt as the description
+    if not tool_info.description and prompt is not None:
+        tool_info.description = prompt
+
+    # validate that we have types/descriptions for paramters
+    for param_name, param in tool_info.parameters.properties.items():
+
+        def raise_not_provided_error(context: str) -> None:
+            raise ValueError(
+                f"{context} not provided for parameter '{param_name}' of tool function '{name}'."
+            )
+
+        if param.type == "null":
+            raise_not_provided_error("Type annotation")
+        elif not param.description:
+            raise_not_provided_error("Description")
+        pass
+
+    # validate that we have a description for the function
+    if not tool_info.description:
+        raise ValueError(f"Description not provided for tool function '{name}'")
 
     # build params
     return ToolDef(
