@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 import numpy as np
@@ -17,6 +18,7 @@ from inspect_ai.log._log import EvalLog
 from inspect_ai.model import ChatMessageTool
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import ToolFunction, tool
+from inspect_ai.tool._tool import Tool
 
 
 @tool(prompt="Use the mean tool if asked to take the mean of a set of numbers.")
@@ -60,6 +62,32 @@ def offset():
     return execute
 
 
+@dataclass
+class PointDataclass:
+    x: int
+    y: int
+
+
+@tool(
+    prompt="Use the offset tool if you are asked to offset a point by a certain amount."
+)
+def offset_dataclass():
+    async def execute(point: PointDataclass, offset: int):
+        """
+        Offsets a point by the specified offset value
+
+        Args:
+          point: Point to offset
+          offset: Offset value
+
+        Returns:
+          A Point with the x and y values offset
+        """
+        return str(PointDataclass(x=point.x + offset, y=point.y + offset))
+
+    return execute
+
+
 class Word(BaseModel):
     type: Literal["adjective", "noun"]
     word: str
@@ -77,14 +105,14 @@ def extract_words():
           extracted: A list of Word objects each with a type and word.
 
         Returns:
-          The same structured output passed, for consumption by the application
+          The words and their types in a list
         """
-        return str(extracted)
+        return ", ".join([f"{x.word}: {x.type}" for x in extracted])
 
     return execute
 
 
-def check_typed_dict(model: str) -> None:
+def check_point(model: str, tool: Tool, function_name: str) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -94,13 +122,21 @@ def check_typed_dict(model: str) -> None:
             ]
         ),
         plan=[
-            use_tools([offset()], tool_choice=ToolFunction("offset")),
+            use_tools([tool], tool_choice=ToolFunction(function_name)),
             generate(),
         ],
     )
 
     log = eval(task, model=model)[0]
-    verify_tool_call(log, "{'x': 15")
+    verify_tool_call(log, "15")
+
+
+def check_typed_dict(model: str) -> None:
+    check_point(model, offset(), "offset")
+
+
+def check_dataclass(model: str) -> None:
+    check_point(model, offset_dataclass(), "offset_dataclass")
 
 
 def check_list_of_numbers(model: str) -> None:
@@ -139,11 +175,12 @@ def check_list_of_objects(model: str) -> None:
     )
 
     log = eval(task, model=model)[0]
-    verify_tool_call(log, "[{'type':")
+    verify_tool_call(log, "quick:")
 
 
 def check_tool_types(model: str):
     check_typed_dict(model)
+    check_dataclass(model)
     check_list_of_numbers(model)
     check_list_of_objects(model)
 
@@ -178,8 +215,8 @@ def test_groq_tool_types() -> None:
     check_tool_types("groq/mixtral-8x7b-32768")
 
 
-def verify_tool_call(log: EvalLog, startswith: str):
+def verify_tool_call(log: EvalLog, includes: str):
     assert log.samples
     tool_message = log.samples[0].messages[-2]
     assert isinstance(tool_message, ChatMessageTool)
-    assert tool_message.text.startswith(startswith)
+    assert includes in tool_message.text

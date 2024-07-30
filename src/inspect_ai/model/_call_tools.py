@@ -1,10 +1,20 @@
 import asyncio
-from dataclasses import dataclass
+import inspect
+from dataclasses import dataclass, is_dataclass
 from typing import (
     Any,
     Callable,
+    Dict,
+    List,
+    Type,
     cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+    is_typeddict,
 )
+
+from pydantic import BaseModel
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
@@ -12,7 +22,11 @@ from inspect_ai._util.registry import registry_info
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import TOOL_PROMPT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallError
-from inspect_ai.tool._tool_info import ToolParams, parse_tool_info
+from inspect_ai.tool._tool_info import (
+    ToolParams,
+    parse_docstring,
+    parse_tool_info,
+)
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 
@@ -113,7 +127,7 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
 
     # call the tool
     try:
-        return await tool_def.tool(**call.arguments)
+        return await tool_def.tool(**tool_params(call.arguments, tool_def.tool))
     except TypeError as ex:
         raise ToolParsingError(exception_message(ex))
 
@@ -183,3 +197,86 @@ def tool_name_and_prompt(tool: Tool) -> tuple[str, str | None]:
     name = tool_registry_info.name.split("/")[-1]
     prompt = tool_registry_info.metadata.get(TOOL_PROMPT, None)
     return name, prompt
+
+
+# https://python-jsonschema.readthedocs.io/en/stable/
+
+
+def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
+    # parse function typeinfo
+    signature = inspect.signature(func)
+    type_hints = get_type_hints(func)
+    docstring = inspect.getdoc(func)
+
+    # build params
+    params: dict[str, Any] = {}
+    for param_name, param in signature.parameters.items():
+        # Parse docstring
+        docstring_info = parse_docstring(docstring, param_name)
+
+        # get type hint (fallback to docstring as required)
+        type_hint: Type[Any] | None
+        if param_name in type_hints:
+            type_hint = type_hints[param_name]
+        # as a fallback try to parse it from the docstring
+        elif "docstring_type" in docstring_info:
+            docstring_type = docstring_info["docstring_type"]
+            type_hint = getattr(__builtins__, docstring_type, None)
+
+        # error if there is no type_hint
+        if type_hint is None:
+            raise ValueError(f"No type annotation available for parameter {param_name}")
+
+        # yield parameter (fail if not passed and there is no default)
+        if param_name in input:
+            params[param_name] = tool_param(type_hint, input.get(param_name))
+        elif param.default is not None:
+            params[param_name] = param.default
+        else:
+            raise ToolParsingError(
+                f"Required parameter {param_name} not provided to tool call."
+            )
+
+    return params
+
+
+def tool_param(type_hint: Type[Any], input: Any) -> Any:
+    origin = get_origin(type_hint)
+    args = get_args(type_hint)
+
+    if origin is None:
+        if type_hint in [int, str, float, bool]:
+            try:
+                return type_hint(input)
+            except (ValueError, TypeError):
+                raise ToolParsingError(
+                    f"Unable to convert '{input}' to {type_hint.__name__}"
+                )
+        elif is_typeddict(type_hint):
+            typeddict_data: dict[str, Any] = {}
+            annotations = get_type_hints(type_hint)
+            for name, hint in annotations.items():
+                typeddict_data[name] = tool_param(hint, input.get(name))
+            return typeddict_data
+        elif is_dataclass(type_hint):
+            dataclass_data: dict[str, Any] = {}
+            fields = type_hint.__dataclass_fields__  # type: ignore
+            for name, field in fields.items():
+                dataclass_data[name] = tool_param(field.type, input.get(name))
+            return type_hint(**dataclass_data)
+        elif issubclass(type_hint, BaseModel):
+            return type_hint(**input)
+        else:
+            return input
+    elif origin is list or origin is List:
+        if args:
+            return [tool_param(args[0], x) for x in input]
+        else:
+            return input
+    elif origin is dict or origin is Dict:
+        if args and len(args) > 1:
+            return {k: tool_param(args[1], v) for k, v in input}
+        else:
+            return input
+    else:
+        return input
