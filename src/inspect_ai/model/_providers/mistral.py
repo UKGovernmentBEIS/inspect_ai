@@ -38,7 +38,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._util import chat_api_tool
 from .util import model_base_url, parse_tool_call
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
@@ -153,8 +152,10 @@ class MistralAPI(ModelAPI):
 
 
 def mistral_chat_tools(tools: list[ToolInfo]) -> list[dict[str, Any]]:
-    chat_tools = [chat_api_tool(tool) for tool in tools]
-    return [dict(type=tool["type"], function=tool["function"]) for tool in chat_tools]
+    return [
+        dict(type="function", function=tool.model_dump(exclude_none=True))
+        for tool in tools
+    ]
 
 
 def mistral_chat_tool_choice(tool_choice: ToolChoice) -> MistralToolChoice:

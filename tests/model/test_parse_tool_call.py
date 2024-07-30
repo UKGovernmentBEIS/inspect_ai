@@ -1,29 +1,31 @@
 from inspect_ai.model._providers.util import parse_tool_call
-from inspect_ai.tool import ToolInfo, ToolParam
+from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
 
 testing_tool = ToolInfo(
     name="testing_tool",
     description="This is a testing tool.",
-    params=[
-        ToolParam(
-            name="param1",
-            type="string",
-            description="This is parameter1",
-            optional=False,
-        )
-    ],
+    parameters=ToolParams(
+        properties={
+            "param1": ToolParam(
+                type="string",
+                description="This is parameter1",
+            )
+        },
+        required=["param1"],
+    ),
 )
 testing_tool_bool = ToolInfo(
     name="testing_tool",
     description="This is a testing tool, with a boolean parameter.",
-    params=[
-        ToolParam(
-            name="param1",
-            type="boolean",
-            description="This is parameter1",
-            optional=False,
-        )
-    ],
+    parameters=ToolParams(
+        properties={
+            "param1": ToolParam(
+                type="boolean",
+                description="This is parameter1",
+            )
+        },
+        required=["param1"],
+    ),
 )
 
 
