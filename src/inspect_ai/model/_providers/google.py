@@ -33,7 +33,6 @@ from google.protobuf.struct_pb2 import Struct
 from typing_extensions import override
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
 
@@ -118,40 +117,31 @@ class GoogleAPI(ModelAPI):
             stop_sequences=config.stop_seqs,
         )
 
-        try:
-            # google-native messages
-            messages = await as_chat_messages(input)
+        # google-native messages
+        messages = await as_chat_messages(input)
 
-            # cast to AsyncGenerateContentResponse since we passed stream=False
-            response = cast(
-                AsyncGenerateContentResponse,
-                await self.model.generate_content_async(
-                    contents=messages,
-                    safety_settings=self.safety_settings,
-                    generation_config=parameters,
-                    tools=chat_tools(tools) if len(tools) > 0 else None,
-                    stream=False,
-                ),
-            )
-            choices = completion_choices_from_candidates(response.candidates)
-            choice = choices[0]
-            return ModelOutput(
-                model=self.model_name,
-                choices=[choice],
-                usage=ModelUsage(
-                    input_tokens=response.usage_metadata.prompt_token_count,
-                    output_tokens=response.usage_metadata.candidates_token_count,
-                    total_tokens=response.usage_metadata.total_token_count,
-                ),
-            )
-        except ValueError as ex:
-            # If a safety filter is triggered, the response will be empty and a ValueError will be raised
-            return ModelOutput.from_content(
-                self.model_name,
-                "Sorry, but I can't assist with that",
-                "content_filter",
-                exception_message(ex),
-            )
+        # cast to AsyncGenerateContentResponse since we passed stream=False
+        response = cast(
+            AsyncGenerateContentResponse,
+            await self.model.generate_content_async(
+                contents=messages,
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=chat_tools(tools) if len(tools) > 0 else None,
+                stream=False,
+            ),
+        )
+        choices = completion_choices_from_candidates(response.candidates)
+        choice = choices[0]
+        return ModelOutput(
+            model=self.model_name,
+            choices=[choice],
+            usage=ModelUsage(
+                input_tokens=response.usage_metadata.prompt_token_count,
+                output_tokens=response.usage_metadata.candidates_token_count,
+                total_tokens=response.usage_metadata.total_token_count,
+            ),
+        )
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
