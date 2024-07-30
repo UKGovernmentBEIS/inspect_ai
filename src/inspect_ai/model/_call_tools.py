@@ -14,6 +14,7 @@ from typing import (
     is_typeddict,
 )
 
+from jsonschema import Draft7Validator
 from pydantic import BaseModel
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
@@ -125,6 +126,11 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     if tool_def is None:
         raise ToolParsingError(f"Tool {call.function} not found")
 
+    # validate the schema of the passed object
+    validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
+    if validation_errors:
+        return ToolParsingError(validation_errors)
+
     # call the tool
     try:
         return await tool_def.tool(**tool_params(call.arguments, tool_def.tool))
@@ -197,9 +203,6 @@ def tool_name_and_prompt(tool: Tool) -> tuple[str, str | None]:
     name = tool_registry_info.name.split("/")[-1]
     prompt = tool_registry_info.metadata.get(TOOL_PROMPT, None)
     return name, prompt
-
-
-# https://python-jsonschema.readthedocs.io/en/stable/
 
 
 def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
@@ -280,3 +283,17 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return input
     else:
         return input
+
+
+def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | None:
+    schema = parameters.model_dump(exclude_none=True)
+    validator = Draft7Validator(schema)
+    errors = list(validator.iter_errors(input))
+    if errors:
+        message = "\n".join(
+            [f"Found {len(errors)} validation errors parsing tool input arguments:"]
+            + [f"- {error.message}" for error in errors]
+        )
+        return message
+    else:
+        return None
