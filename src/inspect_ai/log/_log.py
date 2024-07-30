@@ -418,7 +418,9 @@ class LoggingMessage(BaseModel):
         return LoggingMessage(
             # don't include full file paths (as the filename is also below),
             # we just want to use this to capture e.g. 'httpx', 'openai', etc.
-            name=record.name if re.match(r"^[\w_]+$", record.name) is not None else None,
+            name=record.name
+            if re.match(r"^[\w_]+$", record.name) is not None
+            else None,
             level=cast(LoggingLevel, record.levelname.lower()),
             message=record.getMessage(),
             created=record.created * 1000,
@@ -426,7 +428,9 @@ class LoggingMessage(BaseModel):
             module=record.module,
             lineno=record.lineno,
             # serialize anything we can from the additional arguments
-            args=to_jsonable_python(record.args, fallback=lambda _x: None) if record.args else None,
+            args=to_jsonable_python(record.args, fallback=lambda _x: None)
+            if record.args
+            else None,
         )
 
     @model_validator(mode="before")
