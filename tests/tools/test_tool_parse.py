@@ -1,12 +1,12 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from pydantic import BaseModel, Field
 
 from inspect_ai.tool._tool_info import (
     ToolParam,
-    parse_dataclass_or_pydantic,
     parse_docstring,
+    parse_object,
     parse_tool_info,
     parse_type,
 )
@@ -33,7 +33,7 @@ def test_parse_type():
     )
 
 
-def test_parse_dataclass_or_pydantic() -> None:
+def test_parse_object() -> None:
     @dataclass
     class TestDataclass:
         field1: int
@@ -43,14 +43,14 @@ def test_parse_dataclass_or_pydantic() -> None:
         field1: int
         field2: str = Field(default="default")
 
-    dataclass_result = parse_dataclass_or_pydantic(TestDataclass)
+    dataclass_result = parse_object(TestDataclass)
     assert dataclass_result.type == "object"
     assert dataclass_result.properties
     assert "field1" in dataclass_result.properties
     assert "field2" in dataclass_result.properties
     assert dataclass_result.required == ["field1"]
 
-    pydantic_result = parse_dataclass_or_pydantic(TestPydantic)
+    pydantic_result = parse_object(TestPydantic)
     assert pydantic_result.type == "object"
     assert pydantic_result.properties
     assert "field1" in pydantic_result.properties
@@ -320,3 +320,77 @@ def test_dict_with_list_of_pydantic_models() -> None:
         "name"
         in info.parameters.properties["data"].additionalProperties.items.properties
     )
+
+
+def test_simple_typeddict() -> None:
+    class SimpleDict(TypedDict):
+        name: str
+        age: int
+
+    def example_function(data: SimpleDict) -> None:
+        pass
+
+    tool_info = parse_tool_info(example_function)
+
+    assert tool_info.name == "example_function"
+    assert tool_info.parameters.type == "object"
+    assert len(tool_info.parameters.properties) == 1
+
+    data_param = tool_info.parameters.properties["data"]
+    assert data_param.type == "object"
+    assert data_param.properties
+    assert len(data_param.properties) == 2
+    assert data_param.properties["name"].type == "string"
+    assert data_param.properties["age"].type == "integer"
+    assert data_param.required
+    assert set(data_param.required) == {"name", "age"}
+
+
+def test_nested_typeddict() -> None:
+    class Address(TypedDict):
+        street: str
+        city: str
+
+    class Person(TypedDict):
+        name: str
+        address: Address
+
+    def example_function(person: Person) -> None:
+        pass
+
+    tool_info = parse_tool_info(example_function)
+
+    person_param = tool_info.parameters.properties["person"]
+    assert person_param.type == "object"
+    assert person_param.properties
+    assert len(person_param.properties) == 2
+
+    address_prop = person_param.properties["address"]
+    assert address_prop.type == "object"
+    assert address_prop.properties
+    assert len(address_prop.properties) == 2
+    assert address_prop.properties["street"].type == "string"
+    assert address_prop.properties["city"].type == "string"
+
+
+def test_optional_fields() -> None:
+    class OptionalDict(TypedDict, total=False):
+        name: str
+        age: Optional[int]
+
+    def example_function(data: OptionalDict) -> None:
+        pass
+
+    tool_info = parse_tool_info(example_function)
+
+    data_param = tool_info.parameters.properties["data"]
+    assert data_param.type == "object"
+    assert data_param.properties
+    assert len(data_param.properties) == 2
+    assert not data_param.required  # No required fields
+
+    age_prop = data_param.properties["age"]
+    assert age_prop.anyOf
+    assert len(age_prop.anyOf) == 2
+    assert any(prop.type == "integer" for prop in age_prop.anyOf)
+    assert any(prop.type == "null" for prop in age_prop.anyOf)

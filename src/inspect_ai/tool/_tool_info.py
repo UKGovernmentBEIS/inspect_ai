@@ -12,6 +12,7 @@ from typing import (
     get_args,
     get_origin,
     get_type_hints,
+    is_typeddict,
 )
 
 from docstring_parser import Docstring, parse
@@ -103,10 +104,12 @@ def parse_type(type_hint: Type[Any]) -> ToolParam:
             return ToolParam(type="string")
         elif type_hint == bool:
             return ToolParam(type="boolean")
-        elif is_dataclass(type_hint) or (
-            isinstance(type_hint, type) and issubclass(type_hint, BaseModel)
+        elif (
+            is_dataclass(type_hint)
+            or is_typeddict(type_hint)
+            or (isinstance(type_hint, type) and issubclass(type_hint, BaseModel))
         ):
-            return parse_dataclass_or_pydantic(type_hint)
+            return parse_object(type_hint)
         elif type_hint == Any:
             return ToolParam()
     elif origin is list or origin is List:
@@ -126,7 +129,7 @@ def parse_type(type_hint: Type[Any]) -> ToolParam:
     return ToolParam()  # Default case if we can't determine the type
 
 
-def parse_dataclass_or_pydantic(cls: Type[Any]) -> ToolParam:
+def parse_object(cls: Type[Any]) -> ToolParam:
     properties: Dict[str, ToolParam] = {}
     required: List[str] = []
 
@@ -141,6 +144,12 @@ def parse_dataclass_or_pydantic(cls: Type[Any]) -> ToolParam:
         for name, prop in schema.get("properties", {}).items():
             properties[name] = ToolParam(**prop)
         required = schema.get("required", [])
+    elif is_typeddict(cls):
+        annotations = get_type_hints(cls)
+        for name, type_hint in annotations.items():
+            properties[name] = parse_type(type_hint)
+            if name in cls.__required_keys__:
+                required.append(name)
 
     return ToolParam(
         type="object", properties=properties, required=required if required else None

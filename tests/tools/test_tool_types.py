@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TypedDict
 
 import numpy as np
 from pydantic import BaseModel
@@ -23,8 +22,7 @@ from inspect_ai.tool import ToolFunction, tool
 @tool(prompt="Use the mean tool if asked to take the mean of a set of numbers.")
 def mean():
     async def execute(numbers: list[float]) -> float:
-        """
-        Take the mean of a set of numbers.
+        """Take the mean of a set of numbers.
 
         Args:
           numbers: A list of integers to take the mean of
@@ -37,8 +35,7 @@ def mean():
     return execute
 
 
-@dataclass
-class Point:
+class Point(TypedDict):
     x: int
     y: int
 
@@ -58,7 +55,7 @@ def offset():
         Returns:
           A Point with the x and y values offset
         """
-        return str(Point(x=point.x + offset, y=point.y + offset))
+        return str(Point(x=point["x"] + offset, y=point["y"] + offset))
 
     return execute
 
@@ -87,7 +84,7 @@ def extract_words():
     return execute
 
 
-def check_object(model: str) -> None:
+def check_typed_dict(model: str) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -103,7 +100,7 @@ def check_object(model: str) -> None:
     )
 
     log = eval(task, model=model)[0]
-    verify_tool_call(log, "Point")
+    verify_tool_call(log, "{'x': 15")
 
 
 def check_list_of_numbers(model: str) -> None:
@@ -146,6 +143,7 @@ def check_list_of_objects(model: str) -> None:
 
 
 def check_tool_types(model: str):
+    check_typed_dict(model)
     check_list_of_numbers(model)
     check_list_of_objects(model)
 
