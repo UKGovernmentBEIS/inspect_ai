@@ -107,7 +107,7 @@ def check_tools_calls(model: Model, **model_args) -> None:
     log: list[EvalLog] = eval(task, model=model, model_args=model_args)
 
     # check that we got the answer right
-    assert log[0].results and log[0].results.metrics["accuracy"].value == 1
+    assert log[0].results and log[0].results.scores[0].metrics["accuracy"].value == 1
 
     # check that there is a tool_call
     assert log[0].samples
