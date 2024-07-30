@@ -3,15 +3,21 @@ from logging import getLogger
 from typing import Any, Callable, Sequence, cast
 
 from pydantic import BaseModel
+from typing_extensions import TypedDict, Unpack
 
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import Metric, Scorer
+from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 
 logger = getLogger(__name__)
+
+
+class TaskDeprecatedArgs(TypedDict, total=False):
+    tool_environment: str | tuple[str, str] | None
 
 
 class Task:
@@ -29,9 +35,11 @@ class Task:
         metrics (list[Metric]): Additional metrics to compute beyond
           the base metrics provided by the scorer.
         config (GenerateConfig): Model generation config.
-        tool_environment (str | tuple[str,str] | None): Tool
+        sandbox (str | tuple[str,str] | None): Sandbox
            environment type (or optionally a tuple with type and config file)
         epochs (int): Default number of epochs to run for.
+        epochs_reducer (ScoreReducers | None):
+           Reducer function(s) for aggregating scores in each sample (defaults to average).
         max_messages (int | None): Limit on total messages in the conversation.
         name: (str | None): Task name. If not specified is automatically
           determined based on the name of the task directory (or "task")
@@ -48,12 +56,25 @@ class Task:
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] = [],
         config: GenerateConfig = GenerateConfig(),
-        tool_environment: str | tuple[str, str] | None = None,
+        sandbox: str | tuple[str, str] | None = None,
         epochs: int | None = None,
+        epochs_reducer: ScoreReducers | None = None,
         max_messages: int | None = None,
         name: str | None = None,
         version: int = 0,
+        **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
+        # handle deprecated args
+        for arg, value in kwargs.items():
+            newarg = ""
+            if arg == "tool_environment":
+                newarg = "sandbox"
+                sandbox = cast(str | tuple[str, str] | None, value)
+            if newarg:
+                logger.warning(
+                    f"DEPRECATED: the '{arg}' parameter is deprecated (please use the '{newarg}' parameter instead)"
+                )
+
         self.dataset: Dataset = (
             dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
         )
@@ -67,12 +88,9 @@ class Task:
         )
         self.metrics = metrics
         self.config = config
-        self.tool_environment = (
-            (tool_environment, None)
-            if isinstance(tool_environment, str)
-            else tool_environment
-        )
+        self.sandbox = (sandbox, None) if isinstance(sandbox, str) else sandbox
         self.epochs = epochs
+        self.epochs_reducer = create_reducers(epochs_reducer)
         self.max_messages = max_messages
         self.version = version
         self._name = name

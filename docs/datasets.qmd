@@ -27,8 +27,8 @@ The core data type underlying the use of datasets with Inspect is the `Sample`, 
 | `target` | `str | list[str] | None` | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
 | `id` | `str | None` | Optional. Unique identifier for sample. |
 | `metadata` | `dict[str | Any] | None` | Optional. Arbitrary metadata associated with the sample. |
-| `files` | `dict[str | str] | None` | Optional. Files that go along with the sample (copied to tool environments). |
-| `setup` | `str | None` | Optional. Setup script to run for sample (executed within default tool environment). |
+| `files` | `dict[str | str] | None` | Optional. Files that go along with the sample (copied to sandbox environments). |
+| `setup` | `str | None` | Optional. Setup script to run for sample (executed within default sandbox environment). |
 
 : {tbl-colwidths="\[20,40,40\]"}
 
@@ -49,7 +49,7 @@ Note that samples from datasets without an `id` field will automatically be assi
 
 If your samples include `choices`, then the `target` should be a numeric index into the available `choices` rather than a letter (this is an implicit assumption of the `multiple_choice()` solver).
 
-If your samples include `files`, they will be copied into the default tool environment unless their name contains a prefix mapping them into another environment (e.g. "`victim:flag.txt": "flag.txt"`).
+If your samples include `files`, they will be copied into the default sandbox environment unless their name contains a prefix mapping them into another environment (e.g. "`victim:flag.txt": "flag.txt"`).
 
 ## Field Mapping
 
@@ -202,7 +202,7 @@ To include an image, your dataset input would look like this:
 ]
 ```
 
-Where `"picture.png"` is located in the directory where your task runs. The image can be specified either as a URL (accessible to the model), a local file path, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+Where `"picture.png"` is resolved relative to the directory containing the dataset file. The image can be specified either as a URL (accessible to the model), a local file path, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
 If you are constructing chat messages programmatically, then the equivalent to the above would be:
 

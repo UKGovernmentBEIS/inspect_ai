@@ -8,6 +8,7 @@ fsspec
 httpx
 json-stream
 jsonlines
+jsonschema
 nest_asyncio
 numpy
 platformdirs
@@ -20,5 +21,5 @@ s3fs>=2023
 semver
 shortuuid
 tenacity
-typing_extensions
+typing_extensions>=4.9.0
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability

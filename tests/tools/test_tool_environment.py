@@ -15,7 +15,7 @@ def find_tool_call(result, tool_call_id: str):
     return get_tool_response(messages, get_tool_calls(messages, tool_call_id)[0])
 
 
-def test_tool_environment_read_file():
+def test_sandbox_environment_read_file():
     dataset = [
         Sample(
             input="What are the contents of file foo.txt?",
@@ -27,7 +27,7 @@ def test_tool_environment_read_file():
         dataset=dataset,
         plan=[use_tools([read_file(), list_files()]), generate()],
         scorer=includes(),
-        tool_environment="local",
+        sandbox="local",
     )
     result = eval(
         task,
@@ -49,7 +49,7 @@ def test_tool_environment_read_file():
     assert chat_message_tool.text == "contents_of_foo.txt"
 
 
-def test_tool_environment_list_files():
+def test_sandbox_environment_list_files():
     dataset = [
         Sample(
             input="What files are there?",
@@ -61,7 +61,7 @@ def test_tool_environment_list_files():
         dataset=dataset,
         plan=[use_tools([read_file(), list_files()]), generate()],
         scorer=includes(),
-        tool_environment="local",
+        sandbox="local",
     )
     result = eval(
         task,
@@ -83,7 +83,7 @@ def test_tool_environment_list_files():
     assert chat_message_tool.text == "bar.txt\nbaz.txt\n"
 
 
-def test_tool_environment_read_file_error():
+def test_sandbox_environment_read_file_error():
     dataset = [
         Sample(
             input="What are the contents of file nonexistent.txt?",
@@ -101,7 +101,7 @@ def test_tool_environment_read_file_error():
             generate(),
         ],
         scorer=includes(),
-        tool_environment="local",
+        sandbox="local",
     )
     result = eval(
         task,

@@ -23,9 +23,6 @@ from anthropic.types import (
     ToolUseBlockParam,
     message_create_params,
 )
-from anthropic.types.tool_param import (
-    InputSchema,
-)
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
@@ -48,7 +45,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._util import chat_api_tool
 from .util import model_base_url
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
@@ -220,14 +216,13 @@ async def resolve_chat_input(
     )
 
     # tools
-    chat_functions = [chat_api_tool(tool)["function"] for tool in tools]
     tools_param = [
         ToolParam(
-            name=function["name"],
-            description=function["description"],
-            input_schema=cast(InputSchema, function["parameters"]),
+            name=tool.name,
+            description=tool.description,
+            input_schema=tool.parameters.model_dump(exclude_none=True),
         )
-        for function in chat_functions
+        for tool in tools
     ]
 
     return system_message, tools_param, message_params
@@ -289,9 +284,11 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
-        if message.tool_error is not None:
-            content: str | list[TextBlockParam | ImageBlockParam] = message.tool_error
-        if isinstance(message.content, str):
+        if message.error is not None:
+            content: str | list[TextBlockParam | ImageBlockParam] = (
+                message.error.message
+            )
+        elif isinstance(message.content, str):
             content = [TextBlockParam(type="text", text=message.content)]
         else:
             content = [
@@ -305,7 +302,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
                     tool_use_id=str(message.tool_call_id),
                     type="tool_result",
                     content=content,
-                    is_error=message.tool_error is not None,
+                    is_error=message.error is not None,
                 )
             ],
         )

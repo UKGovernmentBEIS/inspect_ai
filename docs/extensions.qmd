@@ -6,7 +6,7 @@ There are several ways to extend Inspect to integrate with systems not directly 
 
 1.  Model APIs (model hosting services, local inference engines, etc.)
 
-2.  Tool Environments (local or cloud container runtimes)
+2.  Sandbox Environments (local or cloud container runtimes)
 
 3.  Storage Systems (for datasets, prompts, and evaluation logs)
 
@@ -25,7 +25,7 @@ class CustomModelAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        **model_args: dict[str,Any]
+        **model_args: Any
     ) -> None:
         super().__init__(model_name, base_url, api_key, config)
   
@@ -40,6 +40,8 @@ class CustomModelAPI(ModelAPI):
 ```
 
 The `__init__()` method *must* call the `super().__init__()` method, and typically instantiates the model client library.
+
+The `__init__()` method receive a `**model_args` parameter that will carry any custom `model_args` (or `-M` arguments from the CLI) specified by the user. You can then pass these on to the approriate place in your model initialisation code (for example, here is what many of the built-in providers do with `model_args` passed to them: <https://inspect.ai-safety-institute.org.uk/models.html#model-args>).
 
 The `generate()` method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. In addition, there are some optional properties you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, whether to collapse consecutive user and/or assistant messages, etc.).
 
@@ -87,20 +89,22 @@ model = get_model("custom/my-model")
 eval(math, model = "custom/my-model")
 ```
 
-## Tool Environments {#sec-tool-environment-extensions}
+## Sandbox Environments {#sec-sandbox-environment-extensions}
 
-[Tool Environments](#sec-tool-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two tool environments built in:
+[Sandbox Environments](#sec-sandbox-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
 
 | Environment Type | Description                                                                                                                                                               |
 |----------------------------|--------------------------------------------|
-| `local`          | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker`         | Run `tool_environment()` methods within a Docker container                                                                                                                |
+| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `sandbox()` methods within a Docker container                                                                                                                |
 
-To create a custom tool environment, derive a class from `ToolEnvironment`, implement the required static and instance methods, and add the `@toolenv` decorator to it. For example:
+To create a custom sandbox environment, derive a class from `SandboxEnvironment`, implement the required static and instance methods, and add the `@sandboxenv` decorator to it. 
+
+The static class methods control the lifecycle of containers and other computing resources associated with the `SandboxEnvironment`:
 
 ``` python
-@toolenv(name="podman")
-class PodmanToolEnvironment(ToolEnvironment):
+@sandboxenv(name="podman")
+class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     async def task_init(
@@ -114,7 +118,7 @@ class PodmanToolEnvironment(ToolEnvironment):
         task_name: str, 
         config: str | None, 
         metadata: dict[str, str]
-    ) -> dict[str, ToolEnvironment]:
+    ) -> dict[str, SandboxEnvironment]:
         ...
 
     @classmethod
@@ -122,7 +126,7 @@ class PodmanToolEnvironment(ToolEnvironment):
         cls,
         task_name: str,
         config: str | None,
-        environments: dict[str, ToolEnvironment],
+        environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
         ...
@@ -137,80 +141,49 @@ class PodmanToolEnvironment(ToolEnvironment):
     async def cli_cleanup(cls, id: str | None) -> None:
         ...
 
-    async def exec(
-        self,
-        cmd: list[str],
-        input: str | bytes | None = None,
-        cwd: str | None = None,
-        env: dict[str, str] = {},
-        timeout: int | None = None,
-    ) -> ExecResult[str]:
-        ...
-
-    async def write_file(
-        self, file: str, contents: str | bytes
-    ) -> None:
-        ...
-
-    @overload
-    async def read_file(
-        self, file: str, text: Literal[True] = True
-    ) -> str: 
-        ...
-      
-    @overload
-    async def read_file(
-        self, file: str, text: Literal[False]
-    ) -> bytes: 
-        ...
-      
-    async def read_file(
-        self, file: str, text: bool = True
-    ) -> Union[str | bytes]:
-        ...
+    # (instance methods shown below)
 ```
 
 The class methods take care of various stages of initialisation, setup, and teardown:
 
 | Method             | Lifecycle                                                                                          | Purpose                                                                               |
 |-------------------|-------------------|----------------------------------|
-| `task_init()`      | Called once for each unique tool environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images)                 |
-| `sample_init()`    | Called at the beginning of each `Sample`.                                                          | Create `ToolEnvironment` instances for the sample.                                    |
-| `sample_cleanup()` | Called at the end of each `Sample`                                                                 | Cleanup `ToolEnvironment` instances for the sample.                                   |
-| `task_cleanup()`   | Called once for each unique tool environment config after executing the tasks in an `eval()` run.  | Last chance handler for any resources not yet cleaned up (see also discussion below). |
-| `cli_cleanup()`    | Called via `inspect toolenv cleanup`                                                               | CLI invoked manual cleanup of resources created by this `ToolEnvironment`.            |
+| `task_init()`      | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images)                 |
+| `sample_init()`    | Called at the beginning of each `Sample`.                                                          | Create `SandboxEnvironment` instances for the sample.                                    |
+| `sample_cleanup()` | Called at the end of each `Sample`                                                                 | Cleanup `SandboxEnvironment` instances for the sample.                                   |
+| `task_cleanup()`   | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run.  | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()`    | Called via `inspect sandbox cleanup`                                                               | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`.            |
 
-In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique tool environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
+In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique sandbox environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
 
 The `task_cleanup()` has a number of important functions:
 
 1.  There may be global resources that are not tied to samples that need to be cleaned up.
 2.  It's possible that `sample_cleanup()` will be interrupted (e.g. via a Ctrl+C) during execution. In that case its resources are still not cleaned up.
 3.  The `sample_cleanup()` function might be long running, and in the case of error or interruption you want to provide explicit user feedback on the cleanup in the console (which isn't possible when cleanup is run "inline" with samples). An `interrupted` flag is passed to `sample_cleanup()` which allows for varying behaviour for this scenario.
-4.  Cleanup may be disabled (e.g. when the user passes `--no-toolenv-cleanup`) in which case it should print container IDs and instructions for cleaning up after the containers are no longer needed.
+4.  Cleanup may be disabled (e.g. when the user passes `--no-sandbox-cleanup`) in which case it should print container IDs and instructions for cleaning up after the containers are no longer needed.
 
-To implement `task_cleanup()` properly, you'll likely need to track running environments using a per-coroutine `ContextVar`. The `DockerToolEnvironment` provides an example of this. Note that the `cleanup` argument passed to `task_cleanup()` indicates whether to actually clean up (it would be `False` if `--no-toolenv-cleanup` was passed to `inspect eval`). In this case you might want to print a list of the resources that were not cleaned up and provide directions on how to clean them up manually.
+To implement `task_cleanup()` properly, you'll likely need to track running environments using a per-coroutine `ContextVar`. The `DockerSandboxEnvironment` provides an example of this. Note that the `cleanup` argument passed to `task_cleanup()` indicates whether to actually clean up (it would be `False` if `--no-sandbox-cleanup` was passed to `inspect eval`). In this case you might want to print a list of the resources that were not cleaned up and provide directions on how to clean them up manually.
 
 The `cli_cleanup()` function is a global cleanup handler that should be able to do the following:
 
-1.  Cleanup *all* environments created by this provider (corresponds to e.g. `inspect toolenv cleanup docker` at the CLI).
-2.  Cleanup a single environment created by this provider (corresponds to e.g. `inspect toolenv cleanup docker <id>` at the CLI).
+1.  Cleanup *all* environments created by this provider (corresponds to e.g. `inspect sandbox cleanup docker` at the CLI).
+2.  Cleanup a single environment created by this provider (corresponds to e.g. `inspect sandbox cleanup docker <id>` at the CLI).
 
-The `task_cleanup()` function will typically print out the information required to invoke `cli_cleanup()` when it is invoked with `cleanup = False`. Try invoking the `DockerToolEnvironmet` with `--no-toolenv-cleanup` to see an example.
+The `task_cleanup()` function will typically print out the information required to invoke `cli_cleanup()` when it is invoked with `cleanup = False`. Try invoking the `DockerSandboxEnvironment` with `--no-sandbox-cleanup` to see an example.
 
-The `ToolEnvironment` instance methods provide access to process execution and file input/output within the environment. A few notes on implementing these methods:
+The `SandboxEnvironment` instance methods provide access to process execution and file input/output within the environment.
 
-1.  The `exec()` method currently only handles text output. If a call results in binary output then a `UnicodeDecodeError` will be raised. Tool environments should catch this and raise a `ToolError`.
+{{< include _sandboxenv-interface.md >}}
 
-2.  The `read_file()` method raise a `FileNotFoundError` if the specified `file` does not exist in the tool environment, as tools calling `read_file()` will often want to catch the `FileNotFoundError` and re-throw a `ToolError` (since models will frequently attempt to read files that do not exist).
 
-The best way to learn about writing tool environments is to look at the source code for the built in environments, [LocalToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_environment/local.py) and [DockerToolEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_environment/docker/docker.py).
+The best way to learn about writing sandbox environments is to look at the source code for the built in environments, [LocalSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/local.py) and [DockerSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/docker/docker.py).
 
 ### Environment Registration
 
-You should build your custom tool environment within a Python package, and then register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads your extension before it attempts to resolve a tool environment that uses your provider.
+You should build your custom sandbox environment within a Python package, and then register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads your extension before it attempts to resolve a sandbox environment that uses your provider.
 
-For example, if your package was named `inspect_package` and your tool environment provider was exported from a source file named `inspect_extensions.py` at the root of your package, you would register it like this in `pyproject.toml`:
+For example, if your package was named `inspect_package` and your sandbox environment provider was exported from a source file named `inspect_extensions.py` at the root of your package, you would register it like this in `pyproject.toml`:
 
 ::: {.panel-tabset group="entry-points"}
 ## Setuptools
@@ -230,21 +203,21 @@ inspect_package = "inspect_package.inspect_extensions"
 
 ### Environment Usage
 
-Once the package is installed, you can refer to the custom tool environment the same way you'd refer to a built in tool environment. For example:
+Once the package is installed, you can refer to the custom sandbox environment the same way you'd refer to a built in sandbox environment. For example:
 
 ``` python
 Task(
     ...,
-    tool_environment="podman"
+    sandbox="podman"
 )
 ```
 
-Tool environments can be invoked with an optional configuration parameter, which is passed as the `config` argument to the `startup()` and `setup()` methods. In Python this is done with a tuple
+Sandbox environments can be invoked with an optional configuration parameter, which is passed as the `config` argument to the `startup()` and `setup()` methods. In Python this is done with a tuple
 
 ``` python
 Task(
     ...,
-    tool_environment=("podman","config.yaml")
+    sandbox=("podman","config.yaml")
 )
 ```
 
@@ -302,7 +275,7 @@ See the fsspec [developer documentation](https://filesystem-spec.readthedocs.io/
 -   `unstrip_protocol()`
 -   `invalidate_cache()`
 
-As with Model APIs and Tool Environments, fsspec filesystems should be registered using a [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). For example, if your package is named `inspect_package` and you have implemented a `myfs://` filesystem using the `MyFs` class exported from the root of the package, you would register it like this in `pyproject.toml`:
+As with Model APIs and Sandbox Environments, fsspec filesystems should be registered using a [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). For example, if your package is named `inspect_package` and you have implemented a `myfs://` filesystem using the `MyFs` class exported from the root of the package, you would register it like this in `pyproject.toml`:
 
 ::: {.panel-tabset group="entry-points"}
 ## Setuptools

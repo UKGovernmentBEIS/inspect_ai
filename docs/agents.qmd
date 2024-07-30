@@ -14,7 +14,7 @@ Inspect supports a variety of approaches to agent evaluations, including:
 
 We'll cover the basics of all of these approaches below.
 
-An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Tool Environments](#sec-tool-environments) section goes into more depth on this.
+An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Sandbox Environments](#sec-sandbox-environments) section goes into more depth on this.
 
 ## Tool Use Loop
 
@@ -44,8 +44,9 @@ from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.solver import (
     Generate, TaskState, generate, solver,
-    system_message, use_tools, bash, python
+    system_message, use_tools
 )
+from inspect_ai.tool import bash, python
 
 CMD_TIMEOUT = 180  # max seconds to run bash/python cmds
 MAX_MESSAGES = 30  # max chat messages before giving up
@@ -64,14 +65,14 @@ def intercode_ctf(shuffle = False):
         ],
         scorer=includes(),
         max_messages=MAX_MESSAGES,            
-        tool_environment="docker",            # <4>
+        sandbox="docker",            # <4>
     )
 ```
 
 1.  The `read_dataset()` function (imported from [dataset.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/dataset.py)) downloads the data from the InterCode GH repo and converts it into a native Inspect `Dataset`).
 2.  The system prompt ([system.txt](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/system.txt)) describes the CTF challenge, provides a ReAct prompt, and includes several fewshot examples.
-3.  Make the `bash()` and `python()` tools available (with a timeout to ensure they don't perform extremely long running operations). Note that using these tools requires a tool environment, which you can see is provided below).
-4.  Specify that Docker should be used as the tool environemnt (the container is built from the provided [Dockerfile](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/Dockerfile))
+3.  Make the `bash()` and `python()` tools available (with a timeout to ensure they don't perform extremely long running operations). Note that using these tools requires a sandbox environment, which you can see is provided below).
+4.  Specify that Docker should be used as the sandbox environemnt (the container is built from the provided [Dockerfile](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/intercode-ctf/Dockerfile))
 
 ::: {.callout-note appearance="simple"}
 Take special note of the `CMD_TIMEOUT` and `MAX_MESSAGES` constants. These put boundaries on execution time and steps, ensuring that agent tasks don't run for extended periods (or even get in a loop where they never terminate). You should generally always set these values in your own agent evals.
@@ -79,7 +80,7 @@ Take special note of the `CMD_TIMEOUT` and `MAX_MESSAGES` constants. These put b
 
 The full source code for this example can be found in the Inspect GitHub repo at [examples/agents/intercode-ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/intercode-ctf).
 
-## Custom Scaffolding
+## Custom Scaffolding {#sec-custom-scaffolding}
 
 The default tool use loop demonstrated above will work fine for some tasks, but in other cases you may need to provide more custom logic. For example, you might want to:
 
@@ -92,11 +93,11 @@ The default tool use loop demonstrated above will work fine for some tasks, but 
 
 When you call the `generate()` function from a solver, use the `tool_calls` parameter to customise how tool calls made by the model are handled:
 
-|  |  |
+|          |                                                                                                                                                         |
 |------------------------------------|------------------------------------|
-| `loop` | Resolve tools calls and then invoke `generate()`, proceeding in a loop which terminates when there are no more tool calls or `max_messages` is reached. |
-| `single` | Resolve at most a single set of tool calls and then return. |
-| `none` | Do not resolve tool calls at all (in this case you will need to invoke `call_tools()` directly). |
+| `loop`   | Resolve tools calls and then invoke `generate()`, proceeding in a loop which terminates when there are no more tool calls or `max_messages` is reached. |
+| `single` | Resolve at most a single set of tool calls and then return.                                                                                             |
+| `none`   | Do not resolve tool calls at all (in this case you will need to invoke `call_tools()` directly).                                                        |
 
 : {tbl-colwidths=\[20,80\]}
 
@@ -130,6 +131,8 @@ You can imagine several ways you might want to customise this loop:
 3.  Examining and possibly filtering the tool calls before invoking `call_tools()`
 4.  Adding a critique / reflection step between tool calling and generate.
 5.  Deep copying the `TaskState` and exploring several trajectories.
+
+Note that by default *expected* errors (e.g. file not found, insufficient, permission , timeouts, etc.) are forwarded to the model for possible recovery. If you would like to intervene in the default error handling then rather than immediately appending the list of assistant messages returned from `call_tools()` to `state.messages`(as shown above), check the `error` property of these messages (which will be `None` in the case of no error) and proceed accordingly.
 
 ### Tool Filtering
 
@@ -166,7 +169,7 @@ In this example we rely on the default `generate()` tool calling behaviour (`"lo
 
 You can also adapt code from a research paper or 3rd party agent library to run within an Inspect solver. Below we'll provide an example of doing this for a [LangChain Agent](https://python.langchain.com/v0.2/docs/tutorials/agents/).
 
-When adapting 3rd party agent code, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). If the agent is executing arbitrary code, it's also beneficial to use Inspect [Tool Environments](#sec-tool-environments) for sandboxing.
+When adapting 3rd party agent code, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). If the agent is executing arbitrary code, it's also beneficial to use Inspect [Sandbox Environments](#sec-sandbox-environments) for sandboxing.
 
 ### Example: LangChain {#sec-langchain}
 
@@ -294,7 +297,7 @@ def wikipedia() -> Task:
 
 The full source code for this example can be found in the Inspect GitHub repo at [examples/agents/langchain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain).
 
-## Tool Environments {#sec-tool-environments}
+## Sandboxing {#sec-sandbox-environments}
 
 The examples shown above execute tool code within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:
 
@@ -306,10 +309,11 @@ The examples shown above execute tool code within the main process running the e
 
 ### Example: File Listing
 
-Let's take a look at a simple example to illustrate. First, we'll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the `tool_environment()` function to get access to the `ToolEnvironment` instance for the currently executing `Sample`:
+Let's take a look at a simple example to illustrate. First, we'll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the `sandbox()` function to get access to the `SandboxEnvironment` instance for the currently executing `Sample`:
 
 ``` python
-from inspect_ai.tool import ToolError, tool, tool_environment
+from inspect_ai.tool import ToolError, tool
+from inspect_ai.util import sandbox
 
 @tool(prompt="Use the list_files function to enumerate files.")
 def list_files():
@@ -322,7 +326,7 @@ def list_files():
         Returns:
             File listing of the directory
         """
-        result = await tool_environment().exec(["ls", dir])
+        result = await sandbox().exec(["ls", dir])
         if result.success:
             return result.stdout
         else:
@@ -358,56 +362,32 @@ def file_probe()
             use_tools([list_files()]), 
             generate()
         ],
-        tool_environment="docker",
+        sandbox="docker",
         scorer=includes(),
     )
 )
 ```
 
-We've included `tool_environment = "docker"` to indicate that tool environment operations should be executed in a Docker container. Specifying a tool environment (either at the task or evaluation level) is required if your tools call the `tool_environment()` function.
+We've included `sandbox="docker"` to indicate that sandbox environment operations should be executed in a Docker container. Specifying a sandbox environment (either at the task or evaluation level) is required if your tools call the `sandbox()` function.
 
 Note that `files` are specified as part of the `Sample`. Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g. S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.
 
 ### Environment Interface
 
-The following methods are available for all tool environments:
+The following instance methods are available to tools that need to interact with a `SandboxEnvironment`:
 
-``` python
-class ToolEnvironment:
-   
-    async def exec(
-        self,
-        cmd: list[str],
-        input: str | bytes | None = None,
-        cwd: str | None = None,
-        env: dict[str, str] = {},
-        timeout: int | None = None,
-    ) -> ExecResult[str]:
-        ...
-
-    async def write_file(
-        self, file: str, contents: str | bytes
-    ) -> None:
-        ...
-
-    async def read_file(
-        self, file: str, text: bool = True
-    ) -> Union[str | bytes]:
-        ...
-```
-
-Note that `read_file()` will raise a `FileNotFoundError` if the specified `file` does not exist in the tool environment. Tools calling `read_file()` will often want to catch the `FileNotFoundError` and re-throw a `ToolError` (since models will often attempt to read files that do not exist).
+{{< include _sandboxenv-interface.md >}}
 
 ### Environment Binding
 
-There are two tool environments built in to Inspect:
+There are two sandbox environments built in to Inspect:
 
-| Environment Type | Description |
-|------------------------------------|-----------------------------------------------------------------|
-| `local` | Run `tool_environment()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run `tool_environment()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
+| Environment Type | Description                                                                                                                                                      |
+|--------------------------|----------------------------------------------|
+| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
 
-Tool environments can be bound at the `Task` level or at the `eval()` level (where `eval()` takes precedence). To bind a tool environment to a `Task`, use the `tool_environment` option:
+Sandbox environments can be bound at the `Task` level or at the `eval()` level (where `eval()` takes precedence). To bind a sandbox environment to a `Task`, use the `sandbox` option:
 
 ``` python
 Task(
@@ -417,14 +397,14 @@ Task(
         generate()
     ]),
     scorer=match(),
-    tool_environment="docker"
+    sandbox="docker"
 )
 ```
 
 For this example, if there is a `compose.yaml` file in the task directory it will be used to provision Docker services (if there is no `compose.yaml` then the Docker's default Python 3.12 image will be used). You can specify an alternate config file using a tuple:
 
 ``` python
-tool_environment=("docker","my-compose.yaml")
+sandbox=("docker","my-compose.yaml")
 ```
 
 ### Per Sample Setup
@@ -433,13 +413,13 @@ The `Sample` class includes `files` and `setup` fields that are used to specify 
 
 #### Files
 
-Sample `files` is a `dict[str,str]` that specifies files to copy into tool environments. The key of the `dict` specifies the name of the file to write. By default files are written into the default tool environment but they can optionally include a prefix indicating that they should be written into a specific tool environment (e.g. `"victim:flag.txt": "flag.txt"`).
+Sample `files` is a `dict[str,str]` that specifies files to copy into sandbox environments. The key of the `dict` specifies the name of the file to write. By default files are written into the default sandbox environment but they can optionally include a prefix indicating that they should be written into a specific sandbox environment (e.g. `"victim:flag.txt": "flag.txt"`).
 
 The value of the `dict` can be either the file contents, a file path, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
 #### Script
 
-If there is a Sample `setup` script it will be executed within the default tool environment after any Sample `files` are copied into the environment. The `setup` field can be either the script contents, a file path containing the script, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+If there is a Sample `setup` script it will be executed within the default sandbox environment after any Sample `files` are copied into the environment. The `setup` field can be either the script contents, a file path containing the script, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
 The `setup` script is by default interpreted as a bash script, however you can have it executed by another interpreter using a shebang comment. For example, this will be executed as a Python script:
 
@@ -451,17 +431,17 @@ print('hello from python')
 
 ### Docker Configuration {#sec-docker-configuration}
 
-Before using Docker tool environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/) (version 24.0.7 or greater).
+Before using Docker sandbox environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/) (version 24.0.7 or greater).
 
-You can use the Docker tool enviornment without any special configuration, however most commonly you’ll provide explicit configuration via either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
+You can use the Docker sandbox enviornment without any special configuration, however most commonly you’ll provide explicit configuration via either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
 
-Here is how Docker tool environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
+Here is how Docker sandbox environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
-| Config Files | Behavior |
-|--------------------------|---------------------------------------------|
-| None | Creates a tool environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
-| `Dockerfile` | Creates a tool environment by building the image. |
-| `compose.yaml` | Creates tool environment(s) based on `compose.yaml`. |
+| Config Files   | Behavior                                                                                                           |
+|---------------------------|---------------------------------------------|
+| None           | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
+| `Dockerfile`   | Creates a sandbox environment by building the image.                                                               |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`.                                                            |
 
 Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. Note that the automatically generated compose file will restrict internet access by default, so if your evaluations require this you'll need to provide your own `compose.yaml` file.
 
@@ -511,7 +491,7 @@ See the [Docker Compose](https://docs.docker.com/compose/compose-file/) document
 
 #### Multiple Environments
 
-In some cases you may want to create multiple tool environments (e.g. if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:
+In some cases you may want to create multiple sandbox environments (e.g. if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:
 
 ``` {.yaml filename="compose.yaml"}
 services:
@@ -527,15 +507,15 @@ services:
     mem_limit: 1gb
 ```
 
-The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to `tool_environment()`. Other environments would be accessed by name, for example:
+The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to `sandbox()`. Other environments would be accessed by name, for example:
 
 ``` python
-tool_environment()          # default tool environment
-tool_environment("victim")  # named tool environment
+sandbox()          # default sandbox environment
+sandbox("victim")  # named sandbox environment
 ```
 
 ::: {.callout-note apperance="simple"}
-If you define multiple tool environments you are *required* to name one of them "default" so that Inspect knows which environment to copy samples files to and resolve for calls to `tool_environment()` without an argument.
+If you define multiple sandbox environments you are *required* to name one of them "default" so that Inspect knows which environment to copy samples files to and resolve for calls to `sandbox()` without an argument.
 :::
 
 #### Infrastructure
@@ -563,7 +543,7 @@ See the documentation on [Docker Compose](https://docs.docker.com/compose/compos
 
 #### Sample Metadata
 
-You might want to interpolate Sample metadata into your Docker compose files. You can do this using the standard clmpose environment variable syntax, where any metadata in the Sample is made available with a `SAMPLE_METADATA_` prefix. For example, you might have a per-sample memory limit (with a default value of 0.5gb if unspecified):
+You might want to interpolate Sample metadata into your Docker compose files. You can do this using the standard compose environment variable syntax, where any metadata in the Sample is made available with a `SAMPLE_METADATA_` prefix. For example, you might have a per-sample memory limit (with a default value of 0.5gb if unspecified):
 
 ``` yaml
 services:
@@ -578,29 +558,25 @@ Note that `-` suffix that provides the default value of 0.5gb. This is important
 
 ### Environment Cleanup
 
-When a task is completed, Inspect will automatically cleanup resources associated with the tool environment (e.g. containers, images, and networks). If for any reason resources are not cleaned up (e.g. if the cleanup itself is interrupted via Ctrl+C) you can globally cleanup all environments with the `inspect toolenv cleanup` command. For example, here we cleanup all environments associated with the `docker` provider:
+When a task is completed, Inspect will automatically cleanup resources associated with the sandbox environment (e.g. containers, images, and networks). If for any reason resources are not cleaned up (e.g. if the cleanup itself is interrupted via Ctrl+C) you can globally cleanup all environments with the `inspect sandbox cleanup` command. For example, here we cleanup all environments associated with the `docker` provider:
 
 ``` bash
-$ inspect toolenv cleanup docker
+$ inspect sandbox cleanup docker
 ```
 
-In some cases you may *prefer* not to cleanup environments. For example, you might want to examine their state interactively from the shell in order to debug an agent. Use the `--no-toolenv-cleanup` argument to do this:
+In some cases you may *prefer* not to cleanup environments. For example, you might want to examine their state interactively from the shell in order to debug an agent. Use the `--no-sandbox-cleanup` argument to do this:
 
 ``` bash
-$ inspect eval ctf.py --no-toolenv-cleanup
+$ inspect eval ctf.py --no-sandbox-cleanup
 ```
 
 You can also do this when using `eval(`):
 
 ``` python
-eval("ctf.py", toolenv_cleanup = False)
+eval("ctf.py", sandbox_cleanup = False)
 ```
 
-When you do this, you'll see something like the following printed out at the end of the eval:
-
-![](images/toolenv-no-cleanup.png){.border fig-alt="A printed list of yet to be cleaned up Docker tool environments (including the container id and cleanup command for each one)"}
-
-You then might use this command to get a shell inside one of the containers:
+When you do this, you'll see a list of sandbox containers printed out which includes the ID of each container. You can then use this ID to get a shell inside one of the containers:
 
 ``` bash
 docker exec -it inspect-intercode_ctf-ipg9tbviycpvlgwja5anyvn-default-1 bash
@@ -610,10 +586,10 @@ When you no longer need the environments, you can clean them up either all at on
 
 ``` bash
 # cleanup all environments
-inspect toolenv cleanup docker
+inspect sandbox cleanup docker
 
 # cleanup single environment
-inspect toolenv cleanup docker inspect-intercode_ctf-ipg9tbviycpvlgwja5anyvn
+inspect sandbox cleanup docker inspect-intercode_ctf-ipg9tbviycpvlgwja5anyvn
 ```
 
 ### Resource Management
@@ -640,16 +616,16 @@ services:
 
 #### Concurrent Execution
 
-The `ToolEnvironment.exec()` method runs a command within a tool environment, typically consuming CPU resources. To protect against overwhelming the system's CPUs, the implementation of `exec()` uses Inspect's `subprocess()` function, which automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`).
+The `SandboxEnvironment.exec()` method runs a command within a sandbox environment, typically consuming CPU resources. To protect against overwhelming the system's CPUs, the implementation of `exec()` uses Inspect's `subprocess()` function, which automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`).
 
 You can change the number of permitted concurrent subprocess executions using the `max_subprocesses` option. You might do this for example if you know that your `exec()` commands tend to use *multiple* CPU cores and thus should be executed with less concurrency.
 
 ### Troubleshooting
 
-You can view more detailed logging around the creation and use of tool environments by using the `tools` log level. For example:
+You can view more detailed logging around the creation and use of sandbox environments by using the `sandbox` log level. For example:
 
 ``` bash
-$ inspect eval ctf.py --log-level tools
+$ inspect eval ctf.py --log-level sandbox
 ```
 
-The tools log level is just above `warning` (so it will not show `http` or `debug` level messages).
+The sandbox log level is just above `warning` (so it will not show `http` or `debug` level messages).

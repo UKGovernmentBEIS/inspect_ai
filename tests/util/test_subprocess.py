@@ -60,5 +60,8 @@ async def test_subprocess_env():
 
 @pytest.mark.asyncio
 async def test_subprocess_timeout():
-    result = await subprocess(["sleep", "2"], timeout=1)
-    assert result.returncode == 1
+    try:
+        await subprocess(["sleep", "2"], timeout=1)
+        assert False
+    except TimeoutError:
+        pass

@@ -33,7 +33,8 @@ async def project_cleanup(project: ComposeProject, quiet: bool = True) -> None:
     await compose_down(project=project, quiet=quiet)
 
     # remove the project from the list of running projects
-    running_projects().remove(project)
+    if project in running_projects():
+        running_projects().remove(project)
 
 
 async def project_cleanup_shutdown(cleanup: bool) -> None:
@@ -50,7 +51,7 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
             elif not _cleanup_completed.get():
                 print("")
                 table = Table(
-                    title="Docker Tool Environments (not yet cleaned up):",
+                    title="Docker Sandbox Environments (not yet cleaned up):",
                     box=box.SQUARE_DOUBLE_HEAD,
                     show_lines=True,
                     title_style="bold",
@@ -62,11 +63,11 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
                     containers = await compose_ps(project, all=True)
                     table.add_row(
                         "\n".join(container["Name"] for container in containers),
-                        f"[blue]inspect toolenv cleanup docker {project.name}[/blue]",
+                        f"[blue]inspect sandbox cleanup docker {project.name}[/blue]",
                     )
                 print(table)
                 print(
-                    "\nCleanup all environments with: [blue]inspect toolenv cleanup docker[/blue]\n"
+                    "\nCleanup all environments with: [blue]inspect sandbox cleanup docker[/blue]\n"
                 )
 
         # remove auto-compose files
