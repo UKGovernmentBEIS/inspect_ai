@@ -4,6 +4,7 @@ from typing import Any
 
 import vertexai  # type: ignore
 from google.api_core.exceptions import TooManyRequests
+from google.protobuf.json_format import MessageToDict
 from typing_extensions import override
 from vertexai.generative_models import (  # type: ignore
     Candidate,
@@ -255,16 +256,13 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     tool_calls: list[ToolCall] = []
     for part in candidate.content.parts:
         if part.function_call:
-            arguments: dict[str, Any] = {}
-            for key in part.function_call.args:
-                val = part.function_call.args[key]
-                arguments[key] = val
+            function_call = MessageToDict(getattr(part.function_call, "_pb"))
             tool_calls.append(
                 ToolCall(
                     type="function",
-                    id=part.function_call.name,
-                    function=part.function_call.name,
-                    arguments=arguments,
+                    id=function_call["name"],
+                    function=function_call["name"],
+                    arguments=function_call["args"],
                 )
             )
 

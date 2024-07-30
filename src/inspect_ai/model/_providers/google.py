@@ -28,7 +28,7 @@ from google.generativeai.types import (  # type: ignore
     PartDict,
     Tool,
 )
-from google.protobuf.json_format import ParseDict
+from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Struct
 from typing_extensions import override
 
@@ -197,7 +197,7 @@ async def content_dict(
                 Part(
                     function_call=FunctionCall(
                         name=tool_call.function,
-                        args=ParseDict(js_dict=tool_call.arguments, message=Struct()),
+                        args=dict_to_struct(tool_call.arguments),
                     )
                 )
                 for tool_call in message.tool_calls
@@ -222,6 +222,12 @@ async def content_dict(
             ),
         )
         return ContentDict(role="function", parts=[Part(function_response=response)])
+
+
+def dict_to_struct(x: dict[str, Any]) -> Struct:
+    struct = Struct()
+    struct.update(x)
+    return struct
 
 
 async def content_part(content: Content | str) -> PartDict:
@@ -311,16 +317,13 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     tool_calls: list[ToolCall] = []
     for part in candidate.content.parts:
         if part.function_call:
-            arguments: dict[str, Any] = {}
-            for key in part.function_call.args:
-                val = part.function_call.args[key]
-                arguments[key] = val
+            function_call = MessageToDict(getattr(part.function_call, "_pb"))
             tool_calls.append(
                 ToolCall(
                     type="function",
-                    id=part.function_call.name,
-                    function=part.function_call.name,
-                    arguments=arguments,
+                    id=function_call["name"],
+                    function=function_call["name"],
+                    arguments=function_call["args"],
                 )
             )
 
