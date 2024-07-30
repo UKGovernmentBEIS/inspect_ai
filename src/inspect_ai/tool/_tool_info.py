@@ -128,13 +128,13 @@ def parse_type(type_hint: Type[Any]) -> ToolParam:
     args = get_args(type_hint)
 
     if origin is None:
-        if type_hint == int:
+        if type_hint is int:
             return ToolParam(type="integer")
-        elif type_hint == float:
+        elif type_hint is float:
             return ToolParam(type="number")
-        elif type_hint == str:
+        elif type_hint is str:
             return ToolParam(type="string")
-        elif type_hint == bool:
+        elif type_hint is bool:
             return ToolParam(type="boolean")
         elif (
             is_dataclass(type_hint)
