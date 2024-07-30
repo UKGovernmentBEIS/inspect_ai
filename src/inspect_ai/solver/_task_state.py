@@ -14,8 +14,8 @@ from inspect_ai.model import (
     ModelName,
     ModelOutput,
 )
+from inspect_ai.model._call_tools import tool_defs, tools_info
 from inspect_ai.tool import Tool, ToolChoice
-from inspect_ai.tool._tool_def import tool_defs, tools_info
 
 from ._subtask.store import Store, store_jsonable
 from ._util import append_system_message

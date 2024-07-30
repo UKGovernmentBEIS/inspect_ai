@@ -1,6 +1,6 @@
 from importlib import metadata as importlib_metadata
 from logging import LogRecord
-from typing import Any
+from typing import Any, cast
 
 from shortuuid import uuid
 
@@ -36,6 +36,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
+from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Plan, Solver, TaskState, transcript
 
 
@@ -122,7 +123,7 @@ class TaskLogger:
         epoch: int,
         sample: Sample,
         state: TaskState,
-        scores: dict[str, Score] | None,
+        scores: dict[str, SampleScore],
         flush: bool = False,
     ) -> None:
         # log
@@ -137,7 +138,7 @@ class TaskLogger:
                 metadata=state.metadata if state.metadata else {},
                 messages=state.messages,
                 output=state.output,
-                scores=scores,
+                scores=cast(dict[str, Score], scores),
                 store=dict(state.store.items()),
                 transcript=transcript().events,
             ),

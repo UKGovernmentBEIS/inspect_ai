@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import datetime
 from dataclasses import dataclass
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Set
 
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
@@ -122,6 +122,7 @@ class RichDisplay(Display):
             status, show_name=self.parallel, on_update=self._update_display
         )
 
+    @throttle(1)
     def _update_display(self) -> None:
         if (
             self.tasks is not None
@@ -456,6 +457,12 @@ def task_interrupted(
 
 def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
     theme = rich_theme()
+    # do we have more than one scorer name?
+    scorer_names: Set[str] = {score.name for score in results.scores}
+    reducer_names: Set[str] = {
+        score.reducer for score in results.scores if score.reducer is not None
+    }
+    show_reducer = len(reducer_names) > 1 or "avg" not in reducer_names
     output: dict[str, str] = {}
     for score in results.scores:
         for name, metric in score.metrics.items():
@@ -468,8 +475,14 @@ def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
                     else f"{metric.value:.3g}"
                 )
             )
-            key = f"{score.name}/{name}" if len(results.scores) > 1 else name
+            name = (
+                rf"{name}\[{score.reducer}]"
+                if show_reducer and score.reducer is not None
+                else name
+            )
+            key = f"{score.name}/{name}" if (len(scorer_names) > 1) else name
             output[key] = value
+
     metrics = f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
 
     return (metrics, "")

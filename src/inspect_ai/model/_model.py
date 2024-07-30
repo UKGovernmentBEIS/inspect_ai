@@ -30,10 +30,10 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
-from inspect_ai.tool._tool_def import tools_info
 from inspect_ai.util import concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
+from ._call_tools import tools_info
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -47,7 +47,16 @@ logger = logging.getLogger(__name__)
 
 
 class ModelAPI(abc.ABC):
-    """Model API provider."""
+    """Model API provider.
+
+    If you are implementing a custom ModelAPI provider your `__init__()`
+    method will also receive a `**model_args` parameter that will carry
+    any custom `model_args` (or `-M` arguments from the CLI) specified
+    by the user. You can then pass these on to the approriate place in
+    your model initialisation code (for example, here is what many
+    of the built-in providers do with the `model_args` passed to them:
+    https://inspect.ai-safety-institute.org.uk/models.html#model-args)
+    """
 
     def __init__(
         self,

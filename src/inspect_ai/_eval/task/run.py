@@ -51,7 +51,8 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
-from inspect_ai.scorer import Score, Scorer, Target
+from inspect_ai.scorer import Scorer, Target
+from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.solver._subtask.subtask import init_subtask
@@ -229,6 +230,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             if len(completed_scores) > 0:
                 results = eval_results(
                     scores=completed_scores,
+                    reducers=task.epochs_reducer,
                     scorers=scorers,
                     metrics=task.metrics,
                 )
@@ -302,7 +304,7 @@ async def task_run_sample(
     log_images: bool,
     sample_source: EvalSampleSource | None,
     semaphore: asyncio.Semaphore | None,
-) -> dict[str, Score] | None:
+) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
         previous_sample = sample_source(sample.id, state.epoch)
@@ -315,7 +317,16 @@ async def task_run_sample(
                 logger.log_event("sample", previous_sample, False)
 
             # return score
-            return previous_sample.scores
+            if previous_sample.scores:
+                return {
+                    key: SampleScore(
+                        value=score.value,
+                        answer=score.answer,
+                        explanation=score.explanation,
+                        sample_id=previous_sample.id,
+                    )
+                    for key, score in previous_sample.scores.items()
+                }
 
     # use semaphore if provided
     semaphore_cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
@@ -369,14 +380,23 @@ async def task_run_sample(
                     )
 
         # score it
-        results: dict[str, Score] = {}
+        results: dict[str, SampleScore] = {}
         if scorers:
             for scorer in scorers:
                 scorer_name = unique_scorer_name(scorer, list(results.keys()))
                 with transcript().step(name=scorer_name, type="scorer"):
-                    score_result = await scorer(state, Target(sample.target))
-                    transcript()._event(ScoreEvent(score=score_result))
-                    results[scorer_name] = score_result
+                    score_result = (
+                        await scorer(state, Target(sample.target)) if scorer else None
+                    )
+                    if score_result is not None:
+                        sample_score = SampleScore(
+                            value=score_result.value,
+                            explanation=score_result.explanation,
+                            metadata=score_result.metadata,
+                            sample_id=sample.id,
+                        )
+                        transcript()._event(ScoreEvent(score=score_result))
+                        results[scorer_name] = sample_score
         progress()
 
         # log it

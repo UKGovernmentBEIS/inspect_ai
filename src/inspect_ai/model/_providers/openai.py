@@ -2,7 +2,13 @@ import json
 import os
 from typing import Any, cast
 
-from openai import APIStatusError, AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
+from openai import (
+    APIStatusError,
+    APITimeoutError,
+    AsyncAzureOpenAI,
+    AsyncOpenAI,
+    RateLimitError,
+)
 from openai._types import NOT_GIVEN
 from openai.types.chat import (
     ChatCompletion,
@@ -38,7 +44,6 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
 )
-from .._util import chat_api_tool
 from .util import (
     as_stop_reason,
     model_base_url,
@@ -193,6 +198,8 @@ class OpenAIAPI(ModelAPI):
                 and "You exceeded your current quota" not in ex.message
             ):
                 return True
+        elif isinstance(ex, APITimeoutError):
+            return True
         return False
 
     @override
@@ -298,12 +305,12 @@ def chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
 
 
 def chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    chat_tools = [chat_api_tool(tool) for tool in tools]
     return [
         ChatCompletionToolParam(
-            type=tool["type"], function=cast(FunctionDefinition, tool["function"])
+            type="function",
+            function=cast(FunctionDefinition, tool.model_dump(exclude_none=True)),
         )
-        for tool in chat_tools
+        for tool in tools
     ]
 
 

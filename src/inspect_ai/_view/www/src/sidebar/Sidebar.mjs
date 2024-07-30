@@ -214,11 +214,30 @@ const SidebarScore = ({ scorer }) => {
           style=${{
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
+            alignItems: "flex-end",
             marginLeft: "1em",
+            marginBottom: "0.4em",
           }}
         >
-          <div style=${{ fontWeight: 300 }}>${scorer.metrics[metric].name}</div>
+          <div
+            style=${{
+              fontWeight: 300,
+              marginBottom: "-0.3em",
+            }}
+          >
+            ${scorer.metrics[metric].name}
+          </div>
+          ${scorer.reducer
+            ? html`<div
+                style=${{
+                  fontWeight: 300,
+                  fontSize: "0.9em",
+                  marginBottom: "-0.2rem",
+                }}
+              >
+                ${scorer.reducer}
+              </div>`
+            : ""}
           <div style=${{ fontWeight: 600, fontSize: "1.5em" }}>
             ${formatPrettyDecimal(scorer.metrics[metric].value)}
           </div>
@@ -240,6 +259,7 @@ const SidebarScores = ({ scores }) => {
   >
     ${scores.map((score) => {
       const name = score.name;
+      const reducer = score.reducer;
       return html`
         <div
           style=${{
@@ -260,6 +280,17 @@ const SidebarScores = ({ scores }) => {
           >
             ${name}
           </div>
+          ${reducer
+            ? html` <div
+                style=${{
+                  fontSize: "0.6rem",
+                  width: "100%",
+                  fontWeight: 300,
+                }}
+              >
+                ${reducer}
+              </div>`
+            : ""}
           <div
             style=${{
               fontSize: "0.7rem",

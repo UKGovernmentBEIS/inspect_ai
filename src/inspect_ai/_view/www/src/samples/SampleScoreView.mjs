@@ -49,7 +49,10 @@ export const SampleScoreView = ({
       <div>
         <div style=${{ ...labelStyle, fontWeight: 600 }}>Input</div>
         <div>
-          <${MarkdownDiv} markdown=${scoreInput.join("\n")} />
+          <${MarkdownDiv}
+            markdown=${scoreInput.join("\n")}
+            style=${{ wordBreak: "break-all" }}
+          />
         </div>
       </div>
 

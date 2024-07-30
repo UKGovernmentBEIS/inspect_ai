@@ -1,42 +1,28 @@
 import json
 from copy import copy
-from typing import Any, cast
+from typing import Any
 
-from google.ai.generativelanguage import (
-    Blob,
-    Candidate,
-    FunctionCall,
-    FunctionCallingConfig,
-    FunctionDeclaration,
-    FunctionResponse,
-    Part,
-    Schema,
-    ToolConfig,
-    Type,
-)
+import vertexai  # type: ignore
 from google.api_core.exceptions import TooManyRequests
-from google.api_core.retry.retry_base import if_transient_error
-from google.generativeai import (  # type: ignore
+from google.protobuf.json_format import MessageToDict
+from typing_extensions import override
+from vertexai.generative_models import (  # type: ignore
+    Candidate,
+    FinishReason,
+    FunctionDeclaration,
     GenerationConfig,
     GenerativeModel,
-    configure,
-)
-from google.generativeai.types import (  # type: ignore
-    AsyncGenerateContentResponse,
-    ContentDict,
-    ContentsType,
     HarmBlockThreshold,
     HarmCategory,
-    PartDict,
+    Image,
+    Part,
     Tool,
 )
-from google.protobuf.json_format import MessageToDict, ParseDict
-from google.protobuf.struct_pb2 import Struct
-from typing_extensions import override
+from vertexai.generative_models import Content as VertexContent
 
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.images import image_as_data
-from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
+from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
 
 from .._chat_message import (
     ChatMessage,
@@ -53,36 +39,51 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .util import model_base_url
 
 SAFETY_SETTINGS = "safety_settings"
+VERTEX_INIT_ARGS = "vertex_init_args"
 
 DEFAULT_SAFETY_SETTINGS = {
+    HarmCategory.HARM_CATEGORY_UNSPECIFIED: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
 }
 
-GOOGLE_API_KEY = "GOOGLE_API_KEY"
 
+class VertexAPI(ModelAPI):
+    """
+    Provider for using the Google Vertex AI model endpoint.
 
-class GoogleAPI(ModelAPI):
+    Note that this is an alternative to the provider implemented in `google.py`
+    which deals with endpoints for Google AI Studio. If in doubt which one to
+    use, you probably want `google.py`, you can see a comparison matrix here:
+    https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai
+
+    By default we assume the environment we run in is authenticated
+    appropriately, but you can pass in `vertex_init_args` to configure this
+    directly, this is passed directly to `vertex.init` which is documented here:
+    https://cloud.google.com/vertex-ai/generative-ai/docs/reference/python/latest/vertexai#vertexai_init
+
+    Additional `model_args`:
+        vertex_init_args (dict[str, Any]): Additional arguments to pass to `vertexai.init`
+        safety_settings (dict[str, str]): Mapping for adjusting Gemini safety settings
+    """
+
     def __init__(
         self,
         model_name: str,
-        base_url: str | None,
-        api_key: str | None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
-        super().__init__(
-            model_name=model_name,
-            base_url=base_url,
-            api_key=api_key,
-            api_key_vars=[GOOGLE_API_KEY],
-            config=config,
-        )
+        super().__init__(model_name=model_name, config=config)
+
+        if VERTEX_INIT_ARGS in model_args:
+            vertexai.init(**model_args[VERTEX_INIT_ARGS])
+            del model_args[VERTEX_INIT_ARGS]
+        else:
+            vertexai.init()
 
         # pick out vertex safety settings and merge against default
         self.safety_settings = DEFAULT_SAFETY_SETTINGS.copy()
@@ -92,16 +93,7 @@ class GoogleAPI(ModelAPI):
             )
             del model_args[SAFETY_SETTINGS]
 
-        # configure genai client
-        base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
-        configure(
-            api_key=self.api_key,
-            client_options=dict(api_endpoint=base_url),
-            **model_args,
-        )
-
-        # create model
-        self.model = GenerativeModel(self.model_name)
+        self.model = GenerativeModel(model_name)
 
     async def generate(
         self,
@@ -111,7 +103,6 @@ class GoogleAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput:
         parameters = GenerationConfig(
-            candidate_count=config.num_choices,
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
@@ -119,20 +110,14 @@ class GoogleAPI(ModelAPI):
             stop_sequences=config.stop_seqs,
         )
 
-        # google-native messages
         messages = await as_chat_messages(input)
 
-        # cast to AsyncGenerateContentResponse since we passed stream=False
-        response = cast(
-            AsyncGenerateContentResponse,
-            await self.model.generate_content_async(
-                contents=messages,
-                safety_settings=self.safety_settings,
-                generation_config=parameters,
-                tools=chat_tools(tools) if len(tools) > 0 else None,
-                tool_config=chat_tool_config(tool_choice) if len(tools) > 0 else None,
-                stream=False,
-            ),
+        response = await self.model.generate_content_async(
+            contents=messages,
+            safety_settings=self.safety_settings,
+            generation_config=parameters,
+            tools=chat_tools(tools) if len(tools) > 0 else None,
+            stream=False,
         )
         choices = completion_choices_from_candidates(response.candidates)
         choice = choices[0]
@@ -156,7 +141,7 @@ class GoogleAPI(ModelAPI):
         return self.model_name
 
 
-async def as_chat_messages(messages: list[ChatMessage]) -> list[ContentsType]:
+async def as_chat_messages(messages: list[ChatMessage]) -> list[Content]:
     # google does not support system messages so filter them out to start with
     system_messages = [message for message in messages if message.role == "system"]
     supported_messages = [message for message in messages if message.role != "system"]
@@ -174,82 +159,75 @@ async def as_chat_messages(messages: list[ChatMessage]) -> list[ContentsType]:
 
 async def content_dict(
     message: ChatMessageUser | ChatMessageAssistant | ChatMessageTool,
-) -> ContentDict:
+) -> VertexContent:
     if isinstance(message, ChatMessageUser):
-        return ContentDict(
-            role="user",
-            parts=(
-                [PartDict(text=message.content)]
-                if isinstance(message.content, str)
-                else [await content_part(content) for content in message.content]
-            ),
-        )
+        if isinstance(message.content, str):
+            parts = [Part.from_text(message.content)]
+        else:
+            parts = [await content_part(content) for content in message.content]
+
+        return VertexContent(role="user", parts=parts)
     elif isinstance(message, ChatMessageAssistant):
         if message.tool_calls is not None:
             content_parts = [
-                Part(
-                    function_call=FunctionCall(
-                        name=tool_call.function,
-                        args=dict_to_struct(tool_call.arguments),
-                    )
+                # For some reason there's no `Parts.from_function_call`
+                # function, but there's a generic `from_dict` instead
+                Part.from_dict(
+                    {
+                        "function_call": {
+                            "name": tool_call.function,
+                            "args": tool_call.arguments,
+                        }
+                    }
                 )
                 for tool_call in message.tool_calls
             ]
             if message.content:
-                content_parts.append(Part(text=message.content))
-            return ContentDict(role="model", parts=content_parts)
+                content_parts.append(Part.from_text(message.content))
+            return VertexContent(role="model", parts=content_parts)
         else:
-            return ContentDict(role="model", parts=[Part(text=message.content)])
+            return VertexContent(role="model", parts=[Part.from_text(message.content)])
     elif isinstance(message, ChatMessageTool):
-        response = FunctionResponse(
-            name=message.tool_call_id,
-            response=ParseDict(
-                js_dict={
-                    "content": (
-                        message.error.message
-                        if message.error is not None
-                        else message.text
-                    )
-                },
-                message=Struct(),
-            ),
+        return VertexContent(
+            role="function",
+            parts=[
+                Part.from_function_response(
+                    name=message.tool_call_id,
+                    response={
+                        "content": (
+                            message.tool_error
+                            if message.tool_error is not None
+                            else message.text
+                        )
+                    },
+                )
+            ],
         )
-        return ContentDict(role="function", parts=[Part(function_response=response)])
 
 
-def dict_to_struct(x: dict[str, Any]) -> Struct:
-    struct = Struct()
-    struct.update(x)
-    return struct
-
-
-async def content_part(content: Content | str) -> PartDict:
+async def content_part(content: Content | str) -> Part:
     if isinstance(content, str):
-        return PartDict(text=content)
+        return Part.from_text(content)
     elif isinstance(content, ContentText):
-        return PartDict(text=content.text)
+        return Part.from_text(content.text)
     else:
-        return PartDict(inline_data=await chat_content_image_to_blob(content))
-
-
-async def chat_content_image_to_blob(image: ContentImage) -> Blob:
-    image_url = image.image
-    image_bytes, mime_type = await image_as_data(image_url)
-    return Blob(mime_type=mime_type, data=image_bytes)
+        image_bytes, mime_type = await image_as_data(content.image)
+        return Part.from_image(image=Image.from_bytes(data=image_bytes))
 
 
 def prepend_system_messages(
-    messages: list[ContentDict], system_messages: list[ChatMessageSystem]
+    messages: list[VertexContent], system_messages: list[ChatMessageSystem]
 ) -> None:
     # create system_parts
-    system_parts = [Part(text=message.content) for message in system_messages]
+    system_parts = [Part.from_text(message.content) for message in system_messages]
 
     # we want the system messages to be prepended to the first user message
     # (if there is no first user message then prepend one)
-    if messages[0].get("role") == "user":
-        messages[0]["parts"] = system_parts + messages[0].get("parts", [])
+    if messages[0].role == "user":
+        parts = messages[0].parts
+        messages[0] = VertexContent(role="user", parts=system_parts + parts)
     else:
-        messages.insert(0, ContentDict(role="user", parts=system_parts))
+        messages.insert(0, VertexContent(role="user", parts=system_parts))
 
 
 def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
@@ -257,78 +235,21 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
         FunctionDeclaration(
             name=tool.name,
             description=tool.description,
-            parameters=schema_from_param(tool.parameters),
+            parameters=tool.parameters.model_dump(exclude_none=True),
         )
         for tool in tools
     ]
     return [Tool(declarations)]
 
 
-# https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
-
-
-def schema_from_param(param: ToolParam | ToolParams) -> Schema:
-    if isinstance(param, ToolParams):
-        param = ToolParam(
-            type=param.type, properties=param.properties, required=param.required
-        )
-
-    if param.type == "number":
-        return Schema(type=Type.NUMBER, description=param.description)
-    elif param.type == "integer":
-        return Schema(type=Type.INTEGER, description=param.description)
-    elif param.type == "boolean":
-        return Schema(type=Type.BOOLEAN, description=param.description)
-    elif param.type == "string":
-        return Schema(type=Type.STRING, description=param.description)
-    elif param.type == "array":
-        return Schema(
-            type=Type.ARRAY,
-            description=param.description,
-            items=schema_from_param(param.items) if param.items else None,
-        )
-    elif param.type == "object":
-        return Schema(
-            type=Type.OBJECT,
-            description=param.description,
-            properties={k: schema_from_param(v) for k, v in param.properties.items()}
-            if param.properties is not None
-            else None,
-            required=param.required,
-        )
-    else:
-        return Schema(type=Type.TYPE_UNSPECIFIED)
-
-
-def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
-    # NOTE: Google seems to sporadically return errors when being
-    # passed a FunctionCallingConfig with mode="ANY". therefore,
-    # we 'correct' this to "AUTO" to prevent the errors
-    mode = "AUTO"
-    if tool_choice == "none":
-        mode = "NONE"
-    return ToolConfig(function_calling_config=FunctionCallingConfig(mode=mode))
-
-    # This is the 'correct' implementation if Google wasn't returning
-    # errors for mode="ANY". we can test whether this is working properly
-    # by commenting this back in and running pytest -k google_tools
-    #
-    # if isinstance(tool_choice, ToolFunction):
-    #     return ToolConfig(
-    #         function_calling_config=FunctionCallingConfig(
-    #             mode="ANY", allowed_function_names=[tool_choice.name]
-    #         )
-    #     )
-    # else:
-    #     return ToolConfig(
-    #         function_calling_config=FunctionCallingConfig(mode=tool_choice.upper())
-    #     )
-
-
 def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
     # check for completion text
     content = " ".join(
-        [part.text for part in candidate.content.parts if part.text is not None]
+        [
+            part.text
+            for part in candidate.content.parts
+            if part.to_dict().get("text") is not None
+        ]
     )
 
     # now tool calls
@@ -366,17 +287,6 @@ def completion_choices_from_candidates(
     return [completion_choice_from_candidate(candidate) for candidate in candidates]
 
 
-# google doesn't export FinishReason (it's in a sub-namespace with a beta
-# designation that seems destined to change, so we vendor the enum here)
-class FinishReason:
-    FINISH_REASON_UNSPECIFIED = 0
-    STOP = 1
-    MAX_TOKENS = 2
-    SAFETY = 3
-    RECITATION = 4
-    OTHER = 5
-
-
 def candidate_stop_reason(finish_reason: FinishReason) -> StopReason:
     match finish_reason:
         case FinishReason.STOP:
@@ -387,13 +297,6 @@ def candidate_stop_reason(finish_reason: FinishReason) -> StopReason:
             return "content_filter"
         case _:
             return "unknown"
-
-
-def gapi_should_retry(ex: BaseException) -> bool:
-    if isinstance(ex, Exception):
-        return if_transient_error(ex)
-    else:
-        return False
 
 
 def parse_safety_settings(
@@ -431,9 +334,9 @@ def str_to_harm_category(category: str) -> HarmCategory:
         return HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT
     elif "DANGEROUS_CONTENT" in category:
         return HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT
+    elif "UNSPECIFIED" in category:
+        return HarmCategory.HARM_CATEGORY_UNSPECIFIED
     else:
-        # NOTE: Although there is an "UNSPECIFIED" category, in the
-        # documentation, the API does not accept it.
         raise ValueError(f"Unknown HarmCategory: {category}")
 
 

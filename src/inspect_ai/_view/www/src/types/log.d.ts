@@ -231,7 +231,7 @@ export type Transcript = (
 export type Level1 =
   | "debug"
   | "http"
-  | "tools"
+  | "sandbox"
   | "info"
   | "warning"
   | "error"

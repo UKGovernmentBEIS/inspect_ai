@@ -4,20 +4,21 @@
 
 Inspect has built in support for a variety of language model API providers and can be extended to support arbitrary additions ones. Built-in model API providers, their dependencies, and environment variables required to use them are as follows:
 
-| Model API    | Dependencies                      | Environment Variables                                                  |
-|-------------------|----------------------|-------------------------------|
-| OpenAI       | `pip install openai`              | `OPENAI_API_KEY`                                                       |
-| Anthropic    | `pip install anthropic`           | `ANTHROPIC_API_KEY`                                                    |
-| Google       | `pip install google-generativeai` | `GOOGLE_API_KEY`                                                       |
-| Mistral      | `pip install mistralai`           | `MISTRAL_API_KEY`                                                      |
-| TogetherAI   | `pip install openai`              | `TOGETHER_API_KEY`                                                     |
-| AWS Bedrock  | `pip install boto3`               | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
-| Azure AI     | None required                     | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL`                      |
-| Groq         | `pip install groq`                | `GROQ_API_KEY`                                                         |
-| Cloudflare   | None required                     | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`                     |
-| Hugging Face | `pip install transformers`        | None required                                                          |
-| vLLM         | `pip install vllm`                | None required                                                          |
-| Ollama       | `pip install openai`              | None required                                                          |
+| Model API | Dependencies | Environment Variables |
+|---------------|--------------------|--------------------------------------|
+| OpenAI | `pip install openai` | `OPENAI_API_KEY` |
+| Anthropic | `pip install anthropic` | `ANTHROPIC_API_KEY` |
+| Google | `pip install google-generativeai` | `GOOGLE_API_KEY` |
+| Mistral | `pip install mistralai` | `MISTRAL_API_KEY` |
+| TogetherAI | `pip install openai` | `TOGETHER_API_KEY` |
+| AWS Bedrock | `pip install boto3` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
+| Azure AI | None required | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL` |
+| Groq | `pip install groq` | `GROQ_API_KEY` |
+| Cloudflare | None required | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
+| Hugging Face | `pip install transformers` | None required |
+| vLLM | `pip install vllm` | None required |
+| Ollama | `pip install openai` | None required |
+| Vertex | `pip install google-cloud-aiplatform` | None required |
 
 : {tbl-colwidths="\[18,45,37\]"}
 
@@ -29,20 +30,21 @@ Note that some providers ([Ollama](https://github.com/ollama/ollama/blob/main/do
 
 To select a model for use in an evaluation task you specify it using a *model name*. Model names include their API provider and the specific model to use (e.g. `openai/gpt-4`) Here are the supported providers along with example model names and links to documentation on all available models:
 
-| Provider     | Example                           | Docs                                                                                            |
-|-------------------|---------------------------|---------------------------|
-| OpenAI       | `openai/gpt-3.5-turbo`            | [OpenAI Models](https://platform.openai.com/docs/models/overview)                               |
-| Anthropic    | `anthropic/claude-2.1`            | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview)                      |
-| Google       | `google/gemini-1.0-pro`           | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models)             |
-| Mistral      | `mistral/mistral-large-latest`    | [Mistral Models](https://docs.mistral.ai/platform/endpoints/)                                   |
-| Hugging Face | `hf/openai-community/gpt2`        | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
-| vLLM         | `vllm/openai-community/gpt2`      | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html)                      |
-| Ollama       | `ollama/llama3`                   | [Ollama Models](https://ollama.com/library)                                                     |
-| TogetherAI   | `together/lmsys/vicuna-13b-v1.5`  | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                 |
-| AWS Bedrock  | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/)                                           |
-| Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)                                          |
-| Groq         | `groq/mixtral-8x7b-32768`         | [Groq Models](https://console.groq.com/docs/models)                                             |
-| Cloudflare   | `cf/meta/llama-2-7b-chat-fp16`    | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation)       |
+| Provider | Example | Docs |
+|--------------|--------------|---------------------------------------------|
+| OpenAI | `openai/gpt-3.5-turbo` | [OpenAI Models](https://platform.openai.com/docs/models/overview) |
+| Anthropic | `anthropic/claude-2.1` | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview) |
+| Google | `google/gemini-1.0-pro` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models) |
+| Mistral | `mistral/mistral-large-latest` | [Mistral Models](https://docs.mistral.ai/platform/endpoints/) |
+| Hugging Face | `hf/openai-community/gpt2` | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
+| vLLM | `vllm/openai-community/gpt2` | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html) |
+| Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
+| TogetherAI | `together/lmsys/vicuna-13b-v1.5` | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models) |
+| AWS Bedrock | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/) |
+| Azure AI | `azureai/azure-deployment-name` | [Azure AI Models](https://ai.azure.com/explore/models) |
+| Vertex | `vertex/gemini-1.5-flash` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models) |
+| Groq | `groq/mixtral-8x7b-32768` | [Groq Models](https://console.groq.com/docs/models) |
+| Cloudflare | `cf/meta/llama-2-7b-chat-fp16` | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation) |
 
 : {tbl-colwidths="\[18,45,37\]"}
 
@@ -230,23 +232,23 @@ $ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
 
 Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:
 
-| Category            | Description                                                                  |
-|------------------------------------|------------------------------------|
-| `sexually_explicit` | Contains references to sexual acts or other lewd content.                    |
-| `hate_speech`       | Content that is rude, disrespectful, or profane.                             |
-| `harassment`        | Negative or harmful comments targeting identity and/or protected attributes. |
-| `dangerous_content` | Promotes, facilitates, or encourages harmful acts.                           |
+| Category | Description |
+|-----------------|-------------------------------------------------------|
+| `sexually_explicit` | Contains references to sexual acts or other lewd content. |
+| `hate_speech` | Content that is rude, disrespectful, or profane. |
+| `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
+| `dangerous_content` | Promotes, facilitates, or encourages harmful acts. |
 
 : {tbl-colwidths="\[35,65\]"}
 
 For each category, the following block thresholds are available:
 
-| Block Threshold    | Description                                                  |
+| Block Threshold | Description |
 |-------------------|-----------------------------------------------------|
-| `none`             | Always show regardless of probability of unsafe content      |
-| `only_high`        | Block when high probability of unsafe content                |
-| `medium_and_above` | Block when medium or high probability of unsafe content      |
-| `low_and_above`    | Block when low, medium or high probability of unsafe content |
+| `none` | Always show regardless of probability of unsafe content |
+| `only_high` | Block when high probability of unsafe content |
+| `medium_and_above` | Block when medium or high probability of unsafe content |
+| `low_and_above` | Block when low, medium or high probability of unsafe content |
 
 : {tbl-colwidths="\[35,65\]"}
 
@@ -258,7 +260,7 @@ safety_settings = dict(
   hate_speech = "low_and_above"
 )
 eval(
-  "eval.py", 
+  "eval.py",
   model_args=dict(safety_settings=safety_settings)
 )
 ```
@@ -268,6 +270,20 @@ This also can be done from the command line:
 ``` bash
 $ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 ```
+
+### Google Vertex AI {#google-vertex}
+
+::: {.callout-note appearance="simple"}
+Vertex AI is a different service to Google AI, see a comparison matrix [here](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai#google-ai). Make sure you are using the appropriate model provider.
+:::
+
+The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn't use the standard `BASE_URL`/`API_KEY` approach that others do. Consequently you don't need to set these environment variables, instead you should [configure your environment](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1) appropriately. Additional configuration can be passed in through the `vertex_init_args` parameter if required:
+
+``` bash
+$ inspect eval eval.py -M "vertex_init_args={'project': 'my-project', location: 'eu-west2-b'}"
+```
+
+Vertex AI provides the same `safety_settings` outlined in the [Google] provider.
 
 ### Hugging Face {#sec-hugging-face-transformers}
 
@@ -441,12 +457,13 @@ The additional `model_args` are forwarded as follows for the various providers:
 | vLLM         | `SamplingParams`                       |
 | Ollama       | `AsyncOpenAI`                          |
 | TogetherAI   | `AsyncOpenAI`                          |
+| Groq         | `AsyncGroq`                            |
 | AzureAI      | Chat HTTP Post Body                    |
 | Cloudflare   | Chat HTTP Post Body                    |
 
 : {tbl-colwidths="\[30,70\]"}
 
-See the OpenAI, Anthropic, Google, Mistral, Hugging Face, vLLM, Ollama, TogetherAI, Azure AI, and Cloudflare provider documentation for more information on the additional options available.
+See the documentation for the requisite model provider for more information on the additional model options that can be passed to these functions and classes.
 
 ## Custom Models
 

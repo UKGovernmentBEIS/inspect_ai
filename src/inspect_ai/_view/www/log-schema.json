@@ -1452,7 +1452,7 @@
           "enum": [
             "debug",
             "http",
-            "tools",
+            "sandbox",
             "info",
             "warning",
             "error",
