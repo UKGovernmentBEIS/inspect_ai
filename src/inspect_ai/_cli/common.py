@@ -4,7 +4,7 @@ from typing import Any, Callable, Tuple, cast
 import click
 from typing_extensions import TypedDict
 
-from inspect_ai._util.constants import DEFAULT_LOG_LEVEL
+from inspect_ai._util.constants import ALL_LOG_LEVELS, DEFAULT_LOG_LEVEL
 
 
 class CommonOptions(TypedDict):
@@ -18,7 +18,7 @@ def log_level_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--log-level",
         type=click.Choice(
-            ["debug", "http", "tools", "info", "warning", "error", "critical"],
+            [level.lower() for level in ALL_LOG_LEVELS],
             case_sensitive=False,
         ),
         default=DEFAULT_LOG_LEVEL,

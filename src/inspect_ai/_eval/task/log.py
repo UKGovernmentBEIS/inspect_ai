@@ -1,12 +1,13 @@
 from importlib import metadata as importlib_metadata
 from logging import LogRecord
-from typing import Any
+from typing import Any, cast
 
 from shortuuid import uuid
 
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.git import git_context
+from inspect_ai._util.logger import logger_records
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (
     registry_log_name,
@@ -35,8 +36,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
+from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Plan, Solver, TaskState
-from inspect_ai.util._logger import logger_records
 
 
 class TaskLogger:
@@ -49,7 +50,7 @@ class TaskLogger:
         run_id: str,
         model: Model,
         dataset: Dataset,
-        tool_environment: tuple[str, str | None] | None,
+        sandbox: tuple[str, str | None] | None,
         task_attribs: dict[str, Any],
         task_args: dict[str, Any],
         model_args: dict[str, Any],
@@ -81,7 +82,7 @@ class TaskLogger:
                 samples=len(dataset),
                 shuffled=dataset.shuffled,
             ),
-            tool_environment=tool_environment,
+            sandbox=sandbox,
             task_attribs=task_attribs,
             task_args=task_args,
             model_args=model_args,
@@ -122,7 +123,7 @@ class TaskLogger:
         epoch: int,
         sample: Sample,
         state: TaskState,
-        scores: dict[str, Score] | None,
+        scores: dict[str, SampleScore],
         flush: bool = False,
     ) -> None:
         # log
@@ -137,7 +138,7 @@ class TaskLogger:
                 metadata=state.metadata if state.metadata else {},
                 messages=state.messages,
                 output=state.output,
-                scores=scores,
+                scores=cast(dict[str, Score], scores),
             ),
             flush,
         )

@@ -27,11 +27,11 @@ async def test_extension_model():
 
 @skip_if_no_openai
 @pytest.mark.asyncio
-async def test_extension_toolenv():
+async def test_extension_sandboxenv():
     # ensure the package is installed
     ensure_package_installed()
 
-    # run a task using the toolenv
+    # run a task using the sandboxenv
     try:
         task = Task(
             dataset=[
@@ -41,7 +41,7 @@ async def test_extension_toolenv():
             ],
             plan=[use_tools(list_files()), generate()],
             scorer=includes(),
-            tool_environment="podman",
+            sandbox="podman",
         )
         await eval_async(task, model="openai/gpt-4")
     except Exception as ex:

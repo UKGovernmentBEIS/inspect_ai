@@ -167,10 +167,10 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
     config["model_base_url"] = evaluation.model_base_url;
   }
 
-  if (evaluation?.tool_environment) {
-    config["tool_environment"] = evaluation.tool_environment[0];
-    if (evaluation.tool_environment[1]) {
-      config["tool_environment_config"] = evaluation.tool_environment[1];
+  if (evaluation?.sandbox) {
+    config["sandbox"] = evaluation.sandbox[0];
+    if (evaluation.sandbox[1]) {
+      config["sandbox_config"] = evaluation.sandbox[1];
     }
   }
 

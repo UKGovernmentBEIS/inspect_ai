@@ -1,0 +1,1 @@
+{ "input": [ { "role": "user", "content": [{ "type": "text", "text": "How many ballons are in this picture?"}, { "type": "image", "image": "images/ballons.png"} ]}], "target": "3" }

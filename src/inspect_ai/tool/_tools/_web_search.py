@@ -5,9 +5,9 @@ from typing import Literal, Protocol, cast, runtime_checkable
 import httpx
 from bs4 import BeautifulSoup, NavigableString
 
-from inspect_ai.model import Model, get_model
-from inspect_ai.tool import Tool, ToolResult, tool
-from inspect_ai.util import concurrency
+from inspect_ai.util._concurrency import concurrency
+
+from .._tool import Tool, ToolResult, tool
 
 DEFAULT_RELEVANCE_PROMPT = """I am trying to answer the following question and need to find the most relevant information on the web. Please let me know if the following content is relevant to the question or not. You should just respond with "yes" or "no".
 
@@ -24,7 +24,7 @@ def web_search(
     num_results: int = 3,
     max_provider_calls: int = 3,
     max_connections: int = 10,
-    model: str | Model | None = None,
+    model: str | None = None,
 ) -> Tool:
     """Web search tool.
 
@@ -55,9 +55,6 @@ def web_search(
     else:
         raise ValueError(f"Unsupported search provider: {provider}")
 
-    # resolve model
-    relevance_model = get_model(model)
-
     async def execute(query: str) -> ToolResult:
         """
         Tool for searching the web.
@@ -78,10 +75,7 @@ def web_search(
 
             # Extract and summarize each page individually
             pages = await asyncio.gather(
-                *[
-                    page_if_relevant(link.url, query, relevance_model, client)
-                    for link in links
-                ],
+                *[page_if_relevant(link.url, query, model, client) for link in links],
                 return_exceptions=True,
             )
             for page, link in zip(pages, links):
@@ -108,7 +102,7 @@ def web_search(
 
 
 async def page_if_relevant(
-    link: str, query: str, relevance_model: Model, client: httpx.AsyncClient
+    link: str, query: str, relevance_model: str | None, client: httpx.AsyncClient
 ) -> str | None:
     """
     Use parser model to determine if a web page contents is relevant to a query.
@@ -122,6 +116,11 @@ async def page_if_relevant(
     Returns:
         str: Web page contents if relevant, else None.
     """
+    # resolve model
+    from inspect_ai.model._model import get_model
+
+    model = get_model(relevance_model)
+
     # retrieve document
     try:
         response = await client.get(link)
@@ -147,7 +146,7 @@ async def page_if_relevant(
         )
 
     is_relevant = (
-        await relevance_model.generate(
+        await model.generate(
             DEFAULT_RELEVANCE_PROMPT.format(question=query, text=full_text)
         )
     ).message.text

@@ -12,9 +12,10 @@ Inspect runs evaluations using a parallel async architecture, eagerly executing 
 There are a progression of concurrency concerns, and while most evaluations can rely on the Inspect default behaviour, others will benefit from more customisation. Below we'll cover the following:
 
 1.  Model API connection concurrency.
-2.  Evaluting multiple models in parallel.
-3.  Tool environment concurrency.
-4.  Writing parallel code in custom solvers and scorers.
+2.  Evaluating multiple models in parallel.
+3.  Evaluating mulitple tasks in paralle. 
+3.  Sandbox environment concurrency.
+4.  Writing parallel code in custom tools, solvers, and scorers.
 
 ## Model Connections
 
@@ -92,13 +93,15 @@ INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
 The multiple tasks feature described below is currently available only in the development version of Inspect. You can install the development version with:
 
 ``` bash
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
 ```
 :::
 
 By default, Inspect runs a single task at a time. This is because most tasks consist of 10 or more samples, which generally means that sample parallelism is enough to make full use of the `max_connections` defined for the active model. If however, the number samples per task is substantially lower than `max_connections` then you might benefit from running multiple tasks in parallel.
 
-There is one important constraint on task parallelism to note: all of the tasks *must share a working directory* (as Inspect switches to the working directory of tasks when executing them).
+There is one important constraint on task parallelism to note: by default, all of the tasks *must share a working directory* (as Inspect switches to the working directory of tasks when executing them). This constraint can be relaxed using the `chdir=False` option on the `@task` decorator (see the discussion in [Working Directory](#working-directory) below for details).
+
+### Max Tasks Option
 
 Run multiple tasks in parallel using the `--max-tasks` CLI option or `max_tasks` parameter to the `eval()` function. For example, here we run all of the tasks in the current working directory with up 5 tasks run in parallel:
 
@@ -136,21 +139,35 @@ eval(
 
 This code will evaluate a total of 12 tasks (6 temperature variations against 2 models each) with up to 5 tasks run in parallel.
 
-## Tool Environments {#sec-parallel-tool-environments}
+### Working Directory {#working-directory}
 
-[Tool Environments](#sec-tool-environments) (e.g. Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect `subprocess()` function for executing commands within the environment.
+By default, inspect both *loads* and *executes* tasks within the directory that contains the task source file. This is done so that relative references to Python modules, datasets, prompt templates, and other resources are resolved correctly.
+
+Since task parallelism requires that tasks are executed from within the same working directory, you may want to change this default behaviour. You can do this using the `chdir` option of the `@task` decorator. For example:
+
+``` python
+@task(chdir=False)
+def my_task():
+  ...
+```
+
+Note that this only affects where tasks are *executed*. Even with `chdir=False` task files are still *loaded* within their parent directory (so Python modules, datasets, prompts, etc. will still resolve correctly with relative references). If however you are making reference to external files at *runtime* (e.g. within the `solve()` or `score()` method of a `Sovler` or `Scorer`) you'll need to be sure to not rely on relative path resolution when `chdir=False`.
+
+## Sandbox Environments {#sec-parallel-tool-environments}
+
+[Sandbox Environments](#sec-sandbox-environments) (e.g. Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect `subprocess()` function for executing commands within the environment.
 
 ### Max Samples
 
 The `max_samples` option determines how many samples are executed in parallel (and in the case of Docker containers how many containers are run in parallel). By default, `max_samples` is set to `max_connections` so that the connection to the Model API can be fully utilised.
 
-Since Tool enviroinments include additional expensive operations beyond calling models, you may want to increase `max_samples` to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you'll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing `max_samples`.
+Since sandbox enviroinments include additional expensive operations beyond calling models, you may want to increase `max_samples` to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you'll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing `max_samples`.
 
-Note that setting `max_samples` to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using tool environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).
+Note that setting `max_samples` to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using sandbox environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).
 
 ### Max Subprocesses
 
-The `max_subprocesses` option determines how many subprocesses calls can run in parallel. By defualt, this is set to `os.cpu_count()`. Depending on the nature of execution done inside tool environments, you might benefit from increasing or decreasting `max_subprocesses`.
+The `max_subprocesses` option determines how many subprocesses calls can run in parallel. By defualt, this is set to `os.cpu_count()`. Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasting `max_subprocesses`.
 
 ## Solvers and Scorers {#sec-parallel-solvers-and-scorers}
 
@@ -289,7 +306,10 @@ Note that if you need to execute computationally expensive code in an eval, you 
 If you need to ensure that your subprocess runs for no longer than a specified interval, you can use the `timeout` option. For example:
 
 ``` python
-result = await subprocess(["ls", dir], timeout = 30)
+try:
+  result = await subprocess(["ls", dir], timeout = 30)
+except TimeoutError:
+  ...
 ```
 
-If a timeout occurs, then the `result.status` will be `False` and a timeout error message will be included in `result.stderr`.
+If a timeout occurs, then a `TimeoutError` will be thrown (which your code should generally handle in whatever manner is appropriate).

@@ -17,15 +17,16 @@ export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
 export type Shuffled = boolean | null;
-export type ToolEnvironment = [unknown, unknown] | null;
+export type Sandbox = [unknown, unknown] | null;
 export type Model = string;
 export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type Epochs = number | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
+export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
-export type ToolenvCleanup = boolean | null;
+export type SandboxCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogImages = boolean | null;
 export type LogBuffer = number | null;
@@ -56,6 +57,7 @@ export type TopK = number | null;
 export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
+export type ParallelToolCalls = boolean | null;
 export type Name2 = string;
 export type Scorer = string;
 export type Name3 = string;
@@ -107,7 +109,14 @@ export type Content3 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate" | "cache") | null;
 export type Role3 = "tool";
 export type ToolCallId = string | null;
-export type ToolError = string | null;
+export type Type4 =
+  | "parsing"
+  | "timeout"
+  | "unicode_decode"
+  | "permission"
+  | "file_not_found"
+  | "unknown";
+export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];
 export type Messages = (
@@ -150,12 +159,12 @@ export type Metadata4 = {} | null;
 export type Level =
   | "debug"
   | "http"
-  | "tools"
+  | "sandbox"
   | "info"
   | "warning"
   | "error"
   | "critical";
-export type Message1 = string;
+export type Message2 = string;
 export type Created1 = number;
 export type Logging = LoggingMessage[];
 
@@ -178,7 +187,7 @@ export interface EvalSpec {
   run_id: RunId;
   created: Created;
   dataset: EvalDataset;
-  tool_environment: ToolEnvironment;
+  sandbox: Sandbox;
   model: Model;
   model_base_url: ModelBaseUrl;
   task_attribs: TaskAttribs;
@@ -203,8 +212,9 @@ export interface EvalConfig {
   epochs: Epochs;
   max_messages: MaxMessages;
   max_samples: MaxSamples;
+  max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
-  toolenv_cleanup: ToolenvCleanup;
+  sandbox_cleanup: SandboxCleanup;
   log_samples: LogSamples;
   log_images: LogImages;
   log_buffer: LogBuffer;
@@ -250,6 +260,7 @@ export interface GenerateConfig {
   num_choices: NumChoices;
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
+  parallel_tool_calls: ParallelToolCalls;
 }
 export interface EvalResults {
   scores: Scores;
@@ -341,7 +352,11 @@ export interface ChatMessageTool {
   source: Source3;
   role: Role3;
   tool_call_id: ToolCallId;
-  tool_error: ToolError;
+  error: ToolCallError | null;
+}
+export interface ToolCallError {
+  type: Type4;
+  message: Message1;
 }
 export interface ModelOutput {
   model: Model1;
@@ -395,6 +410,6 @@ export interface Score {
 export interface Metadata5 {}
 export interface LoggingMessage {
   level: Level;
-  message: Message1;
+  message: Message2;
   created: Created1;
 }

@@ -63,11 +63,32 @@ def anthropic() -> type[ModelAPI]:
     return AnthropicAPI
 
 
+@modelapi(name="vertex")
+def vertex() -> type[ModelAPI]:
+    FEATURE = "Google Vertex API"
+    PACKAGE = "google-cloud-aiplatform"
+    MIN_VERSION = "1.59.0"
+
+    # verify we have the package
+    try:
+        import vertexai  # type: ignore  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+    # in the clear
+    from .vertex import VertexAPI
+
+    return VertexAPI
+
+
 @modelapi(name="google")
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-generativeai"
-    MIN_VERSION = "0.5.3"
+    MIN_VERSION = "0.6.1"
 
     # verify we have the package
     try:

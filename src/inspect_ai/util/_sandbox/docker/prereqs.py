@@ -86,13 +86,13 @@ async def validate_version(
             logger.warning(f"Unexpected error executing docker: {ex}")
 
         raise PrerequisiteError(
-            "ERROR: Docker tool environments require Docker Engine\n\n"
+            "ERROR: Docker sandbox environments require Docker Engine\n\n"
             + "Install: https://docs.docker.com/engine/install/\n"
         )
 
     # validate version
     if version.compare(required_version) < 0:
         raise PrerequisiteError(
-            f"ERROR: Docker tool environments require {feature} >= {required_version}\n\n"
+            f"ERROR: Docker sandbox environments require {feature} >= {required_version}\n\n"
             + "Upgrade: https://docs.docker.com/engine/install/\n"
         )

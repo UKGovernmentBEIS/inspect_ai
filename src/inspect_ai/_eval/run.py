@@ -12,9 +12,10 @@ from inspect_ai._util.path import chdir_python
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._log import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
+from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.solver import Plan, Solver
-from inspect_ai.tool._environment.environment import TaskCleanup, TaskInit
-from inspect_ai.tool._environment.registry import registry_find_toolenv
+from inspect_ai.util._sandbox.environment import TaskCleanup, TaskInit
+from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .loader import ResolvedTask
 from .task.log import TaskLogger
@@ -31,32 +32,35 @@ async def eval_run(
     eval_config: EvalConfig,
     recorder: Recorder,
     model_args: dict[str, Any],
+    epochs_reducer: list[ScoreReducer] | None = None,
     plan: Plan | Solver | list[Solver] | None = None,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
-    # we rely on the run_dir and toolenv being the same across all tasks
-    # alias these and then confirm that the rest of the tasks conform
+    # we rely on the run_dir being the same across all tasks
+    # alias and then confirm that the rest of the tasks conform
     run_dir = task_run_dir(tasks[0].task)
     if any([task_run_dir(task.task) != run_dir for task in tasks]):
         raise RuntimeError("Parallel tasks must have the same working directory.")
-    toolenv = next((task.toolenv for task in tasks if task.toolenv is not None), None)
+    sandbox = next((task.sandbox for task in tasks if task.sandbox is not None), None)
 
-    # if we have a toolenv then we need to enforce sample concurrency at
-    # this level of the eval (so we don't explode the # of toolenvs)
+    # if we have a sandbox then we need to enforce sample concurrency at
+    # this level of the eval (so we don't explode the # of sandboxes)
     sample_semaphore: asyncio.Semaphore | None = (
         create_sample_semaphore(eval_config, GenerateConfig(**kwargs))
-        if toolenv
+        if sandbox
         else None
     )
 
     # switch to task directory context
     with chdir_python(run_dir), dotenv_environ():
-        # run startup pass for the tool_environment
-        shutdown_tool_environments: Callable[[], Awaitable[None]] | None = None
-        if toolenv:
-            cleanup = eval_config.toolenv_cleanup is not False
-            shutdown_tool_environments = await startup_tool_environments(tasks, cleanup)
+        # run startup pass for the sandbox environment
+        shutdown_sandbox_environments: Callable[[], Awaitable[None]] | None = None
+        if sandbox:
+            cleanup = eval_config.sandbox_cleanup is not False
+            shutdown_sandbox_environments = await startup_sandbox_environments(
+                tasks, cleanup
+            )
 
         try:
             # create run tasks
@@ -70,6 +74,16 @@ async def eval_run(
                 if task.max_messages is not None:
                     task_eval_config.max_messages = task.max_messages
 
+                # eval epochs_reducer can override the task epochs_reducer
+                if epochs_reducer is not None:
+                    # override task (eval_config already reflects epochs_reducer)
+                    task.epochs_reducer = epochs_reducer
+                else:
+                    # use task (eval_config needs to be updated to reflect task reducer)
+                    task_eval_config.epochs_reducer = reducer_log_names(
+                        task.epochs_reducer
+                    )
+
                 # create and track the logger
                 logger = TaskLogger(
                     task_name=task.name,
@@ -79,7 +93,7 @@ async def eval_run(
                     run_id=run_id,
                     model=resolved_task.model,
                     dataset=task.dataset,
-                    tool_environment=resolved_task.toolenv,
+                    sandbox=resolved_task.sandbox,
                     task_attribs=task.attribs,
                     task_args=resolved_task.task_args,
                     model_args=model_args,
@@ -92,7 +106,7 @@ async def eval_run(
                     TaskRunOptions(
                         task=task,
                         model=resolved_task.model,
-                        toolenv=resolved_task.toolenv,
+                        sandbox=resolved_task.sandbox,
                         logger=logger,
                         config=task_eval_config,
                         plan=plan,
@@ -115,13 +129,13 @@ async def eval_run(
                 return await run_single(task_run_options)
 
         finally:
-            # shutdown tool environments
-            if shutdown_tool_environments:
+            # shutdown sandbox environments
+            if shutdown_sandbox_environments:
                 try:
-                    await shutdown_tool_environments()
+                    await shutdown_sandbox_environments()
                 except BaseException as ex:
                     log.warning(
-                        f"Error occurred shutting down tool environments: {exception_message(ex)}"
+                        f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
                     )
 
 
@@ -225,28 +239,28 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         return results
 
 
-async def startup_tool_environments(
+async def startup_sandbox_environments(
     tasks: list[ResolvedTask], cleanup: bool
 ) -> Callable[[], Awaitable[None]]:
-    # find unique toolenvs
-    toolenvs: Set[tuple[str, str | None]] = set()
+    # find unique sandboxenvs
+    sandboxenvs: Set[tuple[str, str | None]] = set()
     for task in tasks:
-        if task.toolenv is not None and task.toolenv not in toolenvs:
-            toolenvs.add(task.toolenv)
+        if task.sandbox is not None and task.sandbox not in sandboxenvs:
+            sandboxenvs.add(task.sandbox)
 
-    # initialiase toolenvs (track cleanups)
+    # initialiase sandboxenvs (track cleanups)
     cleanups: list[tuple[TaskCleanup, str | None]] = []
-    for toolenv in toolenvs:
+    for sandboxenv in sandboxenvs:
         # find type
-        toolenv_type = registry_find_toolenv(toolenv[0])
+        sandboxenv_type = registry_find_sandboxenv(sandboxenv[0])
 
         # run startup
-        task_init = cast(TaskInit, getattr(toolenv_type, "task_init"))
-        await task_init("startup", toolenv[1])
+        task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+        await task_init("startup", sandboxenv[1])
 
         # append cleanup method
-        task_cleanup = cast(TaskCleanup, getattr(toolenv_type, "task_cleanup"))
-        cleanups.append((task_cleanup, toolenv[1]))
+        task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
+        cleanups.append((task_cleanup, sandboxenv[1]))
 
     # return shutdown method
     async def shutdown() -> None:
@@ -256,7 +270,7 @@ async def startup_tool_environments(
                 await cleanup_fn("shutdown", config, cleanup)
             except BaseException as ex:
                 log.warning(
-                    f"Error occurred shutting down tool environments: {exception_message(ex)}"
+                    f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
                 )
 
     return shutdown

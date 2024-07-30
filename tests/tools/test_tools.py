@@ -1,13 +1,14 @@
 from random import randint
 from typing import Literal
 
-from test_helpers.tools import addition, exec, read_file
+from test_helpers.tools import addition, raise_error, read_file
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
+    skip_if_no_vertex,
 )
 from tool_call_utils import get_tool_call, get_tool_calls, get_tool_response
 
@@ -106,7 +107,7 @@ def check_tools_calls(model: Model, **model_args) -> None:
     log: list[EvalLog] = eval(task, model=model, model_args=model_args)
 
     # check that we got the answer right
-    assert log[0].results and log[0].results.metrics["accuracy"].value == 1
+    assert log[0].results and log[0].results.scores[0].metrics["accuracy"].value == 1
 
     # check that there is a tool_call
     assert log[0].samples
@@ -185,6 +186,11 @@ def test_google_tools():
     check_tools("google/gemini-1.0-pro")
 
 
+@skip_if_no_vertex
+def test_vertex_tools():
+    check_tools("vertex/gemini-1.5-flash")
+
+
 @skip_if_no_openai
 def test_dynamic_tools():
     @tool(prompt="Use the color tool to pick a random color.")
@@ -245,7 +251,7 @@ def test_tool_error():
         dataset=[Sample(input="Please read the file 'foo.txt'")],
         plan=[use_tools([read_file()]), generate()],
         scorer=match(),
-        tool_environment="local",
+        sandbox="local",
     )
     log = eval(task, model="openai/gpt-4")[0]
     assert log.status == "success"
@@ -261,10 +267,10 @@ def test_tool_error():
 @skip_if_no_openai
 def test_tool_eval_error():
     task = Task(
-        dataset=[Sample(input="Run the program 'floozle'")],
-        plan=[use_tools([exec()]), generate()],
+        dataset=[Sample(input="Please raise an error.")],
+        plan=[use_tools([raise_error()]), generate()],
         scorer=match(),
-        tool_environment="local",
+        sandbox="local",
     )
     log = eval(task, model="openai/gpt-4")[0]
     assert log.status == "error"

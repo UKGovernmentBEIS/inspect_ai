@@ -1,9 +1,11 @@
 import os
+from pathlib import Path
 from typing import Type, TypeVar
 
 import pytest
 from test_helpers.utils import skip_if_github_action
 
+from inspect_ai._util.content import ContentImage
 from inspect_ai.dataset import (
     Dataset,
     FieldSpec,
@@ -13,6 +15,7 @@ from inspect_ai.dataset import (
     file_dataset,
     json_dataset,
 )
+from inspect_ai.model._chat_message import ChatMessageUser
 
 T_ds = TypeVar("T_ds")
 
@@ -67,6 +70,22 @@ def test_dataset_read_id() -> None:
         FieldSpec(input="question", target="answer", id="id"),
     )
     assert dataset[0].id == "q1"
+
+
+def test_example_dataset_not_found() -> None:
+    with pytest.raises(ValueError):
+        example_dataset("not_found")
+
+
+def test_dataset_image_paths() -> None:
+    dataset = json_dataset(dataset_path("images.jsonl"))
+    sample = dataset[0]
+    assert not isinstance(sample.input, str)
+    assert isinstance(sample.input[0], ChatMessageUser)
+    assert isinstance(sample.input[0].content[1], ContentImage)
+    image = Path(sample.input[0].content[1].image)
+    assert image.is_absolute()
+    assert image.exists()
 
 
 sample_field_spec = FieldSpec(input="input", target="label", metadata=["extra"])

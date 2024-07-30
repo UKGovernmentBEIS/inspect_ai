@@ -4,6 +4,7 @@ from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_openai,
+    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval, task
@@ -33,12 +34,17 @@ def check_images(model):
 
 @skip_if_no_google
 def test_google_images():
-    check_images("google/gemini-pro-vision")
+    check_images("google/gemini-1.5-flash")
 
 
 @skip_if_no_openai
 def test_openai_images():
     check_images("openai/gpt-4")
+
+
+@skip_if_no_vertex
+def test_vertex_images():
+    check_images("vertex/gemini-1.5-flash")
 
 
 @skip_if_no_anthropic

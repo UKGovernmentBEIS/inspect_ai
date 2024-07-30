@@ -1,7 +1,7 @@
 from inspect_ai.tool import Tool, ToolChoice
 
-from .._solver import Generate, Solver, solver
-from .._task_state import TaskState
+from ._solver import Generate, Solver, solver
+from ._task_state import TaskState
 
 
 @solver

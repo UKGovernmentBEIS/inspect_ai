@@ -1,20 +1,33 @@
 import asyncio
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from typing import (
     Any,
     Callable,
+    Dict,
+    List,
+    Type,
     cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+    is_typeddict,
 )
 
-from docstring_parser import Docstring, DocstringParam
+from jsonschema import Draft7Validator
+from pydantic import BaseModel
 
-from inspect_ai._util.docstring import parse_docstring
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.json import python_type_to_json_type
 from inspect_ai._util.registry import registry_info
-from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo, ToolParam
-from inspect_ai.tool._tool import TOOL_PROMPT
+from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
+from inspect_ai.tool._tool import TOOL_PROMPT, ToolParsingError
+from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool_info import (
+    ToolParams,
+    parse_docstring,
+    parse_tool_info,
+)
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 
@@ -35,17 +48,47 @@ async def call_tools(
         tdefs = tool_defs(tools)
 
         async def call_tool_task(call: ToolCall) -> ChatMessageTool:
-            tool_error: str | None = None
+            result: Any = ""
+            tool_error: ToolCallError | None = None
             try:
                 result = await call_tool(tdefs, call)
+            except TimeoutError:
+                tool_error = ToolCallError(
+                    "timeout", "Command timed out before completing."
+                )
+            except UnicodeDecodeError as ex:
+                tool_error = ToolCallError(
+                    "unicode_decode",
+                    f"Error decoding bytes to {ex.encoding}: {ex.reason}",
+                )
+            except PermissionError as ex:
+                message = f"{ex.strerror}."
+                if isinstance(ex.filename, str):
+                    message = f"{message} Filename '{ex.filename}'."
+                tool_error = ToolCallError("permission", message)
+            except FileNotFoundError as ex:
+                tool_error = ToolCallError(
+                    "file_not_found",
+                    f"File '{ex.filename}' was not found.",
+                )
+            except ToolParsingError as ex:
+                tool_error = ToolCallError("parsing", ex.message)
             except ToolError as ex:
-                result = ""
-                tool_error = ex.message
+                tool_error = ToolCallError("unknown", ex.message)
+
+            # massage result, leave list[Content] alone, convert all other
+            # types to string as that is what the model APIs accept
+            if isinstance(result, list) and (
+                isinstance(result[0], ContentText | ContentImage)
+            ):
+                content: str | list[Content] = result
+            else:
+                content = str(result)
 
             return ChatMessageTool(
-                content=result if isinstance(result, list) else str(result),
-                tool_error=tool_error,
+                content=content,
                 tool_call_id=call.id,
+                error=tool_error,
             )
 
         tasks = [call_tool_task(call) for call in message.tool_calls]
@@ -63,7 +106,7 @@ class ToolDef:
     description: str
     """Tool description."""
 
-    params: list[ToolParam]
+    parameters: ToolParams
     """Tool parameters"""
 
     prompt: str | None
@@ -76,18 +119,23 @@ class ToolDef:
 async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
-        raise ToolError(call.parse_error)
+        raise ToolParsingError(call.parse_error)
 
     # find the tool
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
-        raise ToolError(f"Tool {call.function} not found")
+        raise ToolParsingError(f"Tool {call.function} not found")
+
+    # validate the schema of the passed object
+    validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
+    if validation_errors:
+        return ToolParsingError(validation_errors)
 
     # call the tool
     try:
-        return await tool_def.tool(**call.arguments)
+        return await tool_def.tool(**tool_params(call.arguments, tool_def.tool))
     except TypeError as ex:
-        raise ToolError(exception_message(ex))
+        raise ToolParsingError(exception_message(ex))
 
 
 def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
@@ -98,7 +146,9 @@ def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
             tdefs = tool_defs(cast(list[Tool], tools))
             return [
                 ToolInfo(
-                    name=tool.name, description=tool.description, params=tool.params
+                    name=tool.name,
+                    description=tool.description,
+                    parameters=tool.parameters,
                 )
                 for tool in tdefs
             ]
@@ -111,43 +161,139 @@ def tool_defs(tools: list[Tool]) -> list[ToolDef]:
 
 
 def tool_def(tool: Tool) -> ToolDef:
-    tool_info = registry_info(tool)
-    name = tool_info.name.split("/")[-1]
-    docstring = tool_docstring(tool)
+    # get tool_info
+    name, prompt = tool_name_and_prompt(tool)
+    tool_info = parse_tool_info(tool)
+
+    # if there is no description and there is a prompt,
+    # then use the prompt as the description
+    if not tool_info.description and prompt is not None:
+        tool_info.description = prompt
+
+    # validate that we have types/descriptions for paramters
+    for param_name, param in tool_info.parameters.properties.items():
+
+        def raise_not_provided_error(context: str) -> None:
+            raise ValueError(
+                f"{context} not provided for parameter '{param_name}' of tool function '{name}'."
+            )
+
+        if param.type == "null":
+            raise_not_provided_error("Type annotation")
+        elif not param.description:
+            raise_not_provided_error("Description")
+        pass
+
+    # validate that we have a description for the function
+    if not tool_info.description:
+        raise ValueError(f"Description not provided for tool function '{name}'")
 
     # build params
-    params = [tool_param(param) for param in docstring.params]
     return ToolDef(
         name=name,
-        description=str(docstring.short_description),
-        prompt=tool_info.metadata.get(TOOL_PROMPT, None),
-        params=params,
+        description=tool_info.description,
+        prompt=prompt,
+        parameters=tool_info.parameters,
         tool=tool,
     )
 
 
-def tool_param(param: DocstringParam) -> ToolParam:
-    return ToolParam(
-        name=param.arg_name,
-        type=python_type_to_json_type(param.type_name),
-        description=str(param.description),
-        optional=param.is_optional is True,
-    )
+def tool_name_and_prompt(tool: Tool) -> tuple[str, str | None]:
+    tool_registry_info = registry_info(tool)
+    name = tool_registry_info.name.split("/")[-1]
+    prompt = tool_registry_info.metadata.get(TOOL_PROMPT, None)
+    return name, prompt
 
 
-def tool_docstring(tool: Tool) -> Docstring:
-    docstring = parse_docstring(inspect.getdoc(tool))
-    # We need tool and parameter descriptions to pass to the agent
-    assert (
-        docstring.short_description is not None
-    ), "Tool must have a short description in the docstring"
-    params = list(inspect.signature(tool).parameters.keys())
-    if len(params) > 0:
-        for param in params:
-            assert param in [
-                docstring_param.arg_name for docstring_param in docstring.params
-            ], f"Parameter {param} must be documented in the docstring"
-        assert [
-            docstring_param.description != "" for docstring_param in docstring.params
-        ], "All tool parameters must have a description"
-    return docstring
+def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
+    # parse function typeinfo
+    signature = inspect.signature(func)
+    type_hints = get_type_hints(func)
+    docstring = inspect.getdoc(func)
+
+    # build params
+    params: dict[str, Any] = {}
+    for param_name, param in signature.parameters.items():
+        # Parse docstring
+        docstring_info = parse_docstring(docstring, param_name)
+
+        # get type hint (fallback to docstring as required)
+        type_hint: Type[Any] | None
+        if param_name in type_hints:
+            type_hint = type_hints[param_name]
+        # as a fallback try to parse it from the docstring
+        elif "docstring_type" in docstring_info:
+            docstring_type = docstring_info["docstring_type"]
+            type_hint = getattr(__builtins__, docstring_type, None)
+
+        # error if there is no type_hint
+        if type_hint is None:
+            raise ValueError(f"No type annotation available for parameter {param_name}")
+
+        # yield parameter (fail if not passed and there is no default)
+        if param_name in input:
+            params[param_name] = tool_param(type_hint, input.get(param_name))
+        elif param.default is not None:
+            params[param_name] = param.default
+        else:
+            raise ToolParsingError(
+                f"Required parameter {param_name} not provided to tool call."
+            )
+
+    return params
+
+
+def tool_param(type_hint: Type[Any], input: Any) -> Any:
+    origin = get_origin(type_hint)
+    args = get_args(type_hint)
+
+    if origin is None:
+        if type_hint in [int, str, float, bool]:
+            try:
+                return type_hint(input)
+            except (ValueError, TypeError):
+                raise ToolParsingError(
+                    f"Unable to convert '{input}' to {type_hint.__name__}"
+                )
+        elif is_typeddict(type_hint):
+            typeddict_data: dict[str, Any] = {}
+            annotations = get_type_hints(type_hint)
+            for name, hint in annotations.items():
+                typeddict_data[name] = tool_param(hint, input.get(name))
+            return typeddict_data
+        elif is_dataclass(type_hint):
+            dataclass_data: dict[str, Any] = {}
+            fields = type_hint.__dataclass_fields__  # type: ignore
+            for name, field in fields.items():
+                dataclass_data[name] = tool_param(field.type, input.get(name))
+            return type_hint(**dataclass_data)
+        elif issubclass(type_hint, BaseModel):
+            return type_hint(**input)
+        else:
+            return input
+    elif origin is list or origin is List:
+        if args:
+            return [tool_param(args[0], x) for x in input]
+        else:
+            return input
+    elif origin is dict or origin is Dict:
+        if args and len(args) > 1:
+            return {k: tool_param(args[1], v) for k, v in input}
+        else:
+            return input
+    else:
+        return input
+
+
+def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | None:
+    schema = parameters.model_dump(exclude_none=True)
+    validator = Draft7Validator(schema)
+    errors = list(validator.iter_errors(input))
+    if errors:
+        message = "\n".join(
+            [f"Found {len(errors)} validation errors parsing tool input arguments:"]
+            + [f"- {error.message}" for error in errors]
+        )
+        return message
+    else:
+        return None

@@ -10,9 +10,7 @@ from ._prompt import (
 )
 from ._solver import Generate, Solver, generate, solver
 from ._task_state import Choice, Choices, TaskState
-from ._tools._execute import bash, python
-from ._tools._use_tools import use_tools
-from ._tools._web_search import web_search
+from ._use_tools import use_tools
 
 __all__ = [
     "generate",
@@ -22,9 +20,6 @@ __all__ = [
     "system_message",
     "self_critique",
     "use_tools",
-    "bash",
-    "python",
-    "web_search",
     "plan",
     "Plan",
     "Solver",
@@ -36,44 +31,54 @@ __all__ = [
 ]
 
 
-_TOOL_MODULE_VERSION = "0.3.18"
+_TOOL_MODULE_VERSION_3_18 = "0.3.18"
+_TOOL_MODULE_VERSION_3_19 = "0.3.19"
 _REMOVED_IN = "0.4"
 relocated_module_attribute(
-    "Tool", "inspect_ai.tool.Tool", _TOOL_MODULE_VERSION, _REMOVED_IN
+    "Tool", "inspect_ai.tool.Tool", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
 )
 relocated_module_attribute(
     "ToolEnvironment",
-    "inspect_ai.tool.ToolEnvironment",
-    _TOOL_MODULE_VERSION,
+    "inspect_ai.util.SandboxEnvironment",
+    _TOOL_MODULE_VERSION_3_18,
     _REMOVED_IN,
 )
 relocated_module_attribute(
     "ToolEnvironments",
-    "inspect_ai.tool.ToolEnvironments",
-    _TOOL_MODULE_VERSION,
+    "inspect_ai.util.SandboxEnvironments",
+    _TOOL_MODULE_VERSION_3_18,
     _REMOVED_IN,
 )
 relocated_module_attribute(
     "ToolEnvironmentSpec",
-    "inspect_ai.tool.ToolEnvironmentSpec",
-    _TOOL_MODULE_VERSION,
+    "inspect_ai.util.SandboxEnvironmentSpec",
+    _TOOL_MODULE_VERSION_3_18,
     _REMOVED_IN,
 )
 relocated_module_attribute(
-    "ToolError", "inspect_ai.tool.ToolError", _TOOL_MODULE_VERSION, _REMOVED_IN
+    "ToolError", "inspect_ai.tool.ToolError", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
 )
 relocated_module_attribute(
-    "ToolResult", "inspect_ai.tool.ToolResult", _TOOL_MODULE_VERSION, _REMOVED_IN
+    "ToolResult", "inspect_ai.tool.ToolResult", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
 )
 relocated_module_attribute(
-    "tool", "inspect_ai.tool.tool", _TOOL_MODULE_VERSION, _REMOVED_IN
+    "tool", "inspect_ai.tool.tool", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
 )
 relocated_module_attribute(
     "tool_environment",
-    "inspect_ai.tool.tool_environment",
-    _TOOL_MODULE_VERSION,
+    "inspect_ai.util.sandbox",
+    _TOOL_MODULE_VERSION_3_18,
     _REMOVED_IN,
 )
 relocated_module_attribute(
-    "toolenv", "inspect_ai.tool.toolenv", _TOOL_MODULE_VERSION, _REMOVED_IN
+    "toolenv", "inspect_ai.util.sandboxenv", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
+)
+relocated_module_attribute(
+    "bash", "inspect_ai.tool.bash", _TOOL_MODULE_VERSION_3_19, _REMOVED_IN
+)
+relocated_module_attribute(
+    "python", "inspect_ai.tool.python", _TOOL_MODULE_VERSION_3_19, _REMOVED_IN
+)
+relocated_module_attribute(
+    "web_search", "inspect_ai.tool.web_search", _TOOL_MODULE_VERSION_3_19, _REMOVED_IN
 )
