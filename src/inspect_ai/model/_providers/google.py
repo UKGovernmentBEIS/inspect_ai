@@ -6,10 +6,12 @@ from google.ai.generativelanguage import (
     Blob,
     Candidate,
     FunctionCall,
+    FunctionCallingConfig,
     FunctionDeclaration,
     FunctionResponse,
     Part,
     Schema,
+    ToolConfig,
     Type,
 )
 from google.api_core.exceptions import TooManyRequests
@@ -128,6 +130,7 @@ class GoogleAPI(ModelAPI):
                 safety_settings=self.safety_settings,
                 generation_config=parameters,
                 tools=chat_tools(tools) if len(tools) > 0 else None,
+                tool_config=chat_tool_config(tool_choice) if len(tools) > 0 else None,
                 stream=False,
             ),
         )
@@ -249,9 +252,6 @@ def prepend_system_messages(
         messages.insert(0, ContentDict(role="user", parts=system_parts))
 
 
-# https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
-
-
 def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
     declarations = [
         FunctionDeclaration(
@@ -262,6 +262,9 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
         for tool in tools
     ]
     return [Tool(declarations)]
+
+
+# https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
 
 
 def schema_from_param(param: ToolParam | ToolParams) -> Schema:
@@ -295,6 +298,31 @@ def schema_from_param(param: ToolParam | ToolParams) -> Schema:
         )
     else:
         return Schema(type=Type.TYPE_UNSPECIFIED)
+
+
+def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
+    # NOTE: Google seems to sporadically return errors when being
+    # passed a FunctionCallingConfig with mode="ANY". therefore,
+    # we 'correct' this to "AUTO" to prevent the errors
+    mode = "AUTO"
+    if tool_choice == "none":
+        mode = "NONE"
+    return ToolConfig(function_calling_config=FunctionCallingConfig(mode=mode))
+
+    # This is the 'correct' implementation if Google wasn't returning
+    # errors for mode="ANY". we can test whether this is working properly
+    # by commenting this back in and running pytest -k google_tools
+    #
+    # if isinstance(tool_choice, ToolFunction):
+    #     return ToolConfig(
+    #         function_calling_config=FunctionCallingConfig(
+    #             mode="ANY", allowed_function_names=[tool_choice.name]
+    #         )
+    #     )
+    # else:
+    #     return ToolConfig(
+    #         function_calling_config=FunctionCallingConfig(mode=tool_choice.upper())
+    #     )
 
 
 def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
