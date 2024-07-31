@@ -51,7 +51,7 @@ export class LogViewFileWatcher implements Disposable {
           }
         }
       }
-    }, 1000);
+    }, 500);
   }
   private lastEval_: number;
   private watchInterval_: NodeJS.Timeout;
