@@ -28,26 +28,13 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     ) => T
   ) {
     this.extensionUri_ = context.extensionUri;
-
-    context.subscriptions.push(
-      window.registerWebviewPanelSerializer(this.viewType_, {
-        deserializeWebviewPanel: (panel, state: S) => {
-          this.restoreWebview(panel, state);
-          setTimeout(() => {
-            panel.dispose();
-          }, 200);
-          return Promise.resolve();
-        },
-      })
-    );
   }
 
   public setOnShow(f: () => void) {
     this.onShow_ = f;
   }
 
-  public setOnClose(f: () => void) {
-    this.onClose_ = f;
+  public setOnClose(f: () => void) {    this.onClose_ = f;
   }
 
   public showWebview(state: S, options?: ShowOptions): void {
