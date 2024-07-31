@@ -38,6 +38,7 @@
 - Validate name passed to `example_dataset()` (and print available example dataset names).
 - Resolve relative image paths within Dataset samples against the directory containing the dataset.
 - Preserve `tool_error` text for Anthropic tool call responses.
+- Fix issue with rate limit reporting being per task not per eval.
 
 
 
