@@ -278,7 +278,7 @@ class Model:
 
         # retry for rate limit errors
         @retry(
-            wait=wait_sigmoid(initial_delay=5.0, max_delay=120.0, jitter=5.0),
+            wait=wait_sigmoid(initial=5.0, max=120.0, jitter=5.0),
             retry=retry_if_exception(self.api.is_rate_limit),
             stop=(
                 (
