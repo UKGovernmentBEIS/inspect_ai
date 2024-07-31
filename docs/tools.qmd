@@ -4,7 +4,7 @@
 
 Many models now have the ability to interact with client-side Python functions in order to expand their capabilities. This enables you to equip models with your own set of custom tools so they can perform a wider variety of tasks.
 
-Inspect natively supports registering Python functions as tools and providing these tools to models that support them (currently OpenAI, Claude 3, Google Gemini, and Mistral). Inspect also includes one built-in tool (web search).
+Inspect natively supports registering Python functions as tools and providing these tools to models that support them (currently OpenAI, Claude 3, Google Gemini, and Mistral). Inspect also includes several built-in tools ([bash](#sec-bash-and-python), [python](#sec-bash-and-python), and [web_search](#sec-web-search)).
 
 ::: callout-note
 ### Tools and Agents
@@ -39,6 +39,7 @@ def add():
 
 {{< include _tools-annotations-required.md >}}
 
+Note that you while you are required to provide default descriptions for tools and their parameters within doc comments, you can also make these dynamically customisable by users of your tool (see the section below on [Tool Descriptions](#sec-tool-descriptions) for details on how to do this).
 
 ### Using Tools
 
@@ -173,6 +174,48 @@ plan = [
 ]
 ```
 
+## Tool Descriptions
+
+::: {.callout-note appearance="simple"}
+The `tool_with()` function described below is currently available only in the development version of Inspect. You can install the development version with:
+
+``` bash
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+
+Well crafted tools should include descriptions that provide models with the context required to use them correctly and productively. If you will be developing custom tools it's worth taking some time to learn how to provide good tool definitions. Here are some resources you may find helpful:
+
+-   [Best Practices for Tool Definitions](https://docs.anthropic.com/claude/docs/tool-use#best-practices-for-tool-definitions)
+-   [Function Calling with LLMs](https://www.promptingguide.ai/applications/function_calling)
+
+It some cases you may want to change the default descriptions created by a tool author—for example you might want to provide better disambiguation between multiple similar tools that are used together. You also might have need to do this during development of tools (to explore what descriptions are most useful to models).
+
+The `tool_with()` function enables you to take any tool and adapt its name and/or descriptions. For example:
+
+``` python
+from inspect_ai.tool import tool_with
+
+my_add = tool_with(
+  tool=add(), 
+  name="my_add",
+  description="a tool to add numbers", 
+  parameters={
+    "x": "the x argument",
+    "y": "the y argument"
+  })
+```
+
+You need not provide all of the parameters shown above, for example here are some examples where we modify just the main tool description or only a single parameter:
+
+``` python
+my_add = tool_with(add(), description="a tool to add numbers")
+my_add = tool_with(add(), parameters={"x": "the x argument"})
+```
+
+Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions).
+
 ## Built-In Tools
 
 Inspect has several built-in tools, including:
@@ -181,7 +224,7 @@ Inspect has several built-in tools, including:
 
 -   `bash()` and `python()`, for executing arbitrary shell and Python code.
 
-### Web Search
+### Web Search {#sec-web-search}
 
 The `web_search()` tool provides models the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
 
@@ -227,7 +270,7 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
 
-### Bash and Python
+### Bash and Python {#sec-bash-and-python}
 
 The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](#sec-sandbox-environments) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
 
