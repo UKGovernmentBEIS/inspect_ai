@@ -5,17 +5,21 @@ import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { activeWorkspaceFolder } from "../../core/workspace";
 import { workspacePath } from "../../core/path";
 import { kInspectEnvValues } from "../inspect/inspect-constants";
-
+import { ExtensionHost } from "../../hooks";
 
 export class InspectLogviewManager {
   constructor(
     private readonly webViewManager_: InspectLogviewWebviewManager,
     private readonly settingsMgr_: InspectSettingsManager,
-    private readonly envMgr_: WorkspaceEnvManager
+    private readonly envMgr_: WorkspaceEnvManager,
+    private readonly host_: ExtensionHost
   ) { }
 
   public async showLogFile(logFile: Uri) {
-    if (this.settingsMgr_.getSettings().logViewType === "text" && logFile.scheme === "file") {
+    if (
+      this.settingsMgr_.getSettings().logViewType === "text" &&
+      logFile.scheme === "file"
+    ) {
       await workspace.openTextDocument(logFile).then(async (doc) => {
         await window.showTextDocument(doc, {
           preserveFocus: true,
@@ -23,14 +27,12 @@ export class InspectLogviewManager {
         });
       });
     } else {
-
       // Show the log file
       this.webViewManager_.showLogFile(logFile);
     }
   }
 
   public showInspectView() {
-
     // See if there is a log dir
     const envVals = this.envMgr_.getValues();
     const env_log = envVals[kInspectEnvValues.logDir];
@@ -53,4 +55,3 @@ export class InspectLogviewManager {
     return this.webViewManager_.viewColumn();
   }
 }
-
