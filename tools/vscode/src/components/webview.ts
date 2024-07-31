@@ -1,4 +1,4 @@
-import { Uri, ViewColumn, EventEmitter, ExtensionContext } from "vscode";
+import { Uri, ViewColumn, EventEmitter, ExtensionContext, window } from "vscode";
 
 import { Disposable } from "../core/dispose";
 import { getNonce } from "../core/nonce";
@@ -23,6 +23,18 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     private host_: ExtensionHost
   ) {
     this.extensionUri_ = context.extensionUri;
+
+    context.subscriptions.push(
+      window.registerWebviewPanelSerializer(this.viewType_, {
+        deserializeWebviewPanel: (panel) => {
+          //this.restoreWebview(panel as HostWebviewPanel, state);
+          setTimeout(() => {
+            panel.dispose();
+          }, 200);
+          return Promise.resolve();
+        },
+      })
+    );
   }
 
   public setOnShow(f: () => void) {
