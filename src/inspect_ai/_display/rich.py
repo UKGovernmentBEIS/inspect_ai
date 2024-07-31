@@ -18,7 +18,7 @@ from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
 
-from inspect_ai._util.logger import logger_http_rate_limit_count
+from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.throttle import throttle
@@ -522,7 +522,7 @@ def task_stats(profile: TaskProfile, stats: EvalStats) -> RenderableType:
 
 
 def task_http_rate_limits() -> str:
-    return f"HTTP rate limits: {logger_http_rate_limit_count():,}"
+    return f"HTTP rate limits: {http_rate_limit_count():,}"
 
 
 def task_dict(d: dict[str, str], bold_value: bool = False) -> str:
