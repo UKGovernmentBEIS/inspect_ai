@@ -28,6 +28,7 @@ from inspect_ai.tool._tool_info import (
     parse_docstring,
     parse_tool_info,
 )
+from inspect_ai.tool._tool_with import tool_description
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 
@@ -191,7 +192,18 @@ def tool_def(tool: Tool) -> ToolDef:
         elif not param.description:
             raise_not_provided_error("Description")
 
-    # build params
+    # see if the user has overriden any of the tool's descriptions
+    desc = tool_description(tool)
+    if desc.name:
+        name = desc.name
+    if desc.description:
+        tool_info.description = desc.description
+    if desc.parameters:
+        for key, description in desc.parameters.items():
+            if key in tool_info.parameters.properties.keys():
+                tool_info.parameters.properties[key].description = description
+
+    # build tool def
     return ToolDef(
         name=name,
         description=tool_info.description,
