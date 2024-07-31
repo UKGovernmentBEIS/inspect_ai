@@ -30,7 +30,9 @@ def bash(timeout: int | None = None) -> Tool:
         if result.success:
             return result.stdout
         else:
-            raise ToolError(result.stderr)
+            raise ToolError(
+                result.stderr if result.stderr else "error executing command"
+            )
 
     return execute
 
@@ -62,6 +64,6 @@ def python(timeout: int | None = None) -> Tool:
         if result.success:
             return result.stdout
         else:
-            raise ToolError(result.stderr)
+            raise ToolError(result.stderr if result.stderr else "error executing code")
 
     return execute
