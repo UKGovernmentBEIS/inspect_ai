@@ -14,7 +14,6 @@ from tenacity import (
     stop_after_attempt,
     stop_after_delay,
     stop_never,
-    wait_exponential_jitter,
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
@@ -28,7 +27,7 @@ from inspect_ai._util.registry import (
     registry_info,
     registry_unqualified_name,
 )
-from inspect_ai._util.retry import log_rate_limit_retry
+from inspect_ai._util.retry import log_rate_limit_retry, wait_sigmoid
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util import concurrency
 
@@ -279,7 +278,7 @@ class Model:
 
         # retry for rate limit errors
         @retry(
-            wait=wait_exponential_jitter(jitter=5),
+            wait=wait_sigmoid(initial_delay=5.0, max_delay=120.0, jitter=5.0),
             retry=retry_if_exception(self.api.is_rate_limit),
             stop=(
                 (

@@ -1,8 +1,11 @@
 import logging
+import math
+import random
 from typing import Callable
 
 from httpx import ConnectError, ConnectTimeout, HTTPStatusError, ReadTimeout
 from tenacity import RetryCallState
+from tenacity.wait import wait_base
 
 from inspect_ai._util.constants import HTTP
 
@@ -65,3 +68,46 @@ def log_retry_attempt(context: str) -> Callable[[RetryCallState], None]:
 
 def is_httpx_connection_error(ex: BaseException) -> bool:
     return isinstance(ex, ConnectTimeout | ConnectError | ConnectionError | ReadTimeout)
+
+
+class wait_sigmoid(wait_base):
+    """Wait strategy that uses a sigmoid distribution."""
+
+    def __init__(
+        self,
+        initial_delay: float = 1.0,
+        max_delay: float = 60.0,
+        jitter: float = 1.0,
+        steepness: float = 0.5,
+        midpoint: int = 5,
+    ) -> None:
+        """Wait strategy that uses a sigmoid distribution.
+
+        Args:
+          initial_delay (int): Length of the first delay
+          max_delay (int): Maximum delay in seconds
+          jitter (float): Jitter wait times by random internal
+          steepness (float): Controls how quickly the function rises
+          midpoint (int): Attempt number at which the delay is half of max delay.
+
+        """
+        self.initial_delay = initial_delay
+        self.max_delay = max_delay
+        self.jitter = jitter
+        self.steepness = steepness
+        self.midpoint = midpoint
+
+    def __call__(self, retry_state: "RetryCallState") -> float:
+        if retry_state.attempt_number == 1:
+            delay = self.initial_delay
+        else:
+            normalized_attempt = (
+                retry_state.attempt_number - self.midpoint
+            ) * self.steepness
+            delay = self.max_delay * sigmoid(normalized_attempt)
+        delay = delay + random.uniform(0, self.jitter)
+        return delay
+
+
+def sigmoid(x: float) -> float:
+    return 1 / (1 + math.exp(-x))
