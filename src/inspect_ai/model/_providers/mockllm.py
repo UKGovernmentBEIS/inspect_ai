@@ -62,6 +62,7 @@ class MockLLM(ModelAPI):
         try:
             output = next(self.outputs)
         except StopIteration:
+            print(input)
             raise ValueError("custom_outputs ran out of values")
 
         if not isinstance(output, ModelOutput):

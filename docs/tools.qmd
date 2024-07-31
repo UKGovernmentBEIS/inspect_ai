@@ -14,17 +14,14 @@ One application of tools is to run them within an agent scaffold that pursues an
 
 ## Tool Basics
 
-To demonstrate the use of tools, we'll define a simple tool that adds two numbers. We use the `@tool` decorator to register it with the system, and we provide documentation comments that iare used to provide details to the model about the tool and its arguments:
+To demonstrate the use of tools, we'll define a simple tool that adds two numbers, using the `@tool` decorator to register it with the system.
 
 ``` python
-@tool(prompt="""
-    If you are given a math problem of any kind,
-    please use the add tool to compute the result."""
-)
+@tool
 def add():
     async def execute(x: int, y: int):
         """
-        Tool for adding two numbers.
+        Add two numbers.
 
         Args:
             x: First number to add.
@@ -40,21 +37,8 @@ def add():
 
 ### Annotations
 
-Note that we provide type annotations for both arguments:
+{{< include _tools-annotations-required.md >}}
 
-``` python
-async def execute(x: int, y: int)
-```
-
-Further, we provide descriptions for each parameter in the documention comment:
-
-```python
-Args:
-    x: First number to add.
-    y: Second number to add.
-```
-
-Type annotations and descriptions are *required* for tool declarations so that the model can be informed which types to pass back to the tool function and what the purpose of each parameter is.
 
 ### Using Tools
 
@@ -136,7 +120,7 @@ Tools may have a need to interact with a sandboxed environment (e.g. to provide 
 from inspect_ai.tool import ToolError, tool
 from inspect_ai.util import sandbox
 
-@tool(prompt="Use the list_files function to enumerate files.")
+@tool
 def list_files():
     async def execute(dir: str):
         """List the files in a directory.

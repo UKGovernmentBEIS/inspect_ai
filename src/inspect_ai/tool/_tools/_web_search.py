@@ -16,9 +16,7 @@ Page Content: {text}
 """
 
 
-@tool(
-    prompt="""Please use web search to assist in answering the question. If you already know the answer, you do not need to use this tool. If the search results are not helpful, please just take your best guess."""
-)
+@tool
 def web_search(
     provider: Literal["google"] = "google",
     num_results: int = 3,
@@ -57,7 +55,7 @@ def web_search(
 
     async def execute(query: str) -> ToolResult:
         """
-        Tool for searching the web.
+        Use the web_search tool to perform keyword searches of the web.
 
         Args:
             query (str): Search query.

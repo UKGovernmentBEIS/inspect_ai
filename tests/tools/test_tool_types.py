@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 import numpy as np
 from pydantic import BaseModel
@@ -21,7 +21,7 @@ from inspect_ai.tool import ToolFunction, tool
 from inspect_ai.tool._tool import Tool
 
 
-@tool(prompt="Use the mean tool if asked to take the mean of a set of numbers.")
+@tool
 def mean():
     async def execute(numbers: list[float]) -> float:
         """Take the mean of a set of numbers.
@@ -42,13 +42,11 @@ class Point(TypedDict):
     y: int
 
 
-@tool(
-    prompt="Use the offset tool if you are asked to offset a point by a certain amount."
-)
+@tool
 def offset():
     async def execute(point: Point, offset: int):
         """
-        Offsets a point by the specified offset value
+        Offset a point by the specified offset value
 
         Args:
           point: Point to offset
@@ -68,13 +66,11 @@ class PointDataclass:
     y: int
 
 
-@tool(
-    prompt="Use the offset tool if you are asked to offset a point by a certain amount."
-)
+@tool
 def offset_dataclass():
     async def execute(point: PointDataclass, offset: int):
         """
-        Offsets a point by the specified offset value
+        Offset a point by the specified offset value
 
         Args:
           point: Point to offset
@@ -89,17 +85,15 @@ def offset_dataclass():
 
 
 class Word(BaseModel):
-    type: Literal["adjective", "noun"]
+    type: str
     word: str
 
 
-@tool(
-    prompt="Use the extract_words tool if you are asked to extract the nouns and adjectives from a sentence."
-)
+@tool
 def extract_words():
     async def execute(extracted: list[Word]):
         """
-        Accepts the extracted nouns and adjectives from the sentence
+        Accepts the extracted nouns and adjectives from a sentence
 
         Args:
           extracted: A list of Word objects each with a type and word.
