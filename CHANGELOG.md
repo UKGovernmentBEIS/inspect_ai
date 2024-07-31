@@ -28,6 +28,7 @@
 - Correctly resolve default model based on CLI --model argument.
 - Fix issue with propagating API keys to Azure OpenAI provider.
 - Add `azure` model arg for OpenAI provider to force binding (or not binding) to the Azure OpenAI back-end.
+- Support for Llama 3 models with the Azure AI provider.
 - Add `setup` field to `Sample` for providing a per-sample setup script.
 - Score multiple choice questions without parsed answers as incorrect (rather than being an error). Llama 3 and 3.1 models especially often fail to yield an answer.
 - Read JSON encoded `metadata` field from samples.
