@@ -14,7 +14,7 @@ One application of tools is to run them within an agent scaffold that pursues an
 
 ## Tool Basics
 
-To demonstrate the use of tools, we'll define a simple tool that adds two numbers. We use the `@tool` decorator to register it with the system, and we provide a documentation comment (including argument types) that is used to provide details to the model about the tool:
+To demonstrate the use of tools, we'll define a simple tool that adds two numbers. We use the `@tool` decorator to register it with the system, and we provide documentation comments that iare used to provide details to the model about the tool and its arguments:
 
 ``` python
 @tool(prompt="""
@@ -27,8 +27,8 @@ def add():
         Tool for adding two numbers.
 
         Args:
-            x (int): First number to add.
-            y (int): Second number to add.
+            x: First number to add.
+            y: Second number to add.
 
         Returns:
             The sum of the two numbers.
@@ -37,6 +37,26 @@ def add():
 
     return execute
 ```
+
+### Annotations
+
+Note that we provide type annotations for both arguments:
+
+``` python
+async def execute(x: int, y: int)
+```
+
+Further, we provide descriptions for each parameter in the documention comment:
+
+```python
+Args:
+    x: First number to add.
+    y: Second number to add.
+```
+
+Type annotations and descriptions are *required* for tool declarations so that the model can be informed which types to pass back to the tool function and what the purpose of each parameter is.
+
+### Using Tools
 
 We can use this tool in an evaluation by passing it to the `use_tools()` Solver:
 
@@ -61,28 +81,73 @@ Note that when using tools with models, the models do not call the Python functi
 
 ## Tool Errors
 
-If an exception occurs during tool execution, it will by default result in a runtime error that exits the evaluation task. This is often the correct behaviour (as a malfunctioning tool invalidates the assumptions of the eval), however sometimes there are "expected" errors. For example, if you give the model a tool to execute bash or python code, it may submit invalid code. In this case you want to report the error to the model and have it adapt.
+Various errors can occur during tool execution, especially when interacting with the file system or network or when using [Sandbox Environments](#sec-sandbox-environments) to execute code in a container sandbox. As a tool writer you need to decide how you'd like to handle error conditions. A number of approaches are possible:
 
-You can report errors to the model from tools by raising a `ToolError` exception. These exceptions will not terminate the eval, but rather will report back to the model and that an error has occurred and allow it to recover. For example, here is the code for the built in `bash()` tool:
+1.  Notify the model that an error occurred to see whether it can recover.
+
+2.  Catch and handle the error internally (trying another code path, etc.).
+
+3.  Allow the error to propagate, resulting in the current `Sample` failing with an error state.
+
+There are no universally correct approaches as tool usage and semantics can vary widely—some rough guidelines are provided below.
+
+### Default Handling {#default-handling}
+
+If you do not explicitly handle errors, then Inspect provides some default error handling behaviour. Specifically, if any of the following errors are raised they will be handled and reported to the model:
+
+-   `TimeoutError` — Occurs when a call to `subprocess()` or `sandbox().exec()` times out.
+
+-   `PermissionError` — Occurs when there are inadequate permissions to read or write a file.
+
+-   `UnicodeDecodeError` — Occurs when the output from executing a process or reading a file is binary rather than text.
+
+-   `ToolError` — Special error thrown by tools to indicate they'd like to report an error to the model.
+
+These are all errors that are *expected* (in fact the `SandboxEnvironemnt` interface documents them as such) and possibly recoverable by the model (try a different command, read a different file, etc.). Unexpected errors (e.g. a network error communicating with a remote service or container runtime) on the other hand are not automatically handled and result in the `Sample` failing with an error.
+
+Many tools can simply rely on the default handling to provide reasonable behaviour around both expected and unexpected errors.
+
+::: {.callout-note appearance="simple"}
+When we say that the errors are reported directly to the model, this refers to the behaviour when using the default `generate()`. If on the other hand, you are have created [custom scaffolding](#sec-custom-scaffolding) for an agent, you can intercept tool errors and apply additional filtering and logic.
+:::
+
+### Explicit Handling
+
+In some cases a tool can implement a recovery strategy for error conditions. For example, an HTTP request might fail due to transient network issues, and retrying the request (perhaps after a delay) may resolve the problem. Explicit error handling strategies are generally applied when there are *expected* errors that are not already handled by Inspect's [Default Handling](#default-handling).
+
+Another type of explicit handling is re-raising an error to bypass Inspect's default handling. For example, here we catch at re-raise `TimeoutError` so that it fails the `Sample`:
 
 ``` python
-@tool(prompt="Use the bash tool for shell commands.")
-def bash(timeout: int | None = None) -> Tool:
-   
-    async def execute(cmd: str) -> str:
-        """
-        Execute a bash command.
+try:
+  result = await sandobox().exec(
+    cmd=["decode", file], 
+    timeout=timeout
+  )
+except TimeoutError:
+  raise RuntimeError("Decode operation timed out.")
+  
+```
+
+## Sandboxing
+
+Tools may have a need to interact with a sandboxed environment (e.g. to provide models with the ability to execute arbitrary bash or python commands). The active sandbox environment can be obtained via the `sandbox()` function. For example:
+
+``` python
+from inspect_ai.tool import ToolError, tool
+from inspect_ai.util import sandbox
+
+@tool(prompt="Use the list_files function to enumerate files.")
+def list_files():
+    async def execute(dir: str):
+        """List the files in a directory.
 
         Args:
-          cmd (str): The bash command to execute.
+            dir (str): Directory
 
         Returns:
-          The output of the command.
+            File listing of the directory
         """
-        result = await tool_environment().exec(
-            cmd=["bash", "-c", cmd], 
-            timeout=timeout
-        )
+        result = await sandbox().exec(["ls", dir])
         if result.success:
             return result.stdout
         else:
@@ -91,7 +156,11 @@ def bash(timeout: int | None = None) -> Tool:
     return execute
 ```
 
-We *expect* that some bash commands will result in an error status, so we explicitly raise `ToolError` rather than a normal exception.
+The following instance methods are available to tools that need to interact with a `SandboxEnvironment`:
+
+{{< include _sandboxenv-interface.md >}}
+
+See the documentation on [Sandbox Environments](#sec-sandbox-environments) for additional details.
 
 ## Tool Choice
 
@@ -146,6 +215,8 @@ def web_search(
 You can use the `web_search()` tool in a plan like this:
 
 ``` python
+from inspect_ai.tool import web_search
+
 plan=[
     use_tools(web_search()), 
     generate()
@@ -174,9 +245,11 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 
 ### Bash and Python
 
-The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Tool Environment](#sec-tool-environments), which can provide sandboxing for untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
+The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](#sec-sandbox-environments) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
 
 ``` python
+from inspect_ai.tool import bash, python
+
 CMD_TIMEOUT = 180
 
 @task
@@ -193,7 +266,7 @@ def intercode_ctf():
         ],
         scorer=includes(),
         max_messages=30,
-        tool_environment="docker",
+        sandbox="docker",
     )
 ```
 

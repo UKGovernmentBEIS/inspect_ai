@@ -5,7 +5,7 @@ from pathlib import Path
 
 from shortuuid import uuid
 
-from inspect_ai._util.constants import TOOLS
+from inspect_ai._util.constants import SANDBOX
 
 from .config import auto_compose, ensure_auto_compose_file
 
@@ -71,5 +71,5 @@ def is_inspect_project(name: str) -> bool:
     return re.match(inspect_project_pattern, name) is not None
 
 
-def tools_log(msg: str) -> None:
-    logger.log(TOOLS, f"DOCKER: {msg}")
+def sandbox_log(msg: str) -> None:
+    logger.log(SANDBOX, f"DOCKER: {msg}")

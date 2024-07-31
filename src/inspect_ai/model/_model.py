@@ -47,7 +47,16 @@ logger = logging.getLogger(__name__)
 
 
 class ModelAPI(abc.ABC):
-    """Model API provider."""
+    """Model API provider.
+
+    If you are implementing a custom ModelAPI provider your `__init__()`
+    method will also receive a `**model_args` parameter that will carry
+    any custom `model_args` (or `-M` arguments from the CLI) specified
+    by the user. You can then pass these on to the approriate place in
+    your model initialisation code (for example, here is what many
+    of the built-in providers do with the `model_args` passed to them:
+    https://inspect.ai-safety-institute.org.uk/models.html#model-args)
+    """
 
     def __init__(
         self,
@@ -268,9 +277,9 @@ class Model:
             if self.api.collapse_assistant_messages():
                 input = collapse_consecutive_assistant_messages(input)
 
-        # retry for rate limit errors
+        # retry for rate limit errors (max of 30 minutes)
         @retry(
-            wait=wait_exponential_jitter(jitter=5),
+            wait=wait_exponential_jitter(max=(30 * 60), jitter=5),
             retry=retry_if_exception(self.api.is_rate_limit),
             stop=(
                 (

@@ -60,17 +60,13 @@ Task(
 )
 ```
 
-:::{#stderr-note .callout-note}
-
+::: {#stderr-note .callout-note}
 The current development version of Inspect replaces the use of the `bootstrap_std` metric with `stderr` for the built in scorers enumerated above.
 
 Since eval scores are means of numbers having finite variance, we can compute standard errors using the Central Limit Theorem rather than bootstrapping. Bootstrapping is generally useful in contexts with more complex structure or non-mean summary statistics (e.g. quantiles). You will notice that the bootstrap numbers will come in quite close to the analytic numbers, since they are estimating the same thing.
 
-
 A common misunderstanding is that "t-tests require the underlying data to be normally distributed". This is only true for small-sample problems; for large sample problems (say 30 or more questions), you just need finite variance in the underlying data and the CLT guarantees a normally distributed mean value.
-
 :::
-
 
 ## Model Graded
 
@@ -272,11 +268,10 @@ Note also we use the `input_text` property of the `TaskState` to access a string
 ::: {.callout-note appearance="simple"}
 The multiple scorers feature described below is available in only the very latest version of Inspect (v0.3.18). You can upgrade to the latest version with:
 
-```bash
+``` bash
 $ pip install --upgrade inspect-ai
 ```
 :::
-
 
 There are several ways to use multiple scorers in an evaluation:
 
@@ -345,38 +340,14 @@ It's possible to use multiple scorers in parallel, then reduce their output into
 ``` python
 multi_scorer(
     scorers = [model_graded_qa(model=model) for model in models],
-    reducer = majority_vote
+    reducer = "mode"
 )
 ```
 
-Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* which is a function that takes a list of scores and turns it into a single score. In this case we use the built in `majority_vote()` reducer which returns the score that appeared most frequently in the answers.
+Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the "mode" reducer which returns the score that appeared most frequently in the answers.
 
-You can imagine a variety of different strategies for reducing scores (take the average, take the high or low, majority vote, etc.). For example, here's a reducer that computes the average score:
 
-``` python
-import numpy as np
-
-def average_score(scores: list[Score]) -> Score:
-    values = [score.as_float() for score in scores]
-    avg = np.mean(values).item()
-    return Score(
-        value=avg,
-        explanation=f"average of {', '.join(values)}"
-    )
-```
-
-Further, you will need to wrap your use of `multi_scorer()` inside a `@scorer` decorated function (with the requisite `metrics` specified). For example:
-
-``` python
-@scorer(metrics=[mean()])
-def multi_model_graded(models)
-    return multi_scorer(
-        scorers = [model_graded_qa(model=model) for model in models],
-        reducer = average_score
-    )
-```
-
-## Metrics
+## Scoring Metrics
 
 Each scorer provides one or more built-in metrics (typically `accuracy` and `stderr`). In addition, you can specify other metrics (either built-in or custom) to compute when defining a `Task`:
 
@@ -439,6 +410,64 @@ def var() -> Metric:
 ```
 
 Note that the `Score` class contains a `Value` that is a union over several scalar and collection types. As a convenience, `Score` includes a set of accessor methods to treat the value as a simpler form (e.g. above we use the `score.as_float()` accessor).
+
+## Reducing Epochs {#sec-reducing-epochs}
+
+
+::: {.callout-note appearance="simple"}
+The reducing epochs feature described below is currently available only in the development version of Inspect. You can install the development version with:
+
+``` bash
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs. 
+
+By default, this is done by taking the mean of the all the sample scores, but you may specify other strategies for reducing the samples using the `epochs_reducer` parameter. For example, here we specify that we we want to use the most commonly occurring value (the mode):
+
+``` python
+@task
+def gpqa():
+    return Task(
+        dataset=read_gpqa_dataset("gpqa_main.csv"),
+        plan=[
+            system_message(SYSTEM_MESSAGE),
+            multiple_choice(),
+        ],
+        scorer=choice(),
+        epochs=5,
+        epochs_reducer="mode"
+    )
+```
+
+In addition, you may specify more than one reducer which will compute metrics using each of the reducers. For example:
+
+``` python
+@task
+def gpqa():
+    return Task(
+        ...
+        epochs=5,
+        epochs_reducer=["at_least_2", "at_least_5"]
+    )
+```
+
+### Built-in Reducers
+
+Inspect includes several built in reducers which are summarised below.
+
+| Reducer                  | Description                                                                                                          |
+|--------------------------|----------------------------------------------------------------------------------------------------------------------|
+| mean                  | Reduce to the average of all scores.                                                                                 |
+| median               | Reduce to the median of all scores                                                                                   |
+| mode             | Reduce to the most common score.                                                             |
+| max              | Reduce to the maximum of all scores.                                                            |
+| at_least_{n} | Reduce to `1` if at least `n` of the samples have a value greater than or equal to 1, otherwise reduce to `0`. |
+
+: {tbl-colwidths="\[40,60\]"}
+
+
 
 ## Workflow {#sec-scorer-workflow}
 

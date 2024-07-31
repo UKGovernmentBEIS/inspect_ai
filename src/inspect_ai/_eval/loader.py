@@ -17,7 +17,7 @@ from inspect_ai._util.registry import (
     registry_lookup,
 )
 from inspect_ai.model import Model, ModelName
-from inspect_ai.tool import ToolEnvironmentSpec
+from inspect_ai.util import SandboxEnvironmentSpec
 
 from .list import task_files
 from .registry import task_create
@@ -32,7 +32,7 @@ class ResolvedTask:
     task_args: dict[str, Any]
     task_file: str | None
     model: Model
-    toolenv: tuple[str, str | None] | None
+    sandbox: tuple[str, str | None] | None
     sequence: int
     id: str | None = field(default=None)
     sample_source: EvalSampleSource | None = field(default=None)
@@ -42,7 +42,7 @@ def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
     model: Model,
-    toolenv: ToolEnvironmentSpec | None,
+    sandbox: SandboxEnvironmentSpec | None,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         return [
@@ -51,12 +51,12 @@ def resolve_tasks(
                 task_args=task_args,
                 task_file=task_file(task, relative=True),
                 model=model,
-                toolenv=(
-                    (toolenv, None)
-                    if isinstance(toolenv, str)
-                    else toolenv
-                    if toolenv is not None
-                    else task.tool_environment
+                sandbox=(
+                    (sandbox, None)
+                    if isinstance(sandbox, str)
+                    else sandbox
+                    if sandbox is not None
+                    else task.sandbox
                 ),
                 sequence=sequence,
             )
@@ -87,7 +87,7 @@ def resolve_tasks(
                 task_args=task_args,
                 task_file=previous_task.log.eval.task_file,
                 model=model,
-                toolenv=previous_task.log.eval.tool_environment,
+                sandbox=previous_task.log.eval.sandbox,
                 sequence=sequence,
                 id=previous_task.id,
                 sample_source=eval_log_sample_source(
@@ -208,7 +208,8 @@ def create_file_tasks(
             # (will be used later to ensure it runs in the directory)
             task = task_create(task_spec, model, **task_args)
             setattr(task, TASK_FILE_ATTR, file.as_posix())
-            setattr(task, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+            if task.attribs.get("chdir", True):
+                setattr(task, TASK_RUN_DIR_ATTR, file.parent.as_posix())
             tasks.append(task)
         return tasks
 

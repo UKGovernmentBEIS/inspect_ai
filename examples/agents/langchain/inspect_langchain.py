@@ -37,7 +37,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.solver import Generate, Solver, TaskState
-from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam
+from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
 
 
 @runtime_checkable
@@ -111,14 +111,7 @@ class InspectChatModel(BaseChatModel):
         tool_choice: ToolChoice | None = None
         lc_tools = cast(list[dict[str, Any]] | None, kwargs.get("tools", None))
         if lc_tools:
-            tools = [
-                ToolInfo(
-                    name=tool["function"]["name"],
-                    description=tool["function"]["description"],
-                    params=as_inspect_tool_params(tool["function"]["parameters"]),
-                )
-                for tool in lc_tools
-            ]
+            tools = [ToolInfo(**tool["function"]) for tool in lc_tools]
             tool_choice = "auto"
 
         # generate
@@ -238,20 +231,6 @@ def as_inspect_content(
             )
             for c in content
         ]
-
-
-def as_inspect_tool_params(parameters: dict[str, Any]) -> list[ToolParam]:
-    params: list[ToolParam] = []
-    for key, param in parameters["properties"].items():
-        params.append(
-            ToolParam(
-                name=key,
-                type=param["type"],
-                description=param.get("description", param.get("title")),
-                optional=key not in parameters["required"],
-            )
-        )
-    return params
 
 
 def as_langchain_content(

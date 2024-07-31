@@ -6,8 +6,13 @@ from google.ai.generativelanguage import (
     Blob,
     Candidate,
     FunctionCall,
+    FunctionCallingConfig,
+    FunctionDeclaration,
     FunctionResponse,
     Part,
+    Schema,
+    ToolConfig,
+    Type,
 )
 from google.api_core.exceptions import TooManyRequests
 from google.api_core.retry.retry_base import if_transient_error
@@ -20,20 +25,18 @@ from google.generativeai.types import (  # type: ignore
     AsyncGenerateContentResponse,
     ContentDict,
     ContentsType,
-    FunctionDeclaration,
     HarmBlockThreshold,
     HarmCategory,
     PartDict,
     Tool,
 )
-from google.protobuf.json_format import ParseDict
+from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Struct
 from typing_extensions import override
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data
-from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
+from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
 
 from .._chat_message import (
     ChatMessage,
@@ -50,7 +53,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._util import chat_api_tool
 from .util import model_base_url
 
 SAFETY_SETTINGS = "safety_settings"
@@ -117,40 +119,32 @@ class GoogleAPI(ModelAPI):
             stop_sequences=config.stop_seqs,
         )
 
-        try:
-            # google-native messages
-            messages = await as_chat_messages(input)
+        # google-native messages
+        messages = await as_chat_messages(input)
 
-            # cast to AsyncGenerateContentResponse since we passed stream=False
-            response = cast(
-                AsyncGenerateContentResponse,
-                await self.model.generate_content_async(
-                    contents=messages,
-                    safety_settings=self.safety_settings,
-                    generation_config=parameters,
-                    tools=chat_tools(tools) if len(tools) > 0 else None,
-                    stream=False,
-                ),
-            )
-            choices = completion_choices_from_candidates(response.candidates)
-            choice = choices[0]
-            return ModelOutput(
-                model=self.model_name,
-                choices=[choice],
-                usage=ModelUsage(
-                    input_tokens=response.usage_metadata.prompt_token_count,
-                    output_tokens=response.usage_metadata.candidates_token_count,
-                    total_tokens=response.usage_metadata.total_token_count,
-                ),
-            )
-        except ValueError as ex:
-            # If a safety filter is triggered, the response will be empty and a ValueError will be raised
-            return ModelOutput.from_content(
-                self.model_name,
-                "Sorry, but I can't assist with that",
-                "content_filter",
-                exception_message(ex),
-            )
+        # cast to AsyncGenerateContentResponse since we passed stream=False
+        response = cast(
+            AsyncGenerateContentResponse,
+            await self.model.generate_content_async(
+                contents=messages,
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=chat_tools(tools) if len(tools) > 0 else None,
+                tool_config=chat_tool_config(tool_choice) if len(tools) > 0 else None,
+                stream=False,
+            ),
+        )
+        choices = completion_choices_from_candidates(response.candidates)
+        choice = choices[0]
+        return ModelOutput(
+            model=self.model_name,
+            choices=[choice],
+            usage=ModelUsage(
+                input_tokens=response.usage_metadata.prompt_token_count,
+                output_tokens=response.usage_metadata.candidates_token_count,
+                total_tokens=response.usage_metadata.total_token_count,
+            ),
+        )
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -196,7 +190,7 @@ async def content_dict(
                 Part(
                     function_call=FunctionCall(
                         name=tool_call.function,
-                        args=ParseDict(js_dict=tool_call.arguments, message=Struct()),
+                        args=dict_to_struct(tool_call.arguments),
                     )
                 )
                 for tool_call in message.tool_calls
@@ -212,8 +206,8 @@ async def content_dict(
             response=ParseDict(
                 js_dict={
                     "content": (
-                        message.tool_error
-                        if message.tool_error is not None
+                        message.error.message
+                        if message.error is not None
                         else message.text
                     )
                 },
@@ -221,6 +215,12 @@ async def content_dict(
             ),
         )
         return ContentDict(role="function", parts=[Part(function_response=response)])
+
+
+def dict_to_struct(x: dict[str, Any]) -> Struct:
+    struct = Struct()
+    struct.update(x)
+    return struct
 
 
 async def content_part(content: Content | str) -> PartDict:
@@ -253,16 +253,76 @@ def prepend_system_messages(
 
 
 def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
-    chat_tools = [chat_api_tool(tool) for tool in tools]
     declarations = [
         FunctionDeclaration(
-            name=tool["function"]["name"],
-            description=tool["function"]["description"],
-            parameters=tool["function"]["parameters"],
+            name=tool.name,
+            description=tool.description,
+            parameters=schema_from_param(tool.parameters),
         )
-        for tool in chat_tools
+        for tool in tools
     ]
     return [Tool(declarations)]
+
+
+# https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
+
+
+def schema_from_param(param: ToolParam | ToolParams) -> Schema:
+    if isinstance(param, ToolParams):
+        param = ToolParam(
+            type=param.type, properties=param.properties, required=param.required
+        )
+
+    if param.type == "number":
+        return Schema(type=Type.NUMBER, description=param.description)
+    elif param.type == "integer":
+        return Schema(type=Type.INTEGER, description=param.description)
+    elif param.type == "boolean":
+        return Schema(type=Type.BOOLEAN, description=param.description)
+    elif param.type == "string":
+        return Schema(type=Type.STRING, description=param.description)
+    elif param.type == "array":
+        return Schema(
+            type=Type.ARRAY,
+            description=param.description,
+            items=schema_from_param(param.items) if param.items else None,
+        )
+    elif param.type == "object":
+        return Schema(
+            type=Type.OBJECT,
+            description=param.description,
+            properties={k: schema_from_param(v) for k, v in param.properties.items()}
+            if param.properties is not None
+            else None,
+            required=param.required,
+        )
+    else:
+        return Schema(type=Type.TYPE_UNSPECIFIED)
+
+
+def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
+    # NOTE: Google seems to sporadically return errors when being
+    # passed a FunctionCallingConfig with mode="ANY". therefore,
+    # we 'correct' this to "AUTO" to prevent the errors
+    mode = "AUTO"
+    if tool_choice == "none":
+        mode = "NONE"
+    return ToolConfig(function_calling_config=FunctionCallingConfig(mode=mode))
+
+    # This is the 'correct' implementation if Google wasn't returning
+    # errors for mode="ANY". we can test whether this is working properly
+    # by commenting this back in and running pytest -k google_tools
+    #
+    # if isinstance(tool_choice, ToolFunction):
+    #     return ToolConfig(
+    #         function_calling_config=FunctionCallingConfig(
+    #             mode="ANY", allowed_function_names=[tool_choice.name]
+    #         )
+    #     )
+    # else:
+    #     return ToolConfig(
+    #         function_calling_config=FunctionCallingConfig(mode=tool_choice.upper())
+    #     )
 
 
 def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
@@ -275,16 +335,13 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     tool_calls: list[ToolCall] = []
     for part in candidate.content.parts:
         if part.function_call:
-            arguments: dict[str, Any] = {}
-            for key in part.function_call.args:
-                val = part.function_call.args[key]
-                arguments[key] = val
+            function_call = MessageToDict(getattr(part.function_call, "_pb"))
             tool_calls.append(
                 ToolCall(
                     type="function",
-                    id=part.function_call.name,
-                    function=part.function_call.name,
-                    arguments=arguments,
+                    id=function_call["name"],
+                    function=function_call["name"],
+                    arguments=function_call["args"],
                 )
             )
 
@@ -375,6 +432,8 @@ def str_to_harm_category(category: str) -> HarmCategory:
     elif "DANGEROUS_CONTENT" in category:
         return HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT
     else:
+        # NOTE: Although there is an "UNSPECIFIED" category, in the
+        # documentation, the API does not accept it.
         raise ValueError(f"Unknown HarmCategory: {category}")
 
 

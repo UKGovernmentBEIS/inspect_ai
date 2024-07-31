@@ -13,16 +13,17 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.scorer._reducer import create_reducers
 
 from .common import CommonOptions, common_options, resolve_common_options
-from .util import parse_cli_args, parse_tool_env
+from .util import parse_cli_args, parse_sandbox
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1)"
 MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
-NO_TOOL_CLEANUP_HELP = "Do not cleanup tool environments after task completes"
+NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
 NO_LOG_IMAGES_HELP = "Do not include base64 encoded versions of filename or URL based images in the log file."
 LOG_BUFFER_HELP = f"Number of samples to buffer before writing log file (defaults to {DEFAULT_LOG_BUFFER_LOCAL} for local filesystems, and {DEFAULT_LOG_BUFFER_REMOTE} for remote filesystems)."
@@ -64,15 +65,15 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     help="One or more task arguments (e.g. -T arg=value)",
 )
 @click.option(
-    "--toolenv",
+    "--sandbox",
     type=str,
-    help="Tool environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml'",
+    help="Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml'",
 )
 @click.option(
-    "--no-toolenv-cleanup",
+    "--no-sandbox-cleanup",
     type=bool,
     is_flag=True,
-    help=NO_TOOL_CLEANUP_HELP,
+    help=NO_SANDBOX_CLEANUP_HELP,
 )
 @click.option(
     "--limit",
@@ -83,6 +84,11 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     "--epochs",
     type=int,
     help=f"Number of times to repeat dataset (defaults to {DEFAULT_EPOCHS}) ",
+)
+@click.option(
+    "--epochs-reducer",
+    type=str,
+    help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'mean', 'median', 'mode', 'max', and 'at_least_{n}'.",
 )
 @click.option("--max-connections", type=int, help=MAX_CONNECTIONS_HELP)
 @click.option("--max-retries", type=int, help=MAX_RETRIES_HELP)
@@ -188,9 +194,10 @@ def eval_command(
     model_base_url: str | None,
     m: tuple[str] | None,
     t: tuple[str] | None,
-    toolenv: str | None,
-    no_toolenv_cleanup: bool | None,
+    sandbox: str | None,
+    no_sandbox_cleanup: bool | None,
     epochs: int | None,
+    epochs_reducer: str | None,
     limit: str | None,
     max_retries: int | None,
     timeout: int | None,
@@ -239,6 +246,9 @@ def eval_command(
     task_args = parse_cli_args(t)
     model_args = parse_cli_args(m)
 
+    # resolve epochs_reducer
+    eval_epochs_reducer = create_reducers(parse_comma_separated(epochs_reducer))
+
     # resolve range
     eval_limit = parse_samples_limit(limit)
 
@@ -246,7 +256,7 @@ def eval_command(
     config["logit_bias"] = parse_logit_bias(logit_bias)
 
     # resolve negating options
-    toolenv_cleanup = False if no_toolenv_cleanup else None
+    sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
     log_images = False if no_log_images else None
     score = False if no_score else True
@@ -258,12 +268,13 @@ def eval_command(
         model_base_url=model_base_url,
         model_args=model_args,
         task_args=task_args,
-        toolenv=parse_tool_env(toolenv),
-        toolenv_cleanup=toolenv_cleanup,
+        sandbox=parse_sandbox(sandbox),
+        sandbox_cleanup=sandbox_cleanup,
         log_level=log_level,
         log_dir=log_dir,
         limit=eval_limit,
         epochs=epochs,
+        epochs_reducer=eval_epochs_reducer,
         max_messages=max_messages,
         max_samples=max_samples,
         max_tasks=max_tasks,
@@ -286,6 +297,13 @@ def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
         return None
 
 
+def parse_comma_separated(value: str | None) -> list[str] | None:
+    if value is not None:
+        return value.split(",")
+    else:
+        return None
+
+
 @click.command("eval-retry")
 @click.argument("log_files", nargs=-1, required=True)
 @click.option(
@@ -301,10 +319,10 @@ def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
     envvar="INSPECT_EVAL_MAX_SUBPROCESSES",
 )
 @click.option(
-    "--no-toolenv-cleanup",
+    "--no-sandbox-cleanup",
     type=bool,
     is_flag=True,
-    help=NO_TOOL_CLEANUP_HELP,
+    help=NO_SANDBOX_CLEANUP_HELP,
 )
 @click.option(
     "--no-log-samples",
@@ -346,7 +364,7 @@ def eval_retry_command(
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
-    no_toolenv_cleanup: bool | None,
+    no_sandbox_cleanup: bool | None,
     no_log_samples: bool | None,
     no_log_images: bool | None,
     log_buffer: int | None,
@@ -361,7 +379,7 @@ def eval_retry_command(
     (log_dir, log_level) = resolve_common_options(kwargs)
 
     # resolve negating options
-    toolenv_cleanup = False if no_toolenv_cleanup else None
+    sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
     log_images = False if no_log_images else None
     score = False if no_score else True
@@ -379,7 +397,7 @@ def eval_retry_command(
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
-        toolenv_cleanup=toolenv_cleanup,
+        sandbox_cleanup=sandbox_cleanup,
         log_samples=log_samples,
         log_images=log_images,
         log_buffer=log_buffer,

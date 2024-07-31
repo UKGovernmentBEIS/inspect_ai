@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import datetime
 from dataclasses import dataclass
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Set
 
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
@@ -18,12 +18,13 @@ from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
 
+from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
+from inspect_ai._util.throttle import throttle
 from inspect_ai.log import EvalResults, EvalStats
 from inspect_ai.log._log import rich_traceback
 from inspect_ai.util._concurrency import concurrency_status
-from inspect_ai.util._logger import logger_http_rate_limit_count
 
 from ._display import (
     Display,
@@ -56,9 +57,12 @@ class TaskStatus:
 
 class RichDisplay(Display):
     def __init__(self) -> None:
-        self.tasks: list[TaskStatus] | None = None
+        self.total_tasks: int = 0
+        self.tasks: list[TaskStatus] = []
         self.progress_ui: RProgress | None = None
         self.parallel = False
+        self.live: Live | None = None
+        self.timer_handle: asyncio.TimerHandle | None = None
 
     @override
     def print(self, message: str) -> None:
@@ -73,51 +77,34 @@ class RichDisplay(Display):
     @override
     @contextlib.contextmanager
     def live_task_status(self, total_tasks: int, parallel: bool) -> Iterator[None]:
-        if self.tasks is None:
-            # initialise tasks
-            self.tasks = []
-            self.progress_ui = rich_progress()
-            self.parallel = parallel
-
+        self.total_tasks = total_tasks
+        self.tasks = []
+        self.progress_ui = rich_progress()
+        self.parallel = parallel
+        try:
             with Live(None, console=rich_console(), auto_refresh=False) as live:
-                # setup some timed updates
-                loop = asyncio.get_event_loop()
-                handle: asyncio.TimerHandle | None
+                # save reference to live
+                self.live = live
 
-                def update_display() -> None:
-                    if (
-                        self.tasks is not None
-                        and self.tasks
-                        and self.progress_ui is not None
-                    ):
-                        if parallel:
-                            r = tasks_live_status(
-                                total_tasks, self.tasks, self.progress_ui
-                            )
-                        else:
-                            r = task_live_status(self.tasks, self.progress_ui)
-                        live.update(r, refresh=True)
-                    nonlocal handle
-                    handle = loop.call_later(1, update_display)
-
-                handle = loop.call_later(1, update_display)
+                # enque a display update
+                self.timer_handle = asyncio.get_event_loop().call_later(
+                    1, self._update_display
+                )
 
                 # yield
                 yield
 
-                # cleanup handle if we need to
-                if handle:
-                    handle.cancel()
-
                 # render task results
                 live.update(tasks_results(self.tasks), refresh=True)
-
+        finally:
             # clear tasks and progress
-            self.tasks = None
+            self.total_tasks = 0
+            self.tasks = []
             self.progress_ui = None
-
-        else:
-            yield
+            self.parallel = False
+            self.live = None
+            if self.timer_handle:
+                self.timer_handle.cancel()
 
     @override
     @contextlib.contextmanager
@@ -130,11 +117,35 @@ class RichDisplay(Display):
 
         status = TaskStatus(profile, None, self.progress_ui)
         self.tasks.append(status)
-        yield RichTaskDisplay(status, show_name=self.parallel)
+        self._update_display()
+        yield RichTaskDisplay(
+            status, show_name=self.parallel, on_update=self._update_display
+        )
+
+    @throttle(1)
+    def _update_display(self) -> None:
+        if (
+            self.tasks is not None
+            and self.tasks
+            and self.progress_ui is not None
+            and self.live is not None
+        ):
+            if self.parallel:
+                r = tasks_live_status(self.total_tasks, self.tasks, self.progress_ui)
+            else:
+                r = task_live_status(self.tasks, self.progress_ui)
+            self.live.update(r, refresh=True)
+
+        self.timer_handle = asyncio.get_event_loop().call_later(1, self._update_display)
 
 
 class RichTaskDisplay(TaskDisplay):
-    def __init__(self, status: TaskStatus, show_name: bool) -> None:
+    def __init__(
+        self,
+        status: TaskStatus,
+        show_name: bool,
+        on_update: Callable[[], None] | None = None,
+    ) -> None:
         theme = rich_theme()
         self.status = status
         model = Text(str(self.status.profile.model))
@@ -160,6 +171,7 @@ class RichTaskDisplay(TaskDisplay):
             description=f"{description.markup}",
             model=f"{model.markup} ",
             status=task_status,
+            on_update=on_update,
         )
 
     @override
@@ -187,10 +199,12 @@ class RichProgress(Progress):
         description: str = "",
         model: str = "",
         status: Callable[[], str] | None = None,
+        on_update: Callable[[], None] | None = None,
     ) -> None:
         self.total = total
         self.progress = progress
         self.status = status if status else lambda: ""
+        self.on_update = on_update
         self.task_id = progress.add_task(
             description, total=PROGRESS_TOTAL, model=model, status=self.status()
         )
@@ -201,6 +215,8 @@ class RichProgress(Progress):
         self.progress.update(
             task_id=self.task_id, advance=advance, refresh=True, status=self.status()
         )
+        if self.on_update:
+            self.on_update()
 
     @override
     def complete(self) -> None:
@@ -417,6 +433,7 @@ def task_resources() -> str:
     return task_dict(resources)
 
 
+@throttle(1)
 def live_task_footer() -> tuple[RenderableType, RenderableType]:
     theme = rich_theme()
     return (
@@ -440,6 +457,12 @@ def task_interrupted(
 
 def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
     theme = rich_theme()
+    # do we have more than one scorer name?
+    scorer_names: Set[str] = {score.name for score in results.scores}
+    reducer_names: Set[str] = {
+        score.reducer for score in results.scores if score.reducer is not None
+    }
+    show_reducer = len(reducer_names) > 1 or "avg" not in reducer_names
     output: dict[str, str] = {}
     for score in results.scores:
         for name, metric in score.metrics.items():
@@ -452,8 +475,14 @@ def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
                     else f"{metric.value:.3g}"
                 )
             )
-            key = f"{score.name}/{name}" if len(results.scores) > 1 else name
+            name = (
+                rf"{name}\[{score.reducer}]"
+                if show_reducer and score.reducer is not None
+                else name
+            )
+            key = f"{score.name}/{name}" if (len(scorer_names) > 1) else name
             output[key] = value
+
     metrics = f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
 
     return (metrics, "")
@@ -493,7 +522,7 @@ def task_stats(profile: TaskProfile, stats: EvalStats) -> RenderableType:
 
 
 def task_http_rate_limits() -> str:
-    return f"HTTP rate limits: {logger_http_rate_limit_count():,}"
+    return f"HTTP rate limits: {http_rate_limit_count():,}"
 
 
 def task_dict(d: dict[str, str], bold_value: bool = False) -> str:

@@ -1,4 +1,4 @@
-from typing import Any, Literal, TypedDict
+from typing import Any
 
 import httpx
 from tenacity import (
@@ -12,7 +12,6 @@ from tenacity import (
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
-from inspect_ai.tool import ToolInfo
 
 from ._chat_message import ChatMessage
 from ._generate_config import GenerateConfig
@@ -64,81 +63,6 @@ def chat_api_input(input: list[ChatMessage]) -> list[dict[str, str]]:
        Dict that conforms to OpenAI role/content data structure.
     """
     return [dict(role=message.role, content=message.text) for message in input]
-
-
-class ChatApiFunction(TypedDict, total=False):
-    name: str
-    """The name of the function to be called.
-
-    Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length
-    of 64.
-    """
-
-    description: str
-    """
-    A description of what the function does, used by the model to choose when and
-    how to call the function.
-    """
-
-    parameters: dict[str, object]
-    """The parameters the functions accepts, described as a JSON Schema object.
-
-    See the
-    [guide](https://platform.openai.com/docs/guides/text-generation/function-calling)
-    for examples, and the
-    [JSON Schema reference](https://json-schema.org/understanding-json-schema/) for
-    documentation about the format.
-
-    Omitting `parameters` defines a function with an empty parameter list.
-    """
-
-
-class ChatApiTool(TypedDict, total=False):
-    """Tool for use the model during generation."""
-
-    type: Literal["function"]
-    """Tool type (currently only function is supported)"""
-
-    function: ChatApiFunction
-    """Type information for function to be called"""
-
-
-def chat_api_tool(tool: ToolInfo) -> ChatApiTool:
-    """JSON schema definition for a tool to be called by the model.
-
-    Both OpenAI and Mistral use JSON schema for their tool definition
-    (others will likely follow suit).
-
-    Args:
-       tool (ToolInfo): Tool definition
-
-    Returns:
-       Name and JSON schema for tool parameters and return value.
-    """
-    # build params
-    properties: dict[str, Any] = {}
-    required: list[str] = []
-    for param in tool.params:
-        properties[param.name] = dict(
-            type=param.type,
-            description=param.description,
-        )
-        if not param.optional:
-            required.append(param.name)
-
-    # define tool
-    return ChatApiTool(
-        type="function",
-        function=ChatApiFunction(
-            name=tool.name,
-            description=tool.description,
-            parameters=dict(
-                type="object",
-                properties=properties,
-                required=required,
-            ),
-        ),
-    )
 
 
 # When calling chat_api_request() we use tenacity as the retry wrapper, so

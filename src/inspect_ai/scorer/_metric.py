@@ -97,6 +97,17 @@ class Score(BaseModel):
             raise ValueError("This score is not a scalar")
 
 
+class SampleScore(Score):
+    """Score for a Sample
+
+    Args:
+       sample_id: (str | int | None) Unique id of a sample
+    """
+
+    sample_id: str | int | None = Field(default=None)
+    """A sample id"""
+
+
 ValueToFloat = Callable[[Value], float]
 """Function used by metrics to translate from a Score value to a float value."""
 

@@ -29,7 +29,6 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
-from .._util import chat_api_tool
 from .util import as_stop_reason, model_base_url, parse_tool_call
 
 GROQ_API_KEY = "GROQ_API_KEY"
@@ -201,7 +200,7 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
 
 def chat_tools(tools: List[ToolInfo]) -> List[Dict[str, Any]]:
     return [
-        {"type": "function", "function": chat_api_tool(tool)["function"]}
+        {"type": "function", "function": tool.model_dump(exclude_none=True)}
         for tool in tools
     ]
 

@@ -34,6 +34,9 @@ class EvalConfig(BaseModel):
     epochs: int | None = Field(default=None)
     """Number of epochs to run samples over."""
 
+    epochs_reducer: list[str] | None = Field(default=None)
+    """Reducers for aggregating per-sample scores."""
+
     max_messages: int | None = Field(default=None)
     """Maximum messages to allow in a chat conversation."""
 
@@ -46,8 +49,8 @@ class EvalConfig(BaseModel):
     max_subprocesses: int | None = Field(default=None)
     """Maximum number of subprocesses to run concurrently."""
 
-    toolenv_cleanup: bool | None = Field(default=None)
-    """Cleanup tool environments after task completes."""
+    sandbox_cleanup: bool | None = Field(default=None)
+    """Cleanup sandbox environments after task completes."""
 
     log_samples: bool | None = Field(default=None)
     """Log detailed information on each sample."""
@@ -160,6 +163,9 @@ class EvalScore(BaseModel):
     scorer: str
     """Scorer name."""
 
+    reducer: str | None = Field(default=None)
+    """Reducer name."""
+
     params: dict[str, Any] = Field(default={})
     """Parameters specified when creating scorer."""
 
@@ -269,8 +275,8 @@ class EvalSpec(BaseModel):
     dataset: EvalDataset
     """Dataset used for eval."""
 
-    tool_environment: tuple[str, str | None] | None = Field(default=None)
-    """Tool environment type and optional config file."""
+    sandbox: tuple[str, str | None] | None = Field(default=None)
+    """Sandbox environment type and optional config file."""
 
     model: str
     """Model used for eval."""
@@ -365,7 +371,9 @@ class EvalStats(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-LoggingLevel = Literal["debug", "http", "tools", "info", "warning", "error", "critical"]
+LoggingLevel = Literal[
+    "debug", "http", "sandbox", "info", "warning", "error", "critical"
+]
 """Logging level."""
 
 
@@ -395,6 +403,18 @@ class LoggingMessage(BaseModel):
             message=record.getMessage(),
             created=record.created * 1000,
         )
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_log_levels(
+        cls: Type["LoggingMessage"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        if "level" in values:
+            level = values["level"]
+            if level == "tools":
+                values["level"] = "sandbox"
+
+        return values
 
 
 class EvalLog(BaseModel):

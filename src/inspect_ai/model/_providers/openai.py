@@ -2,7 +2,13 @@ import json
 import os
 from typing import Any, cast
 
-from openai import APIStatusError, AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
+from openai import (
+    APIStatusError,
+    APITimeoutError,
+    AsyncAzureOpenAI,
+    AsyncOpenAI,
+    RateLimitError,
+)
 from openai._types import NOT_GIVEN
 from openai.types.chat import (
     ChatCompletion,
@@ -38,7 +44,6 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
 )
-from .._util import chat_api_tool
 from .util import (
     as_stop_reason,
     model_base_url,
@@ -107,7 +112,7 @@ class OpenAIAPI(ModelAPI):
                 )
 
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
-                api_key=api_key,
+                api_key=self.api_key,
                 azure_endpoint=base_url,
                 azure_deployment=model_name,
                 max_retries=(
@@ -117,7 +122,7 @@ class OpenAIAPI(ModelAPI):
             )
         else:
             self.client = AsyncOpenAI(
-                api_key=api_key,
+                api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
                 max_retries=(
                     config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
@@ -193,6 +198,8 @@ class OpenAIAPI(ModelAPI):
                 and "You exceeded your current quota" not in ex.message
             ):
                 return True
+        elif isinstance(ex, APITimeoutError):
+            return True
         return False
 
     @override
@@ -279,7 +286,7 @@ async def openai_chat_message(message: ChatMessage) -> ChatCompletionMessagePara
         return ChatCompletionToolMessageParam(
             role=message.role,
             content=(
-                f"Error: {message.tool_error}" if message.tool_error else message.text
+                f"Error: {message.error.message}" if message.error else message.text
             ),
             tool_call_id=str(message.tool_call_id),
         )
@@ -298,12 +305,12 @@ def chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
 
 
 def chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    chat_tools = [chat_api_tool(tool) for tool in tools]
     return [
         ChatCompletionToolParam(
-            type=tool["type"], function=cast(FunctionDefinition, tool["function"])
+            type="function",
+            function=cast(FunctionDefinition, tool.model_dump(exclude_none=True)),
         )
-        for tool in chat_tools
+        for tool in tools
     ]
 
 

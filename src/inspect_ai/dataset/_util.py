@@ -102,7 +102,7 @@ def read_messages(messages: list[dict[str, Any]]) -> list[ChatMessage]:
                         content=content,
                         source="input",
                         tool_call_id=message.get("tool_call_id", None),
-                        tool_error=message.get("tool_error", None),
+                        error=message.get("error", None),
                     )
                 )
             case _:

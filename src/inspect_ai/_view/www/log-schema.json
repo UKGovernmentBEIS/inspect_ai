@@ -67,9 +67,7 @@
         "role": {
           "const": "assistant",
           "default": "assistant",
-          "enum": ["assistant"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         },
         "tool_calls": {
           "anyOf": [
@@ -131,9 +129,7 @@
         "role": {
           "const": "system",
           "default": "system",
-          "enum": ["system"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         },
         "tool": {
           "anyOf": [
@@ -192,9 +188,7 @@
         "role": {
           "const": "tool",
           "default": "tool",
-          "enum": ["tool"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         },
         "tool_call_id": {
           "anyOf": [
@@ -208,20 +202,19 @@
           "default": null,
           "title": "Tool Call Id"
         },
-        "tool_error": {
+        "error": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/ToolCallError"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Tool Error"
+          "default": null
         }
       },
-      "required": ["content", "source", "role", "tool_call_id", "tool_error"],
+      "required": ["content", "source", "role", "tool_call_id", "error"],
       "title": "ChatMessageTool",
       "type": "object",
       "additionalProperties": false
@@ -265,9 +258,7 @@
         "role": {
           "const": "user",
           "default": "user",
-          "enum": ["user"],
-          "title": "Role",
-          "type": "string"
+          "title": "Role"
         }
       },
       "required": ["content", "source", "role"],
@@ -280,9 +271,7 @@
         "type": {
           "const": "image",
           "default": "image",
-          "enum": ["image"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "image": {
           "title": "Image",
@@ -305,9 +294,7 @@
         "type": {
           "const": "text",
           "default": "text",
-          "enum": ["text"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "text": {
           "title": "Text",
@@ -358,6 +345,21 @@
           "default": null,
           "title": "Epochs"
         },
+        "epochs_reducer": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epochs Reducer"
+        },
         "max_messages": {
           "anyOf": [
             {
@@ -382,6 +384,18 @@
           "default": null,
           "title": "Max Samples"
         },
+        "max_tasks": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tasks"
+        },
         "max_subprocesses": {
           "anyOf": [
             {
@@ -394,7 +408,7 @@
           "default": null,
           "title": "Max Subprocesses"
         },
-        "toolenv_cleanup": {
+        "sandbox_cleanup": {
           "anyOf": [
             {
               "type": "boolean"
@@ -404,7 +418,7 @@
             }
           ],
           "default": null,
-          "title": "Toolenv Cleanup"
+          "title": "Sandbox Cleanup"
         },
         "log_samples": {
           "anyOf": [
@@ -448,10 +462,12 @@
       "required": [
         "limit",
         "epochs",
+        "epochs_reducer",
         "max_messages",
         "max_samples",
+        "max_tasks",
         "max_subprocesses",
-        "toolenv_cleanup",
+        "sandbox_cleanup",
         "log_samples",
         "log_images",
         "log_buffer"
@@ -624,7 +640,8 @@
             "top_k": null,
             "num_choices": null,
             "logprobs": null,
-            "top_logprobs": null
+            "top_logprobs": null,
+            "parallel_tool_calls": null
           }
         }
       },
@@ -682,9 +699,7 @@
       "properties": {
         "type": {
           "const": "git",
-          "enum": ["git"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "origin": {
           "title": "Origin",
@@ -841,6 +856,18 @@
           "title": "Scorer",
           "type": "string"
         },
+        "reducer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reducer"
+        },
         "params": {
           "default": {},
           "title": "Params",
@@ -867,7 +894,14 @@
           "title": "Metadata"
         }
       },
-      "required": ["name", "scorer", "params", "metrics", "metadata"],
+      "required": [
+        "name",
+        "scorer",
+        "reducer",
+        "params",
+        "metrics",
+        "metadata"
+      ],
       "title": "EvalScore",
       "type": "object",
       "additionalProperties": false
@@ -912,7 +946,7 @@
         "dataset": {
           "$ref": "#/$defs/EvalDataset"
         },
-        "tool_environment": {
+        "sandbox": {
           "anyOf": [
             {
               "maxItems": 2,
@@ -939,7 +973,7 @@
             }
           ],
           "default": null,
-          "title": "Tool Environment"
+          "title": "Sandbox"
         },
         "model": {
           "title": "Model",
@@ -1015,7 +1049,7 @@
         "run_id",
         "created",
         "dataset",
-        "tool_environment",
+        "sandbox",
         "model",
         "model_base_url",
         "task_attribs",
@@ -1280,6 +1314,18 @@
           ],
           "default": null,
           "title": "Top Logprobs"
+        },
+        "parallel_tool_calls": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parallel Tool Calls"
         }
       },
       "title": "GenerateConfig",
@@ -1302,7 +1348,8 @@
         "top_k",
         "num_choices",
         "logprobs",
-        "top_logprobs"
+        "top_logprobs",
+        "parallel_tool_calls"
       ],
       "additionalProperties": false
     },
@@ -1312,7 +1359,7 @@
           "enum": [
             "debug",
             "http",
-            "tools",
+            "sandbox",
             "info",
             "warning",
             "error",
@@ -1582,9 +1629,7 @@
         },
         "type": {
           "const": "function",
-          "enum": ["function"],
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         },
         "parse_error": {
           "anyOf": [
@@ -1601,6 +1646,30 @@
       },
       "required": ["id", "function", "arguments", "type", "parse_error"],
       "title": "ToolCall",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolCallError": {
+      "properties": {
+        "type": {
+          "enum": [
+            "parsing",
+            "timeout",
+            "unicode_decode",
+            "permission",
+            "file_not_found",
+            "unknown"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": ["type", "message"],
+      "title": "ToolCallError",
       "type": "object",
       "additionalProperties": false
     },
@@ -1670,6 +1739,7 @@
           "max_retries": null,
           "max_tokens": null,
           "num_choices": null,
+          "parallel_tool_calls": null,
           "presence_penalty": null,
           "seed": null,
           "stop_seqs": null,

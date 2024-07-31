@@ -8,7 +8,15 @@ from pydantic import BaseModel, Field
 from .constants import PKG_NAME
 
 RegistryType = Literal[
-    "modelapi", "task", "solver", "plan", "scorer", "metric", "tool", "toolenv"
+    "modelapi",
+    "task",
+    "solver",
+    "plan",
+    "scorer",
+    "metric",
+    "tool",
+    "sandboxenv",
+    "score_reducer",
 ]
 
 

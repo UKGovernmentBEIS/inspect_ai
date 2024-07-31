@@ -151,7 +151,7 @@ export const formatTime = (seconds) => {
   } else if (seconds < 60 * 60) {
     return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
   } else {
-    return `${Math.floor((seconds / 60) * 60 * 24)} days ${Math.floor(
+    return `${Math.floor(seconds / (60 * 60 * 24))} days ${Math.floor(
       seconds / 60,
     )} min ${seconds % 60} sec`;
   }
