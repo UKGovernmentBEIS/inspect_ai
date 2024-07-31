@@ -12,7 +12,10 @@ import { activateEvalManager } from "./providers/inspect/inspect-eval";
 import { activateActivityBar } from "./providers/activity-bar/activity-bar-provider";
 import { activateActiveTaskProvider } from "./providers/active-task/active-task-provider";
 import { activateWorkspaceTaskProvider } from "./providers/workspace/workspace-task-provider";
-import { WorkspaceStateManager, activateWorkspaceState } from "./providers/workspace/workspace-state-provider";
+import {
+  WorkspaceStateManager,
+  activateWorkspaceState,
+} from "./providers/workspace/workspace-state-provider";
 import { initializeWorkspace } from "./providers/workspace/workspace-init";
 import { activateWorkspaceEnv } from "./providers/workspace/workspace-env-provider";
 import { initPythonInterpreter } from "./core/python";
@@ -20,17 +23,20 @@ import { initInspectProps } from "./inspect";
 import { activateInspectManager } from "./providers/inspect/inspect-manager";
 import { checkActiveWorkspaceFolder } from "./core/workspace";
 import { inspectBinPath, inspectVersion } from "./inspect/props";
+import { extensionHost } from "./hooks";
 
 const kInspectMinimumVersion = "0.3.8";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: ExtensionContext) {
-
   // we don't activate anything if there is no workspace
   if (!checkActiveWorkspaceFolder()) {
     return;
   }
+
+  // Get the host
+  const host = extensionHost();
 
   const commandManager = new CommandManager();
 
@@ -62,14 +68,23 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(inspectManager);
 
   // Eval Manager
-  const [inspectEvalCommands, inspectEvalMgr] = await activateEvalManager(stateManager, context);
+  const [inspectEvalCommands, inspectEvalMgr] = await activateEvalManager(
+    stateManager,
+    context
+  );
 
   // Activate a watcher which inspects the active document and determines
   // the active task (if any)
-  const [taskCommands, activeTaskManager] = activateActiveTaskProvider(inspectEvalMgr, context);
+  const [taskCommands, activeTaskManager] = activateActiveTaskProvider(
+    inspectEvalMgr,
+    context
+  );
 
   // Active the workspace manager to watch for tasks
-  const workspaceTaskMgr = activateWorkspaceTaskProvider(inspectManager, context);
+  const workspaceTaskMgr = activateWorkspaceTaskProvider(
+    inspectManager,
+    context
+  );
 
   // Read the extension configuration
   const settingsMgr = new InspectSettingsManager(() => {
@@ -90,7 +105,8 @@ export async function activate(context: ExtensionContext) {
     inspectManager,
     settingsMgr,
     workspaceEnvManager,
-    context
+    context,
+    host
   );
   const inspectLogviewManager = logviewWebviewManager;
 
@@ -105,7 +121,6 @@ export async function activate(context: ExtensionContext) {
     workspaceEnvManager,
     context
   );
-
 
   // Register the log view link provider
   window.registerTerminalLinkProvider(
@@ -127,7 +142,7 @@ export async function activate(context: ExtensionContext) {
     ...taskBarCommands,
     ...stateCommands,
     ...envComands,
-    ...taskCommands
+    ...taskCommands,
   ].forEach((cmd) => commandManager.register(cmd));
   context.subscriptions.push(commandManager);
 
@@ -164,7 +179,6 @@ const checkInspectVersion = async () => {
   if (inspectBinPath()) {
     const version = inspectVersion();
     if (version && version.compare(kInspectMinimumVersion) === -1) {
-
       const close: MessageItem = { title: "Close" };
       await window.showInformationMessage<MessageItem>(
         "The VS Code extension requires a newer version of Inspect. Please update " +

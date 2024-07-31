@@ -1,14 +1,8 @@
-import {
-  Uri,
-  WebviewPanel,
-  window,
-  ViewColumn,
-  EventEmitter,
-  ExtensionContext,
-} from "vscode";
+import { Uri, ViewColumn, EventEmitter, ExtensionContext } from "vscode";
 
 import { Disposable } from "../core/dispose";
 import { getNonce } from "../core/nonce";
+import { ExtensionHost, HostWebviewPanel } from "../hooks";
 
 export interface ShowOptions {
   readonly preserveFocus?: boolean;
@@ -24,8 +18,9 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     private webviewType_: new (
       context: ExtensionContext,
       state: S,
-      webviewPanel: WebviewPanel
-    ) => T
+      webviewPanel: HostWebviewPanel
+    ) => T,
+    private host_: ExtensionHost
   ) {
     this.extensionUri_ = context.extensionUri;
   }
@@ -34,7 +29,8 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     this.onShow_ = f;
   }
 
-  public setOnClose(f: () => void) {    this.onClose_ = f;
+  public setOnClose(f: () => void) {
+    this.onClose_ = f;
   }
 
   public showWebview(state: S, options?: ShowOptions): void {
@@ -82,42 +78,37 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
   }
 
   private preserveEditorFocus() {
-    // No need to take action here - we are already setting preserveFocus 
+    // No need to take action here - we are already setting preserveFocus
     // and ensuring that focus ends up in the correct places
   }
 
-  private restoreWebview(panel: WebviewPanel, state: S): void {
+  private restoreWebview(panel: HostWebviewPanel, state: S): void {
     const view = new this.webviewType_(this.context, state, panel);
     this.registerWebviewListeners(view);
     this.activeView_ = view;
   }
-
 
   private createWebview(
     context: ExtensionContext,
     state: S,
     showOptions?: ShowOptions
   ): T {
-
-    const webview = window.createWebviewPanel(
+    const previewPanel = this.host_.createPreviewPanel(
       this.viewType_,
       this.title_,
-      {
-        viewColumn: showOptions?.viewColumn || ViewColumn.Beside,
-        preserveFocus: showOptions?.preserveFocus,
-      },
+      showOptions?.preserveFocus,
       {
         enableScripts: true,
         enableForms: true,
         retainContextWhenHidden: true,
         localResourceRoots: [
           ...this.localResourceRoots,
-          Uri.joinPath(context.extensionUri, "assets", "www")
+          Uri.joinPath(context.extensionUri, "assets", "www"),
         ],
       }
     );
 
-    const inspectWebView = new this.webviewType_(context, state, webview);
+    const inspectWebView = new this.webviewType_(context, state, previewPanel);
     return inspectWebView;
   }
 
@@ -156,7 +147,7 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
 }
 
 export abstract class InspectWebview<T> extends Disposable {
-  protected readonly _webviewPanel: WebviewPanel;
+  protected readonly _webviewPanel: HostWebviewPanel;
 
   private readonly _onDidDispose = this._register(new EventEmitter<void>());
   public readonly onDispose = this._onDidDispose.event;
@@ -164,7 +155,7 @@ export abstract class InspectWebview<T> extends Disposable {
   public constructor(
     private readonly context: ExtensionContext,
     state: T,
-    webviewPanel: WebviewPanel
+    webviewPanel: HostWebviewPanel
   ) {
     super();
 
@@ -199,7 +190,8 @@ export abstract class InspectWebview<T> extends Disposable {
   protected abstract getHtml(state: T): string;
 
   protected getExtensionVersion(): string {
-    return (this.context.extension.packageJSON as Record<string, unknown>).version as string;
+    return (this.context.extension.packageJSON as Record<string, unknown>)
+      .version as string;
   }
 
   protected webviewHTML(
@@ -248,7 +240,8 @@ export abstract class InspectWebview<T> extends Disposable {
                       font-src ${this._webviewPanel.webview.cspSource};
                       style-src ${this._webviewPanel.webview.cspSource} ${allowUnsafe ? "'unsafe-inline'" : ""
       };
-                      script-src 'nonce-${nonce}' ${allowUnsafe ? "'unsafe-eval'" : ""};
+                      script-src 'nonce-${nonce}' ${allowUnsafe ? "'unsafe-eval'" : ""
+      };
             connect-src ${this._webviewPanel.webview.cspSource} ;
                       frame-src *;
                       ">
@@ -281,5 +274,4 @@ export abstract class InspectWebview<T> extends Disposable {
   protected escapeAttribute(value: string | Uri): string {
     return value.toString().replace(/"/g, "&quot;");
   }
-
 }
