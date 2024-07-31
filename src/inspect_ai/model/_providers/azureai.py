@@ -93,7 +93,7 @@ class AzureAIAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput:
         # There are two different model APIs on Azure AI. The first is associated
-        # with 'realtime' deployments of llama-2 (and maps closely to other llama-2
+        # with 'realtime' deployments of llama (and maps closely to other llama
         # inference apis):
         # https://ai.azure.com/explore/models/Llama-2-70b-chat/version/17/registry/azureml-meta
         # other models use a more standard chat completions API:
@@ -106,8 +106,8 @@ class AzureAIAPI(ModelAPI):
         if config.top_p is not None:
             parameters["top_p"] = config.top_p
 
-        # JSON payload and endpoint for Llama 2 realtime API
-        if self.is_llama2_score_api():
+        # JSON payload and endpoint for Llama realtime API
+        if self.is_llama_score_api():
             # additional parameters
             if config.top_k is not None:
                 parameters["top_k"] = config.top_k
@@ -134,7 +134,7 @@ class AzureAIAPI(ModelAPI):
             # endpoint
             endpoint_url = self.endpoint_url
 
-        # standard chat completions JSON payload (Mistral or Llama2 not at '/score')
+        # standard chat completions JSON payload (Mistral or Llama not at '/score')
         else:
             # additional parameters
             if config.max_tokens is not None:
@@ -162,7 +162,7 @@ class AzureAIAPI(ModelAPI):
         )
 
         # return result
-        if self.is_llama2_score_api():
+        if self.is_llama_score_api():
             return ModelOutput.from_content(
                 model=self.model_name, content=response["output"]
             )
@@ -184,7 +184,7 @@ class AzureAIAPI(ModelAPI):
     def max_tokens(self) -> int | None:
         # llama2 models have a default max_tokens of 256 (context window is 4096)
         # https://ai.azure.com/explore/models/Llama-2-70b-chat/version/17/registry/azureml-meta
-        if self.is_llama2():
+        if self.is_llama():
             return DEFAULT_MAX_TOKENS
 
         # Mistral uses a default of 8192 which is fine, so we don't mess with it
@@ -208,11 +208,11 @@ class AzureAIAPI(ModelAPI):
     def connection_key(self) -> str:
         return f"{self.api_key}{self.model_name}"
 
-    def is_llama2(self) -> bool:
-        return "llama-2" in self.model_name.lower()
+    def is_llama(self) -> bool:
+        return "llama" in self.model_name.lower()
 
-    def is_llama2_score_api(self) -> bool:
-        return self.endpoint_url.endswith("/score") and self.is_llama2()
+    def is_llama_score_api(self) -> bool:
+        return self.endpoint_url.endswith("/score") and self.is_llama()
 
     def is_mistral(self) -> bool:
         return "mistral" in self.model_name.lower()
