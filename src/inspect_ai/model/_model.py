@@ -277,9 +277,9 @@ class Model:
             if self.api.collapse_assistant_messages():
                 input = collapse_consecutive_assistant_messages(input)
 
-        # retry for rate limit errors
+        # retry for rate limit errors (max of 30 minutes)
         @retry(
-            wait=wait_exponential_jitter(jitter=5),
+            wait=wait_exponential_jitter(max=(30 * 60), jitter=5),
             retry=retry_if_exception(self.api.is_rate_limit),
             stop=(
                 (
