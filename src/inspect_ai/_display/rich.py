@@ -446,13 +446,19 @@ def task_interrupted(
     log_location: str, samples_logged: int
 ) -> tuple[RenderableType, RenderableType]:
     theme = rich_theme()
-    return (
-        f"[bold][{theme.error}]Task interrupted ({samples_logged} "
-        + "completed samples logged before interruption). "
-        + f"Resume task with:[/{theme.error}][/bold]\n\n"
-        + f"[bold][{theme.light}]inspect eval-retry {log_location}[/{theme.light}][/bold]",
-        "",
-    )
+    message = f"[bold][{theme.error}]Task interrupted ("
+    if samples_logged > 0:
+        message = (
+            f"{message}{samples_logged} completed samples logged before interruption). "
+            + f"Resume task with:[/{theme.error}][/bold]\n\n"
+            + f"[bold][{theme.light}]inspect eval-retry {log_location}[/{theme.light}][/bold]"
+        )
+    else:
+        message = (
+            f"{message}no samples completed before interruption)[/{theme.error}][/bold]"
+        )
+
+    return message, ""
 
 
 def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
