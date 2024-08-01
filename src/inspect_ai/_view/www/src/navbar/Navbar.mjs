@@ -150,12 +150,12 @@ const CanceledPanel = ({ sampleCount }) => {
       padding: "1em",
       marginTop: "0.5em",
       textTransform: "uppercase",
-      fontSize: "0.7em",
+      fontSize: "0.7rem",
     }}
   >
     <i
       class="${ApplicationIcons.logging.info}"
-      style=${{ fontSize: "1.1em" }}
+      style=${{ fontSize: "1.1rem" }}
     />
     cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
   </div>`;

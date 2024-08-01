@@ -362,10 +362,10 @@ const scoreCategorizers = [
               }
               scores.push(html`
                 <div style=${style}>
-                  <div style=${{ fontSize: "0.9em", fontWeight: 300 }}>
+                  <div style=${{ fontSize: "0.9rem", fontWeight: 300 }}>
                     ${key}
                   </div>
-                  <div style=${{ fontSize: "1.5em", fontWeight: 600 }}>
+                  <div style=${{ fontSize: "1.5rem", fontWeight: 600 }}>
                     ${formattedValue}
                   </div>
                 </div>
@@ -396,7 +396,7 @@ const scoreCategorizers = [
 
 const filledCircleStyle = {
   border: "solid 1px",
-  fontSize: "0.8em",
+  fontSize: "0.8rem",
   width: "2em",
   height: "2em",
   display: "inline-flex",

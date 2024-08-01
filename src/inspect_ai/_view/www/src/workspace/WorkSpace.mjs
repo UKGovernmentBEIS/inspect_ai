@@ -276,7 +276,7 @@ export const WorkSpace = (props) => {
           renderedContent.push(
             html`<pre>
             <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: "0.9em",
+              fontSize: "0.9rem",
               whiteSpace: "pre-wrap",
               wordWrap: "anywhere",
             }}>

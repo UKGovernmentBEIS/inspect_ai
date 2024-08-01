@@ -225,7 +225,7 @@ const SampleRow = ({
         paddingTop: "1em",
         paddingBottom: "1em",
         gridTemplateRows: `${height - 28}px`,
-        fontSize: "0.8em",
+        fontSize: "0.8rem",
         borderBottom: "solid var(--bs-border-color) 1px",
         cursor: "pointer",
         ...selectedStyle,

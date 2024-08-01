@@ -83,7 +83,7 @@ const DatasetSummary = ({ dataset, samples, epochs, style }) => {
   return html`
     <div style=${style}>
       ${dataset.name}${samples?.length
-        ? html` <span style=${{ fontSize: "0.9em" }}>
+        ? html` <span style=${{ fontSize: "0.8rem" }}>
             ${formatDataset(dataset.name, samples.length, epochs)}
           </span>`
         : ""}

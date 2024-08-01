@@ -8,7 +8,7 @@ export const TaskErrorCard = ({ evalError }) => {
   return html`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.error} label="Task Failed: ${evalError.message}"></${CardHeader}>
-      <${CardBody} style=${{ fontSize: "0.8em" }}>
+      <${CardBody} style=${{ fontSize: "0.8rem" }}>
         <${ANSIDisplay} output=${evalError.traceback_ansi}/>
       </${CardBody}>
     </${Card}>

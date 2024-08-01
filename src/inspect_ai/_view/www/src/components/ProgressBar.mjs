@@ -11,7 +11,7 @@ export const ProgressBar = ({ style, animating }) => {
     border: "none",
     padding: "0",
     background: "#FFFFFF00",
-    fontSize: "0.7em",
+    fontSize: "0.7rem",
     zIndex: 1001,
     width: "100%",
   };

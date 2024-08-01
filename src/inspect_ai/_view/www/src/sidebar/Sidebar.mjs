@@ -110,7 +110,7 @@ export const Sidebar = ({
                 <div style=${{ overflow: "hidden" }}>
                   <div
                     style=${{
-                      fontSize: "1.5em",
+                      fontSize: "1.5rem",
                       fontWeight: "600",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
@@ -233,14 +233,14 @@ const SidebarScore = ({ scorer }) => {
             ? html`<div
                 style=${{
                   fontWeight: 300,
-                  fontSize: "0.9em",
+                  fontSize: "0.9rem",
                   marginBottom: "-0.2rem",
                 }}
               >
                 ${scorer.reducer}
               </div>`
             : ""}
-          <div style=${{ fontWeight: 600, fontSize: "1.5em" }}>
+          <div style=${{ fontWeight: 600, fontSize: "1.5rem" }}>
             ${formatPrettyDecimal(scorer.metrics[metric].value)}
           </div>
         </div>

@@ -16,7 +16,7 @@ export const UsageCard = ({ stats, context }) => {
   const totalDuration = duration(stats);
 
   const usageMetadataStyle = {
-    fontSize: "0.8em",
+    fontSize: "0.8rem",
   };
 
   return html`
