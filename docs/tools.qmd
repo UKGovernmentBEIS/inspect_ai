@@ -190,7 +190,7 @@ Well crafted tools should include descriptions that provide models with the cont
 -   [Best Practices for Tool Definitions](https://docs.anthropic.com/claude/docs/tool-use#best-practices-for-tool-definitions)
 -   [Function Calling with LLMs](https://www.promptingguide.ai/applications/function_calling)
 
-It some cases you may want to change the default descriptions created by a tool author—for example you might want to provide better disambiguation between multiple similar tools that are used together. You also might have need to do this during development of tools (to explore what descriptions are most useful to models).
+In some cases you may want to change the default descriptions created by a tool author—for example you might want to provide better disambiguation between multiple similar tools that are used together. You also might have need to do this during development of tools (to explore what descriptions are most useful to models).
 
 The `tool_with()` function enables you to take any tool and adapt its name and/or descriptions. For example:
 
