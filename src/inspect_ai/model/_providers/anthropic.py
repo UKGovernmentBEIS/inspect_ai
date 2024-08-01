@@ -172,6 +172,10 @@ class AnthropicAPI(ModelAPI):
     def collapse_assistant_messages(self) -> bool:
         return True
 
+    @override
+    def tools_required(self) -> bool:
+        return True
+
     # convert some common BadRequestError states into 'refusal' model output
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | None:
         error = exception_message(ex)
