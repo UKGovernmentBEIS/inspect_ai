@@ -1,0 +1,9 @@
+# inspect auto-generated docker compose file
+# (will be removed when task is complete)
+services:
+  default:
+    build:
+      context: "."
+    command: "tail -f /dev/null"
+    network_mode: none
+    stop_grace_period: 1s
