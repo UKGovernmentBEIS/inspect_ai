@@ -1,4 +1,4 @@
-from dataset import create_system_task_file, get_task_details
+from dataset import create_system_message_file, get_task_details
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
@@ -18,22 +18,29 @@ MAX_MESSAGES = 30
 CMD_TIMEOUT = 180
 
 # task details
-TASK_DETAILS_PATH = "tasks_details.json"
+TASK_DETAILS_PATH = "challenges/tasks_details.json"
 
 # system template path
-SYSTEM_TEMP_PATH = "system_template.txt"
+SYSTEM_TEMP_PATH = "challenges/system_template.txt"
+
+# scratch directory
+SCRATCH_PATH = "scratch"
 
 
 @task
 def inhouse_ctf(task_name="idor"):
-    task_details = get_task_details(task_name, TASK_DETAILS_PATH)
-    system_message_path = f"scratch/system_{task_details["challenge"]}.txt"
-    create_system_task_file(task_details, SYSTEM_TEMP_PATH, system_message_path)
+    info_file_path = f"{SCRATCH_PATH}/{task_name}_container_info.json"
+    command, prompt, flag, address = get_task_details(
+        task_name, TASK_DETAILS_PATH, info_file_path
+    )
+    print(command, prompt, flag, address)
+    system_message_path = f"{SCRATCH_PATH}/system_{task_name}.txt"
+    create_system_message_file(command, address, SYSTEM_TEMP_PATH, system_message_path)
     return Task(
         dataset=[
             Sample(
-                input=task_details["prompt"],
-                target=["flag"],
+                input=prompt,
+                target=flag,
             )
         ],
         plan=[
@@ -43,6 +50,5 @@ def inhouse_ctf(task_name="idor"):
         ],
         scorer=includes(),
         max_messages=MAX_MESSAGES,
-        # sandbox=("docker", "docker-compose.yaml"),
         tool_environment="docker",
     )
