@@ -15,6 +15,7 @@ from inspect_ai._util.registry import (
     is_registry_object,
     registry_info,
     registry_lookup,
+    registry_params,
 )
 from inspect_ai.model import Model, ModelName
 from inspect_ai.util import SandboxEnvironmentSpec
@@ -48,7 +49,7 @@ def resolve_tasks(
         return [
             ResolvedTask(
                 task=task,
-                task_args=task_args,
+                task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
                 model=model,
                 sandbox=(
@@ -119,6 +120,19 @@ def resolve_tasks(
     return as_resolved_tasks(
         load_tasks(cast(list[str] | None, tasks), model, task_args)
     )
+
+
+def resolve_task_args(task: Task) -> dict[str, Any]:
+    # was the task instantiated via the registry or a decorator?
+    # if so then we can get the task_args from the registry.
+    try:
+        return registry_params(task)
+
+    # if it wasn't instantiated via the registry or a decorator
+    # then it will not be in the registy and not have formal
+    # task args (as it was simply synthesized via ad-hoc code)
+    except ValueError:
+        return {}
 
 
 def load_tasks(
