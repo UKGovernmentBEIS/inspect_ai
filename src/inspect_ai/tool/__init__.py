@@ -5,6 +5,7 @@ from ._tool import Tool, ToolError, ToolResult, tool
 from ._tool_call import ToolCall
 from ._tool_choice import ToolChoice, ToolFunction
 from ._tool_info import ToolInfo, ToolParam, ToolParams
+from ._tool_with import tool_with
 from ._tools._execute import bash, python
 from ._tools._web_search import web_search
 
@@ -13,6 +14,7 @@ __all__ = [
     "python",
     "web_search",
     "tool",
+    "tool_with",
     "Tool",
     "ToolError",
     "ToolResult",

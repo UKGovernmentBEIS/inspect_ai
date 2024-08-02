@@ -156,6 +156,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # create task profile for display
     profile = TaskProfile(
         name=task.name,
+        file=logger.eval.task_file,
         model=model_name,
         dataset=task.dataset.name or "(samples)",
         scorer=", ".join(scorer_profiles),
