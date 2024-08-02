@@ -265,14 +265,6 @@ Note also we use the `input_text` property of the `TaskState` to access a string
 
 ## Multiple Scorers {#sec-multiple-scorers}
 
-::: {.callout-note appearance="simple"}
-The multiple scorers feature described below is available in only the very latest version of Inspect (v0.3.18). You can upgrade to the latest version with:
-
-``` bash
-$ pip install --upgrade inspect-ai
-```
-:::
-
 There are several ways to use multiple scorers in an evaluation:
 
 1.  You can provide a list of scorers in a `Task` definition (this is the best option when scorers are entirely independent)
@@ -413,14 +405,6 @@ Note that the `Score` class contains a `Value` that is a union over several scal
 
 ## Reducing Epochs {#sec-reducing-epochs}
 
-
-::: {.callout-note appearance="simple"}
-The reducing epochs feature described below is currently available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
 
 If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs. 
 
