@@ -140,7 +140,6 @@ export const Navbar = ({
       class="navbar sticky-top"
       style=${{
         flexWrap: "nowrap",
-        borderBottom: "solid var(--bs-border-color) 1px",
       }}
     >
       <div

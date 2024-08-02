@@ -175,7 +175,7 @@ const SeparatorRow = ({ id, title, height }) => {
   return html`<div
     id=${id}
     style=${{
-      backgroundColor: "var(--bs-secondary-bg)",
+      
       padding: ".25em 1em .25em 1em",
       textTransform: "uppercase",
       ...TextStyle.secondary,

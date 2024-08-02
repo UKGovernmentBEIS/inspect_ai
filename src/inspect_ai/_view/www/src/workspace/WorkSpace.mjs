@@ -423,6 +423,7 @@ const WorkspaceDisplay = ({
                 flexWrap: "nowrap",
                 padding: "0.5em 1em 0.5em 1em",
                 borderBottom: "solid 1px var(--bs-border-color)",
+                background: "var(--bs-light)"
               },
               tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
               tabs: {

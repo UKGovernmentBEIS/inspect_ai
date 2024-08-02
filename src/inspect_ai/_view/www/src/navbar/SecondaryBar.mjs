@@ -58,7 +58,7 @@ export const SecondaryBar = ({ log, status, style }) => {
         padding: "0.2em 1em 0.2em 1em",
         display: "grid",
         gridColumnGap: "1em",
-        paddingTop: "0.5em",
+        borderTop: "1px solid var(--bs-border-color)",
         gridTemplateColumns: `${values
           .map((val) => {
             return val.size;

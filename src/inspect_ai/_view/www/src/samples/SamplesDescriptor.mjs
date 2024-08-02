@@ -406,7 +406,7 @@ const scoreCategorizers = [
 
 const filledCircleStyle = {
   border: "solid 1px",
-  fontSize: FontSize.small,
+  fontSize: FontSize.base,
   fontFamily: "Consola Regular",
   width: "1.8em",
   height: "1.8em",

@@ -23,6 +23,7 @@ export const SelectScorer = ({ scores, score, setScore }) => {
             alignSelf: "center",
             fontSize: FontSize.smaller,
             ...TextStyle.label,
+            ...TextStyle.secondary
           }}
           >Score:</span
         >
