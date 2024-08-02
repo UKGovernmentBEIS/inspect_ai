@@ -31,7 +31,7 @@ body:not([class^="vscode-"]) button {
 }
 
 body[class^="vscode-"] .app-main-grid {
-  grid-template-rows: minmax(55px, max-content) max-content 1fr;
+  grid-template-rows: max-content max-content 1fr;
 }
 
 body[class^="vscode-"] {
