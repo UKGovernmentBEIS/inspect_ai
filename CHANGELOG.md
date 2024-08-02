@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.19 (Unreleased)
+## v0.3.19 (02 August 2024)
 
 - [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
 - [Groq](https://groq.com/) model provider.
