@@ -127,7 +127,9 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
 
     # Add examples if available
     if parsed_docstring.examples:
-        examples = "\n\n".join([example.description for example in parsed_docstring.examples])
+        examples = "\n\n".join(
+            [example.description for example in parsed_docstring.examples]
+        )
         info.description = f"{info.description}\n\nExamples\n\n{examples}"
 
     return info
