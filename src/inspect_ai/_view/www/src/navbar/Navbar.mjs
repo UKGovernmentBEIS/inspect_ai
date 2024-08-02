@@ -138,15 +138,7 @@ export const Navbar = ({
         borderBottom: "solid var(--bs-border-color) 1px",
       }}
     >
-      <div
-        style=${{
-          display: "grid",
-          gridTemplateColumns: "1fr auto",
-          width: "100%",
-        }}
-      >
-        ${navbarContents}
-      </div>
+      <div class="navbar-title-grid">${navbarContents}</div>
     </nav>
   `;
 };

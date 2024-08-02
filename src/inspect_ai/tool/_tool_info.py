@@ -36,7 +36,7 @@ class ToolParam(BaseModel):
 
 
 class ToolParams(BaseModel):
-    """Descrition of tool parameters object in JSON Schema format."""
+    """Description of tool parameters object in JSON Schema format."""
 
     type: Literal["object"] = Field(default="object")
     properties: dict[str, ToolParam] = Field(default_factory=dict)
@@ -117,8 +117,20 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
         info.parameters.properties[param_name] = tool_param
 
     # Add function description if available
-    if parsed_docstring and parsed_docstring.short_description:
-        info.description = parsed_docstring.short_description
+    if parsed_docstring:
+        if parsed_docstring.description:
+            info.description = parsed_docstring.description.strip()
+        elif parsed_docstring.long_description:
+            info.description = parsed_docstring.long_description.strip()
+        elif parsed_docstring.short_description:
+            info.description = parsed_docstring.short_description.strip()
+
+        # Add examples if available
+        if parsed_docstring.examples:
+            examples = "\n\n".join(
+                [(example.description or "") for example in parsed_docstring.examples]
+            )
+            info.description = f"{info.description}\n\nExamples\n\n{examples}"
 
     return info
 

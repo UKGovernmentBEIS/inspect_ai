@@ -28,6 +28,7 @@ from inspect_ai.tool._tool_info import (
     parse_docstring,
     parse_tool_info,
 )
+from inspect_ai.tool._tool_with import tool_description
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 
@@ -109,9 +110,6 @@ class ToolDef:
     parameters: ToolParams
     """Tool parameters"""
 
-    prompt: str | None
-    """System prompt text to guide model usage of tool."""
-
     tool: Callable[..., Any]
     """Callable to execute tool."""
 
@@ -165,10 +163,21 @@ def tool_def(tool: Tool) -> ToolDef:
     name, prompt = tool_name_and_prompt(tool)
     tool_info = parse_tool_info(tool)
 
-    # if there is no description and there is a prompt,
-    # then use the prompt as the description
-    if not tool_info.description and prompt is not None:
+    # if there is a description then append any prompt to the
+    # the description (note that 'prompt' has been depreacted
+    # in favor of just providing a description in the doc comment.
+    if tool_info.description:
+        if prompt:
+            tool_info.description = f"{tool_info.description}. {prompt}"
+
+    # if there is no description and there is a prompt, then use
+    # the prompt as the description
+    elif prompt:
         tool_info.description = prompt
+
+    # no description! we can't proceed without one
+    else:
+        raise ValueError(f"Description not provided for tool function '{name}'")
 
     # validate that we have types/descriptions for paramters
     for param_name, param in tool_info.parameters.properties.items():
@@ -182,17 +191,22 @@ def tool_def(tool: Tool) -> ToolDef:
             raise_not_provided_error("Type annotation")
         elif not param.description:
             raise_not_provided_error("Description")
-        pass
 
-    # validate that we have a description for the function
-    if not tool_info.description:
-        raise ValueError(f"Description not provided for tool function '{name}'")
+    # see if the user has overriden any of the tool's descriptions
+    desc = tool_description(tool)
+    if desc.name:
+        name = desc.name
+    if desc.description:
+        tool_info.description = desc.description
+    if desc.parameters:
+        for key, description in desc.parameters.items():
+            if key in tool_info.parameters.properties.keys():
+                tool_info.parameters.properties[key].description = description
 
-    # build params
+    # build tool def
     return ToolDef(
         name=name,
         description=tool_info.description,
-        prompt=prompt,
         parameters=tool_info.parameters,
         tool=tool,
     )

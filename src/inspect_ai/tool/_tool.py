@@ -1,10 +1,12 @@
 import re
+from logging import getLogger
 from typing import (
     Any,
     Callable,
     Protocol,
     TypeVar,
     cast,
+    overload,
     runtime_checkable,
 )
 
@@ -16,6 +18,9 @@ from inspect_ai._util.registry import (
 )
 
 from . import Content
+
+logger = getLogger(__name__)
+
 
 ToolResult = str | int | float | bool | list[Content]
 
@@ -78,30 +83,48 @@ def tool_register(tool: ToolType, name: str) -> ToolType:
     return tool
 
 
+@overload
+def tool(func: ToolType) -> ToolType: ...
+
+
+@overload
+def tool() -> Callable[[ToolType], ToolType]: ...
+
+
+@overload
 def tool(
-    prompt: str | None = None,
-    name: str | None = None,
-) -> Callable[[Callable[..., Tool]], Callable[..., Tool]]:
+    *, name: str | None = None, prompt: str | None = None
+) -> Callable[[ToolType], ToolType]: ...
+
+
+def tool(
+    func: ToolType | None = None, *, name: str | None = None, prompt: str | None = None
+) -> ToolType | Callable[[ToolType], ToolType]:
     r"""Decorator for registering tools.
 
     Args:
-        prompt (str):
-            System prompt associated with this tool (provides
-            guidance to the LLM on how to use the tool)
+        func (ToolType | None): Tool function
         name (str | None):
             Optional name for tool. If the decorator has no name
-            argument then the name of the underlying ToolType
-            object will be used to automatically assign a name.
+            argument then the name of the tool creation function
+            will be used as the name of the tool.
+        prompt (str):
+            Deprecated (provide all descriptive information about
+            the tool within the tool function's doc comment)
+
 
     Returns:
         Tool with registry attributes.
     """
-    # remove spurious spacing from prompt (can occur if a multiline string
-    # is used to specify the prompt)
     if prompt:
+        print(prompt)
+        logger.warn(
+            "WARNING: The prompt parameter is deprecated (please relocate "
+            + "to the tool function's description doc comment)"
+        )
         prompt = re.sub(r"\s+", " ", prompt)
 
-    def wrapper(tool_type: ToolType) -> ToolType:
+    def create_tool_wrapper(tool_type: ToolType) -> ToolType:
         # determine the name (explicit or implicit from object)
         tool_name = registry_name(
             tool_type, name if name else getattr(tool_type, "__name__")
@@ -126,7 +149,10 @@ def tool(
         # register the scorer
         return tool_register(cast(ToolType, tool_wrapper), tool_name)
 
-    return wrapper
+    if func is not None:
+        return create_tool_wrapper(func)
+    else:
+        return create_tool_wrapper
 
 
 TOOL_PROMPT = "prompt"

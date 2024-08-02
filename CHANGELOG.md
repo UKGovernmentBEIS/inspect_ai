@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.19 (Unreleased)
+## v0.3.19 (02 August 2024)
 
 - [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
 - [Groq](https://groq.com/) model provider.
@@ -40,6 +40,8 @@
 - Resolve relative image paths within Dataset samples against the directory containing the dataset.
 - Preserve `tool_error` text for Anthropic tool call responses.
 - Fix issue with rate limit reporting being per task not per eval.
+- Set maximum rate limit backoff time to 30 minutes
+- Retry with exponential backoff for web_search Google provider.
 
 
 
