@@ -3,12 +3,8 @@ import { html } from "htm/preact";
 import { LabeledValue } from "../components/LabeledValue.mjs";
 import { formatDataset } from "../utils/Format.mjs";
 
-export const TitleBlock = ({ log, status }) => {
-  if (!log) {
-    return "";
-  }
-
-  if (status !== "success") {
+export const SecondaryBar = ({ log, status, style }) => {
+  if (!log || status !== "success") {
     return "";
   }
 
@@ -22,6 +18,8 @@ export const TitleBlock = ({ log, status }) => {
     ...log.eval.task_args,
   };
 
+  const hasConfig = Object.keys(hyperparameters).length > 0;
+
   const values = [];
   values.push({
     size: "auto",
@@ -34,19 +32,20 @@ export const TitleBlock = ({ log, status }) => {
 `,
   });
 
+
   const label = log?.results?.scores.length > 1 ? "Scorers" : "Scorer";
   values.push({
     size: "auto",
-    value: html`<${LabeledValue} label="${label}" style=${staticColStyle}>
+    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right"}}>
     <${ScorerSummary} 
       scorers=${log?.results?.scores} />
   </${LabeledValue}>`,
   });
 
-  if (Object.keys(hyperparameters).length > 0) {
+  if (hasConfig) {
     values.push({
       size: "auto",
-      value: html`<${LabeledValue} label="Config">
+      value: html`<${LabeledValue} label="Config" style=${{justifySelf: "right"}}>
       <${ParamSummary} params=${hyperparameters}/>
     </${LabeledValue}>`,
     });
@@ -65,6 +64,7 @@ export const TitleBlock = ({ log, status }) => {
             return val.size;
           })
           .join(" ")}`,
+        ...style
       }}
     >
       ${values.map((val) => {

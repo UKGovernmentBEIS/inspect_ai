@@ -17,7 +17,6 @@ import { samplesDescriptor } from "../samples/SamplesDescriptor.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
 import { kDefaultSort } from "../samples/tools/SortFilter.mjs";
-import { TitleBlock } from "../title/TitleBlock.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
 import { filename } from "../utils/Path.mjs";
 
@@ -375,7 +374,6 @@ export const WorkSpace = (props) => {
     selectedTab=${selectedTab}
     fullScreen=${props.fullScreen}
     offcanvas=${props.offcanvas}
-    context=${context}
     setSelectedTab=${setSelectedTab}
     afterBodyElements=${afterBodyElements}
   />`;
@@ -388,7 +386,6 @@ const WorkspaceDisplay = ({
   tabTools,
   setSelectedTab,
   divRef,
-  context,
   afterBodyElements,
 }) => {
   if (log.contents === undefined) {
@@ -398,17 +395,9 @@ const WorkspaceDisplay = ({
       paddingTop: "0rem",
       overflowY: "hidden",
     }}>
-            <${TitleBlock}
-              created=${log.contents?.eval.created}
-              stats=${log.contents?.stats}
-              log=${log.contents}
-              context=${context}
-              status=${log.contents?.status}
-            />
             <div
               class="log-detail"
               style=${{
-                borderTop: "solid 1px var(--bs-border-color)",
                 padding: "0",
                 flex: 1,
                 display: "flex",

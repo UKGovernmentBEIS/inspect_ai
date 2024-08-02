@@ -274,11 +274,7 @@ export function App() {
   const navbar = html` <${Navbar}
     file=${currentLog.name}
     logs=${filteredLogs}
-    task=${currentLog.contents?.eval?.task}
-    model=${currentLog.contents?.eval?.model}
-    results=${currentLog.contents?.results}
-    samples=${currentLog.contents?.samples}
-    status=${currentLog.contents?.status}
+    log=${currentLog.contents}
     offcanvas=${offcanvas}
   />`;
 

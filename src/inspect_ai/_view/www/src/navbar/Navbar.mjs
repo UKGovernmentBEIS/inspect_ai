@@ -7,19 +7,22 @@ import { filename } from "./../utils/Path.mjs";
 import { formatPrettyDecimal } from "../utils/Format.mjs";
 
 import { CopyButton } from "./../components/CopyButton.mjs";
+import { SecondaryBar } from "./SecondaryBar.mjs";
 
 export const Navbar = ({
   file,
-  task,
   logs,
-  model,
-  status,
-  samples,
-  results,
-  offcanvas,
+  log,
+  offcanvas
 }) => {
   const toggleOffCanClass = offcanvas ? "" : " d-md-none";
   const logFileName = file ? filename(file) : "";
+
+  const task=log?.eval?.task
+  const model=log?.eval?.model
+  const results=log?.results
+  const samples=log?.samples
+  const status=log?.status
 
   let statusPanel;
   if (status === "success") {
@@ -140,7 +143,20 @@ export const Navbar = ({
         borderBottom: "solid var(--bs-border-color) 1px",
       }}
     >
-      <div class="navbar-title-grid">${navbarContents}</div>
+      <div
+        style=${{
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          width: "100%",
+        }}
+      >
+        ${navbarContents}
+        <${SecondaryBar}
+              log=${log}
+              status=${status}
+              style=${{gridColumn: "1/-1"}}
+            />
+      </div>
     </nav>
   `;
 };
