@@ -4,6 +4,12 @@
   --bs-popover-max-width: 50%;
 }
 
+body:not([class^="vscode-"]) button {
+  --bs-nav-pills-link-active-bg: #e3eaf1;
+  --bs-nav-pills-link-active-color: black;
+  --bs-nav-link-color: black;
+}
+
 #app {
   height: 100vh;
   overflow-y: hidden;

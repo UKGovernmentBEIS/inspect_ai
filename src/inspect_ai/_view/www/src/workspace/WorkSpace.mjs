@@ -428,8 +428,11 @@ const WorkspaceDisplay = ({
               tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
               tabs: {
                 padding: ".3rem 0.3rem .3rem 0.3rem",
-                width: "5em",
+                width: "5rem",
                 fontSize: FontSize.smaller,
+                textTransform: "uppercase",
+                borderRadius: "3px",
+                fontWeight: 600
               },
             }} >
               ${Object.keys(tabs).map((key) => {
