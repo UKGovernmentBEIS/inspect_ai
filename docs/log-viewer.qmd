@@ -137,14 +137,6 @@ Note that you can also set the log level using the `INSPECT_LOG_LEVEL` environme
 
 ### External File {#sec-external-file}
 
-::: {.callout-note appearance="simple"}
-The external file logging feature described below is currently available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 In addition to seeing the Python logging activity at the end of an eval run in the log viewer, you can also arrange to have Python logger entries written to an external file. Set the `INSPECT_PY_LOGGER_FILE` environment variable to do this:
 
 ```bash
