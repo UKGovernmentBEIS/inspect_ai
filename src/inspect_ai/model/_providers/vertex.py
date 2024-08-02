@@ -195,8 +195,8 @@ async def content_dict(
                     name=message.tool_call_id,
                     response={
                         "content": (
-                            message.tool_error
-                            if message.tool_error is not None
+                            message.error.message
+                            if message.error is not None
                             else message.text
                         )
                     },

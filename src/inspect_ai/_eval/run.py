@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from typing import Any, Awaitable, Callable, Set, cast
 
 from shortuuid import uuid
@@ -51,6 +52,9 @@ async def eval_run(
         if sandbox
         else None
     )
+
+    # get cwd before switching to task dir
+    eval_wd = os.getcwd()
 
     # switch to task directory context
     with chdir_python(run_dir), dotenv_environ():
@@ -108,6 +112,7 @@ async def eval_run(
                         model=resolved_task.model,
                         sandbox=resolved_task.sandbox,
                         logger=logger,
+                        eval_wd=eval_wd,
                         config=task_eval_config,
                         plan=plan,
                         score=score,

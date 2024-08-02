@@ -149,6 +149,10 @@ class ModelAPI(abc.ABC):
         """Collapse consecutive assistant messages into a single message."""
         return False
 
+    def tools_required(self) -> bool:
+        """Any tool use in a message stream means that tools must be passed."""
+        return False
+
 
 class Model:
     """Model interface."""
@@ -245,9 +249,13 @@ class Model:
         # the tools (as some models (e.g. openai and mistral) get confused
         # if you pass them tool definitions along with tool_choice == "none"
         # (they both 'semi' use the tool by placing the arguments in JSON
-        # in their output!)
+        # in their output!). on the other hand, anthropic actually errors if
+        # there are tools anywhere in the message stream and no tools defined.
         if tool_choice == "none" or len(tools) == 0:
-            tools = []
+            # allow model providers to implement a tools_required() method to
+            # force tools to be passed (we need this for anthropic)
+            if not self.api.tools_required():
+                tools = []
             tool_choice = "none"
 
         # filter out system messages for tools not in play on this pass
@@ -277,9 +285,9 @@ class Model:
             if self.api.collapse_assistant_messages():
                 input = collapse_consecutive_assistant_messages(input)
 
-        # retry for rate limit errors
+        # retry for rate limit errors (max of 30 minutes)
         @retry(
-            wait=wait_exponential_jitter(jitter=5),
+            wait=wait_exponential_jitter(max=(30 * 60), jitter=5),
             retry=retry_if_exception(self.api.is_rate_limit),
             stop=(
                 (
