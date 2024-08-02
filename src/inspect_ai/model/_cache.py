@@ -243,7 +243,12 @@ def cache_clear(model: str = "") -> bool:
 
 
 def cache_path(model: str = "") -> Path:
-    generate_cache = inspect_cache_dir("generate")
+    env_cache_dir = os.environ.get("INSPECT_CACHE_DIR", None)
+    if env_cache_dir:
+        generate_cache = Path(env_cache_dir) / "generate"
+        generate_cache.mkdir(parents=True, exist_ok=True)
+    else:
+        generate_cache = inspect_cache_dir("generate")
     if model:
         return generate_cache / model
     else:
