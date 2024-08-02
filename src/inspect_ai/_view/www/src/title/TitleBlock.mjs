@@ -96,15 +96,12 @@ const ScorerSummary = ({ scorers }) => {
     return "";
   }
 
-  const summary = [];
-  summary.push(
-    scorers
-      .map((scorer) => {
-        return scorer.name;
-      })
-      .join(", "),
-  );
-  return summary;
+  const uniqScorers = new Set();
+  scorers.forEach((scorer) => {
+    uniqScorers.add(scorer.name);
+  });
+
+  return Array.from(uniqScorers).join(", ");
 };
 
 const ParamSummary = ({ params }) => {
