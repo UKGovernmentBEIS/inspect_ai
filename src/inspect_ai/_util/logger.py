@@ -1,5 +1,5 @@
 from contextvars import ContextVar
-from logging import INFO, LogRecord
+from logging import INFO, Logger, LogRecord
 
 _logger_records_context_var = ContextVar[list[LogRecord]]("logger_records", default=[])
 
@@ -28,3 +28,12 @@ def init_http_rate_limit_count() -> None:
 
 def http_rate_limit_count() -> int:
     return _rate_limit_count_context_var.get()
+
+
+def warn_once(logger: Logger, message: str) -> None:
+    if message not in _warned:
+        logger.warn(message)
+        _warned.append(message)
+
+
+_warned: list[str] = []
