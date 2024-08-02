@@ -19,6 +19,7 @@ import { SampleTools } from "../samples/SamplesTools.mjs";
 import { kDefaultSort } from "../samples/tools/SortFilter.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
 import { filename } from "../utils/Path.mjs";
+import { Navbar } from "../navbar/Navbar.mjs";
 
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
@@ -371,6 +372,7 @@ export const WorkSpace = (props) => {
     tabs=${tabs}
     tabTools=${tabTools}
     log=${workspaceLog}
+    logs=${props.logs}
     selectedTab=${selectedTab}
     fullScreen=${props.fullScreen}
     offcanvas=${props.offcanvas}
@@ -381,17 +383,27 @@ export const WorkSpace = (props) => {
 
 const WorkspaceDisplay = ({
   log,
+  logs,
   selectedTab,
   tabs,
   tabTools,
   setSelectedTab,
   divRef,
   afterBodyElements,
+  offcanvas
 }) => {
   if (log.contents === undefined) {
     return html`<${EmptyPanel} />`;
   } else {
-    return html`<div ref=${divRef} class="workspace" style=${{
+    return html`
+    
+    <${Navbar}
+      file=${log.name}
+      logs=${logs}
+      log=${log.contents}
+      offcanvas=${offcanvas}
+    />    
+    <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
       overflowY: "hidden",
     }}>

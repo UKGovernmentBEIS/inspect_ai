@@ -3,7 +3,6 @@ import { FontSize } from "../appearance/Fonts.mjs";
 
 export const ProgressBar = ({ style, animating }) => {
   const emptyStyle = {
-    ...style,
     display: "flex",
     textAlign: "center",
     flex: "0 0 content",
@@ -15,6 +14,7 @@ export const ProgressBar = ({ style, animating }) => {
     fontSize: FontSize.smaller,
     zIndex: 1001,
     width: "100%",
+    ...style,
   };
 
   const progressContainerStyle = {

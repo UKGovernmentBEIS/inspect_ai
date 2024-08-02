@@ -13,7 +13,7 @@
   display: grid;
   height: 100vh;
   overflow-y: hidden;
-  grid-template-rows: minmax(65px, max-content) max-content 1fr;
+  grid-template-rows: max-content max-content 1fr;
 }
 
 .modal {

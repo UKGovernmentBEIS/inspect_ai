@@ -13,7 +13,6 @@ import { AppErrorBoundary } from "./src/components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./src/components/ErrorPanel.mjs";
 import { ProgressBar } from "./src/components/ProgressBar.mjs";
 
-import { Navbar } from "./src/navbar/Navbar.mjs";
 import { Sidebar } from "./src/sidebar/Sidebar.mjs";
 import { WorkSpace } from "./src/workspace/WorkSpace.mjs";
 
@@ -270,14 +269,6 @@ export function App() {
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
   const fullScreen = filteredLogs.files.length === 1 && !filteredLogs.log_dir;
-
-  const navbar = html` <${Navbar}
-    file=${currentLog.name}
-    logs=${filteredLogs}
-    log=${currentLog.contents}
-    offcanvas=${offcanvas}
-  />`;
-
   const sidebar =
     !fullScreen && currentLog.contents
       ? html`
@@ -326,8 +317,7 @@ export function App() {
     <${AppErrorBoundary}>
     ${sidebar}
     <div class="app-main-grid${fullScreenClz}${offcanvasClz}">
-      ${navbar}
-      <${ProgressBar} animating=${status.loading} />
+      <${ProgressBar} animating=${status.loading} style=${{background: "var(--bs-light)"}} />
       ${workspace}
     </div>
     </${AppErrorBoundary}>
