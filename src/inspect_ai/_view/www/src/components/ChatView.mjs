@@ -7,6 +7,7 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 /**
  * Renders the ChatView component.
@@ -94,7 +95,7 @@ const ChatMessage = ({ id, message, toolMessages }) => {
     <div
       class="container-fluid ${message.role}"
       style=${{
-        fontSize: "0.9rem",
+        fontSize: FontSize.base,
         fontWeight: "300",
         paddingBottom: ".5em",
         justifyContent: "flex-start",
@@ -168,7 +169,7 @@ const MessageContents = ({ message, toolMessages }) => {
           marginRight: "0.2rem",
           opacity: "0.4",
         }}></i>
-        <code style=${{ fontSize: "0.7rem" }}>${functionCall}</code>
+        <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
         <div>
           ${
             toolMessage

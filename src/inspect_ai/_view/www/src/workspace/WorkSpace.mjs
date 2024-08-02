@@ -23,6 +23,7 @@ import { filename } from "../utils/Path.mjs";
 
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
@@ -276,7 +277,7 @@ export const WorkSpace = (props) => {
           renderedContent.push(
             html`<pre>
             <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: "0.9rem",
+              fontSize: FontSize.small,
               whiteSpace: "pre-wrap",
               wordWrap: "anywhere",
             }}>
@@ -289,7 +290,7 @@ export const WorkSpace = (props) => {
         return html` <div
           style=${{
             padding: "1rem",
-            fontSize: "0.9rem",
+            fontSize: FontSize.small,
             width: "100%",
           }}
         >
@@ -417,7 +418,7 @@ const WorkspaceDisplay = ({
             >
             <${TabSet} id="log-details" tools="${tabTools}" type="pills" styles=${{
               tabSet: {
-                fontSize: "0.8rem",
+                fontSize: FontSize.smaller,
                 flexWrap: "nowrap",
                 padding: "0.5em 1em 0.5em 1em",
                 borderBottom: "solid 1px var(--bs-border-color)",
@@ -426,7 +427,7 @@ const WorkspaceDisplay = ({
               tabs: {
                 padding: ".3rem 0.3rem .3rem 0.3rem",
                 width: "5em",
-                fontSize: "0.7rem",
+                fontSize: FontSize.smaller,
               },
             }} >
               ${Object.keys(tabs).map((key) => {

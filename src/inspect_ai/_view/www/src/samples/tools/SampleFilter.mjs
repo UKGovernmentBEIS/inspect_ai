@@ -1,5 +1,6 @@
 import { html } from "htm/preact";
 import { isNumeric } from "../../utils/Type.mjs";
+import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
 import {
   kScoreTypeCategorical,
@@ -112,13 +113,20 @@ const SelectFilter = ({ value, options, filterFn }) => {
     <div style=${{ display: "flex" }}>
       <span
         class="sample-label"
-        style=${{ alignSelf: "center", marginRight: "0.5em" }}
+        style=${{
+          alignSelf: "center",
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+          marginRight: "0.3em",
+          marginLeft: "0.2em",
+        }}
         >Scores:</span
       >
       <select
         class="form-select form-select-sm"
         aria-label=".sample-label"
-        style=${{ fontSize: "0.7rem" }}
+        style=${{ fontSize: FontSize.smaller }}
         value=${value}
         onChange=${filterFn}
       >

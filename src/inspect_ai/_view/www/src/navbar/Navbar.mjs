@@ -2,6 +2,7 @@ import { html } from "htm/preact";
 
 import { ApplicationIcons } from "./../appearance/Icons.mjs";
 import { ApplicationStyles } from "./../appearance/Styles.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { filename } from "./../utils/Path.mjs";
 import { formatPrettyDecimal } from "../utils/Format.mjs";
 
@@ -79,17 +80,18 @@ export const Navbar = ({
                   marginRight: "0.3rem",
                   ...ApplicationStyles.wrapText(),
                 }}
+                class="task-title"
                 title=${task}
               >
                 ${task}
               </div>
               <div
                 style=${{
-                  fontWeight: 300,
-                  fontSize: "0.9em",
-                  paddingTop: "0.15em",
+                  fontSize: FontSize.base,
+                  paddingTop: "0.4rem",
                   ...ApplicationStyles.wrapText(),
                 }}
+                class="task-model"
                 title=${model}
               >
                 ${model}
@@ -100,8 +102,7 @@ export const Navbar = ({
                 opacity: "0.7",
                 marginTop: "0.1rem",
                 paddingBottom: 0,
-                fontSize: "0.9rem",
-                fontWeight: "300",
+                fontSize: FontSize.small,
                 display: "grid",
                 gridTemplateColumns: "minmax(0,max-content) max-content",
               }}
@@ -150,12 +151,12 @@ const CanceledPanel = ({ sampleCount }) => {
       padding: "1em",
       marginTop: "0.5em",
       textTransform: "uppercase",
-      fontSize: "0.7rem",
+      fontSize: FontSize.smaller,
     }}
   >
     <i
       class="${ApplicationIcons.logging.info}"
-      style=${{ fontSize: "1.1rem" }}
+      style=${{ fontSize: FontSize.large }}
     />
     cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
   </div>`;
@@ -171,7 +172,11 @@ const RunningPanel = () => {
   >
     <div class="spinner-border spinner-border-sm" role="status"></div>
     <div
-      style=${{ marginLeft: "0.3em", paddingTop: "0.2em", fontSize: "0.7em" }}
+      style=${{
+        marginLeft: "0.3em",
+        paddingTop: "0.2em",
+        fontSize: FontSize.smaller,
+      }}
     >
       Running
     </div>
@@ -235,11 +240,12 @@ const VerticalMetric = ({ metric, isFirst }) => {
   const reducer_component = metric.reducer
     ? html` <div
         style=${{
-          fontSize: "0.7rem",
-          fontWeight: "200",
+          fontSize: FontSize.smaller,
           textAlign: "center",
           paddingTop: "0.3rem",
           marginBottom: "-0.3rem",
+          ...TextStyle.label,
+          ...TextStyle.secondary,
         }}
       >
         ${metric.reducer}
@@ -249,12 +255,13 @@ const VerticalMetric = ({ metric, isFirst }) => {
   return html`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
     <div
       style=${{
-        fontSize: "0.8rem",
-        fontWeight: "200",
+        fontSize: FontSize.smaller,
+        ...TextStyle.secondary,
         textAlign: "center",
         paddingTop: "0.3rem",
         marginBottom: "-0.3rem",
-        textTransform: "uppercase",
+        ...TextStyle.label,
+        ...TextStyle.secondary,
         borderBottom: "solid var(--bs-border-color) 1px",
       }}
     >
@@ -263,8 +270,7 @@ const VerticalMetric = ({ metric, isFirst }) => {
     ${reducer_component}
     <div
       style=${{
-        fontSize: "1.5rem",
-        fontWeight: "500",
+        fontSize: FontSize.title,
         textAlign: "center",
       }}
     >
@@ -274,16 +280,23 @@ const VerticalMetric = ({ metric, isFirst }) => {
 };
 
 const MultiScorerMetric = ({ scorer, isFirst }) => {
-  const baseFontSize = Object.keys(scorer.metrics).length === 1 ? 0.9 : 0.7;
+  const titleFontSize =
+    Object.keys(scorer.metrics).length === 1 ? FontSize.larger : FontSize.base;
+  const reducerFontSize =
+    Object.keys(scorer.metrics).length === 1
+      ? FontSize.small
+      : FontSize.smaller;
+  const valueFontSize =
+    Object.keys(scorer.metrics).length === 1 ? FontSize.base : FontSize.base;
 
   const reducer_component = scorer.reducer
     ? html`<div
         style=${{
-          fontSize: `${baseFontSize - 0.1}rem`,
-          fontWeight: "200",
+          fontSize: reducerFontSize,
           textAlign: "center",
-          textTransform: "uppercase",
           marginBottom: "-0.3rem",
+          ...TextStyle.label,
+          ...TextStyle.secondary,
         }}
       >
         ${scorer.reducer}
@@ -293,12 +306,12 @@ const MultiScorerMetric = ({ scorer, isFirst }) => {
   return html`<div style=${{ paddingLeft: isFirst ? "0" : "1.5em" }}>
     <div
       style=${{
-        fontSize: `${baseFontSize}rem`,
-        fontWeight: "200",
+        fontSize: titleFontSize,
         textAlign: "center",
         borderBottom: "solid var(--bs-border-color) 1px",
-        textTransform: "uppercase",
         marginBottom: "-0.1rem",
+        ...TextStyle.label,
+        ...TextStyle.secondary,
       }}
       class="multi-score-label"
     >
@@ -311,7 +324,7 @@ const MultiScorerMetric = ({ scorer, isFirst }) => {
         gridTemplateColumns: "auto auto",
         gridColumnGap: "0.3rem",
         gridRowGap: "0",
-        fontSize: `${baseFontSize + 0.1}rem`,
+        fontSize: valueFontSize,
       }}
     >
       ${Object.keys(scorer.metrics).map((key) => {

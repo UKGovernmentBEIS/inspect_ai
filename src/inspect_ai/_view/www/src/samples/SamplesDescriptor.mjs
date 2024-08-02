@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { FontSize } from "../appearance/Fonts.mjs";
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import {
   formatPrettyDecimal,
@@ -371,10 +372,10 @@ const scoreCategorizers = [
               }
               scores.push(html`
                 <div style=${style}>
-                  <div style=${{ fontSize: "0.9rem", fontWeight: 300 }}>
+                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
                     ${key}
                   </div>
-                  <div style=${{ fontSize: "1.5rem", fontWeight: 600 }}>
+                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
                     ${formattedValue}
                   </div>
                 </div>
@@ -405,9 +406,10 @@ const scoreCategorizers = [
 
 const filledCircleStyle = {
   border: "solid 1px",
-  fontSize: "0.8rem",
-  width: "2em",
-  height: "2em",
+  fontSize: FontSize.small,
+  fontFamily: "Consola Regular",
+  width: "1.8em",
+  height: "1.8em",
   display: "inline-flex",
   justifyContent: "center",
   alignItems: "center",

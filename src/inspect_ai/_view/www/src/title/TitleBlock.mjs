@@ -29,8 +29,7 @@ export const TitleBlock = ({ log, status }) => {
     <${DatasetSummary}
       dataset=${log.eval?.dataset}
       samples=${log.samples}
-      epochs=${epochs}
-      style=${{ fontSize: "0.8rem" }} />
+      epochs=${epochs} />
   </${LabeledValue}>
 `,
   });
@@ -83,9 +82,7 @@ const DatasetSummary = ({ dataset, samples, epochs, style }) => {
   return html`
     <div style=${style}>
       ${dataset.name}${samples?.length
-        ? html` <span style=${{ fontSize: "0.8rem" }}>
-            ${formatDataset(dataset.name, samples.length, epochs)}
-          </span>`
+        ? html`${formatDataset(dataset.name, samples.length, epochs)}`
         : ""}
     </div>
   `;

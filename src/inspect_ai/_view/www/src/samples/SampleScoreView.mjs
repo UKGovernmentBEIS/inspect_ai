@@ -6,6 +6,7 @@ import {
 } from "../utils/Format.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleScores } from "./SampleScores.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 const labelStyle = {
   paddingRight: "2em",
@@ -42,7 +43,7 @@ export const SampleScoreView = ({
       style=${{
         paddingTop: "0.5em",
         paddingLeft: "0",
-        fontSize: "0.8rem",
+        fontSize: FontSize.small,
         ...style,
       }}
     >

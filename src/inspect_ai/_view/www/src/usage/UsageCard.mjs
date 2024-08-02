@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 import { formatTime } from "../utils/Format.mjs";
 import { Card, CardHeader, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
@@ -16,7 +17,7 @@ export const UsageCard = ({ stats, context }) => {
   const totalDuration = duration(stats);
 
   const usageMetadataStyle = {
-    fontSize: "0.8rem",
+    fontSize: FontSize.smaller,
   };
 
   return html`

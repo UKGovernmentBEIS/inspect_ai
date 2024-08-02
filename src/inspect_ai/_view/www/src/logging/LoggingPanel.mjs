@@ -2,6 +2,7 @@ import { html } from "htm/preact";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { ApplicationColors } from "../appearance/Colors.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { RenderedContent } from "../components/RenderedContent.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -9,7 +10,7 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
 export const LoggingPanel = ({ logFile, capabilities, logging, context }) => {
   if (!logging || logging.length === 0) {
     return html`<${EmptyPanel} style=${{
-      fontSize: "0.8rem",
+      fontSize: FontSize.small,
     }}>No Messages</${EmptyPanel}>`;
   }
 
@@ -32,7 +33,7 @@ export const LoggingPanel = ({ logFile, capabilities, logging, context }) => {
       <table
         class="table table-hover table-sm"
         style=${{
-          fontSize: "0.9rem",
+          fontSize: FontSize.small,
           width: "100%",
           marginBottom: "0rem",
           tableLayout: "fixed",
@@ -53,7 +54,7 @@ export const LoggingPanel = ({ logFile, capabilities, logging, context }) => {
                   class="${icon(log.level)}"
                   style=${{
                     marginLeft: "0.5rem",
-                    fontSize: "0.7rem",
+                    fontSize: FontSize.smaller,
                     color: color(log.level),
                   }}
                 ></i>
@@ -61,7 +62,7 @@ export const LoggingPanel = ({ logFile, capabilities, logging, context }) => {
               <td>
                 <pre
                   style=${{
-                    fontSize: "0.7rem",
+                    fontSize: FontSize.smaller,
                     marginLeft: "0.2rem",
                     marginTop: "0.2rem",
                     marginBottom: "0.2rem",
@@ -84,7 +85,7 @@ export const LoggingPanel = ({ logFile, capabilities, logging, context }) => {
                       style=${{
                         marginTop: "0.3rem",
                         marginBottom: "0.2rem",
-                        fontSize: "0.7rem",
+                        fontSize: FontSize.smaller,
                         whiteSpace: "pre-wrap",
                       }}
                     >

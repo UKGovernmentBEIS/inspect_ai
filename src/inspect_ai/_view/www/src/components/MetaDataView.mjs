@@ -1,6 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { RenderedContent } from "./RenderedContent.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 /**
  * Renders the MetaDataView component.
@@ -48,10 +49,10 @@ export const MetaDataView = ({
     fontWeight: "300",
     whiteSpace: "pre-wrap",
     wordWrap: "anywhere",
-    fontSize: "0.8rem",
+    fontSize: FontSize.small,
   };
   const cellKeyTextStyle = {
-    fontSize: "0.8rem",
+    fontSize: FontSize.small,
   };
 
   // Configure options for

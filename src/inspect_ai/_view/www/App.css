@@ -51,6 +51,10 @@ body[class^="vscode-"] {
   --bs-card-border-color: var(--vscode-editorGroup-border);
 }
 
+html.vscode {
+  font-size: 14px;
+}
+
 body[class^="vscode-"] .modal-backdrop {
   --bs-backdrop-opacity: 0.15;
   --bs-backdrop-bg: var(--vscode-editor-foreground);
@@ -82,15 +86,19 @@ body[class^="vscode-"] {
 }
 
 body[class^="vscode-"] .navbar-brand {
-  font-size: 1em;
-}
-
-body[class^="vscode-"] .navbar-brand .navbar-secondary-text {
-  font-size: 0.8em;
-}
-
-body[class^="vscode-"] .navbar #sidebarToggle > i.bi {
   font-size: 1.1em;
+}
+body[class^="vscode-"] .navbar-brand > div {
+  margin-top: -0.2rem !important;
+}
+
+body[class^="vscode-"] .task-title {
+  margin-top: 0.4em;
+}
+
+body[class^="vscode-"] .task-model {
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
 }
 
 body[class^="vscode-"] .accordion-button::after {

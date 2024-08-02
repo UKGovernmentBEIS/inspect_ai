@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 
 import { ApplicationIcons } from "./../appearance/Icons.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { formatPrettyDecimal } from "../utils/Format.mjs";
 import { ProgressBar } from "../components/ProgressBar.mjs";
 
@@ -33,6 +34,8 @@ export const Sidebar = ({
           width: "var(--sidebar-width)",
           zIndex: 10,
           borderBottom: "solid var(--bs-light-border-subtle) 1px",
+          paddingBottom: "0.5rem",
+          paddingTop: "0.5rem",
         }}
       >
         <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
@@ -53,7 +56,7 @@ export const Sidebar = ({
           <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "41px", zIndex: 3 }}>
+      <div style=${{ marginTop: "50px", zIndex: 3 }}>
         <${ProgressBar} animating=${loading} />
       </div>
       <ul
@@ -98,7 +101,7 @@ export const Sidebar = ({
             <li
               class="list-group-item list-group-item-action${active}"
               onclick=${() => onSelectedIndexChanged(index)}
-              style=${{ fontSize: "0.8rem" }}
+              style=${{ fontSize: FontSize.small }}
             >
               <div
                 style=${{
@@ -110,8 +113,7 @@ export const Sidebar = ({
                 <div style=${{ overflow: "hidden" }}>
                   <div
                     style=${{
-                      fontSize: "1.5rem",
-                      fontWeight: "600",
+                      fontSize: FontSize.title,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -219,12 +221,15 @@ const SidebarScore = ({ scorer }) => {
             alignItems: "flex-end",
             marginLeft: "1em",
             marginBottom: "0.4em",
+            marginTop: "0.5rem",
           }}
         >
           <div
             style=${{
-              fontWeight: 300,
               marginBottom: "-0.3em",
+              fontSize: FontSize.small,
+              ...TextStyle.label,
+              ...TextStyle.secondary,
             }}
           >
             ${scorer.metrics[metric].name}
@@ -232,15 +237,14 @@ const SidebarScore = ({ scorer }) => {
           ${scorer.reducer
             ? html`<div
                 style=${{
-                  fontWeight: 300,
-                  fontSize: "0.9rem",
+                  fontSize: FontSize.small,
                   marginBottom: "-0.2rem",
                 }}
               >
                 ${scorer.reducer}
               </div>`
             : ""}
-          <div style=${{ fontWeight: 600, fontSize: "1.5rem" }}>
+          <div style=${{ fontSize: FontSize.title }}>
             ${formatPrettyDecimal(scorer.metrics[metric].value)}
           </div>
         </div>
@@ -273,11 +277,11 @@ const SidebarScores = ({ scores }) => {
         >
           <div
             style=${{
-              fontSize: "0.6rem",
+              fontSize: FontSize.smaller,
               width: "100%",
               fontWeight: 300,
               borderBottom: "solid var(--bs-border-color) 1px",
-              textTransform: "uppercase",
+              ...TextStyle.label,
             }}
           >
             ${name}
@@ -285,7 +289,7 @@ const SidebarScores = ({ scores }) => {
           ${reducer
             ? html` <div
                 style=${{
-                  fontSize: "0.6rem",
+                  fontSize: FontSize.smaller,
                   width: "100%",
                   fontWeight: 300,
                 }}
@@ -295,7 +299,7 @@ const SidebarScores = ({ scores }) => {
             : ""}
           <div
             style=${{
-              fontSize: "0.7rem",
+              fontSize: FontSize.smaller,
               display: "grid",
               gridTemplateColumns: "max-content max-content",
               gridGap: "0 0.3rem",
@@ -316,7 +320,7 @@ const SidebarScores = ({ scores }) => {
 };
 
 const StatusCancelled = ({ message }) => {
-  return html`<div style=${{ color: "var(--bs-secondary)" }}>${message}</div>`;
+  return html`<div style=${{ ...TextStyle.secondary }}>${message}</div>`;
 };
 
 const StatusRunning = ({ message }) => {
@@ -333,14 +337,13 @@ const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   if (log_dir) {
     const displayDir = prettyDir(log_dir);
     return html`<div style=${{ display: "flex", flexDirection: "column" }}>
-      <span style=${{ fontSize: "0.5rem", textTransform: "uppercase" }}
+      <span style=${{ fontSize: FontSize.smaller, ...TextStyle.label }}
         >Log Directory</span
       >
       <span
         title=${displayDir}
         style=${{
-          fontWeight: "400",
-          fontSize: "0.7rem",
+          fontSize: FontSize.small,
           overflow: "hidden",
           whiteSpace: "nowrap",
           textOverflow: "ellipsis",
@@ -351,8 +354,7 @@ const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   } else {
     return html`<span
       style=${{
-        fontWeight: "500",
-        fontSize: "1.5rem",
+        fontSize: FontSize.title,
       }}
       >${offcanvas ? "Log History" : ""}
     </span>`;

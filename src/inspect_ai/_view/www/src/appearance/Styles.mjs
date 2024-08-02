@@ -3,6 +3,8 @@
  * @typedef {Record<string, string>} Style
  */
 
+import { FontSize, TextStyle } from "./Fonts.mjs";
+
 /**
  * Generates line clamp style.
  * @param {number} len - The number of lines to clamp.
@@ -31,9 +33,9 @@
 export const ApplicationStyles = {
   moreButton: {
     maxHeight: "1.8em",
-    fontSize: "0.8rem",
+    fontSize: FontSize.smaller,
     padding: "0 0.2em 0 0.2em",
-    color: "var(--bs-secondary)",
+    ...TextStyle.secondary,
   },
   threeLineClamp: {
     display: "-webkit-box",
