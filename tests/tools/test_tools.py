@@ -82,7 +82,7 @@ def addition3():
     return add
 
 
-def check_tools(model: Model, check_none= True) -> None:
+def check_tools(model: Model, check_none=True) -> None:
     check_tools_calls(model)
     check_tools_force(model)
     if check_none:
