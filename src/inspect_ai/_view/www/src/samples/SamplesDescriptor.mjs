@@ -138,9 +138,18 @@ export const samplesDescriptor = (
   // Find the total length of the value so we can compute an average
   const sizes = samples.reduce(
     (previous, current) => {
-      previous[0] = Math.max(previous[0], inputString(current.input).length);
-      previous[1] = Math.max(previous[1], arrayToString(current.target).length);
-      previous[2] = Math.max(previous[2], scoreAnswer(current)?.length || 0);
+      previous[0] = Math.min(
+        Math.max(previous[0], inputString(current.input).length),
+        300,
+      );
+      previous[1] = Math.min(
+        Math.max(previous[1], arrayToString(current.target).length),
+        300,
+      );
+      previous[2] = Math.min(
+        Math.max(previous[2], scoreAnswer(current)?.length || 0),
+        300,
+      );
       return previous;
     },
     [0, 0, 0],
