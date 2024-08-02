@@ -56,7 +56,7 @@ export const Sidebar = ({
           <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "54px", zIndex: 3 }}>
+      <div style=${{ marginTop: "61px", zIndex: 3 }}>
         <${ProgressBar} animating=${loading} style=${{marginTop: "-2px"}} />
       </div>
       <ul
