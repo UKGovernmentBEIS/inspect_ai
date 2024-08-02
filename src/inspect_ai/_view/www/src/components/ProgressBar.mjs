@@ -1,5 +1,4 @@
 import { html } from "htm/preact";
-import { FontSize } from "../appearance/Fonts.mjs";
 
 export const ProgressBar = ({ style, animating }) => {
   const emptyStyle = {
@@ -10,22 +9,23 @@ export const ProgressBar = ({ style, animating }) => {
     justifyContent: "center",
     border: "none",
     padding: "0",
-    background: "#FFFFFF00",
-    fontSize: FontSize.smaller,
     zIndex: 1001,
     width: "100%",
-    ...style,
+    height: "0px",
+    overflow: "visible",
   };
 
   const progressContainerStyle = {
     width: "100%",
-    height: "4px",
+    height: "2px",
     background: "none",
   };
 
   const progressBarStyle = {
     width: "5%",
     height: "2px",
+    ...style,
+
   };
 
   return html`

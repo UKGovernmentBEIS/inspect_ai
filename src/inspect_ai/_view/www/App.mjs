@@ -317,7 +317,7 @@ export function App() {
     <${AppErrorBoundary}>
     ${sidebar}
     <div class="app-main-grid${fullScreenClz}${offcanvasClz}">
-      <${ProgressBar} animating=${status.loading} style=${{background: "var(--bs-light)"}} />
+      <${ProgressBar} animating=${status.loading} style=${{marginTop: "2px"}}/>
       ${workspace}
     </div>
     </${AppErrorBoundary}>

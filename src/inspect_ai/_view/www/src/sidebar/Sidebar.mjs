@@ -56,8 +56,8 @@ export const Sidebar = ({
           <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "50px", zIndex: 3 }}>
-        <${ProgressBar} animating=${loading} />
+      <div style=${{ marginTop: "54px", zIndex: 3 }}>
+        <${ProgressBar} animating=${loading} style=${{marginTop: "-2px"}} />
       </div>
       <ul
         class="list-group"
