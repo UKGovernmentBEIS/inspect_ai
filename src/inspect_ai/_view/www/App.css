@@ -216,6 +216,18 @@ body {
   background-color: var(--bs-light);
 }
 
+.navbar-title-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+
+@media (min-width: 575px) {
+  .navbar-title-grid {
+    grid-template-columns: 1fr auto;
+  }
+}
+
 [data-bs-theme="dark"] .navbar {
   background-color: unset;
 }
@@ -634,7 +646,7 @@ table.table.table-sm td {
     margin-left: 0;
   }
   to {
-    margin-left: 100%;
+    margin-left: 95%;
   }
 }
 

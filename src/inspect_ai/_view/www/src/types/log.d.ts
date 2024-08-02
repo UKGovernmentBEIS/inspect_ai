@@ -22,6 +22,7 @@ export type Model = string;
 export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type Epochs = number | null;
+export type EpochsReducer = string[] | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
@@ -60,6 +61,7 @@ export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
 export type Name2 = string;
 export type Scorer = string;
+export type Reducer = string | null;
 export type Name3 = string;
 export type Value = number;
 export type Metadata1 = {} | null;
@@ -93,7 +95,6 @@ export type Image = string;
 export type Detail = "auto" | "low" | "high";
 export type Source = ("input" | "generate" | "cache") | null;
 export type Role = "system";
-export type Tool = string | null;
 export type Content1 = string | (ContentText | ContentImage)[];
 export type Source1 = ("input" | "generate" | "cache") | null;
 export type Role1 = "user";
@@ -176,8 +177,8 @@ export type Input1 = (
 )[];
 export type Name4 = string;
 export type Description = string;
-export type Name5 = string;
-export type Type4 =
+export type Type5 = "object";
+export type Type6 =
   | "string"
   | "integer"
   | "number"
@@ -185,49 +186,55 @@ export type Type4 =
   | "array"
   | "object"
   | "null";
-export type Description1 = string;
-export type Optional = boolean;
-export type Params2 = ToolParam[];
+export type Description1 = string | null;
+export type Properties1 = {
+  [k: string]: ToolParam;
+} | null;
+export type Anyof = ToolParam[] | null;
+export type Required = string[] | null;
+export type Required1 = string[];
 export type Tools = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
-export type Name6 = string;
+export type Name5 = string;
 export type Timestamp3 = string;
-export type Event3 = "logger";
-export type Level = string;
-export type Message1 = string;
+export type Event3 = "score";
 export type Timestamp4 = string;
-export type Event4 = "info";
-export type JsonValue = unknown;
+export type Event4 = "logger";
+export type Level = string;
+export type Message2 = string;
 export type Timestamp5 = string;
-export type Event5 = "step";
-export type Action = "begin" | "end";
-export type Type5 = string | null;
-export type Name7 = string;
+export type Event5 = "info";
+export type JsonValue = unknown;
 export type Timestamp6 = string;
-export type Event6 = "subtask";
-export type Event7 = "score";
+export type Event6 = "step";
+export type Action = "begin" | "end";
+export type Type7 = string | null;
+export type Name6 = string;
+export type Timestamp7 = string;
+export type Event7 = "subtask";
+export type Name7 = string;
 export type Name8 = string;
-export type Name9 = string;
 export type Events = (
   | StateEvent
   | StoreEvent
   | ModelEvent
+  | ScoreEvent
   | LoggerEvent
   | InfoEvent
   | StepEvent
   | SubtaskEvent
-  | ScoreEvent
 )[];
 export type Transcript = (
   | StateEvent
   | StoreEvent
   | ModelEvent
+  | ScoreEvent
   | LoggerEvent
   | InfoEvent
   | StepEvent
   | SubtaskEvent
-  | ScoreEvent
 )[];
+export type Name9 = string | null;
 export type Level1 =
   | "debug"
   | "http"
@@ -236,9 +243,11 @@ export type Level1 =
   | "warning"
   | "error"
   | "critical";
-export type Message2 = string;
-export type Message2 = string;
+export type Message3 = string;
 export type Created1 = number;
+export type Filename = string;
+export type Module = string;
+export type Lineno = number;
 export type Logging = LoggingMessage[];
 
 export interface EvalLog {
@@ -283,6 +292,7 @@ export interface ModelArgs {}
 export interface EvalConfig {
   limit: Limit;
   epochs: Epochs;
+  epochs_reducer: EpochsReducer;
   max_messages: MaxMessages;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
@@ -342,6 +352,7 @@ export interface EvalResults {
 export interface EvalScore {
   name: Name2;
   scorer: Scorer;
+  reducer: Reducer;
   params: Params1;
   metrics: Metrics;
   metadata: Metadata2;
@@ -392,7 +403,6 @@ export interface ChatMessageSystem {
   content: Content;
   source: Source;
   role: Role;
-  tool: Tool;
 }
 export interface ContentText {
   type: Type1;
@@ -484,22 +494,34 @@ export interface Score {
 }
 export interface Metadata5 {}
 export interface Store {}
+/**
+ * Change to the current `TaskState`
+ */
 export interface StateEvent {
   timestamp: Timestamp;
   event: Event;
   changes: Changes;
 }
+/**
+ * Describes a change to data using JSON Patch format.
+ */
 export interface JsonChange {
   op: Op;
   path: Path;
   from: From;
   value: unknown;
 }
+/**
+ * Change to data within the current `Store`.
+ */
 export interface StoreEvent {
   timestamp: Timestamp1;
   event: Event1;
   changes: Changes1;
 }
+/**
+ * Call to a language model.
+ */
 export interface ModelEvent {
   timestamp: Timestamp2;
   event: Event2;
@@ -510,47 +532,109 @@ export interface ModelEvent {
   config: GenerateConfig;
   output: ModelOutput;
 }
+/**
+ * Specification of a tool (JSON Schema compatible)
+ *
+ * If you are implementing a ModelAPI, most LLM libraries can
+ * be passed this object (dumped to a dict) directly as a function
+ * specification. For example, in the OpenAI provider:
+ *
+ * ```python
+ * ChatCompletionToolParam(
+ *     type="function",
+ *     function=tool.model_dump(exclude_none=True),
+ * )
+ * ```
+ *
+ * In some cases the field names don't match up exactly. In that case
+ * call `model_dump()` on the `parameters` field. For example, in the
+ * Anthropic provider:
+ *
+ * ```python
+ * ToolParam(
+ *     name=tool.name,
+ *     description=tool.description,
+ *     input_schema=tool.parameters.model_dump(exclude_none=True),
+ * )
+ * ```
+ */
 export interface ToolInfo {
   name: Name4;
   description: Description;
-  params: Params2;
+  parameters: ToolParams;
 }
+/**
+ * Description of tool parameters object in JSON Schema format.
+ */
+export interface ToolParams {
+  type: Type5;
+  properties: Properties;
+  required: Required1;
+}
+export interface Properties {
+  [k: string]: ToolParam;
+}
+/**
+ * Description of tool parameter in JSON Schema format.
+ */
 export interface ToolParam {
-  name: Name5;
-  type: Type4;
+  type: Type6;
   description: Description1;
-  optional: Optional;
+  default: Default;
+  items: ToolParam | null;
+  properties: Properties1;
+  additionalProperties: ToolParam | null;
+  anyOf: Anyof;
+  required: Required;
+}
+export interface Default {
+  [k: string]: unknown;
 }
 export interface ToolFunction {
-  name: Name6;
+  name: Name5;
 }
-export interface LoggerEvent {
+/**
+ * Event with sample score.
+ */
+export interface ScoreEvent {
   timestamp: Timestamp3;
   event: Event3;
-  level: Level;
-  message: Message1;
-}
-export interface InfoEvent {
-  timestamp: Timestamp4;
-  event: Event4;
-  data: JsonValue;
-}
-export interface ScoreEvent {
-  timestamp: Timestamp5;
-  event: Event7;
   score: Score;
 }
-export interface StepEvent {
+/**
+ * Log message recorded with Python logger.
+ */
+export interface LoggerEvent {
+  timestamp: Timestamp4;
+  event: Event4;
+  level: Level;
+  message: Message2;
+}
+/**
+ * Event with custom info/data.
+ */
+export interface InfoEvent {
   timestamp: Timestamp5;
   event: Event5;
-  action: Action;
-  type: Type5;
-  name: Name7;
+  data: JsonValue;
 }
-export interface SubtaskEvent {
+/**
+ * Step within current sample or subtask.
+ */
+export interface StepEvent {
   timestamp: Timestamp6;
   event: Event6;
-  name: Name8;
+  action: Action;
+  type: Type7;
+  name: Name6;
+}
+/**
+ * Subtask spawned.
+ */
+export interface SubtaskEvent {
+  timestamp: Timestamp7;
+  event: Event7;
+  name: Name7;
   input: Input2;
   result: Result;
   transcript: Transcript1;
@@ -559,12 +643,20 @@ export interface Input2 {}
 export interface Result {
   [k: string]: unknown;
 }
+/**
+ * Transcript of events.
+ */
 export interface Transcript1 {
-  name: Name9;
+  name: Name8;
   events: Events;
 }
 export interface LoggingMessage {
+  name: Name9;
   level: Level1;
-  message: Message2;
+  message: Message3;
   created: Created1;
+  filename: Filename;
+  module: Module;
+  lineno: Lineno;
+  args: unknown;
 }

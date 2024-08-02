@@ -295,6 +295,9 @@ const scoreCategorizers = [
           compare: (a, b) => {
             return a.localeCompare(b);
           },
+          render: (score) => {
+            return score;
+          },
         };
       }
     },

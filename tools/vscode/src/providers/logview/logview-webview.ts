@@ -6,9 +6,8 @@ import {
   MessageItem,
   Uri,
   ViewColumn,
-  WebviewPanel,
   env,
-  window
+  window,
 } from "vscode";
 
 import {
@@ -39,6 +38,7 @@ import {
   InspectManager,
 } from "../inspect/inspect-manager";
 import { LogviewState } from "./commands";
+import { ExtensionHost, HostWebviewPanel } from "../../hooks";
 
 const kLogViewId = "inspect.logview";
 
@@ -46,7 +46,11 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
   InspectLogviewWebview,
   LogviewState
 > {
-  constructor(inspectManager: InspectManager, context: ExtensionContext) {
+  constructor(
+    inspectManager: InspectManager,
+    context: ExtensionContext,
+    host: ExtensionHost
+  ) {
     // If the interpreter changes, refresh the tasks
     context.subscriptions.push(
       inspectManager.onInspectChanged((e: InspectChangedEvent) => {
@@ -67,7 +71,8 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
       kLogViewId,
       "Inspect View",
       localResourceRoots,
-      InspectLogviewWebview
+      InspectLogviewWebview,
+      host
     );
     this.lastState_;
   }
@@ -164,7 +169,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
   public constructor(
     context: ExtensionContext,
     state: LogviewState,
-    webviewPanel: WebviewPanel
+    webviewPanel: HostWebviewPanel
   ) {
     super(context, state, webviewPanel);
 
@@ -188,7 +193,10 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
                   try {
                     await window.showTextDocument(Uri.file(file.path));
                   } catch (err) {
-                    if (err instanceof Error && err.name === "CodeExpectedError") {
+                    if (
+                      err instanceof Error &&
+                      err.name === "CodeExpectedError"
+                    ) {
                       const close: MessageItem = { title: "Close" };
                       await window.showInformationMessage<MessageItem>(
                         "This file is too large to be opened by the viewer.",
@@ -254,7 +262,12 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
         type: "updateState",
         url: state?.log_file?.toString(),
       };
-      const stateScript = state && state.log_file ? `<script id="logview-state" type="application/json">${JSON.stringify(stateMsg)}</script>` : "";
+      const stateScript =
+        state && state.log_file
+          ? `<script id="logview-state" type="application/json">${JSON.stringify(
+            stateMsg
+          )}</script>`
+          : "";
 
       // add content security policy
       indexHtml = indexHtml.replace(
@@ -263,7 +276,8 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
           <meta name="inspect-extension:version" content="${this.getExtensionVersion()}">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._webviewPanel.webview.cspSource
         } data:; font-src ${this._webviewPanel.webview.cspSource}; style-src ${this._webviewPanel.webview.cspSource
-        } 'unsafe-inline'; worker-src 'self' ${this._webviewPanel.webview.cspSource} blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this._webviewPanel.webview.cspSource
+        } 'unsafe-inline'; worker-src 'self' ${this._webviewPanel.webview.cspSource
+        } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this._webviewPanel.webview.cspSource
         };">
     ${stateScript}
     <link rel="stylesheet" type ="text/css" href="${overrideCssPath.toString()}" >
@@ -364,7 +378,7 @@ function evalLogHeaders(files: string[]) {
 }
 
 export function webviewPanelJsonRpcServer(
-  webviewPanel: WebviewPanel,
+  webviewPanel: HostWebviewPanel,
   methods:
     | Record<string, JsonRpcServerMethod>
     | ((name: string) => JsonRpcServerMethod | undefined)

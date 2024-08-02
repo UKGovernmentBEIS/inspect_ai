@@ -1,6 +1,15 @@
 # Changelog
 
-## v0.3.19 (Unreleased)
+## Unreleased
+
+- Enable customisation of model generation cache dir via `INSPECT_CACHE_DIR` environment variable.
+- Use doc comment description rather than `prompt` attribute of `@tool` for descriptions.
+- Add `tool_with()` function for adapting tools to have varying names and parameter descriptions.
+- Improve recording of `@task` arguments so that dynamically created tasks can be retried.
+- Only print `eval-retry` message to terminal for filesystem based tasks.
+- Enhance Python logger messages to capture more context from the log record.
+
+## v0.3.19 (02 August 2024)
 
 - [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
 - [Groq](https://groq.com/) model provider.
@@ -28,6 +37,7 @@
 - Correctly resolve default model based on CLI --model argument.
 - Fix issue with propagating API keys to Azure OpenAI provider.
 - Add `azure` model arg for OpenAI provider to force binding (or not binding) to the Azure OpenAI back-end.
+- Support for Llama 3 models with the Azure AI provider.
 - Add `setup` field to `Sample` for providing a per-sample setup script.
 - Score multiple choice questions without parsed answers as incorrect (rather than being an error). Llama 3 and 3.1 models especially often fail to yield an answer.
 - Read JSON encoded `metadata` field from samples.
@@ -38,6 +48,9 @@
 - Validate name passed to `example_dataset()` (and print available example dataset names).
 - Resolve relative image paths within Dataset samples against the directory containing the dataset.
 - Preserve `tool_error` text for Anthropic tool call responses.
+- Fix issue with rate limit reporting being per task not per eval.
+- Set maximum rate limit backoff time to 30 minutes
+- Retry with exponential backoff for web_search Google provider.
 
 
 

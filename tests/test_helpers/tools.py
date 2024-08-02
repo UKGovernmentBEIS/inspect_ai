@@ -3,14 +3,11 @@ from inspect_ai.util import sandbox
 
 
 # define tool
-@tool(
-    prompt="""If you are given a math problem of any kind,
-    please use the addition tool to compute the result."""
-)
+@tool
 def addition():
     async def execute(x: int, y: int):
         """
-        Tool for adding two numbers.
+        Add two numbers.
 
         Args:
             x (int): First number to add.
@@ -25,11 +22,11 @@ def addition():
     return execute
 
 
-@tool(prompt="If you need to read a file, use the read_file tool.")
+@tool
 def read_file():
     async def execute(file: str):
         """
-        Read a file from the filesystem.
+        Read the contents of a file.
 
         Args:
           file (str): File to read.
@@ -45,12 +42,7 @@ def read_file():
     return execute
 
 
-@tool(
-    prompt="""
-    If you are asked to list the files in a directory you
-    should call the list_files function to list the files.
-    """
-)
+@tool
 def list_files():
     async def execute(dir: str):
         """List the files in a directory.
@@ -70,7 +62,7 @@ def list_files():
     return execute
 
 
-@tool(prompt="Use the raise_error tool if asked to raise an error.")
+@tool
 def raise_error():
     async def execute():
         """Raise an error."""

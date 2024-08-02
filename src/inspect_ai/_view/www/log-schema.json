@@ -67,7 +67,9 @@
         "role": {
           "const": "assistant",
           "default": "assistant",
-          "title": "Role"
+          "enum": ["assistant"],
+          "title": "Role",
+          "type": "string"
         },
         "tool_calls": {
           "anyOf": [
@@ -129,22 +131,12 @@
         "role": {
           "const": "system",
           "default": "system",
-          "title": "Role"
-        },
-        "tool": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Tool"
+          "enum": ["system"],
+          "title": "Role",
+          "type": "string"
         }
       },
-      "required": ["content", "source", "role", "tool"],
+      "required": ["content", "source", "role"],
       "title": "ChatMessageSystem",
       "type": "object",
       "additionalProperties": false
@@ -188,7 +180,9 @@
         "role": {
           "const": "tool",
           "default": "tool",
-          "title": "Role"
+          "enum": ["tool"],
+          "title": "Role",
+          "type": "string"
         },
         "tool_call_id": {
           "anyOf": [
@@ -258,7 +252,9 @@
         "role": {
           "const": "user",
           "default": "user",
-          "title": "Role"
+          "enum": ["user"],
+          "title": "Role",
+          "type": "string"
         }
       },
       "required": ["content", "source", "role"],
@@ -271,7 +267,9 @@
         "type": {
           "const": "image",
           "default": "image",
-          "title": "Type"
+          "enum": ["image"],
+          "title": "Type",
+          "type": "string"
         },
         "image": {
           "title": "Image",
@@ -294,7 +292,9 @@
         "type": {
           "const": "text",
           "default": "text",
-          "title": "Type"
+          "enum": ["text"],
+          "title": "Type",
+          "type": "string"
         },
         "text": {
           "title": "Text",
@@ -344,6 +344,21 @@
           ],
           "default": null,
           "title": "Epochs"
+        },
+        "epochs_reducer": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epochs Reducer"
         },
         "max_messages": {
           "anyOf": [
@@ -447,6 +462,7 @@
       "required": [
         "limit",
         "epochs",
+        "epochs_reducer",
         "max_messages",
         "max_samples",
         "max_tasks",
@@ -683,7 +699,9 @@
       "properties": {
         "type": {
           "const": "git",
-          "title": "Type"
+          "enum": ["git"],
+          "title": "Type",
+          "type": "string"
         },
         "origin": {
           "title": "Origin",
@@ -880,6 +898,18 @@
           "title": "Scorer",
           "type": "string"
         },
+        "reducer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reducer"
+        },
         "params": {
           "default": {},
           "title": "Params",
@@ -906,7 +936,14 @@
           "title": "Metadata"
         }
       },
-      "required": ["name", "scorer", "params", "metrics", "metadata"],
+      "required": [
+        "name",
+        "scorer",
+        "reducer",
+        "params",
+        "metrics",
+        "metadata"
+      ],
       "title": "EvalScore",
       "type": "object",
       "additionalProperties": false
@@ -1369,7 +1406,9 @@
         "event": {
           "const": "info",
           "default": "info",
-          "title": "Event"
+          "enum": ["info"],
+          "title": "Event",
+          "type": "string"
         },
         "data": {
           "$ref": "#/$defs/JsonValue"
@@ -1430,7 +1469,9 @@
         "event": {
           "const": "logger",
           "default": "logger",
-          "title": "Event"
+          "enum": ["logger"],
+          "title": "Event",
+          "type": "string"
         },
         "level": {
           "title": "Level",
@@ -1448,6 +1489,18 @@
     },
     "LoggingMessage": {
       "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
         "level": {
           "enum": [
             "debug",
@@ -1468,9 +1521,41 @@
         "created": {
           "title": "Created",
           "type": "number"
+        },
+        "filename": {
+          "default": "unknown",
+          "title": "Filename",
+          "type": "string"
+        },
+        "module": {
+          "default": "unknown",
+          "title": "Module",
+          "type": "string"
+        },
+        "lineno": {
+          "default": 0,
+          "title": "Lineno",
+          "type": "integer"
+        },
+        "args": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            }
+          ],
+          "default": null
         }
       },
-      "required": ["level", "message", "created"],
+      "required": [
+        "name",
+        "level",
+        "message",
+        "created",
+        "filename",
+        "module",
+        "lineno",
+        "args"
+      ],
       "title": "LoggingMessage",
       "type": "object",
       "additionalProperties": false
@@ -1547,7 +1632,9 @@
         "event": {
           "const": "model",
           "default": "model",
-          "title": "Event"
+          "enum": ["model"],
+          "title": "Event",
+          "type": "string"
         },
         "model": {
           "title": "Model",
@@ -1794,7 +1881,9 @@
         "event": {
           "const": "score",
           "default": "score",
-          "title": "Event"
+          "enum": ["score"],
+          "title": "Event",
+          "type": "string"
         },
         "score": {
           "$ref": "#/$defs/Score"
@@ -1816,7 +1905,9 @@
         "event": {
           "const": "state",
           "default": "state",
-          "title": "Event"
+          "enum": ["state"],
+          "title": "Event",
+          "type": "string"
         },
         "changes": {
           "items": {
@@ -1842,7 +1933,9 @@
         "event": {
           "const": "step",
           "default": "step",
-          "title": "Event"
+          "enum": ["step"],
+          "title": "Event",
+          "type": "string"
         },
         "action": {
           "enum": ["begin", "end"],
@@ -1882,7 +1975,9 @@
         "event": {
           "const": "store",
           "default": "store",
-          "title": "Event"
+          "enum": ["store"],
+          "title": "Event",
+          "type": "string"
         },
         "changes": {
           "items": {
@@ -1908,7 +2003,9 @@
         "event": {
           "const": "subtask",
           "default": "subtask",
-          "title": "Event"
+          "enum": ["subtask"],
+          "title": "Event",
+          "type": "string"
         },
         "name": {
           "title": "Name",
@@ -1953,7 +2050,9 @@
         },
         "type": {
           "const": "function",
-          "title": "Type"
+          "enum": ["function"],
+          "title": "Type",
+          "type": "string"
         },
         "parse_error": {
           "anyOf": [
@@ -2010,6 +2109,7 @@
       "additionalProperties": false
     },
     "ToolInfo": {
+      "description": "Specification of a tool (JSON Schema compatible)\n\nIf you are implementing a ModelAPI, most LLM libraries can\nbe passed this object (dumped to a dict) directly as a function\nspecification. For example, in the OpenAI provider:\n\n```python\nChatCompletionToolParam(\n    type=\"function\",\n    function=tool.model_dump(exclude_none=True),\n)\n```\n\nIn some cases the field names don't match up exactly. In that case\ncall `model_dump()` on the `parameters` field. For example, in the\nAnthropic provider:\n\n```python\nToolParam(\n    name=tool.name,\n    description=tool.description,\n    input_schema=tool.parameters.model_dump(exclude_none=True),\n)\n```",
       "properties": {
         "name": {
           "title": "Name",
@@ -2019,26 +2119,20 @@
           "title": "Description",
           "type": "string"
         },
-        "params": {
-          "items": {
-            "$ref": "#/$defs/ToolParam"
-          },
-          "title": "Params",
-          "type": "array"
+        "parameters": {
+          "$ref": "#/$defs/ToolParams"
         }
       },
-      "required": ["name", "description", "params"],
+      "required": ["name", "description", "parameters"],
       "title": "ToolInfo",
       "type": "object",
       "additionalProperties": false
     },
     "ToolParam": {
+      "description": "Description of tool parameter in JSON Schema format.",
       "properties": {
-        "name": {
-          "title": "Name",
-          "type": "string"
-        },
         "type": {
+          "default": "null",
           "enum": [
             "string",
             "integer",
@@ -2052,17 +2146,131 @@
           "type": "string"
         },
         "description": {
-          "title": "Description",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
         },
-        "optional": {
-          "title": "Optional",
-          "type": "boolean"
+        "default": {
+          "default": null,
+          "title": "Default"
+        },
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolParam"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "properties": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/ToolParam"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Properties"
+        },
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolParam"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "anyOf": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ToolParam"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anyof"
+        },
+        "required": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required"
         }
       },
-      "required": ["name", "type", "description", "optional"],
       "title": "ToolParam",
       "type": "object",
+      "required": [
+        "type",
+        "description",
+        "default",
+        "items",
+        "properties",
+        "additionalProperties",
+        "anyOf",
+        "required"
+      ],
+      "additionalProperties": false
+    },
+    "ToolParams": {
+      "description": "Description of tool parameters object in JSON Schema format.",
+      "properties": {
+        "type": {
+          "const": "object",
+          "default": "object",
+          "enum": ["object"],
+          "title": "Type",
+          "type": "string"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ToolParam"
+          },
+          "title": "Properties"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required",
+          "type": "array"
+        }
+      },
+      "title": "ToolParams",
+      "type": "object",
+      "required": ["type", "properties", "required"],
       "additionalProperties": false
     },
     "TopLogprob": {

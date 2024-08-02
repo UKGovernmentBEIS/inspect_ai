@@ -9,16 +9,13 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai.model import (
     ChatMessage,
-    ChatMessageSystem,
     ChatMessageUser,
     ModelName,
     ModelOutput,
 )
-from inspect_ai.model._call_tools import tool_defs, tools_info
+from inspect_ai.model._call_tools import tools_info
+from inspect_ai.solver._subtask.store import Store, store_jsonable
 from inspect_ai.tool import Tool, ToolChoice
-
-from ._subtask.store import Store, store_jsonable
-from ._util import append_system_message
 
 
 @dataclass
@@ -258,22 +255,6 @@ class TaskState:
 
     @tools.setter
     def tools(self, tools: list[Tool]) -> None:
-        # clear out any tool-derivied system messages
-        self.messages = [
-            message
-            for message in self.messages
-            if not isinstance(message, ChatMessageSystem) or message.tool is None
-        ]
-
-        # add system messages for the new set of tools
-        for tool in tool_defs(tools):
-            if tool.prompt:
-                append_system_message(
-                    self.messages,
-                    ChatMessageSystem(content=tool.prompt, tool=tool.name),
-                )
-
-        # set the tools
         self._tools = tools
 
 

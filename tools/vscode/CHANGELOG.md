@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.25
+
+- Poll more frequently to show new log files
+- Add support for showing the log viewer in the Positron Viewer
+
 ## 0.3.24
 
 - Properly deal with URI encoded characters in log directories when opening a log file
