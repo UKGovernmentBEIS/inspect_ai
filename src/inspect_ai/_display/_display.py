@@ -19,6 +19,7 @@ class Progress(abc.ABC):
 @dataclass
 class TaskProfile:
     name: str
+    file: str | None
     model: ModelName
     dataset: str
     scorer: str
