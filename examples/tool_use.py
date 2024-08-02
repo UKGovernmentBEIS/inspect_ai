@@ -10,16 +10,11 @@ from inspect_ai.tool import ToolError, tool
 from inspect_ai.util import sandbox
 
 
-@tool(
-    prompt="""
-    If you are given a math problem of any kind,
-    please use the add tool to compute the result.
-    """
-)
+@tool
 def add():
     async def execute(x: int, y: int):
         """
-        Tool for adding two numbers.
+        Add two numbers.
 
         Args:
             x (int): First number to add.
@@ -42,12 +37,7 @@ def addition_problem():
     )
 
 
-@tool(
-    prompt="""
-    If you are asked to list the files in a directory you
-    should call the list_files function to list the files.
-    """
-)
+@tool
 def list_files():
     async def execute(dir: str):
         """List the files in a directory.
@@ -96,10 +86,10 @@ def bash():
     )
 
 
-@tool(prompt="If you need to read a file, use the read_file tool.")
+@tool
 def read_file():
     async def execute(file: str):
-        """Read a file
+        """Read the contents of a file.
 
         Args:
             file (str): File to read
@@ -122,10 +112,10 @@ def read():
     )
 
 
-@tool(prompt="If you need to write a text file, use the write_file tool.")
+@tool
 def write_file():
     async def execute(file: str, contents: str):
-        """Write a file
+        """Write content to a file.
 
         Args:
             file (str): File to write

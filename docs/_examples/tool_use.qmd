@@ -13,7 +13,7 @@ If you want to use tools in your evals it's worth taking some time to learn how 
 
 ### Addition {.unlisted}
 
-We'll start with a simple tool that adds two numbers. We use the `@tool` decorator to register it with the system, and we provide a documentation comment (including argument types) that is used to provide details to the model about the tool:
+We'll demostrate with a simple tool that adds two numbers, using the `@tool` decorator to register it with the system:
 
 ```{python}
 from inspect_ai import Task, eval, task
@@ -25,15 +25,11 @@ from inspect_ai.solver import (
 from inspect_ai.tool import tool
 from inspect_ai.util import subprocess
 
-@tool(prompt="""
-    If you are given a math problem of any kind,
-    please use the add tool to compute the result.
-    """
-)
+@tool
 def add():
     async def execute(x: int, y: int):
         """
-        Tool for adding two numbers.
+        Add two numbers.
 
         Args:
             x (int): First number to add.
@@ -47,7 +43,7 @@ def add():
     return execute
 ```
 
-Note the `prompt` argument passed to the `@tool` decorator. This prompt is intended to help the model reason about when to use the tool, and is automatically added to the system prompt.
+{{< include _tools-annotations-required.md >}}
 
 Now that we've defined the tool, we can use it in an evaluation by passing it to the `use_tools()` function.
 
@@ -70,75 +66,5 @@ We run the eval with:
 inspect eval addition_problem.py
 ```
 
-## File Listing {.unlisted}
-
-The next examples demonstrates how to define a tool that calls an external process.
-
-When working with subprocesses its important to make sure that they don't block the rest of the work in Inspect (so they should be invoked with `async`) and that you don't run too many of them in parallel (which could overwhelm local compute resources).
-
-To assist with this, Inspect provides the `subprocess()` function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout (or stderr in the case of an error). The `subprocess()` function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`).
-
-Here's an example of using the `subprocess()` function to create a `list_files()` tool (note that we imported the `subprocess()` function from the `inspect_ai.util` module above):
-
-```{python}
-@tool(
-    prompt="""
-    If you are asked to list the files in a directory you
-    should call the list_files function to list the files.
-    """
-)
-def list_files():
-    async def execute(dir: str):
-        """List the files in a directory.
-
-        Args:
-            dir (str): Directory
-
-        Returns:
-            File listing of the directory
-        """
-        result = await subprocess(["ls", dir])
-        if result.success:
-            return result.stdout
-        else:
-            raise ToolError(result.stderr)
-
-    return execute
-```
-
-Here's how we might use that tool in an evaluation:
-
-```{python}
-SYSTEM_MESSAGE = """
-Please answer exactly Yes or No with no additional words.
-"""
-
-@task
-def bash():
-
-    dataset = [Sample(
-        input=(
-            "Please list the files in the /usr/bin directory. "
-            + "Is there a file named 'python3' in the directory?"
-        ),
-        target=["Yes"],
-    )]
-
-    return Task(
-        dataset=dataset,
-        plan=[
-            system_message(SYSTEM_MESSAGE),
-            use_tools(list_files()),
-            generate(),
-        ],
-        scorer=includes(),
-    )
-```
-
-Now we run the evaluation:
-
-```bash
-inspect eval bash.py
-```
 
 :::

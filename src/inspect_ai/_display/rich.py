@@ -298,7 +298,7 @@ def task_result_cancelled(
         show_model=True,
         body=task_stats(profile, cancelled.stats),
         config=None,
-        footer=task_interrupted(profile.log_location, cancelled.samples_logged),
+        footer=task_interrupted(profile, cancelled.samples_logged),
         log_location=profile.log_location,
     )
 
@@ -320,7 +320,7 @@ def task_result_error(profile: TaskProfile, error: TaskError) -> RenderableType:
         show_model=True,
         body=rich_traceback(error.exc_type, error.exc_value, error.traceback),
         config=None,
-        footer=task_interrupted(profile.log_location, error.samples_logged),
+        footer=task_interrupted(profile, error.samples_logged),
         log_location=profile.log_location,
     )
 
@@ -443,16 +443,32 @@ def live_task_footer() -> tuple[RenderableType, RenderableType]:
 
 
 def task_interrupted(
-    log_location: str, samples_logged: int
+    profile: TaskProfile, samples_logged: int
 ) -> tuple[RenderableType, RenderableType]:
+    log_location = profile.log_location
     theme = rich_theme()
-    return (
-        f"[bold][{theme.error}]Task interrupted ({samples_logged} "
-        + "completed samples logged before interruption). "
-        + f"Resume task with:[/{theme.error}][/bold]\n\n"
-        + f"[bold][{theme.light}]inspect eval-retry {log_location}[/{theme.light}][/bold]",
-        "",
-    )
+    message = f"[bold][{theme.error}]Task interrupted ("
+    if samples_logged > 0:
+        message = (
+            f"{message}{samples_logged} completed samples logged before interruption)."
+        )
+        if task_can_retry_from_filesystem(profile):
+            message = (
+                f"{message} Resume task with:[/{theme.error}][/bold]\n\n"
+                + f"[bold][{theme.light}]inspect eval-retry {log_location}[/{theme.light}][/bold]"
+            )
+        else:
+            message = f"{message}[/{theme.error}][/bold]"
+    else:
+        message = (
+            f"{message}no samples completed before interruption)[/{theme.error}][/bold]"
+        )
+
+    return message, ""
+
+
+def task_can_retry_from_filesystem(profile: TaskProfile) -> bool:
+    return profile.file is not None
 
 
 def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
