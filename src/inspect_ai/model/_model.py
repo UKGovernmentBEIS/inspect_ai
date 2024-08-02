@@ -258,32 +258,13 @@ class Model:
                 tools = []
             tool_choice = "none"
 
-        # filter out system messages for tools not in play on this pass
-        if isinstance(input, list):
-            # does this message belong to a tool not active on this pass?
-            def is_inactive_tool_system_message(message: ChatMessage) -> bool:
-                return (
-                    isinstance(message, ChatMessageSystem)
-                    and message.tool is not None
-                    and (
-                        tool_choice == "none"
-                        or message.tool not in [tool.name for tool in tools]
-                    )
-                )
+        # optionally collapse *consecutive* messages into one -
+        # (some apis e.g. anthropic require this)
+        if self.api.collapse_user_messages():
+            input = collapse_consecutive_user_messages(input)
 
-            # filter out inactive tool system messages
-            input = [
-                message
-                for message in input
-                if not is_inactive_tool_system_message(message)
-            ]
-
-            # optionally collapse *consecutive* messages into one - some apis e.g. anthropic require this
-            if self.api.collapse_user_messages():
-                input = collapse_consecutive_user_messages(input)
-
-            if self.api.collapse_assistant_messages():
-                input = collapse_consecutive_assistant_messages(input)
+        if self.api.collapse_assistant_messages():
+            input = collapse_consecutive_assistant_messages(input)
 
         # retry for rate limit errors (max of 30 minutes)
         @retry(

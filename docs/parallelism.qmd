@@ -254,10 +254,7 @@ It's possible that your custom solvers, tools, or scorers will need to launch ch
 To assist with this, Inspect provides the `subprocess()` function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout and stderr. The `subprocess()` function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`). Here's an example from the implementation of a `list_files()` tool:
 
 ``` python
-@tool(prompt=(
-   "If you are asked to list the files in a directory you "
-   + "should call the list_files function to access the listing."
-))
+@tool
 def list_files():
     async def execute(dir: str):
         """List the files in a directory.
