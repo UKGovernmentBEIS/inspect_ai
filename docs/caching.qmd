@@ -121,3 +121,11 @@ $ inspect cache prune --model openai/gpt-4-turbo-2024-04-09
 ```
 
 See `inspect cache --help` for further details on management commands.
+
+### Cache Directory
+
+By default the model generation cache is stored in the system default location for user cache files (e.g. `XDG_CACHE_HOME` on Linux). You can override this and specify a different directory for cache files using the `INSPECT_CACHE_DIR` environment variable. For example:
+
+``` bash
+$ export INSPECT_CACHE_DIR=/tmp/inspect-cache
+```

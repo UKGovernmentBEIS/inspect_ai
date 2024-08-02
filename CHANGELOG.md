@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Enable customisation of model generation cache dir via `INSPECT_CACHE_DIR` environment variable.
 - Use doc comment description rather than `prompt` attribute of `@tool` for descriptions.
 - Add `tool_with()` function for adapting tools to have varying names and parameter descriptions.
 - Improve recording of `@task` arguments so that dynamically created tasks can be retried.
