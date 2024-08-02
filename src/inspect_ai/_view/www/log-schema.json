@@ -345,6 +345,21 @@
           "default": null,
           "title": "Epochs"
         },
+        "epochs_reducer": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epochs Reducer"
+        },
         "max_messages": {
           "anyOf": [
             {
@@ -447,6 +462,7 @@
       "required": [
         "limit",
         "epochs",
+        "epochs_reducer",
         "max_messages",
         "max_samples",
         "max_tasks",
@@ -840,6 +856,18 @@
           "title": "Scorer",
           "type": "string"
         },
+        "reducer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reducer"
+        },
         "params": {
           "default": {},
           "title": "Params",
@@ -866,7 +894,14 @@
           "title": "Metadata"
         }
       },
-      "required": ["name", "scorer", "params", "metrics", "metadata"],
+      "required": [
+        "name",
+        "scorer",
+        "reducer",
+        "params",
+        "metrics",
+        "metadata"
+      ],
       "title": "EvalScore",
       "type": "object",
       "additionalProperties": false

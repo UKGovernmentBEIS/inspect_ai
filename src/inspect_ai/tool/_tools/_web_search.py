@@ -4,7 +4,15 @@ from typing import Literal, Protocol, cast, runtime_checkable
 
 import httpx
 from bs4 import BeautifulSoup, NavigableString
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_exponential_jitter,
+)
 
+from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
 from inspect_ai.util._concurrency import concurrency
 
 from .._tool import Tool, ToolResult, tool
@@ -187,8 +195,20 @@ def google_search_provider(client: httpx.AsyncClient) -> SearchProvider:
         search_url = "https://www.googleapis.com/customsearch/v1?" + "&".join(
             [f"{key}={value}" for key, value in search_params.items()]
         )
-        result = await client.get(search_url)
+
+        # retry up to 5 times over a period of up to 1 minute
+        @retry(
+            wait=wait_exponential_jitter(),
+            stop=stop_after_attempt(5) | stop_after_delay(60),
+            retry=retry_if_exception(httpx_should_retry),
+            before_sleep=log_retry_attempt(search_url),
+        )
+        async def execute_search() -> httpx.Response:
+            return await client.get(search_url)
+
+        result = await execute_search()
         data = result.json()
+
         if "items" in data:
             return [SearchLink(item["link"], item["snippet"]) for item in data["items"]]
         else:

@@ -172,6 +172,10 @@ class AnthropicAPI(ModelAPI):
     def collapse_assistant_messages(self) -> bool:
         return True
 
+    @override
+    def tools_required(self) -> bool:
+        return True
+
     # convert some common BadRequestError states into 'refusal' model output
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | None:
         error = exception_message(ex)
@@ -288,6 +292,13 @@ async def message_param(message: ChatMessage) -> MessageParam:
             content: str | list[TextBlockParam | ImageBlockParam] = (
                 message.error.message
             )
+            # anthropic requires that content be populated when
+            # is_error is true (throws bad_request_error when not)
+            # so make sure this precondition is met
+            if not content:
+                content = message.text
+            if not content:
+                content = "error"
         elif isinstance(message.content, str):
             content = [TextBlockParam(type="text", text=message.content)]
         else:
