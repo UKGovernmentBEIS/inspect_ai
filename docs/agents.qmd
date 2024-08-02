@@ -315,7 +315,7 @@ Let's take a look at a simple example to illustrate. First, we'll define a `list
 from inspect_ai.tool import ToolError, tool
 from inspect_ai.util import sandbox
 
-@tool(prompt="Use the list_files function to enumerate files.")
+@tool
 def list_files():
     async def execute(dir: str):
         """List the files in a directory.

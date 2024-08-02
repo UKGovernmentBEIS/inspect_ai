@@ -1,5 +1,6 @@
 import functools
 import os
+from logging import getLogger
 from typing import Any, Literal, Tuple, cast
 
 from anthropic import (
@@ -29,6 +30,7 @@ from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -46,6 +48,8 @@ from .._model_output import (
     StopReason,
 )
 from .util import model_base_url
+
+logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
@@ -172,6 +176,10 @@ class AnthropicAPI(ModelAPI):
     def collapse_assistant_messages(self) -> bool:
         return True
 
+    @override
+    def tools_required(self) -> bool:
+        return True
+
     # convert some common BadRequestError states into 'refusal' model output
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | None:
         error = exception_message(ex)
@@ -272,6 +280,12 @@ def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolCh
         return {"type": "tool", "name": tool_choice.name}
     elif tool_choice == "any":
         return {"type": "any"}
+    elif tool_choice == "none":
+        warn_once(
+            logger,
+            'The Anthropic API does not support tool_choice="none" (using "auto" instead)',
+        )
+        return {"type": "auto"}
     else:
         return {"type": "auto"}
 
@@ -288,6 +302,13 @@ async def message_param(message: ChatMessage) -> MessageParam:
             content: str | list[TextBlockParam | ImageBlockParam] = (
                 message.error.message
             )
+            # anthropic requires that content be populated when
+            # is_error is true (throws bad_request_error when not)
+            # so make sure this precondition is met
+            if not content:
+                content = message.text
+            if not content:
+                content = "error"
         elif isinstance(message.content, str):
             content = [TextBlockParam(type="text", text=message.content)]
         else:
