@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Use doc comment description rather than `prompt` attribute of `@tool` for descriptions.
+- Add `tool_with()` function for adapting tools to have varying names and parameter descriptions.
+- Improve recording of `@task` arguments so that dynamically created tasks can be retried.
+- Only print `eval-retry` message to terminal for filesystem based tasks.
+- Enhance Python logger messages to capture more context from the log record.
+
 ## v0.3.19 (02 August 2024)
 
 - [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
