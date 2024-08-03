@@ -726,7 +726,7 @@ Note
 <section id="sec-reducing-epochs" class="level2">
 <h2 class="anchored" data-anchor-id="sec-reducing-epochs">Reducing Epochs</h2>
 <p>If a task is run over more than one <code>epoch</code>, multiple scores will be generated for each sample. These scores are then <em>reduced</em> to a single score representing the score for the sample across all the epochs.</p>
-<p>By default, this is done by taking the mean of the all the sample scores, but you may specify other strategies for reducing the samples using the <code>epochs_reducer</code> parameter. For example, here we specify that we we want to use the most commonly occurring value (the mode):</p>
+<p>By default, this is done by taking the mean of all sample scores, but you may specify other strategies for reducing the samples by passing an <code>Epochs</code>, which includes both a count and one or more reducers to combine sample scores with. For example:</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gpqa():</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -736,17 +736,15 @@ Note
 <span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>            multiple_choice(),</span>
 <span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        ],</span>
 <span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>choice(),</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>        epochs<span class="op">=</span><span class="dv">5</span>,</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>        epochs_reducer<span class="op">=</span><span class="st">"mode"</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In addition, you may specify more than one reducer which will compute metrics using each of the reducers. For example:</p>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>        epochs<span class="op">=</span>Epochs(<span class="dv">5</span>, <span class="st">"mode"</span>),</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You may also specify more than one reducer which will compute metrics using each of the reducers. For example:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gpqa():</span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        epochs<span class="op">=</span><span class="dv">5</span>,</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>        epochs_reducer<span class="op">=</span>[<span class="st">"at_least_2"</span>, <span class="st">"at_least_5"</span>]</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        epochs<span class="op">=</span>Epochs(<span class="dv">5</span>, [<span class="st">"at_least_2"</span>, <span class="st">"at_least_5"</span>]),</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="built-in-reducers" class="level3">
 <h3 class="anchored" data-anchor-id="built-in-reducers">Built-in Reducers</h3>
 <p>Inspect includes several built in reducers which are summarised below.</p>

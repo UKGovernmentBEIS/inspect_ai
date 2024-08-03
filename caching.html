@@ -286,7 +286,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#model-versions" id="toc-model-versions" class="nav-link" data-scroll-target="#model-versions">Model Versions</a></li>
   </ul></li>
   <li><a href="#cache-policy" id="toc-cache-policy" class="nav-link" data-scroll-target="#cache-policy">Cache Policy</a></li>
-  <li><a href="#management" id="toc-management" class="nav-link" data-scroll-target="#management">Management</a></li>
+  <li><a href="#management" id="toc-management" class="nav-link" data-scroll-target="#management">Management</a>
+  <ul class="collapse">
+  <li><a href="#cache-directory" id="toc-cache-directory" class="nav-link" data-scroll-target="#cache-directory">Cache Directory</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -395,8 +398,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache prune</span>
 <span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache prune <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>See <code>inspect cache --help</code> for further details on management commands.</p>
+<section id="cache-directory" class="level3">
+<h3 class="anchored" data-anchor-id="cache-directory">Cache Directory</h3>
+<p>By default the model generation cache is stored in the system default location for user cache files (e.g.&nbsp;<code>XDG_CACHE_HOME</code> on Linux). You can override this and specify a different directory for cache files using the <code>INSPECT_CACHE_DIR</code> environment variable. For example:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export INSPECT_CACHE_DIR=/tmp/inspect-cache</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
