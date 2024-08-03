@@ -20,7 +20,7 @@ Based on: https://github.com/openai/simple-evals/blob/main/humaneval_eval.py
 
 import re
 
-from inspect_ai import Task, task
+from inspect_ai import Epochs, Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import (
     CORRECT,
@@ -55,10 +55,9 @@ def humaneval():
         dataset=hf_dataset(
             path="openai_humaneval", split="test", sample_fields=record_to_sample
         ),
+        epochs=Epochs(NUM_EPOCHS, ["mean", "at_least_1", "at_least_2", "at_least_5"]),
         plan=[generate()],
         scorer=verify(),
-        epochs=NUM_EPOCHS,
-        epochs_reducer=["mean", "at_least_1", "at_least_2", "at_least_5"],
         sandbox="docker",
     )
 
