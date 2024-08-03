@@ -8,6 +8,7 @@
 - Improve recording of `@task` arguments so that dynamically created tasks can be retried.
 - Only print `eval-retry` message to terminal for filesystem based tasks.
 - Enhance Python logger messages to capture more context from the log record.
+- Fix an issue that could result in duplicate display of scorers in log view when using multiple epoch reducers.
 
 ## v0.3.19 (02 August 2024)
 
