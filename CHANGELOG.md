@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.20 (03 August 2024)
 
 - `Epochs` data type for specifying epochs and reducers together (deprecated `epochs_reducer` argument). 
 - Enable customisation of model generation cache dir via `INSPECT_CACHE_DIR` environment variable.
