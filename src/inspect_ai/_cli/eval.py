@@ -1,7 +1,7 @@
 import click
 from typing_extensions import Unpack
 
-from inspect_ai import eval, eval_retry
+from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_LOG_BUFFER_LOCAL,
@@ -246,8 +246,12 @@ def eval_command(
     task_args = parse_cli_args(t)
     model_args = parse_cli_args(m)
 
-    # resolve epochs_reducer
-    eval_epochs_reducer = create_reducers(parse_comma_separated(epochs_reducer))
+    # resolve epochs
+    eval_epochs = (
+        Epochs(epochs, create_reducers(parse_comma_separated(epochs_reducer)))
+        if epochs
+        else None
+    )
 
     # resolve range
     eval_limit = parse_samples_limit(limit)
@@ -273,8 +277,7 @@ def eval_command(
         log_level=log_level,
         log_dir=log_dir,
         limit=eval_limit,
-        epochs=epochs,
-        epochs_reducer=eval_epochs_reducer,
+        epochs=eval_epochs,
         max_messages=max_messages,
         max_samples=max_samples,
         max_tasks=max_tasks,

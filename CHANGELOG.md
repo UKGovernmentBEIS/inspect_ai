@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `Epochs` data type for specifying epochs and reducers together (deprecated `epochs_reducer` argument). 
 - Enable customisation of model generation cache dir via `INSPECT_CACHE_DIR` environment variable.
 - Use doc comment description rather than `prompt` attribute of `@tool` for descriptions.
 - Add `tool_with()` function for adapting tools to have varying names and parameter descriptions.
