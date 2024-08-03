@@ -1,6 +1,6 @@
 from functools import reduce
 
-from inspect_ai import Task, eval
+from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.score import score
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
@@ -92,12 +92,12 @@ def test_scorer_lookup():
 
 def eval_with_reducer():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
-    return eval(task, model="mockllm/model", epochs=5, epochs_reducer=max_score())[0]
+    return eval(task, model="mockllm/model", epochs=Epochs(5, max_score()))[0]
 
 
 def test_reducer_by_name():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
-    log = eval(task, model="mockllm/model", epochs=5, epochs_reducer="at_least_2")[0]
+    log = eval(task, model="mockllm/model", epochs=Epochs(5, "at_least_2"))[0]
     assert log.eval.config.epochs_reducer == ["at_least_2"]
 
 
