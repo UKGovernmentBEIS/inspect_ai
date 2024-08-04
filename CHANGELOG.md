@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Log viewer: Ctrl/Cmd+F to find text when running in VS Code.
+
 ## v0.3.20 (03 August 2024)
 
 - `Epochs` data type for specifying epochs and reducers together (deprecated `epochs_reducer` argument). 
