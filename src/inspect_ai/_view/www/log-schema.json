@@ -1,10 +1,5 @@
 {
   "$defs": {
-    "BaseModel": {
-      "properties": {},
-      "title": "BaseModel",
-      "type": "object"
-    },
     "ChatCompletionChoice": {
       "properties": {
         "message": {
@@ -1927,32 +1922,10 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/BaseModel"
-        },
-        "name": {
-          "title": "Name",
-          "type": "string"
-        },
-        "input": {
-          "title": "Input",
-          "type": "object"
-        },
-        "result": {
-          "title": "Result"
-        },
-        "transcript": {
-          "$ref": "#/$defs/Transcript"
+          "$ref": "#/$defs/inspect_ai__solver___subtask__transcript__SubtaskEvent__Data"
         }
       },
-      "required": [
-        "event",
-        "timestamp",
-        "data",
-        "name",
-        "input",
-        "result",
-        "transcript"
-      ],
+      "required": ["event", "timestamp", "data"],
       "title": "SubtaskEvent",
       "type": "object",
       "additionalProperties": false
@@ -2479,6 +2452,28 @@
         }
       },
       "required": ["changes"],
+      "title": "Data",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "inspect_ai__solver___subtask__transcript__SubtaskEvent__Data": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "input": {
+          "title": "Input",
+          "type": "object"
+        },
+        "result": {
+          "title": "Result"
+        },
+        "transcript": {
+          "$ref": "#/$defs/Transcript"
+        }
+      },
+      "required": ["name", "input", "result", "transcript"],
       "title": "Data",
       "type": "object",
       "additionalProperties": false

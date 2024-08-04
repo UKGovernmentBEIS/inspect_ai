@@ -666,13 +666,14 @@ export interface Data6 {
 export interface SubtaskEvent {
   event: Event7;
   timestamp: Timestamp7;
-  data: BaseModel;
+  data: Data7;
+}
+export interface Data7 {
   name: Name8;
   input: Input2;
   result: Result;
   transcript: Transcript1;
 }
-export interface BaseModel {}
 export interface Input2 {}
 export interface Result {
   [k: string]: unknown;
