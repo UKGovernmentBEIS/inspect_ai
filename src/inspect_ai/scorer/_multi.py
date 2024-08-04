@@ -1,5 +1,4 @@
 import asyncio
-from typing import cast
 
 from inspect_ai.scorer._reducer.registry import create_reducers
 from inspect_ai.solver import TaskState
@@ -17,7 +16,7 @@ def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer:
         scorers: a list of Scorers.
         reducer: a function which takes in a list of Scores and returns a single Score.
     """
-    reducer = cast(list[ScoreReducer], create_reducers(reducer))[0]
+    reducer = create_reducers(reducer)[0]
 
     async def score(state: TaskState, target: Target) -> Score:
         scores = await asyncio.gather(*[_scorer(state, target) for _scorer in scorers])

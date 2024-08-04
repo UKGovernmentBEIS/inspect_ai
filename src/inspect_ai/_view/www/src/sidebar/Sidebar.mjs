@@ -72,11 +72,13 @@ export const Sidebar = ({
 
           const model = logHeader?.eval?.model;
           const dataset = logHeader?.eval?.dataset;
-          const scorer = logHeader?.results?.scores
-            ?.map((scorer) => {
-              return scorer.name;
-            })
-            .join(",");
+
+          const uniqScorers = new Set();
+          logHeader?.results?.scores?.forEach((scorer) => {
+            uniqScorers.add(scorer.name);
+          });
+          const scorer = Array.from(uniqScorers).join(",");
+
           const scorerLabel =
             Object.keys(logHeader?.results?.scores || {}).length === 1
               ? "scorer"

@@ -90,14 +90,23 @@ export const WorkSpace = (props) => {
           scorer: workspaceLog.contents.results.scores[0].scorer,
         }
       : undefined;
-    const scorers = (workspaceLog.contents?.results?.scores || []).map(
-      (score) => {
+    const scorers = (workspaceLog.contents?.results?.scores || [])
+      .map((score) => {
         return {
           name: score.name,
           scorer: score.scorer,
         };
-      },
-    );
+      })
+      .reduce((accum, scorer) => {
+        if (
+          !accum.find((sc) => {
+            return scorer.scorer === sc.scorer && scorer.name === sc.name;
+          })
+        ) {
+          accum.push(scorer);
+        }
+        return accum;
+      }, []);
 
     // Reset state
     setScores(scorers);
