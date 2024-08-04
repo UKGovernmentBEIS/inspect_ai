@@ -9,7 +9,7 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, Field, JsonValue, field_serializer
+from pydantic import BaseModel, Field, JsonValue
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.json import JsonChange, json_changes
@@ -25,177 +25,125 @@ from .store import store, store_changes, store_jsonable
 
 
 class BaseEvent(BaseModel):
-    event: str
-    """Type of event."""
-
     timestamp: datetime = Field(default_factory=datetime.now)
     """Time at which event occurred."""
 
-    data: BaseModel
-    """Type specific event data."""
-
-    @field_serializer("timestamp")
-    def serialize_timestamp(self, dt: datetime) -> str:
-        return dt.astimezone().isoformat()
+    class Config:
+        # Write the datetime as an isoformatted string including timezone
+        json_encoders = {datetime: lambda v: v.astimezone().isoformat()}
 
 
 class StoreEvent(BaseEvent):
     """Change to data within the current `Store`."""
 
-    class Data(BaseModel):
-        changes: list[JsonChange]
-
     event: Literal["store"] = Field(default="store")
     """Event type."""
 
-    data: Data
-    """Event datta."""
+    changes: list[JsonChange]
+    """List of changes to the `Store`."""
 
 
 class StateEvent(BaseEvent):
     """Change to the current `TaskState`"""
 
-    class Data(BaseModel):
-        changes: list[JsonChange]
-
     event: Literal["state"] = Field(default="state")
     """Event type."""
 
-    data: Data
-    """Event data."""
+    changes: list[JsonChange]
+    """List of changes to the `TaskState`"""
 
 
 class ModelEvent(BaseEvent):
     """Call to a language model."""
 
-    class Data(BaseModel):
-        model: str
-        """Model name."""
-
-        input: list[ChatMessage]
-        """Model input (list of messages)."""
-
-        tools: list[ToolInfo]
-        """Tools available to the model."""
-
-        tool_choice: ToolChoice
-        """Directive to the model which tools to prefer."""
-
-        config: GenerateConfig
-        """Generate config used for call to model."""
-
-        output: ModelOutput
-        """Output from model."""
-
     event: Literal["model"] = Field(default="model")
     """Event type."""
 
-    data: Data
-    """Event data."""
+    model: str
+    """Model name."""
+
+    input: list[ChatMessage]
+    """Model input (list of messages)."""
+
+    tools: list[ToolInfo]
+    """Tools available to the model."""
+
+    tool_choice: ToolChoice
+    """Directive to the model which tools to prefer."""
+
+    config: GenerateConfig
+    """Generate config used for call to model."""
+
+    output: ModelOutput
+    """Output from model."""
 
 
 class LoggerEvent(BaseEvent):
     """Log message recorded with Python logger."""
 
-    class Data(BaseModel):
-        name: str | None = Field(default=None)
-        """Name of logging module."""
-
-        level: str
-        """Logging level."""
-
-        message: str
-        """Log message."""
-
-        created: float
-        """Message created time."""
-
-        filename: str = Field(default="unknown")
-        """Logged from filename."""
-
-        module: str = Field(default="unknown")
-        """Logged from module."""
-
-        lineno: int = Field(default=0)
-        """Logged from line number."""
-
-        args: JsonValue = Field(default=None)
-        """Extra arguments passed to log function."""
-
     event: Literal["logger"] = Field(default="logger")
     """Event type."""
 
-    data: Data
-    """Event data."""
+    level: str
+    """Log level."""
+
+    message: str
+    """Log message."""
 
 
 class InfoEvent(BaseEvent):
     """Event with custom info/data."""
 
-    class Data(BaseModel):
-        data: JsonValue
-
     event: Literal["info"] = Field(default="info")
     """Event type."""
 
-    data: Data
-    """Event data."""
+    data: JsonValue
+    """Data provided with event."""
 
 
 class ScoreEvent(BaseEvent):
     """Event with sample score."""
 
-    class Data(BaseModel):
-        score: Score
-
     event: Literal["score"] = Field(default="score")
     """Event type."""
 
-    data: Data
-    """Event data."""
+    score: Score
+    """Sample score."""
 
 
 class StepEvent(BaseEvent):
     """Step within current sample or subtask."""
 
-    class Data(BaseModel):
-        action: Literal["begin", "end"]
-        """Designates beginning or end of event."""
-
-        type: str | None = Field(default=None)
-        """Optional 'type' field for events"""
-
-        name: str
-        """Event name."""
-
     event: Literal["step"] = Field(default="step")
     """Event type."""
 
-    data: Data
-    """Event data."""
+    action: Literal["begin", "end"]
+    """Designates beginning or end of event."""
+
+    type: str | None = Field(default=None)
+    """Optional 'type' field for events"""
+
+    name: str
+    """Event name."""
 
 
 class SubtaskEvent(BaseEvent):
     """Subtask spawned."""
 
-    class Data(BaseModel):
-        name: str
-        """Name of subtask function."""
-
-        input: dict[str, Any]
-        """Subtask function inputs."""
-
-        result: Any
-        """Subtask function result."""
-
-        transcript: "Transcript"
-        """Transcript of events for subtask."""
-
     event: Literal["subtask"] = Field(default="subtask")
     """Event type."""
 
-    data: Data
-    """Event data."""
+    name: str
+    """Name of subtask function."""
+
+    input: dict[str, Any]
+    """Subtask function inputs."""
+
+    result: Any
+    """Subtask function result."""
+
+    transcript: "Transcript"
+    """Transcript of events for subtask."""
 
 
 Event: TypeAlias = Union[
@@ -226,7 +174,7 @@ class Transcript(BaseModel):
         Args:
            data (JsonValue): Data associated with the event.
         """
-        self._event(InfoEvent(data=InfoEvent.Data(data=data)))
+        self._event(InfoEvent(data=data))
 
     @contextlib.contextmanager
     def step(self, name: str, type: str | None = None) -> Iterator[None]:
@@ -237,16 +185,14 @@ class Transcript(BaseModel):
             type (str | None): Optional step type.
         """
         # step event
-        self._event(
-            StepEvent(data=StepEvent.Data(action="begin", name=name, type=type))
-        )
+        self._event(StepEvent(action="begin", name=name, type=type))
 
         # run the step (tracking state/store changes)
         with track_state_changes(type), track_store_changes():
             yield
 
         # end step event
-        self._event(StepEvent(data=StepEvent.Data(action="end", name=name, type=type)))
+        self._event(StepEvent(action="end", name=name, type=type))
 
     def _event(self, event: Event) -> None:
         self.events.append(event)
@@ -265,7 +211,7 @@ def track_store_changes() -> Iterator[None]:
 
     changes = store_changes(before, after)
     if changes:
-        transcript()._event(StoreEvent(data=StoreEvent.Data(changes=changes)))
+        transcript()._event(StoreEvent(changes=changes))
 
 
 @contextlib.contextmanager
@@ -280,7 +226,7 @@ def track_state_changes(type: str | None = None) -> Iterator[None]:
 
         changes = json_changes(before, after)
         if changes:
-            transcript()._event(StateEvent(data=StateEvent.Data(changes=changes)))
+            transcript()._event(StateEvent(changes=changes))
     else:
         yield
 

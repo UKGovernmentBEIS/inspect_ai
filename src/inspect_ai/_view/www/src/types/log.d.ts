@@ -157,17 +157,17 @@ export type Value1 =
 export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata4 = {} | null;
-export type Event = "state";
 export type Timestamp = string;
+export type Event = "state";
 export type Op = "remove" | "add" | "replace" | "move" | "test" | "copy";
 export type Path = string;
 export type From = string | null;
 export type Changes = JsonChange[];
-export type Event1 = "store";
 export type Timestamp1 = string;
+export type Event1 = "store";
 export type Changes1 = JsonChange[];
-export type Event2 = "model";
 export type Timestamp2 = string;
+export type Event2 = "model";
 export type Model2 = string;
 export type Input1 = (
   | ChatMessageSystem
@@ -196,29 +196,24 @@ export type Required1 = string[];
 export type Tools = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name5 = string;
-export type Event3 = "score";
 export type Timestamp3 = string;
-export type Event4 = "logger";
+export type Event3 = "score";
 export type Timestamp4 = string;
-export type Name6 = string | null;
+export type Event4 = "logger";
 export type Level = string;
 export type Message2 = string;
-export type Created1 = number;
-export type Filename = string;
-export type Module = string;
-export type Lineno = number;
-export type Event5 = "info";
 export type Timestamp5 = string;
+export type Event5 = "info";
 export type JsonValue = unknown;
-export type Event6 = "step";
 export type Timestamp6 = string;
+export type Event6 = "step";
 export type Action = "begin" | "end";
 export type Type7 = string | null;
-export type Name7 = string;
-export type Event7 = "subtask";
+export type Name6 = string;
 export type Timestamp7 = string;
+export type Event7 = "subtask";
+export type Name7 = string;
 export type Name8 = string;
-export type Name9 = string;
 export type Events = (
   | StateEvent
   | StoreEvent
@@ -239,7 +234,7 @@ export type Transcript = (
   | StepEvent
   | SubtaskEvent
 )[];
-export type Name10 = string | null;
+export type Name9 = string | null;
 export type Level1 =
   | "debug"
   | "http"
@@ -249,10 +244,10 @@ export type Level1 =
   | "error"
   | "critical";
 export type Message3 = string;
-export type Created2 = number;
-export type Filename1 = string;
-export type Module1 = string;
-export type Lineno1 = number;
+export type Created1 = number;
+export type Filename = string;
+export type Module = string;
+export type Lineno = number;
 export type Logging = LoggingMessage[];
 
 export interface EvalLog {
@@ -503,11 +498,8 @@ export interface Store {}
  * Change to the current `TaskState`
  */
 export interface StateEvent {
-  event: Event;
   timestamp: Timestamp;
-  data: Data;
-}
-export interface Data {
+  event: Event;
   changes: Changes;
 }
 /**
@@ -523,22 +515,16 @@ export interface JsonChange {
  * Change to data within the current `Store`.
  */
 export interface StoreEvent {
-  event: Event1;
   timestamp: Timestamp1;
-  data: Data1;
-}
-export interface Data1 {
+  event: Event1;
   changes: Changes1;
 }
 /**
  * Call to a language model.
  */
 export interface ModelEvent {
-  event: Event2;
   timestamp: Timestamp2;
-  data: Data2;
-}
-export interface Data2 {
+  event: Event2;
   model: Model2;
   input: Input1;
   tools: Tools;
@@ -611,65 +597,44 @@ export interface ToolFunction {
  * Event with sample score.
  */
 export interface ScoreEvent {
-  event: Event3;
   timestamp: Timestamp3;
-  data: Data3;
-}
-export interface Data3 {
+  event: Event3;
   score: Score;
 }
 /**
  * Log message recorded with Python logger.
  */
 export interface LoggerEvent {
-  event: Event4;
   timestamp: Timestamp4;
-  data: Data4;
-}
-export interface Data4 {
-  name: Name6;
+  event: Event4;
   level: Level;
   message: Message2;
-  created: Created1;
-  filename: Filename;
-  module: Module;
-  lineno: Lineno;
-  args: unknown;
 }
 /**
  * Event with custom info/data.
  */
 export interface InfoEvent {
-  event: Event5;
   timestamp: Timestamp5;
-  data: Data5;
-}
-export interface Data5 {
+  event: Event5;
   data: JsonValue;
 }
 /**
  * Step within current sample or subtask.
  */
 export interface StepEvent {
-  event: Event6;
   timestamp: Timestamp6;
-  data: Data6;
-}
-export interface Data6 {
+  event: Event6;
   action: Action;
   type: Type7;
-  name: Name7;
+  name: Name6;
 }
 /**
  * Subtask spawned.
  */
 export interface SubtaskEvent {
-  event: Event7;
   timestamp: Timestamp7;
-  data: Data7;
-}
-export interface Data7 {
-  name: Name8;
+  event: Event7;
+  name: Name7;
   input: Input2;
   result: Result;
   transcript: Transcript1;
@@ -682,16 +647,16 @@ export interface Result {
  * Transcript of events.
  */
 export interface Transcript1 {
-  name: Name9;
+  name: Name8;
   events: Events;
 }
 export interface LoggingMessage {
-  name: Name10;
+  name: Name9;
   level: Level1;
   message: Message3;
-  created: Created2;
-  filename: Filename1;
-  module: Module1;
-  lineno: Lineno1;
+  created: Created1;
+  filename: Filename;
+  module: Module;
+  lineno: Lineno;
   args: unknown;
 }

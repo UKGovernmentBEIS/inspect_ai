@@ -1,4 +1,5 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
+from inspect_ai._util.json import JsonChange
 
 from ._critique import self_critique
 from ._multiple_choice import multiple_choice
@@ -11,7 +12,18 @@ from ._prompt import (
 from ._solver import Generate, Solver, generate, solver
 from ._subtask.store import Store, store
 from ._subtask.subtask import Subtask, subtask
-from ._subtask.transcript import Transcript, transcript
+from ._subtask.transcript import (
+    Event,
+    InfoEvent,
+    LoggerEvent,
+    ModelEvent,
+    StateEvent,
+    StepEvent,
+    StoreEvent,
+    SubtaskEvent,
+    Transcript,
+    transcript,
+)
 from ._task_state import Choice, Choices, TaskState
 from ._use_tools import use_tools
 
@@ -37,6 +49,15 @@ __all__ = [
     "transcript",
     "Subtask",
     "subtask",
+    "Event",
+    "InfoEvent",
+    "ModelEvent",
+    "LoggerEvent",
+    "StateEvent",
+    "StepEvent",
+    "StoreEvent",
+    "SubtaskEvent",
+    "JsonChange",
 ]
 
 

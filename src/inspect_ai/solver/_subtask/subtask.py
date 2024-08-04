@@ -97,12 +97,10 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
 
                 # create a subtask event
                 event = SubtaskEvent(
-                    data=SubtaskEvent.Data(
-                        name=subtask_name,
-                        input=input,
-                        result=result,
-                        transcript=transcript(),
-                    )
+                    name=subtask_name,
+                    input=input,
+                    result=result,
+                    transcript=transcript(),
                 )
 
                 # return result and event
