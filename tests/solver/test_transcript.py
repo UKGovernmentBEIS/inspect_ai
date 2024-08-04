@@ -38,10 +38,10 @@ def test_sample_transcript():
     #     )
     # )
 
-    assert log.samples[0].transcript[0].type == "solver"
-    assert log.samples[0].transcript[2].data == "1"
+    assert log.samples[0].transcript[0].data.type == "solver"
+    assert log.samples[0].transcript[2].data.data == "1"
     assert log.samples[0].transcript[5].event == "state"
-    assert len(log.samples[0].transcript[8].output.completion) > 0
+    assert len(log.samples[0].transcript[8].data.output.completion) > 0
     assert log.samples[0].transcript[9].event == "state"
-    assert log.samples[0].transcript[11].type == "scorer"
+    assert log.samples[0].transcript[11].data.type == "scorer"
     assert log.samples[0].transcript[12].event == "score"
