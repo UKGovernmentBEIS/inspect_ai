@@ -13,6 +13,7 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_BUFFER_REMOTE,
 )
 from inspect_ai._util.file import FileInfo, absolute_file_path, file, filesystem
+from inspect_ai.solver._subtask.transcript import Event
 
 from ._log import (
     EvalError,
@@ -330,6 +331,9 @@ class JSONRecorder(FileRecorder):
             raise ValueError(f"Unknown event {type}")
         if flush:
             self.flush_log(log.file, log.data)
+
+    def log_event(self, sample_id: str, epoch: int, event: Event) -> None:
+        pass
 
     def log_cancelled(
         self,

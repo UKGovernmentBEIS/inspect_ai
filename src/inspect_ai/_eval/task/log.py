@@ -37,7 +37,8 @@ from inspect_ai.model import (
 from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.solver import Plan, Solver, TaskState, transcript
+from inspect_ai.solver import Plan, Solver, TaskState
+from inspect_ai.solver._subtask.transcript import Event
 
 
 class TaskLogger:
@@ -91,6 +92,9 @@ class TaskLogger:
             packages=packages,
         )
 
+        # track events (note: eventually the recorder will do all of this)
+        self.events: list[tuple[str, int, Event]] = []
+
         # stack recorder and location
         self.recorder = recorder
         self._location = self.recorder.log_start(self.eval)
@@ -118,6 +122,9 @@ class TaskLogger:
         if type == "sample":
             self._samples_logged += 1
 
+    def log_event(self, sample_id: str, epoch: int, event: Event) -> None:
+        self.events.append((sample_id, epoch, event))
+
     def log_sample(
         self,
         epoch: int,
@@ -126,6 +133,17 @@ class TaskLogger:
         scores: dict[str, SampleScore],
         flush: bool = False,
     ) -> None:
+        # extract events for this sample (note we are only doing this
+        # temporarily until we move the log viewer to using the external db)
+        sample_events: list[Event] = []
+        other_events: list[tuple[str, int, Event]] = []
+        for sample_id, sample_epoch, event in self.events:
+            if sample_id == str(sample.id) and sample_epoch == epoch:
+                sample_events.append(event)
+            else:
+                other_events.append((sample_id, sample_epoch, event))
+        self.events = other_events
+
         # log
         self.log(
             "sample",
@@ -140,7 +158,7 @@ class TaskLogger:
                 output=state.output,
                 scores=cast(dict[str, Score], scores),
                 store=dict(state.store.items()),
-                transcript=transcript().events,
+                transcript=sample_events,
             ),
             flush,
         )

@@ -439,6 +439,9 @@ class Recorder(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def log_event(self, sample_id: str, epoch: int, event: Event) -> None: ...
+
+    @abc.abstractmethod
     def log_cancelled(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
 
     @abc.abstractmethod

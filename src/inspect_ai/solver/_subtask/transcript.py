@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from datetime import datetime
 from typing import (
     Any,
+    Callable,
     Iterator,
     Literal,
     TypeAlias,
@@ -166,6 +167,9 @@ class Transcript(BaseModel):
     events: list[Event] = Field(default=[])
     """List of events."""
 
+    on_event: Callable[[Event], None] | None = Field(default=None, exclude=True)
+    """Callback for when events are added."""
+
     def info(self, data: JsonValue) -> None:
         """Add an `InfoEvent` to the transcript.
 
@@ -193,7 +197,10 @@ class Transcript(BaseModel):
         self._event(StepEvent(action="end", name=name, type=type))
 
     def _event(self, event: Event) -> None:
-        self.events.append(event)
+        if self.on_event:
+            self.on_event(event)
+        else:
+            self.events.append(event)
 
 
 def transcript() -> Transcript:

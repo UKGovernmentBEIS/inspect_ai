@@ -57,7 +57,7 @@ from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.solver._subtask.subtask import init_subtask
-from inspect_ai.solver._subtask.transcript import ScoreEvent, transcript
+from inspect_ai.solver._subtask.transcript import Event, ScoreEvent, transcript
 from inspect_ai.util._sandbox.context import (
     cleanup_sandbox_environments_sample,
     init_sandbox_environments_sample,
@@ -345,6 +345,13 @@ async def task_run_sample(
 
     # initialise subtask
     init_subtask(SAMPLE_SUBTASK, state.store)
+
+    # subscribe to events and forward to task logger
+    def on_transcript_event(event: Event) -> None:
+        if logger:
+            logger.log_event(str(state.sample_id), state.epoch, event)
+
+    transcript().on_event = on_transcript_event
 
     # use toolenv if provided
     sandboxenv_cm = (
