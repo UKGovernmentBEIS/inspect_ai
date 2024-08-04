@@ -59,14 +59,6 @@ Note that max connections is applied per-model. This means that if you use a gra
 
 ## Multiple Models {#sec-multiple-models}
 
-::: {.callout-note appearance="simple"}
-The multiple models feature described below is available in only the very latest version of Inspect (v0.3.18). You can upgrade to the latest version with:
-
-``` bash
-$ pip install --upgrade inspect-ai
-```
-:::
-
 You can evaluate multiple models in parallel by passing a list of models to the `eval()` function. For example:
 
 ``` python
@@ -88,14 +80,6 @@ INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
 ```
 
 ## Multiple Tasks {#sec-multiple-tasks}
-
-::: {.callout-note appearance="simple"}
-The multiple tasks feature described below is currently available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
 
 By default, Inspect runs a single task at a time. This is because most tasks consist of 10 or more samples, which generally means that sample parallelism is enough to make full use of the `max_connections` defined for the active model. If however, the number samples per task is substantially lower than `max_connections` then you might benefit from running multiple tasks in parallel.
 
@@ -270,10 +254,7 @@ It's possible that your custom solvers, tools, or scorers will need to launch ch
 To assist with this, Inspect provides the `subprocess()` function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout and stderr. The `subprocess()` function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`). Here's an example from the implementation of a `list_files()` tool:
 
 ``` python
-@tool(prompt=(
-   "If you are asked to list the files in a directory you "
-   + "should call the list_files function to access the listing."
-))
+@tool
 def list_files():
     async def execute(dir: str):
         """List the files in a directory.

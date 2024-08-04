@@ -158,6 +158,7 @@ export type Value1 =
 export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata4 = {} | null;
+export type Name4 = string | null;
 export type Level =
   | "debug"
   | "http"
@@ -168,6 +169,9 @@ export type Level =
   | "critical";
 export type Message2 = string;
 export type Created1 = number;
+export type Filename = string;
+export type Module = string;
+export type Lineno = number;
 export type Logging = LoggingMessage[];
 
 export interface EvalLog {
@@ -413,7 +417,12 @@ export interface Score {
 }
 export interface Metadata5 {}
 export interface LoggingMessage {
+  name: Name4;
   level: Level;
   message: Message2;
   created: Created1;
+  filename: Filename;
+  module: Module;
+  lineno: Lineno;
+  args: unknown;
 }

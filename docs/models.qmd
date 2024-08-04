@@ -222,14 +222,6 @@ You aren't likely to need to, but you can also specify a custom base URL for AWS
 
 ### Google {#google}
 
-::: {.callout-note appearance="simple"}
-The ability to override the default [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) for Google models is available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
-```
-:::
-
 Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:
 
 | Category | Description |
@@ -340,14 +332,6 @@ model = get_model("hf/local", model_path="./my-model")
 ```
 
 ### vLLM {#sec-vllm}
-
-::: {.callout-note appearance="simple"}
-The vLLM provider is currently available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai.git
-```
-:::
 
 The `vllm` provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. You can access any Hugging Face model by specifying it with the `vllm/` prefix. For example:
 

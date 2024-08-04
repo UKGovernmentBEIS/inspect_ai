@@ -38,7 +38,10 @@ def test_sandbox_environment_read_file():
                     model="mockllm/model",
                     tool_name="read_file",
                     tool_arguments={"file": "foo.txt"},
-                )
+                ),
+                ModelOutput.from_content(
+                    model="mockllm/model", content="Contents of foo.txt."
+                ),
             ],
         ),
         max_messages=5,  # otherwise we can get into an infinite loop if the tools error
@@ -72,7 +75,10 @@ def test_sandbox_environment_list_files():
                     model="mockllm/model",
                     tool_name="list_files",
                     tool_arguments={"dir": "."},
-                )
+                ),
+                ModelOutput.from_content(
+                    model="mockllm/model", content="Lots of files!"
+                ),
             ],
         ),
         max_messages=5,  # otherwise we can get into an infinite loop if the tools error
@@ -126,4 +132,4 @@ def test_sandbox_environment_read_file_error():
 
     chat_message_tool = find_tool_call(result, "read_file")
     assert result.status == "success"
-    assert "not found" in chat_message_tool.tool_error
+    assert chat_message_tool.error and "not found" in chat_message_tool.error.message

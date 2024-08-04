@@ -1353,8 +1353,21 @@
       ],
       "additionalProperties": false
     },
+    "JsonValue": {},
     "LoggingMessage": {
       "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
         "level": {
           "enum": [
             "debug",
@@ -1375,9 +1388,41 @@
         "created": {
           "title": "Created",
           "type": "number"
+        },
+        "filename": {
+          "default": "unknown",
+          "title": "Filename",
+          "type": "string"
+        },
+        "module": {
+          "default": "unknown",
+          "title": "Module",
+          "type": "string"
+        },
+        "lineno": {
+          "default": 0,
+          "title": "Lineno",
+          "type": "integer"
+        },
+        "args": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            }
+          ],
+          "default": null
         }
       },
-      "required": ["level", "message", "created"],
+      "required": [
+        "name",
+        "level",
+        "message",
+        "created",
+        "filename",
+        "module",
+        "lineno",
+        "args"
+      ],
       "title": "LoggingMessage",
       "type": "object",
       "additionalProperties": false

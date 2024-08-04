@@ -3,7 +3,7 @@ from inspect_ai.util import sandbox
 from .._tool import Tool, ToolError, tool
 
 
-@tool(prompt="If you need to execute a bash command, use the bash tool.")
+@tool
 def bash(timeout: int | None = None) -> Tool:
     """Bash shell command execution tool.
 
@@ -18,7 +18,7 @@ def bash(timeout: int | None = None) -> Tool:
 
     async def execute(cmd: str) -> str:
         """
-        Execute a bash command.
+        Use this function to execute bash commands.
 
         Args:
           cmd (str): The bash command to execute.
@@ -30,12 +30,14 @@ def bash(timeout: int | None = None) -> Tool:
         if result.success:
             return result.stdout
         else:
-            raise ToolError(result.stderr)
+            raise ToolError(
+                result.stderr if result.stderr else "error executing command"
+            )
 
     return execute
 
 
-@tool(prompt="If you need to execute python code, use the python tool.")
+@tool
 def python(timeout: int | None = None) -> Tool:
     """Python code execution tool.
 
@@ -50,7 +52,7 @@ def python(timeout: int | None = None) -> Tool:
 
     async def execute(code: str) -> str:
         """
-        Execute python code.
+        Use the python function to execute Python code.
 
         Args:
           code (str): The python code to execute.
@@ -62,6 +64,6 @@ def python(timeout: int | None = None) -> Tool:
         if result.success:
             return result.stdout
         else:
-            raise ToolError(result.stderr)
+            raise ToolError(result.stderr if result.stderr else "error executing code")
 
     return execute

@@ -194,7 +194,7 @@ def registry_params(o: object) -> dict[str, Any]:
     Returns:
         Dictionary of parameters used to instantiate object.
     """
-    params = getattr(o, REGISTRY_PARAMS)
+    params = getattr(o, REGISTRY_PARAMS, None)
     if params is not None:
         return cast(dict[str, Any], params)
     else:

@@ -13,11 +13,14 @@ from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 
+from .epochs import Epochs
+
 logger = getLogger(__name__)
 
 
 class TaskDeprecatedArgs(TypedDict, total=False):
     tool_environment: str | tuple[str, str] | None
+    epochs_reducer: ScoreReducers | None
 
 
 class Task:
@@ -37,9 +40,8 @@ class Task:
         config (GenerateConfig): Model generation config.
         sandbox (str | tuple[str,str] | None): Sandbox
            environment type (or optionally a tuple with type and config file)
-        epochs (int): Default number of epochs to run for.
-        epochs_reducer (ScoreReducers | None):
-           Reducer function(s) for aggregating scores in each sample (defaults to average).
+        epochs (int | Epochs | None): Epochs to repeat samples for and optional score
+           reducer function(s) used to combine sample scores (defaults to "mean")
         max_messages (int | None): Limit on total messages in the conversation.
         name: (str | None): Task name. If not specified is automatically
           determined based on the name of the task directory (or "task")
@@ -57,8 +59,7 @@ class Task:
         metrics: list[Metric] = [],
         config: GenerateConfig = GenerateConfig(),
         sandbox: str | tuple[str, str] | None = None,
-        epochs: int | None = None,
-        epochs_reducer: ScoreReducers | None = None,
+        epochs: int | Epochs | None = None,
         max_messages: int | None = None,
         name: str | None = None,
         version: int = 0,
@@ -70,10 +71,20 @@ class Task:
             if arg == "tool_environment":
                 newarg = "sandbox"
                 sandbox = cast(str | tuple[str, str] | None, value)
+            elif arg == "epochs_reducer":
+                newarg = "epochs"
+                if isinstance(epochs, int):
+                    epochs = Epochs(
+                        epochs, create_reducers(cast(ScoreReducers | None, value))
+                    )
             if newarg:
                 logger.warning(
                     f"DEPRECATED: the '{arg}' parameter is deprecated (please use the '{newarg}' parameter instead)"
                 )
+
+        # resolve epochs / epochs_reducer
+        if isinstance(epochs, int):
+            epochs = Epochs(epochs)
 
         self.dataset: Dataset = (
             dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
@@ -89,8 +100,8 @@ class Task:
         self.metrics = metrics
         self.config = config
         self.sandbox = (sandbox, None) if isinstance(sandbox, str) else sandbox
-        self.epochs = epochs
-        self.epochs_reducer = create_reducers(epochs_reducer)
+        self.epochs = epochs.epochs if epochs else None
+        self.epochs_reducer = epochs.reducer if epochs else None
         self.max_messages = max_messages
         self.version = version
         self._name = name
