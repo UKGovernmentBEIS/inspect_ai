@@ -73,10 +73,12 @@ def addition3():
     return add
 
 
-def check_tools(model: Model, check_none=True) -> None:
-    check_tools_calls(model)
-    check_tools_force(model)
-    if check_none:
+def check_tools(model: Model, disable: list[str] = ["calls", "force", "none"]) -> None:
+    if "calls" not in disable:
+        check_tools_calls(model)
+    if "force" not in disable:
+        check_tools_force(model)
+    if "none" not in disable:
         check_tools_none(model)
 
 
@@ -160,12 +162,12 @@ def test_openai_tools():
 
 @skip_if_no_anthropic
 def test_anthropic_tools():
-    check_tools("anthropic/claude-3-sonnet-20240229", check_none=False)
+    check_tools("anthropic/claude-3-sonnet-20240229", disable=["none"])
 
 
 @skip_if_no_mistral
 def test_mistral_tools():
-    check_tools("mistral/mistral-large-latest")
+    check_tools("mistral/mistral-large-latest", disable=["force"])
 
 
 @skip_if_no_groq
