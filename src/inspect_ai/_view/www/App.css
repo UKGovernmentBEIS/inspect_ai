@@ -2,6 +2,11 @@
   --bs-border-radius: 0;
   --bs-border-radius-lg: 0;
   --bs-popover-max-width: 50%;
+  --inspect-find-background: var(--bs-body-bg);
+  --inspect-find-foreground: var(--bs-body-color);
+  --inspect-input-background: var(--bs-body-bg);
+  --inspect-input-foreground: var(--bs-body-color);
+  --inspect-input-border: var(--bs-light-border-subtle);
 }
 
 #app {
@@ -49,6 +54,11 @@ body[class^="vscode-"] {
   --bs-secondary-bg: var(--vscode-list-inactiveSelectionBackground);
   --bs-border-color: var(--vscode-editorGroup-border);
   --bs-card-border-color: var(--vscode-editorGroup-border);
+  --inspect-find-background: var(--vscode-editorWidget-background);
+  --inspect-find-foreground: var(--vscode-editorWidget-foreground);
+  --inspect-input-background: var(--vscode-input-background);
+  --inspect-input-foreground: var(--vscode-input-foreground);
+  --inspect-input-border: var(--vscode-input-border);
 }
 
 body[class^="vscode-"] .modal-backdrop {
