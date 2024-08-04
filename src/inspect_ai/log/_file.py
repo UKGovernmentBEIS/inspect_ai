@@ -22,7 +22,7 @@ from ._log import (
     EvalSample,
     EvalSpec,
     EvalStats,
-    LogEvent,
+    LogType,
     Recorder,
 )
 from ._message import LoggingMessage
@@ -308,10 +308,10 @@ class JSONRecorder(FileRecorder):
         )
         return file
 
-    def log_event(
+    def log(
         self,
         spec: EvalSpec,
-        type: LogEvent,
+        type: LogType,
         data: EvalPlan | EvalSample | EvalResults | LoggingMessage,
         flush: bool = False,
     ) -> None:

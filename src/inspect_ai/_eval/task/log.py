@@ -28,7 +28,7 @@ from inspect_ai.log import (
     EvalStats,
     LoggingMessage,
 )
-from inspect_ai.log._log import LogEvent, Recorder
+from inspect_ai.log._log import LogType, Recorder
 from inspect_ai.model import (
     GenerateConfig,
     Model,
@@ -106,13 +106,13 @@ class TaskLogger:
     def samples_logged(self) -> int:
         return self._samples_logged
 
-    def log_event(
+    def log(
         self,
-        type: LogEvent,
+        type: LogType,
         data: EvalSample | EvalPlan | EvalResults | LoggingMessage,
         flush: bool = False,
     ) -> None:
-        self.recorder.log_event(self.eval, type, data, flush)
+        self.recorder.log(self.eval, type, data, flush)
 
         # track samples logged
         if type == "sample":
@@ -127,7 +127,7 @@ class TaskLogger:
         flush: bool = False,
     ) -> None:
         # log
-        self.log_event(
+        self.log(
             "sample",
             EvalSample(
                 id=sample.id if isinstance(sample.id, int) else str(sample.id),
@@ -146,10 +146,10 @@ class TaskLogger:
         )
 
     def log_plan(self, plan: EvalPlan) -> None:
-        self.log_event("plan", plan)
+        self.log("plan", plan)
 
     def log_results(self, results: EvalResults) -> None:
-        self.log_event("results", results)
+        self.log("results", results)
 
     def log_cancelled(self, stats: EvalStats) -> EvalLog:
         return self.recorder.log_cancelled(self.eval, stats)
@@ -180,7 +180,7 @@ def log_plan(
     if plan.finish:
         eval_plan.steps.append(eval_plan_step(plan.finish))
 
-    logger.log_event("plan", eval_plan)
+    logger.log("plan", eval_plan)
 
 
 def collect_eval_data(stats: EvalStats, logger: TaskLogger) -> None:
@@ -194,4 +194,4 @@ def collect_eval_data(stats: EvalStats, logger: TaskLogger) -> None:
 
 def log_logger_records(logger: TaskLogger, records: list[LogRecord]) -> None:
     for record in records:
-        logger.log_event("logging", LoggingMessage.from_log_record(record))
+        logger.log("logging", LoggingMessage.from_log_record(record))

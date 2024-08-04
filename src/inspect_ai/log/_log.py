@@ -421,7 +421,7 @@ class EvalLog(BaseModel):
         return self
 
 
-LogEvent = Literal["plan", "sample", "score", "results", "scorer", "logging"]
+LogType = Literal["plan", "sample", "score", "results", "scorer", "logging"]
 
 
 class Recorder(abc.ABC):
@@ -429,10 +429,10 @@ class Recorder(abc.ABC):
     def log_start(self, eval: EvalSpec) -> str: ...
 
     @abc.abstractmethod
-    def log_event(
+    def log(
         self,
         spec: EvalSpec,
-        type: LogEvent,
+        type: LogType,
         data: EvalSample | EvalPlan | EvalResults | LoggingMessage,
         flush: bool = False,
     ) -> None:

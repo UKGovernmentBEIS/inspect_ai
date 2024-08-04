@@ -324,7 +324,7 @@ async def task_run_sample(
                 progress()
             # log if requested
             if logger:
-                logger.log_event("sample", previous_sample, False)
+                logger.log("sample", previous_sample, False)
 
             # return score
             if previous_sample.scores:
