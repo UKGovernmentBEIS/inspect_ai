@@ -9,7 +9,7 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, field_serializer
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.json import JsonChange, json_changes
@@ -28,9 +28,9 @@ class BaseEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     """Time at which event occurred."""
 
-    class Config:
-        # Write the datetime as an isoformatted string including timezone
-        json_encoders = {datetime: lambda v: v.astimezone().isoformat()}
+    @field_serializer("timestamp")
+    def serialize_timestamp(self, dt: datetime) -> str:
+        return dt.astimezone().isoformat()
 
 
 class StoreEvent(BaseEvent):
