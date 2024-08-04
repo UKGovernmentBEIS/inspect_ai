@@ -8,6 +8,7 @@ import { runProcess } from "../core/process";
 import { join } from "path";
 import { userRuntimeDir } from "../core/appdirs";
 import { kInspectChangeEvalSignalVersion } from "../providers/inspect/inspect-constants";
+import { existsSync } from "fs";
 
 const kPythonPackageName = "inspect_ai";
 
@@ -122,16 +123,15 @@ export function inspectViewPath(): AbsolutePath | null {
           .child("_view")
           .child("www")
           .child("dist");
-        if (viewPath) {
-          inspectPropsCache_.setViewPath(viewPath);
-        } else {
+
+        if (!existsSync(viewPath.path)) {
           // The dist folder is only available on newer versions, this is for
           // backwards compatibility only
-          let viewPath = toAbsolutePath(version.path)
+          viewPath = toAbsolutePath(version.path)
             .child("_view")
-            .child("www")
-          if (viewPath) inspectPropsCache_.setViewPath(viewPath);
+            .child("www");
         }
+        inspectPropsCache_.setViewPath(viewPath);
         return viewPath;
       } catch (error) {
         log.error("Error attempting to read Inspect view path.");
