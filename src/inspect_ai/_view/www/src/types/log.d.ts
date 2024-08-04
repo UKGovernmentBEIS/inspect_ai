@@ -200,8 +200,20 @@ export type Timestamp3 = string;
 export type Event3 = "score";
 export type Timestamp4 = string;
 export type Event4 = "logger";
-export type Level = string;
+export type Name6 = string | null;
+export type Level =
+  | "debug"
+  | "http"
+  | "sandbox"
+  | "info"
+  | "warning"
+  | "error"
+  | "critical";
 export type Message2 = string;
+export type Created1 = number;
+export type Filename = string;
+export type Module = string;
+export type Lineno = number;
 export type Timestamp5 = string;
 export type Event5 = "info";
 export type JsonValue = unknown;
@@ -209,11 +221,11 @@ export type Timestamp6 = string;
 export type Event6 = "step";
 export type Action = "begin" | "end";
 export type Type7 = string | null;
-export type Name6 = string;
+export type Name7 = string;
 export type Timestamp7 = string;
 export type Event7 = "subtask";
-export type Name7 = string;
 export type Name8 = string;
+export type Name9 = string;
 export type Events = (
   | StateEvent
   | StoreEvent
@@ -234,20 +246,6 @@ export type Transcript = (
   | StepEvent
   | SubtaskEvent
 )[];
-export type Name9 = string | null;
-export type Level1 =
-  | "debug"
-  | "http"
-  | "sandbox"
-  | "info"
-  | "warning"
-  | "error"
-  | "critical";
-export type Message3 = string;
-export type Created1 = number;
-export type Filename = string;
-export type Module = string;
-export type Lineno = number;
 export type Logging = LoggingMessage[];
 
 export interface EvalLog {
@@ -607,8 +605,17 @@ export interface ScoreEvent {
 export interface LoggerEvent {
   timestamp: Timestamp4;
   event: Event4;
+  message: LoggingMessage;
+}
+export interface LoggingMessage {
+  name: Name6;
   level: Level;
   message: Message2;
+  created: Created1;
+  filename: Filename;
+  module: Module;
+  lineno: Lineno;
+  args: unknown;
 }
 /**
  * Event with custom info/data.
@@ -626,7 +633,7 @@ export interface StepEvent {
   event: Event6;
   action: Action;
   type: Type7;
-  name: Name6;
+  name: Name7;
 }
 /**
  * Subtask spawned.
@@ -634,7 +641,7 @@ export interface StepEvent {
 export interface SubtaskEvent {
   timestamp: Timestamp7;
   event: Event7;
-  name: Name7;
+  name: Name8;
   input: Input2;
   result: Result;
   transcript: Transcript1;
@@ -647,16 +654,6 @@ export interface Result {
  * Transcript of events.
  */
 export interface Transcript1 {
-  name: Name8;
-  events: Events;
-}
-export interface LoggingMessage {
   name: Name9;
-  level: Level1;
-  message: Message3;
-  created: Created1;
-  filename: Filename;
-  module: Module;
-  lineno: Lineno;
-  args: unknown;
+  events: Events;
 }

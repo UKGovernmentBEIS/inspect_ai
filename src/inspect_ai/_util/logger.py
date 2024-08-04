@@ -1,6 +1,7 @@
 from contextvars import ContextVar
 from logging import INFO, Logger, LogRecord
 
+from inspect_ai.log._message import LoggingMessage
 from inspect_ai.solver._subtask.transcript import LoggerEvent, transcript
 
 _logger_records_context_var = ContextVar[list[LogRecord]]("logger_records", default=[])
@@ -13,9 +14,7 @@ def init_logger_records() -> None:
 def notify_logger_record(record: LogRecord, write: bool) -> None:
     if write:
         _logger_records_context_var.get().append(record)
-        transcript()._event(
-            LoggerEvent(level=record.levelname, message=record.getMessage())
-        )
+        transcript()._event(LoggerEvent(message=LoggingMessage.from_log_record(record)))
     if record.levelno <= INFO and "429" in record.getMessage():
         _rate_limit_count_context_var.set(_rate_limit_count_context_var.get() + 1)
 

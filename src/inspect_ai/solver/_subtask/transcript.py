@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, JsonValue, field_serializer
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.json import JsonChange, json_changes
+from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
@@ -84,11 +85,8 @@ class LoggerEvent(BaseEvent):
     event: Literal["logger"] = Field(default="logger")
     """Event type."""
 
-    level: str
-    """Log level."""
-
-    message: str
-    """Log message."""
+    message: LoggingMessage
+    """Logging message"""
 
 
 class InfoEvent(BaseEvent):

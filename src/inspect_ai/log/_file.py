@@ -23,9 +23,9 @@ from ._log import (
     EvalSpec,
     EvalStats,
     LogEvent,
-    LoggingMessage,
     Recorder,
 )
+from ._message import LoggingMessage
 
 LOG_SCHEMA_VERSION = 2
 

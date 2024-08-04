@@ -1473,16 +1473,11 @@
           "title": "Event",
           "type": "string"
         },
-        "level": {
-          "title": "Level",
-          "type": "string"
-        },
         "message": {
-          "title": "Message",
-          "type": "string"
+          "$ref": "#/$defs/LoggingMessage"
         }
       },
-      "required": ["timestamp", "event", "level", "message"],
+      "required": ["timestamp", "event", "message"],
       "title": "LoggerEvent",
       "type": "object",
       "additionalProperties": false
