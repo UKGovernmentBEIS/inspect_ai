@@ -180,6 +180,9 @@ class Transcript(BaseModel):
         # end step event
         self._event(StepEvent(action="end", name=name, type=type))
 
+    # this function is not part of the public api and should not
+    # be called by user code (as it will almost certainly change
+    # in the near future!)
     def _event(self, event: Event) -> None:
         self.events.append(event)
 
