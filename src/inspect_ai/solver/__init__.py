@@ -1,5 +1,4 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
-from inspect_ai._util.json import JsonChange
 
 from ._critique import self_critique
 from ._multiple_choice import multiple_choice
