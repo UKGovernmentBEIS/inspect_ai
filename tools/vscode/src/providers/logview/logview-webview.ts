@@ -278,7 +278,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
         `<head>
           <meta name="inspect-extension:version" content="${this.getExtensionVersion()}">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._webviewPanel.webview.cspSource
-        } data:; font-src ${this._webviewPanel.webview.cspSource}; style-src ${this._webviewPanel.webview.cspSource
+        } data:; font-src ${this._webviewPanel.webview.cspSource} data:; style-src ${this._webviewPanel.webview.cspSource
         } 'unsafe-inline'; worker-src 'self' ${this._webviewPanel.webview.cspSource
         } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this._webviewPanel.webview.cspSource
         };">
