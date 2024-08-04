@@ -90,7 +90,7 @@ export const FindBand = ({ hideBand }) => {
       type="text"
       ref=${searchBoxRef}
       style=${{
-        height: "20px",
+        height: "1.5em",
         fontSize: "0.9em",
         marginTop: "0.1rem",
         outline: "none",

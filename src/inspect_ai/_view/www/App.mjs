@@ -155,8 +155,6 @@ export function App() {
       console.log(e);
       setStatus({ loading: false, error: e });
     }
-
-    mainAppRef.current.focus();
   }, []);
 
   // Debounce the loadLogs function
