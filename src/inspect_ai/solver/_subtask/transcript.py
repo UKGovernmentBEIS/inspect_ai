@@ -1,7 +1,13 @@
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
-from typing import Any, Iterator, Literal
+from typing import (
+    Any,
+    Iterator,
+    Literal,
+    TypeAlias,
+    Union,
+)
 
 from pydantic import BaseModel, Field, JsonValue
 
@@ -18,12 +24,7 @@ from .._task_state import state_jsonable
 from .store import store, store_changes, store_jsonable
 
 
-class Event(BaseModel):
-    """Event in a transcript."""
-
-    event: str
-    """Event type"""
-
+class BaseEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     """Time at which event occurred."""
 
@@ -32,7 +33,7 @@ class Event(BaseModel):
         json_encoders = {datetime: lambda v: v.astimezone().isoformat()}
 
 
-class StoreEvent(Event):
+class StoreEvent(BaseEvent):
     """Change to data within the current `Store`."""
 
     event: Literal["store"] = Field(default="store")
@@ -42,7 +43,7 @@ class StoreEvent(Event):
     """List of changes to the `Store`."""
 
 
-class StateEvent(Event):
+class StateEvent(BaseEvent):
     """Change to the current `TaskState`"""
 
     event: Literal["state"] = Field(default="state")
@@ -52,7 +53,7 @@ class StateEvent(Event):
     """List of changes to the `TaskState`"""
 
 
-class ModelEvent(Event):
+class ModelEvent(BaseEvent):
     """Call to a language model."""
 
     event: Literal["model"] = Field(default="model")
@@ -77,7 +78,7 @@ class ModelEvent(Event):
     """Output from model."""
 
 
-class LoggerEvent(Event):
+class LoggerEvent(BaseEvent):
     """Log message recorded with Python logger."""
 
     event: Literal["logger"] = Field(default="logger")
@@ -90,7 +91,7 @@ class LoggerEvent(Event):
     """Log message."""
 
 
-class InfoEvent(Event):
+class InfoEvent(BaseEvent):
     """Event with custom info/data."""
 
     event: Literal["info"] = Field(default="info")
@@ -100,7 +101,7 @@ class InfoEvent(Event):
     """Data provided with event."""
 
 
-class ScoreEvent(Event):
+class ScoreEvent(BaseEvent):
     """Event with sample score."""
 
     event: Literal["score"] = Field(default="score")
@@ -110,7 +111,7 @@ class ScoreEvent(Event):
     """Sample score."""
 
 
-class StepEvent(Event):
+class StepEvent(BaseEvent):
     """Step within current sample or subtask."""
 
     event: Literal["step"] = Field(default="step")
@@ -126,7 +127,7 @@ class StepEvent(Event):
     """Event name."""
 
 
-class SubtaskEvent(Event):
+class SubtaskEvent(BaseEvent):
     """Subtask spawned."""
 
     event: Literal["subtask"] = Field(default="subtask")
@@ -143,6 +144,19 @@ class SubtaskEvent(Event):
 
     transcript: "Transcript"
     """Transcript of events for subtask."""
+
+
+Event: TypeAlias = Union[
+    StateEvent
+    | StoreEvent
+    | ModelEvent
+    | ScoreEvent
+    | LoggerEvent
+    | InfoEvent
+    | StepEvent
+    | SubtaskEvent,
+]
+"""Event in a transcript."""
 
 
 class Transcript(BaseModel):
@@ -180,9 +194,6 @@ class Transcript(BaseModel):
         # end step event
         self._event(StepEvent(action="end", name=name, type=type))
 
-    # this function is not part of the public api and should not
-    # be called by user code (as it will almost certainly change
-    # in the near future!)
     def _event(self, event: Event) -> None:
         self.events.append(event)
 

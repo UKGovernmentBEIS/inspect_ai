@@ -157,11 +157,85 @@ export type Value1 =
 export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata4 = {} | null;
-export type Event1 = string;
 export type Timestamp = string;
-export type Transcript = Event[];
-export type Name4 = string | null;
-export type Level =
+export type Event = "state";
+export type Op = "remove" | "add" | "replace" | "move" | "test" | "copy";
+export type Path = string;
+export type From = string | null;
+export type Changes = JsonChange[];
+export type Timestamp1 = string;
+export type Event1 = "store";
+export type Changes1 = JsonChange[];
+export type Timestamp2 = string;
+export type Event2 = "model";
+export type Model2 = string;
+export type Input1 = (
+  | ChatMessageSystem
+  | ChatMessageUser
+  | ChatMessageAssistant
+  | ChatMessageTool
+)[];
+export type Name4 = string;
+export type Description = string;
+export type Type5 = "object";
+export type Type6 =
+  | "string"
+  | "integer"
+  | "number"
+  | "boolean"
+  | "array"
+  | "object"
+  | "null";
+export type Description1 = string | null;
+export type Properties1 = {
+  [k: string]: ToolParam;
+} | null;
+export type Anyof = ToolParam[] | null;
+export type Required = string[] | null;
+export type Required1 = string[];
+export type Tools = ToolInfo[];
+export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
+export type Name5 = string;
+export type Timestamp3 = string;
+export type Event3 = "score";
+export type Timestamp4 = string;
+export type Event4 = "logger";
+export type Level = string;
+export type Message2 = string;
+export type Timestamp5 = string;
+export type Event5 = "info";
+export type JsonValue = unknown;
+export type Timestamp6 = string;
+export type Event6 = "step";
+export type Action = "begin" | "end";
+export type Type7 = string | null;
+export type Name6 = string;
+export type Timestamp7 = string;
+export type Event7 = "subtask";
+export type Name7 = string;
+export type Name8 = string;
+export type Events = (
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | ScoreEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent
+)[];
+export type Transcript = (
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | ScoreEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent
+)[];
+export type Name9 = string | null;
+export type Level1 =
   | "debug"
   | "http"
   | "sandbox"
@@ -169,7 +243,7 @@ export type Level =
   | "warning"
   | "error"
   | "critical";
-export type Message2 = string;
+export type Message3 = string;
 export type Created1 = number;
 export type Filename = string;
 export type Module = string;
@@ -421,16 +495,165 @@ export interface Score {
 export interface Metadata5 {}
 export interface Store {}
 /**
- * Event in a transcript.
+ * Change to the current `TaskState`
  */
-export interface Event {
-  event: Event1;
+export interface StateEvent {
   timestamp: Timestamp;
+  event: Event;
+  changes: Changes;
 }
-export interface LoggingMessage {
+/**
+ * Describes a change to data using JSON Patch format.
+ */
+export interface JsonChange {
+  op: Op;
+  path: Path;
+  from: From;
+  value: unknown;
+}
+/**
+ * Change to data within the current `Store`.
+ */
+export interface StoreEvent {
+  timestamp: Timestamp1;
+  event: Event1;
+  changes: Changes1;
+}
+/**
+ * Call to a language model.
+ */
+export interface ModelEvent {
+  timestamp: Timestamp2;
+  event: Event2;
+  model: Model2;
+  input: Input1;
+  tools: Tools;
+  tool_choice: ToolChoice;
+  config: GenerateConfig;
+  output: ModelOutput;
+}
+/**
+ * Specification of a tool (JSON Schema compatible)
+ *
+ * If you are implementing a ModelAPI, most LLM libraries can
+ * be passed this object (dumped to a dict) directly as a function
+ * specification. For example, in the OpenAI provider:
+ *
+ * ```python
+ * ChatCompletionToolParam(
+ *     type="function",
+ *     function=tool.model_dump(exclude_none=True),
+ * )
+ * ```
+ *
+ * In some cases the field names don't match up exactly. In that case
+ * call `model_dump()` on the `parameters` field. For example, in the
+ * Anthropic provider:
+ *
+ * ```python
+ * ToolParam(
+ *     name=tool.name,
+ *     description=tool.description,
+ *     input_schema=tool.parameters.model_dump(exclude_none=True),
+ * )
+ * ```
+ */
+export interface ToolInfo {
   name: Name4;
+  description: Description;
+  parameters: ToolParams;
+}
+/**
+ * Description of tool parameters object in JSON Schema format.
+ */
+export interface ToolParams {
+  type: Type5;
+  properties: Properties;
+  required: Required1;
+}
+export interface Properties {
+  [k: string]: ToolParam;
+}
+/**
+ * Description of tool parameter in JSON Schema format.
+ */
+export interface ToolParam {
+  type: Type6;
+  description: Description1;
+  default: Default;
+  items: ToolParam | null;
+  properties: Properties1;
+  additionalProperties: ToolParam | null;
+  anyOf: Anyof;
+  required: Required;
+}
+export interface Default {
+  [k: string]: unknown;
+}
+export interface ToolFunction {
+  name: Name5;
+}
+/**
+ * Event with sample score.
+ */
+export interface ScoreEvent {
+  timestamp: Timestamp3;
+  event: Event3;
+  score: Score;
+}
+/**
+ * Log message recorded with Python logger.
+ */
+export interface LoggerEvent {
+  timestamp: Timestamp4;
+  event: Event4;
   level: Level;
   message: Message2;
+}
+/**
+ * Event with custom info/data.
+ */
+export interface InfoEvent {
+  timestamp: Timestamp5;
+  event: Event5;
+  data: JsonValue;
+}
+/**
+ * Step within current sample or subtask.
+ */
+export interface StepEvent {
+  timestamp: Timestamp6;
+  event: Event6;
+  action: Action;
+  type: Type7;
+  name: Name6;
+}
+/**
+ * Subtask spawned.
+ */
+export interface SubtaskEvent {
+  timestamp: Timestamp7;
+  event: Event7;
+  name: Name7;
+  input: Input2;
+  result: Result;
+  transcript: Transcript1;
+}
+export interface Input2 {}
+export interface Result {
+  [k: string]: unknown;
+}
+/**
+ * Transcript of events.
+ */
+export interface Transcript1 {
+  name: Name8;
+  events: Events;
+}
+export interface LoggingMessage {
+  name: Name9;
+  level: Level1;
+  message: Message3;
   created: Created1;
   filename: Filename;
   module: Module;

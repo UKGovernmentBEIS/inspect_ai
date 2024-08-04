@@ -25,7 +25,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.scorer import Score
-from inspect_ai.solver._subtask.transcript import Event
+from inspect_ai.solver import Event
 
 SCORER_PLACEHOLDER = "88F74D2C"
 

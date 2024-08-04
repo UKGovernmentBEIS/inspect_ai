@@ -17,7 +17,7 @@ def sync_view_schema() -> None:
     """
     # export schema file
     schema_path = Path(WWW_DIR, "log-schema.json")
-    types_path = Path(WWW_DIR, "src", "types", "log.d.ts")
+    types_path = Path(WWW_DIR, "log.d.ts")
     with open(schema_path, "w", encoding="utf-8") as f:
         # make everything required
         schema = EvalLog.model_json_schema()
@@ -40,7 +40,7 @@ def sync_view_schema() -> None:
             ],
             cwd=WWW_DIR,
         )
-        subprocess.run(["yarn", "prettier:write"], cwd=types_path.parent)
+        subprocess.run(["yarn", "prettier:write"], cwd=WWW_DIR)
 
 
 def schema_to_strict(schema: dict[str, Any]) -> dict[str, Any]:
