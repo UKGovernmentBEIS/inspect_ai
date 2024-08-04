@@ -5,7 +5,8 @@ from inspect_ai._util.json import json_changes
 from inspect_ai._util.registry import (
     registry_log_name,
 )
-from inspect_ai.solver import Solver, StateEvent, TaskState, transcript
+from inspect_ai.solver import Solver, TaskState
+from inspect_ai.solver._subtask.transcript import StateEvent, transcript
 from inspect_ai.solver._task_state import set_sample_state, state_jsonable
 
 
@@ -17,7 +18,7 @@ class SolverTranscript:
         after = state_jsonable(after_state)
         changes = json_changes(self.before, after)
         if changes:
-            transcript()._event(StateEvent(changes=changes))
+            transcript()._event(StateEvent(data=StateEvent.Data(changes=changes)))
 
 
 @contextlib.contextmanager

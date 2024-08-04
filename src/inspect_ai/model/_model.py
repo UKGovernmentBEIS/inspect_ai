@@ -387,12 +387,14 @@ class Model:
 
         transcript()._event(
             ModelEvent(
-                model=str(self),
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                output=output,
+                data=ModelEvent.Data(
+                    model=str(self),
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                    output=output,
+                )
             )
         )
 

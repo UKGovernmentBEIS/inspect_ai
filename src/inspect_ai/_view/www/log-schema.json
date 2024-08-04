@@ -1,5 +1,10 @@
 {
   "$defs": {
+    "BaseModel": {
+      "properties": {},
+      "title": "BaseModel",
+      "type": "object"
+    },
     "ChatCompletionChoice": {
       "properties": {
         "message": {
@@ -1398,11 +1403,6 @@
     "InfoEvent": {
       "description": "Event with custom info/data.",
       "properties": {
-        "timestamp": {
-          "format": "date-time",
-          "title": "Timestamp",
-          "type": "string"
-        },
         "event": {
           "const": "info",
           "default": "info",
@@ -1410,11 +1410,16 @@
           "title": "Event",
           "type": "string"
         },
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
         "data": {
-          "$ref": "#/$defs/JsonValue"
+          "$ref": "#/$defs/inspect_ai__solver___subtask__transcript__InfoEvent__Data"
         }
       },
-      "required": ["timestamp", "event", "data"],
+      "required": ["event", "timestamp", "data"],
       "title": "InfoEvent",
       "type": "object",
       "additionalProperties": false
@@ -1461,11 +1466,6 @@
     "LoggerEvent": {
       "description": "Log message recorded with Python logger.",
       "properties": {
-        "timestamp": {
-          "format": "date-time",
-          "title": "Timestamp",
-          "type": "string"
-        },
         "event": {
           "const": "logger",
           "default": "logger",
@@ -1473,16 +1473,16 @@
           "title": "Event",
           "type": "string"
         },
-        "level": {
-          "title": "Level",
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
           "type": "string"
         },
-        "message": {
-          "title": "Message",
-          "type": "string"
+        "data": {
+          "$ref": "#/$defs/inspect_ai__solver___subtask__transcript__LoggerEvent__Data"
         }
       },
-      "required": ["timestamp", "event", "level", "message"],
+      "required": ["event", "timestamp", "data"],
       "title": "LoggerEvent",
       "type": "object",
       "additionalProperties": false
@@ -1624,11 +1624,6 @@
     "ModelEvent": {
       "description": "Call to a language model.",
       "properties": {
-        "timestamp": {
-          "format": "date-time",
-          "title": "Timestamp",
-          "type": "string"
-        },
         "event": {
           "const": "model",
           "default": "model",
@@ -1636,66 +1631,16 @@
           "title": "Event",
           "type": "string"
         },
-        "model": {
-          "title": "Model",
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
           "type": "string"
         },
-        "input": {
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/ChatMessageSystem"
-              },
-              {
-                "$ref": "#/$defs/ChatMessageUser"
-              },
-              {
-                "$ref": "#/$defs/ChatMessageAssistant"
-              },
-              {
-                "$ref": "#/$defs/ChatMessageTool"
-              }
-            ]
-          },
-          "title": "Input",
-          "type": "array"
-        },
-        "tools": {
-          "items": {
-            "$ref": "#/$defs/ToolInfo"
-          },
-          "title": "Tools",
-          "type": "array"
-        },
-        "tool_choice": {
-          "anyOf": [
-            {
-              "enum": ["auto", "any", "none"],
-              "type": "string"
-            },
-            {
-              "$ref": "#/$defs/ToolFunction"
-            }
-          ],
-          "title": "Tool Choice"
-        },
-        "config": {
-          "$ref": "#/$defs/GenerateConfig"
-        },
-        "output": {
-          "$ref": "#/$defs/ModelOutput"
+        "data": {
+          "$ref": "#/$defs/inspect_ai__solver___subtask__transcript__ModelEvent__Data"
         }
       },
-      "required": [
-        "timestamp",
-        "event",
-        "model",
-        "input",
-        "tools",
-        "tool_choice",
-        "config",
-        "output"
-      ],
+      "required": ["event", "timestamp", "data"],
       "title": "ModelEvent",
       "type": "object",
       "additionalProperties": false
@@ -1873,11 +1818,6 @@
     "ScoreEvent": {
       "description": "Event with sample score.",
       "properties": {
-        "timestamp": {
-          "format": "date-time",
-          "title": "Timestamp",
-          "type": "string"
-        },
         "event": {
           "const": "score",
           "default": "score",
@@ -1885,11 +1825,16 @@
           "title": "Event",
           "type": "string"
         },
-        "score": {
-          "$ref": "#/$defs/Score"
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/inspect_ai__solver___subtask__transcript__ScoreEvent__Data"
         }
       },
-      "required": ["timestamp", "event", "score"],
+      "required": ["event", "timestamp", "data"],
       "title": "ScoreEvent",
       "type": "object",
       "additionalProperties": false
@@ -1897,11 +1842,6 @@
     "StateEvent": {
       "description": "Change to the current `TaskState`",
       "properties": {
-        "timestamp": {
-          "format": "date-time",
-          "title": "Timestamp",
-          "type": "string"
-        },
         "event": {
           "const": "state",
           "default": "state",
@@ -1909,15 +1849,16 @@
           "title": "Event",
           "type": "string"
         },
-        "changes": {
-          "items": {
-            "$ref": "#/$defs/JsonChange"
-          },
-          "title": "Changes",
-          "type": "array"
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/inspect_ai__solver___subtask__transcript__StateEvent__Data"
         }
       },
-      "required": ["timestamp", "event", "changes"],
+      "required": ["event", "timestamp", "data"],
       "title": "StateEvent",
       "type": "object",
       "additionalProperties": false
@@ -1925,11 +1866,6 @@
     "StepEvent": {
       "description": "Step within current sample or subtask.",
       "properties": {
-        "timestamp": {
-          "format": "date-time",
-          "title": "Timestamp",
-          "type": "string"
-        },
         "event": {
           "const": "step",
           "default": "step",
@@ -1937,29 +1873,16 @@
           "title": "Event",
           "type": "string"
         },
-        "action": {
-          "enum": ["begin", "end"],
-          "title": "Action",
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
           "type": "string"
         },
-        "type": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Type"
-        },
-        "name": {
-          "title": "Name",
-          "type": "string"
+        "data": {
+          "$ref": "#/$defs/inspect_ai__solver___subtask__transcript__StepEvent__Data"
         }
       },
-      "required": ["timestamp", "event", "action", "type", "name"],
+      "required": ["event", "timestamp", "data"],
       "title": "StepEvent",
       "type": "object",
       "additionalProperties": false
@@ -1967,11 +1890,6 @@
     "StoreEvent": {
       "description": "Change to data within the current `Store`.",
       "properties": {
-        "timestamp": {
-          "format": "date-time",
-          "title": "Timestamp",
-          "type": "string"
-        },
         "event": {
           "const": "store",
           "default": "store",
@@ -1979,15 +1897,16 @@
           "title": "Event",
           "type": "string"
         },
-        "changes": {
-          "items": {
-            "$ref": "#/$defs/JsonChange"
-          },
-          "title": "Changes",
-          "type": "array"
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/inspect_ai__solver___subtask__transcript__StoreEvent__Data"
         }
       },
-      "required": ["timestamp", "event", "changes"],
+      "required": ["event", "timestamp", "data"],
       "title": "StoreEvent",
       "type": "object",
       "additionalProperties": false
@@ -1995,17 +1914,20 @@
     "SubtaskEvent": {
       "description": "Subtask spawned.",
       "properties": {
-        "timestamp": {
-          "format": "date-time",
-          "title": "Timestamp",
-          "type": "string"
-        },
         "event": {
           "const": "subtask",
           "default": "subtask",
           "enum": ["subtask"],
           "title": "Event",
           "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/BaseModel"
         },
         "name": {
           "title": "Name",
@@ -2023,8 +1945,9 @@
         }
       },
       "required": [
-        "timestamp",
         "event",
+        "timestamp",
+        "data",
         "name",
         "input",
         "result",
@@ -2349,6 +2272,215 @@
       "title": "Transcript",
       "type": "object",
       "required": ["name", "events"],
+      "additionalProperties": false
+    },
+    "inspect_ai__solver___subtask__transcript__InfoEvent__Data": {
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "required": ["data"],
+      "title": "Data",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "inspect_ai__solver___subtask__transcript__LoggerEvent__Data": {
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "level": {
+          "title": "Level",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "created": {
+          "title": "Created",
+          "type": "number"
+        },
+        "filename": {
+          "default": "unknown",
+          "title": "Filename",
+          "type": "string"
+        },
+        "module": {
+          "default": "unknown",
+          "title": "Module",
+          "type": "string"
+        },
+        "lineno": {
+          "default": 0,
+          "title": "Lineno",
+          "type": "integer"
+        },
+        "args": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "level",
+        "message",
+        "created",
+        "filename",
+        "module",
+        "lineno",
+        "args"
+      ],
+      "title": "Data",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "inspect_ai__solver___subtask__transcript__ModelEvent__Data": {
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "input": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ChatMessageSystem"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageUser"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageAssistant"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageTool"
+              }
+            ]
+          },
+          "title": "Input",
+          "type": "array"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolInfo"
+          },
+          "title": "Tools",
+          "type": "array"
+        },
+        "tool_choice": {
+          "anyOf": [
+            {
+              "enum": ["auto", "any", "none"],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/ToolFunction"
+            }
+          ],
+          "title": "Tool Choice"
+        },
+        "config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
+        "output": {
+          "$ref": "#/$defs/ModelOutput"
+        }
+      },
+      "required": [
+        "model",
+        "input",
+        "tools",
+        "tool_choice",
+        "config",
+        "output"
+      ],
+      "title": "Data",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "inspect_ai__solver___subtask__transcript__ScoreEvent__Data": {
+      "properties": {
+        "score": {
+          "$ref": "#/$defs/Score"
+        }
+      },
+      "required": ["score"],
+      "title": "Data",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "inspect_ai__solver___subtask__transcript__StateEvent__Data": {
+      "properties": {
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/JsonChange"
+          },
+          "title": "Changes",
+          "type": "array"
+        }
+      },
+      "required": ["changes"],
+      "title": "Data",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "inspect_ai__solver___subtask__transcript__StepEvent__Data": {
+      "properties": {
+        "action": {
+          "enum": ["begin", "end"],
+          "title": "Action",
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": ["action", "type", "name"],
+      "title": "Data",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "inspect_ai__solver___subtask__transcript__StoreEvent__Data": {
+      "properties": {
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/JsonChange"
+          },
+          "title": "Changes",
+          "type": "array"
+        }
+      },
+      "required": ["changes"],
+      "title": "Data",
+      "type": "object",
       "additionalProperties": false
     }
   },
