@@ -75,7 +75,6 @@ export const FindBand = ({ hideBand }) => {
       zIndex: "1050",
       color: "var(--inspect-find-foreground)",
       backgroundColor: "var(--inspect-find-background)",
-      padding: "0.5em",
       fontSize: "0.9rem",
       display: "grid",
       gridTemplateColumns: "auto auto auto auto auto",
