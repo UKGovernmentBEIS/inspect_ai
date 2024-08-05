@@ -1,5 +1,6 @@
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 export const ErrorPanel = ({ id, classes, title, error }) => {
   const emptyStyle = {
@@ -21,7 +22,7 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
         marginTop: "4rem",
       }}
     >
-      <div style=${{ ...emptyStyle, fontSize: "1.3rem" }}>
+      <div style=${{ ...emptyStyle, fontSize: FontSize["title-secondary"] }}>
         <div>
           <i
             class="${ApplicationIcons.error}"
@@ -33,7 +34,7 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
       <div
         style=${{
           display: "inline-block",
-          fontSize: "0.8rem",
+          fontSize: FontSize.smaller,
           marginTop: "3rem",
           border: "solid 1px var(--bs-border-color)",
           borderRadius: "var(--bs-border-radius)",
@@ -43,7 +44,7 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
       >
         <div>
           Error: ${message || ""}
-          <pre style=${{ fontSize: "0.8rem" }}>
+          <pre style=${{ fontSize: FontSize.smaller }}>
             <code>
               at ${stack}
             </code>

@@ -17,12 +17,13 @@ import { samplesDescriptor } from "../samples/SamplesDescriptor.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
 import { kDefaultSort } from "../samples/tools/SortFilter.mjs";
-import { TitleBlock } from "../title/TitleBlock.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
 import { filename } from "../utils/Path.mjs";
+import { Navbar } from "../navbar/Navbar.mjs";
 
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
@@ -276,7 +277,7 @@ export const WorkSpace = (props) => {
           renderedContent.push(
             html`<pre>
             <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: "0.9em",
+              fontSize: FontSize.small,
               whiteSpace: "pre-wrap",
               wordWrap: "anywhere",
             }}>
@@ -289,7 +290,7 @@ export const WorkSpace = (props) => {
         return html` <div
           style=${{
             padding: "1rem",
-            fontSize: "0.9rem",
+            fontSize: FontSize.small,
             width: "100%",
           }}
         >
@@ -371,10 +372,10 @@ export const WorkSpace = (props) => {
     tabs=${tabs}
     tabTools=${tabTools}
     log=${workspaceLog}
+    logs=${props.logs}
     selectedTab=${selectedTab}
     fullScreen=${props.fullScreen}
     offcanvas=${props.offcanvas}
-    context=${context}
     setSelectedTab=${setSelectedTab}
     afterBodyElements=${afterBodyElements}
   />`;
@@ -382,32 +383,33 @@ export const WorkSpace = (props) => {
 
 const WorkspaceDisplay = ({
   log,
+  logs,
   selectedTab,
   tabs,
   tabTools,
   setSelectedTab,
   divRef,
-  context,
   afterBodyElements,
+  offcanvas,
 }) => {
   if (log.contents === undefined) {
     return html`<${EmptyPanel} />`;
   } else {
-    return html`<div ref=${divRef} class="workspace" style=${{
+    return html`
+    
+    <${Navbar}
+      file=${log.name}
+      logs=${logs}
+      log=${log.contents}
+      offcanvas=${offcanvas}
+    />    
+    <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
       overflowY: "hidden",
     }}>
-            <${TitleBlock}
-              created=${log.contents?.eval.created}
-              stats=${log.contents?.stats}
-              log=${log.contents}
-              context=${context}
-              status=${log.contents?.status}
-            />
             <div
               class="log-detail"
               style=${{
-                borderTop: "solid 1px var(--bs-border-color)",
                 padding: "0",
                 flex: 1,
                 display: "flex",
@@ -417,16 +419,20 @@ const WorkspaceDisplay = ({
             >
             <${TabSet} id="log-details" tools="${tabTools}" type="pills" styles=${{
               tabSet: {
-                fontSize: "0.8rem",
+                fontSize: FontSize.smaller,
                 flexWrap: "nowrap",
                 padding: "0.5em 1em 0.5em 1em",
                 borderBottom: "solid 1px var(--bs-border-color)",
+                background: "var(--bs-light)",
               },
               tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
               tabs: {
                 padding: ".3rem 0.3rem .3rem 0.3rem",
-                width: "5em",
-                fontSize: "0.7rem",
+                width: "5rem",
+                fontSize: FontSize.smaller,
+                textTransform: "uppercase",
+                borderRadius: "3px",
+                fontWeight: 600,
               },
             }} >
               ${Object.keys(tabs).map((key) => {

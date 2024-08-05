@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 import { ANSIDisplay } from "./AnsiDisplay.mjs";
 import { MetaDataView } from "./MetaDataView.mjs";
@@ -136,7 +137,7 @@ const contentRenderers = {
 
       const arrayRendered = html`<${MetaDataView}
         id=${id}
-        style=${{ fontSize: "0.8rem" }}
+        style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
         context=${context}
@@ -181,7 +182,9 @@ const contentRenderers = {
           </div>`,
         );
         results.push(
-          html`<div style=${{ fontSize: "0.7rem", marginBottom: "0.5rem" }}>
+          html`<div
+            style=${{ fontSize: FontSize.smaller, marginBottom: "0.5rem" }}
+          >
             ${result.summary}
           </div>`,
         );
@@ -222,7 +225,7 @@ const contentRenderers = {
       return {
         rendered: html`<${MetaDataView}
           id=${id}
-          style=${{ fontSize: "0.8rem" }}
+          style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
           context=${context}

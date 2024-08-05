@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { FontSize } from "../appearance/Fonts.mjs";
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import {
   formatPrettyDecimal,
@@ -138,9 +139,18 @@ export const samplesDescriptor = (
   // Find the total length of the value so we can compute an average
   const sizes = samples.reduce(
     (previous, current) => {
-      previous[0] = Math.max(previous[0], inputString(current.input).length);
-      previous[1] = Math.max(previous[1], arrayToString(current.target).length);
-      previous[2] = Math.max(previous[2], scoreAnswer(current)?.length || 0);
+      previous[0] = Math.min(
+        Math.max(previous[0], inputString(current.input).length),
+        300,
+      );
+      previous[1] = Math.min(
+        Math.max(previous[1], arrayToString(current.target).length),
+        300,
+      );
+      previous[2] = Math.min(
+        Math.max(previous[2], scoreAnswer(current)?.length || 0),
+        300,
+      );
       return previous;
     },
     [0, 0, 0],
@@ -362,10 +372,10 @@ const scoreCategorizers = [
               }
               scores.push(html`
                 <div style=${style}>
-                  <div style=${{ fontSize: "0.9em", fontWeight: 300 }}>
+                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
                     ${key}
                   </div>
-                  <div style=${{ fontSize: "1.5em", fontWeight: 600 }}>
+                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
                     ${formattedValue}
                   </div>
                 </div>
@@ -395,14 +405,15 @@ const scoreCategorizers = [
 ];
 
 const filledCircleStyle = {
-  border: "solid 1px",
-  fontSize: "0.8em",
-  width: "2em",
-  height: "2em",
+  fontSize: FontSize.small,
+  fontFamily: "Consola Regular",
+  width: "20px",
+  height: "20px",
   display: "inline-flex",
   justifyContent: "center",
   alignItems: "center",
   borderRadius: "50%",
+  paddingTop: "1px",
 };
 
 const booleanScoreCategorizer = () => {

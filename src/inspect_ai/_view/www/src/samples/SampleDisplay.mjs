@@ -9,6 +9,7 @@ import { inputString } from "../utils/Format.mjs";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { arrayToString, shortenCompletion } from "../utils/Format.mjs";
 
 import { SampleScoreView } from "./SampleScoreView.mjs";
@@ -136,7 +137,7 @@ export const SampleDisplay = ({
 
   <${TabSet} id="task-sample-details-tab-${id}" styles=${{
     tabs: {
-      fontSize: "0.8em",
+      fontSize: FontSize.base,
     },
     tabBody: {
       paddingLeft: ".4em",
@@ -206,7 +207,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
   columns.push({
     label: "Id",
     value: id,
-    size: "minmax(2em, 25%)",
+    size: "minmax(min-content, max-content)",
   });
 
   columns.push({
@@ -266,7 +267,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
           })
           .join(" ")}`,
         gridColumnGap: "0.5em",
-        fontSize: "0.8em",
+        fontSize: FontSize.base,
         borderBottom: "solid var(--bs-border-color) 1px",
         marginBottom: "1em",
         padding: "0em 1em 1em 1em",
@@ -274,8 +275,9 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
     >
       ${columns.map((col) => {
         const style = {
-          textTransform: "uppercase",
-          fontSize: "0.6rem",
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+          fontSize: FontSize.base,
         };
         if (col.center) {
           style.display = "flex";

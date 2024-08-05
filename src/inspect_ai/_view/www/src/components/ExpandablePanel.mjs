@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 export const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
   const [collapsed, setCollapsed] = useState(collapse);
@@ -50,7 +51,7 @@ export const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
   }, [collapse, contentsRef, observerRef]);
 
   // Enforce the line clamp if need be
-  let contentsStyle = { fontSize: "0.8rem" };
+  let contentsStyle = { fontSize: FontSize.base };
   if (collapse && collapsed) {
     contentsStyle = { ...contentsStyle, ...ApplicationStyles.lineClamp(lines) };
   }
@@ -107,7 +108,7 @@ const MoreToggle = ({ collapsed, border, setCollapsed }) => {
         <button
           class="btn"
           style=${{
-            fontSize: "0.7rem",
+            fontSize: FontSize.smaller,
             border: "none",
             padding: "0.1rem .5rem",
           }}

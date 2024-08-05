@@ -1,6 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { RenderedContent } from "./RenderedContent.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 
 /**
  * Renders the MetaDataView component.
@@ -21,15 +22,16 @@ export const MetaDataGrid = ({ id, entries, classes, context, expanded }) => {
   const cellKeyStyle = {
     fontWeight: "400",
     whiteSpace: "nowrap",
+    ...TextStyle.label,
   };
   const cellValueStyle = {
     fontWeight: "300",
     whiteSpace: "pre-wrap",
     wordWrap: "anywhere",
-    fontSize: "0.8rem",
+    fontSize: FontSize.small,
   };
   const cellKeyTextStyle = {
-    fontSize: "0.8rem",
+    fontSize: FontSize.small,
   };
 
   // entries can be either a Record<string, stringable>
