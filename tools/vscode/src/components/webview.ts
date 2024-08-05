@@ -1,8 +1,18 @@
-import { Uri, ViewColumn, EventEmitter, ExtensionContext, window } from "vscode";
+import {
+  Uri,
+  ViewColumn,
+  EventEmitter,
+  ExtensionContext,
+  window,
+  commands,
+} from "vscode";
 
 import { Disposable } from "../core/dispose";
 import { getNonce } from "../core/nonce";
 import { ExtensionHost, HostWebviewPanel } from "../hooks";
+import { isNotebook } from "./notebook";
+import { FocusManager } from "./focus";
+import { log } from "../core/log";
 
 export interface ShowOptions {
   readonly preserveFocus?: boolean;
@@ -35,7 +45,10 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
         },
       })
     );
+
+    this.focusManager_ = new FocusManager(context);
   }
+  private focusManager_: FocusManager;
 
   public setOnShow(f: () => void) {
     this.onShow_ = f;
@@ -90,9 +103,46 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
   }
 
   private preserveEditorFocus() {
-    // No need to take action here - we are already setting preserveFocus
-    // and ensuring that focus ends up in the correct places
+    // Replace focus to the correct spot
+    const lastFocused = this.focusManager_.getLastFocused();
+    if (lastFocused === "terminal") {
+      // The terminal
+      setTimeout(() => {
+        commands.executeCommand('workbench.action.terminal.focus').then(
+          () => {
+            // Command executed successfully
+          },
+          (error) => {
+            log.append("Couldn't focus terminal.\n" + error);
+          }
+        );
+      }, 50);
+    } else if (lastFocused === "editor") {
+      // The editor
+      const editor = window.activeTextEditor;
+      if (editor) {
+        if (!isNotebook(editor.document.uri)) {
+          setTimeout(() => {
+            // Refocus the active document by calling showTextDocument with the active editor
+            window.showTextDocument(editor.document, editor.viewColumn).then(() => {
+
+            }, (error) => {
+              log.append("Couldn't focus editor.\n" + error);
+            });
+          }, 50);
+        }
+
+      }
+    } else if (lastFocused === "notebook") {
+      // A notebook
+      setTimeout(() => {
+        if (window.activeNotebookEditor) {
+          window.activeNotebookEditor.revealRange(window.activeNotebookEditor.selection);
+        }
+      }, 50);
+    }
   }
+
 
   private restoreWebview(panel: HostWebviewPanel, state: S): void {
     const view = new this.webviewType_(this.context, state, panel);
