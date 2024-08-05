@@ -6246,10 +6246,21 @@ function throttle(func, wait, options) {
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+const clearDocumentSelection = () => {
+  const sel = window.getSelection();
+  if (sel) {
+    if (sel.removeAllRanges) {
+      sel.removeAllRanges();
+    } else if (sel.empty) {
+      sel.empty();
+    }
+  }
+};
 const icons = {
   arrows: {
     right: "bi bi-arrow-right",
-    down: "bi bi-arrow-down"
+    down: "bi bi-arrow-down",
+    up: "bi bi-arrow-up"
   },
   "collapse-all": "bi bi-arrows-collapse",
   "collapse-up": "bi bi-chevron-up",
@@ -6855,9 +6866,11 @@ const Sidebar = ({
     } : void 0;
     const model = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
     const dataset = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset;
-    const scorer = (_f = (_e = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e.scores) == null ? void 0 : _f.map((scorer2) => {
-      return scorer2.name;
-    }).join(",");
+    const uniqScorers = /* @__PURE__ */ new Set();
+    (_f = (_e = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e.scores) == null ? void 0 : _f.forEach((scorer2) => {
+      uniqScorers.add(scorer2.name);
+    });
+    const scorer = Array.from(uniqScorers).join(",");
     const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
     const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
     const time = completed ? new Date(completed) : void 0;
@@ -17842,13 +17855,11 @@ const ScorerSummary = ({ scorers }) => {
   if (!scorers) {
     return "";
   }
-  const summary = [];
-  summary.push(
-    scorers.map((scorer) => {
-      return scorer.name;
-    }).join(", ")
-  );
-  return summary;
+  const uniqScorers = /* @__PURE__ */ new Set();
+  scorers.forEach((scorer) => {
+    uniqScorers.add(scorer.name);
+  });
+  return Array.from(uniqScorers).join(", ");
 };
 const ParamSummary = ({ params }) => {
   if (!params) {
@@ -18034,14 +18045,19 @@ const WorkSpace = (props) => {
       name: workspaceLog.contents.results.scores[0].name,
       scorer: workspaceLog.contents.results.scores[0].scorer
     } : void 0;
-    const scorers = (((_d = (_c = workspaceLog.contents) == null ? void 0 : _c.results) == null ? void 0 : _d.scores) || []).map(
-      (score2) => {
-        return {
-          name: score2.name,
-          scorer: score2.scorer
-        };
+    const scorers = (((_d = (_c = workspaceLog.contents) == null ? void 0 : _c.results) == null ? void 0 : _d.scores) || []).map((score2) => {
+      return {
+        name: score2.name,
+        scorer: score2.scorer
+      };
+    }).reduce((accum, scorer2) => {
+      if (!accum.find((sc) => {
+        return scorer2.scorer === sc.scorer && scorer2.name === sc.name;
+      })) {
+        accum.push(scorer2);
       }
-    );
+      return accum;
+    }, []);
     setScores(scorers);
     setScore(scorer);
     clearSampleTools();
@@ -18352,6 +18368,146 @@ const WorkspaceDisplay = ({
           ${afterBodyElements}`;
   }
 };
+const FindBand = ({ hideBand }) => {
+  const searchBoxRef = F();
+  _(() => {
+    searchBoxRef.current.focus();
+  }, []);
+  const searchTerm = () => {
+    return searchBoxRef.current.value;
+  };
+  const search = (term, back) => {
+    const parentExpandablePanel = (selection) => {
+      let node = selection.anchorNode;
+      let expandablePanelEl = void 0;
+      while (node) {
+        if (node.classList && node.classList.contains("expandable-panel")) {
+          expandablePanelEl = node;
+          break;
+        }
+        node = node.parentElement;
+      }
+      return expandablePanelEl;
+    };
+    const focusedElement = document.activeElement;
+    const result = window.find(term, false, !!back, false, false, true, false);
+    const noResultEl = window.document.getElementById(
+      "inspect-find-no-results"
+    );
+    if (result) {
+      noResultEl.style.opacity = 0;
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        const parentPanel = parentExpandablePanel(selection);
+        if (parentPanel) {
+          parentPanel.style.display = "block";
+          parentPanel.style["-webkit-line-clamp"] = "";
+          parentPanel.style["-webkit-box-orient"] = "";
+        }
+        const range = selection.getRangeAt(0);
+        setTimeout(() => {
+          const element = range.startContainer.parentElement;
+          element.scrollIntoView({
+            behavior: "smooth",
+            // Optional: adds a smooth scrolling animation
+            block: "center"
+            // Optional: scrolls so the element is centered in the view
+          });
+        }, 100);
+      }
+    } else {
+      noResultEl.style.opacity = 1;
+    }
+    if (focusedElement) {
+      focusedElement.focus();
+    }
+  };
+  return m$1`<div
+    style=${{
+    position: "absolute",
+    top: 0,
+    right: 0,
+    marginRight: "20%",
+    zIndex: "1050",
+    color: "var(--inspect-find-foreground)",
+    backgroundColor: "var(--inspect-find-background)",
+    fontSize: "0.9rem",
+    display: "grid",
+    gridTemplateColumns: "auto auto auto auto auto",
+    columnGap: "0.2em",
+    padding: "0.2rem",
+    borderBottom: "solid 1px var(--bs-light-border-subtle)",
+    borderLeft: "solid 1px var(--bs-light-border-subtle)",
+    borderRight: "solid 1px var(--bs-light-border-subtle)",
+    boxShadow: "var(--bs-box-shadow)"
+  }}
+  >
+    <input
+      type="text"
+      ref=${searchBoxRef}
+      style=${{
+    height: "1.5em",
+    fontSize: "0.9em",
+    marginTop: "0.1rem",
+    outline: "none",
+    border: "solid 1px var(--inspect-input-border)",
+    color: "var(--inspect-input-foreground)",
+    background: "var(--inspect-input-background)"
+  }}
+      placeholder="Find"
+      onkeydown=${(e2) => {
+    if (e2.key === "Escape") {
+      hideBand();
+    } else if (e2.key === "Enter") {
+      search(searchTerm());
+    }
+  }}
+    />
+    <span
+      id="inspect-find-no-results"
+      style=${{
+    fontSize: "0.8rem",
+    opacity: 0,
+    marginTop: "0.1rem",
+    marginRight: "0.5em"
+  }}
+      >No results</span
+    >
+    <button
+      title="Previous match"
+      style=${{ padding: 0, fontSize: "0.7rem" }}
+      class="btn"
+      onclick=${() => {
+    search(searchTerm(), true);
+  }}
+    >
+      <i class=${icons.arrows.up}></i>
+    </button>
+    <button
+      title="Next match"
+      style=${{ padding: 0, fontSize: "0.8rem" }}
+      class="btn"
+      onclick=${() => {
+    search(searchTerm());
+  }}
+    >
+      <i class=${icons.arrows.down}></i>
+    </button>
+    <button
+      title="Close"
+      style=${{
+    padding: 0,
+    fontSize: "1rem",
+    marginTop: "-0.1rem",
+    marginBottom: "-0.1rem"
+  }}
+      class="btn"
+      onclick=${() => hideBand()}
+    >
+      <i class=${icons.close}></i>
+    </button>
+  </div>`;
+};
 function App({ api: api2, pollForLogs = true }) {
   var _a, _b, _c, _d, _e, _f, _g;
   const [selected, setSelected] = p(-1);
@@ -18373,6 +18529,8 @@ function App({ api: api2, pollForLogs = true }) {
     downloadFiles: true,
     webWorkers: true
   });
+  const [showFind, setShowFind] = p(false);
+  const mainAppRef = F();
   _(async () => {
     setHeadersLoading(true);
     const chunkSize = 12;
@@ -18591,15 +18749,34 @@ function App({ api: api2, pollForLogs = true }) {
         fullScreen=${fullScreen}
         offcanvas=${offcanvas}
         capabilities=${capabilities}
+        showFind=${showFind}
+        setShowFind=${setShowFind}
       />`;
     }
   }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
   const fullScreenClz = fullScreen ? " full-screen" : "";
   const offcanvasClz = offcanvas ? " off-canvas" : "";
+  const hideFind = x(() => {
+    clearDocumentSelection();
+    if (showFind) {
+      setShowFind(false);
+    }
+    mainAppRef.current.focus();
+  }, [showFind, setShowFind]);
   return m$1`
     <${AppErrorBoundary}>
     ${sidebar}
-    <div class="app-main-grid${fullScreenClz}${offcanvasClz}">
+    <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(e2) => {
+    if (!window.acquireVsCodeApi) {
+      return;
+    }
+    if ((e2.ctrlKey || e2.metaKey) && e2.key === "f") {
+      setShowFind(true);
+    } else if (e2.key === "Escape") {
+      hideFind();
+    }
+  }}>
+      ${showFind ? m$1`<${FindBand} hideBand=${hideFind} />` : ""}
       ${navbar}
       <${ProgressBar} animating=${status.loading} />
       ${workspace}
