@@ -283,7 +283,7 @@ const SidebarScores = ({ scores }) => {
         >
           <div
             style=${{
-              fontSize: FontSize.smaller,
+              fontSize: FontSize.base,
               width: "100%",
               fontWeight: 300,
               borderBottom: "solid var(--bs-border-color) 1px",

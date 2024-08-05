@@ -215,7 +215,7 @@ body[class^="vscode-"] .sidebar .list-group {
 :root {
   --bs-navbar-padding-y: 0;
   --bs-navbar-brand-padding-y: 0;
-  --sidebar-width: 500px;
+  --sidebar-width: 550px;
 }
 
 body {
