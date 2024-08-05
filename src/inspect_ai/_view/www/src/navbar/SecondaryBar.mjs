@@ -32,11 +32,10 @@ export const SecondaryBar = ({ log, status, style }) => {
 `,
   });
 
-
   const label = log?.results?.scores.length > 1 ? "Scorers" : "Scorer";
   values.push({
     size: "minmax(12%, auto)",
-    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right"}}>
+    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
     <${ScorerSummary} 
       scorers=${log?.results?.scores} />
   </${LabeledValue}>`,
@@ -45,7 +44,7 @@ export const SecondaryBar = ({ log, status, style }) => {
   if (hasConfig) {
     values.push({
       size: "minmax(12%, auto)",
-      value: html`<${LabeledValue} label="Config" style=${{justifySelf: "right"}}>
+      value: html`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
       <${ParamSummary} params=${hyperparameters}/>
     </${LabeledValue}>`,
     });
@@ -64,7 +63,7 @@ export const SecondaryBar = ({ log, status, style }) => {
             return val.size;
           })
           .join(" ")}`,
-        ...style
+        ...style,
       }}
     >
       ${values.map((val) => {

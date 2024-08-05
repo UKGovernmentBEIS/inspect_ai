@@ -9,20 +9,15 @@ import { formatPrettyDecimal } from "../utils/Format.mjs";
 import { CopyButton } from "./../components/CopyButton.mjs";
 import { SecondaryBar } from "./SecondaryBar.mjs";
 
-export const Navbar = ({
-  file,
-  logs,
-  log,
-  offcanvas
-}) => {
+export const Navbar = ({ file, logs, log, offcanvas }) => {
   const toggleOffCanClass = offcanvas ? "" : " d-md-none";
   const logFileName = file ? filename(file) : "";
 
-  const task=log?.eval?.task
-  const model=log?.eval?.model
-  const results=log?.results
-  const samples=log?.samples
-  const status=log?.status
+  const task = log?.eval?.task;
+  const model = log?.eval?.model;
+  const results = log?.results;
+  const samples = log?.samples;
+  const status = log?.status;
 
   let statusPanel;
   if (status === "success") {
@@ -151,10 +146,10 @@ export const Navbar = ({
       >
         ${navbarContents}
         <${SecondaryBar}
-              log=${log}
-              status=${status}
-              style=${{gridColumn: "1/-1"}}
-            />
+          log=${log}
+          status=${status}
+          style=${{ gridColumn: "1/-1" }}
+        />
       </div>
     </nav>
   `;

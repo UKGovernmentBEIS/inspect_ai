@@ -405,7 +405,6 @@ const scoreCategorizers = [
 ];
 
 const filledCircleStyle = {
-  
   fontSize: FontSize.small,
   fontFamily: "Consola Regular",
   width: "20px",
@@ -414,7 +413,7 @@ const filledCircleStyle = {
   justifyContent: "center",
   alignItems: "center",
   borderRadius: "50%",
-  paddingTop: "1px"
+  paddingTop: "1px",
 };
 
 const booleanScoreCategorizer = () => {

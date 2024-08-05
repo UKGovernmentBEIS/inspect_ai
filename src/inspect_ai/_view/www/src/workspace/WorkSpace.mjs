@@ -390,7 +390,7 @@ const WorkspaceDisplay = ({
   setSelectedTab,
   divRef,
   afterBodyElements,
-  offcanvas
+  offcanvas,
 }) => {
   if (log.contents === undefined) {
     return html`<${EmptyPanel} />`;
@@ -423,7 +423,7 @@ const WorkspaceDisplay = ({
                 flexWrap: "nowrap",
                 padding: "0.5em 1em 0.5em 1em",
                 borderBottom: "solid 1px var(--bs-border-color)",
-                background: "var(--bs-light)"
+                background: "var(--bs-light)",
               },
               tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
               tabs: {
@@ -432,7 +432,7 @@ const WorkspaceDisplay = ({
                 fontSize: FontSize.smaller,
                 textTransform: "uppercase",
                 borderRadius: "3px",
-                fontWeight: 600
+                fontWeight: 600,
               },
             }} >
               ${Object.keys(tabs).map((key) => {

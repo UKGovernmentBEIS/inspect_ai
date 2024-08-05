@@ -57,7 +57,7 @@ export const Sidebar = ({
         </button>
       </div>
       <div style=${{ marginTop: "61px", zIndex: 3 }}>
-        <${ProgressBar} animating=${loading} style=${{marginTop: "-2px"}} />
+        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
       </div>
       <ul
         class="list-group"
@@ -101,7 +101,6 @@ export const Sidebar = ({
             <li
               class="list-group-item list-group-item-action${active}"
               onclick=${() => onSelectedIndexChanged(index)}
-              style=${{ fontSize: FontSize.small }}
             >
               <div
                 style=${{
@@ -113,7 +112,7 @@ export const Sidebar = ({
                 <div style=${{ overflow: "hidden" }}>
                   <div
                     style=${{
-                      fontSize: FontSize.title,
+                      fontSize: FontSize["title-secondary"],
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -121,18 +120,24 @@ export const Sidebar = ({
                   >
                     ${logHeader?.eval?.task || file.task}
                   </div>
-                  <small class="mb-1 text-muted"> ${timeStr} </small>
+                  <small class="mb-1" style=${{ fontSize: FontSize.small }}>
+                    ${timeStr}
+                  </small>
 
                   ${model
                     ? html` <div>
-                        <small class="mb-1 text-muted">${model}</small>
+                        <small
+                          class="mb-1"
+                          style=${{ fontSize: FontSize.small }}
+                          >${model}</small
+                        >
                       </div>`
                     : ""}
                 </div>
                 <${EvalStatus} logHeader=${logHeader} />
               </div>
-              <div style=${{ marginTop: "0.4em" }}>
-                <small class="mb-1 text-muted">
+              <div style=${{ marginTop: "1em" }}>
+                <small class="mb-1">
                   ${hyperparameters
                     ? Object.keys(hyperparameters)
                         .map((key) => {
@@ -147,7 +152,8 @@ export const Sidebar = ({
                     style=${{
                       display: "flex",
                       justifyContent: "space-between",
-                      marginTop: "0.5em",
+                      marginTop: "0em",
+                      fontSize: FontSize.small,
                     }}
                   >
                     <span>dataset: ${dataset.name || "(samples)"}</span
@@ -244,7 +250,7 @@ const SidebarScore = ({ scorer }) => {
                 ${scorer.reducer}
               </div>`
             : ""}
-          <div style=${{ fontSize: FontSize.title }}>
+          <div style=${{ fontSize: FontSize["title-secondary"] }}>
             ${formatPrettyDecimal(scorer.metrics[metric].value)}
           </div>
         </div>
@@ -282,6 +288,7 @@ const SidebarScores = ({ scores }) => {
               fontWeight: 300,
               borderBottom: "solid var(--bs-border-color) 1px",
               ...TextStyle.label,
+              ...TextStyle.secondary,
             }}
           >
             ${name}
@@ -307,7 +314,11 @@ const SidebarScores = ({ scores }) => {
           >
             ${Object.keys(score.metrics).map((key) => {
               const metric = score.metrics[key];
-              return html` <div>${metric.name}</div>
+              return html` <div
+                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+                >
+                  ${metric.name}
+                </div>
                 <div style=${{ fontWeight: "600" }}>
                   ${formatPrettyDecimal(metric.value)}
                 </div>`;
@@ -337,13 +348,18 @@ const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   if (log_dir) {
     const displayDir = prettyDir(log_dir);
     return html`<div style=${{ display: "flex", flexDirection: "column" }}>
-      <span style=${{ fontSize: FontSize.smaller, ...TextStyle.label }}
+      <span
+        style=${{
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+        }}
         >Log Directory</span
       >
       <span
         title=${displayDir}
         style=${{
-          fontSize: FontSize.small,
+          fontSize: FontSize.base,
           overflow: "hidden",
           whiteSpace: "nowrap",
           textOverflow: "ellipsis",

@@ -25,7 +25,6 @@ export const ProgressBar = ({ style, animating }) => {
     width: "5%",
     height: "2px",
     ...style,
-
   };
 
   return html`
