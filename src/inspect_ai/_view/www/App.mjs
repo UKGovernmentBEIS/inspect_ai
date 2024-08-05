@@ -344,7 +344,6 @@ export function App() {
     if (showFind) {
       setShowFind(false);
     }
-    mainAppRef.current.focus();
   }, [showFind, setShowFind]);
 
   return html`
