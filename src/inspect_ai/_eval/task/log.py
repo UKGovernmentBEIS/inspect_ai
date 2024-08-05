@@ -28,7 +28,7 @@ from inspect_ai.log import (
     EvalStats,
     LoggingMessage,
 )
-from inspect_ai.log._log import LogType, Recorder
+from inspect_ai.log._log import LogType, Recorder, TranscriptEvent
 from inspect_ai.model import (
     GenerateConfig,
     Model,
@@ -124,6 +124,10 @@ class TaskLogger:
 
     def log_event(self, sample_id: str, epoch: int, event: Event) -> None:
         self.events.append((sample_id, epoch, event))
+
+        self.recorder.log_transcript(
+            self.eval, TranscriptEvent(sample_id=sample_id, epoch=epoch, event=event)
+        )
 
     def log_sample(
         self,

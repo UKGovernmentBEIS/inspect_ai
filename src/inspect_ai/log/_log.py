@@ -421,6 +421,17 @@ class EvalLog(BaseModel):
         return self
 
 
+class TranscriptEvent(BaseModel):
+    sample_id: str
+    """Sample ID."""
+
+    epoch: int
+    """Sample epoch."""
+
+    event: Event
+    """Sample event."""
+
+
 LogType = Literal["plan", "sample", "score", "results", "scorer", "logging"]
 
 
@@ -439,7 +450,7 @@ class Recorder(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def log_event(self, sample_id: str, epoch: int, event: Event) -> None: ...
+    def log_transcript(self, eval: EvalSpec, event: TranscriptEvent) -> None: ...
 
     @abc.abstractmethod
     def log_cancelled(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
@@ -456,7 +467,12 @@ class Recorder(abc.ABC):
     def read_log(self, location: str) -> EvalLog: ...
 
     @abc.abstractmethod
-    def write_log(self, location: str, log: EvalLog) -> None: ...
+    def write_log(
+        self,
+        location: str,
+        log: EvalLog,
+        events: list[TranscriptEvent] | None = None,
+    ) -> None: ...
 
     @abc.abstractmethod
     def read_latest_log(self) -> EvalLog: ...
