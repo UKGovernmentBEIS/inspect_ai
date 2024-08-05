@@ -77,6 +77,6 @@ jobs:
         # `check-wheel-contents` was to ignore the duplicate file check
         # completely which seems like throwing the baby out with the bathwater...
       - name: Delete knowingly duplicated files
-        run: rm src/inspect_ai/_view/www/favicon.svg src/inspect_ai/_view/www/libs/bootstrap/css/fonts/bootstrap-icons.woff src/inspect_ai/_view/www/libs/bootstrap/css/fonts/bootstrap-icons.woff2
+        run: rm src/inspect_ai/_view/www/favicon.svg
 
       - uses: hynek/build-and-inspect-python-package@v1
