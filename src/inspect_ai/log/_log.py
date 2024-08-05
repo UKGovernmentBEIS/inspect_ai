@@ -424,9 +424,9 @@ class LoggingMessage(BaseModel):
             level=cast(LoggingLevel, record.levelname.lower()),
             message=record.getMessage(),
             created=record.created * 1000,
-            filename=record.filename,
-            module=record.module,
-            lineno=record.lineno,
+            filename=str(record.filename),
+            module=str(record.module),
+            lineno=record.lineno or 0,
             # serialize anything we can from the additional arguments
             args=to_jsonable_python(record.args, fallback=lambda _x: None)
             if record.args

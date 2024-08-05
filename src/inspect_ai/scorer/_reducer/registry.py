@@ -124,9 +124,15 @@ def reducer_log_name(reducer: ScoreReducer) -> str:
     return name
 
 
-def create_reducers(
-    reducers: ScoreReducers | None, params: dict[str, Any] = {}
-) -> list[ScoreReducer] | None:
+@overload
+def create_reducers(reducers: ScoreReducers) -> list[ScoreReducer]: ...
+
+
+@overload
+def create_reducers(reducers: None) -> None: ...
+
+
+def create_reducers(reducers: ScoreReducers | None) -> list[ScoreReducer] | None:
     if reducers is None:
         return None
 

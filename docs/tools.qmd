@@ -176,15 +176,6 @@ plan = [
 
 ## Tool Descriptions
 
-::: {.callout-note appearance="simple"}
-The `tool_with()` function described below is currently available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
-
 Well crafted tools should include descriptions that provide models with the context required to use them correctly and productively. If you will be developing custom tools it's worth taking some time to learn how to provide good tool definitions. Here are some resources you may find helpful:
 
 -   [Best Practices for Tool Definitions](https://docs.anthropic.com/claude/docs/tool-use#best-practices-for-tool-definitions)

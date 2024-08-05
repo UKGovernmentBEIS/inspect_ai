@@ -10,6 +10,9 @@
   "[quarto]": {
     "editor.formatOnSave": false
   },
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
   "search.exclude": {
     "logs/**": true
   },
