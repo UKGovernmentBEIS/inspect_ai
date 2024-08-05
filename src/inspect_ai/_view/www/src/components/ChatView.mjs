@@ -7,7 +7,7 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
-import { FontSize } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 
 /**
  * Renders the ChatView component.
@@ -64,7 +64,7 @@ export const ChatView = ({ id, messages, style }) => {
   }
 
   return html`
-    <div style=${{ paddingTop: "0.5em", ...style }}>
+    <div style=${{ paddingTop: "1em", ...style }}>
       ${collapsedMessages.map((msg) => {
         return html`<${ChatMessage}
           id=${`${id}-chat-messages`}
@@ -126,7 +126,7 @@ const ChatMessage = ({ id, message, toolMessages }) => {
             paddingLeft: "0",
           }}
         >
-          <div style=${{ fontWeight: "500" }}>${message.role}</div>
+          <div style=${{ fontWeight: "500", ...TextStyle.label }}>${message.role}</div>
           <${ExpandablePanel} collapse=${collapse}>
             <${MessageContents}
               key=${`${id}-contents`}

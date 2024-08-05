@@ -137,7 +137,7 @@ export const SampleDisplay = ({
 
   <${TabSet} id="task-sample-details-tab-${id}" styles=${{
     tabs: {
-      fontSize: FontSize.small,
+      fontSize: FontSize.base,
     },
     tabBody: {
       paddingLeft: ".4em",
@@ -267,7 +267,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
           })
           .join(" ")}`,
         gridColumnGap: "0.5em",
-        fontSize: FontSize.small,
+        fontSize: FontSize.base,
         borderBottom: "solid var(--bs-border-color) 1px",
         marginBottom: "1em",
         padding: "0em 1em 1em 1em",
@@ -277,7 +277,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
         const style = {
           ...TextStyle.label,
           ...TextStyle.secondary,
-          fontSize: FontSize.smaller,
+          fontSize: FontSize.base,
         };
         if (col.center) {
           style.display = "flex";
