@@ -415,13 +415,6 @@ pre[class*="language-"] {
   font-weight: 500;
 }
 
-.card-subheading {
-  margin-top: 1em;
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding-bottom: 0.2em;
-}
-
 .btn .btn-link {
   cursor: pointer;
 }

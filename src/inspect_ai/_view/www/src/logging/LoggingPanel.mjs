@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { ApplicationColors } from "../appearance/Colors.mjs";
-import { FontSize } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { RenderedContent } from "../components/RenderedContent.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -10,7 +10,7 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
 export const LoggingPanel = ({ logFile, capabilities, logging, context }) => {
   if (!logging || logging.length === 0) {
     return html`<${EmptyPanel} style=${{
-      fontSize: FontSize.small,
+      fontSize: FontSize.base,
     }}>No Messages</${EmptyPanel}>`;
   }
 

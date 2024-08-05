@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 import { toTitleCase } from "../utils/Format.mjs";
 import { ghCommitUrl } from "../utils/Git.mjs";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
-import { FontSize } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { Card, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { CardHeader } from "../components/Card.mjs";
@@ -32,7 +32,7 @@ export const PlanCard = ({ log, context }) => {
 };
 
 const planItemStyle = {
-  fontSize: FontSize.small,
+  fontSize: FontSize.base,
   marginBottom: "0em",
 };
 
@@ -199,7 +199,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   };
 
   const planMetadataStyle = {
-    fontSize: FontSize.small,
+    fontSize: FontSize.base,
   };
 
   const taskColumns = [];
@@ -403,7 +403,7 @@ const colCount = (...other) => {
 const PlanColumn = ({ title, classes, style, children }) => {
   return html`
     <div class="${classes || ""}" ...${{ style }}>
-      <div class="card-subheading">${title}</div>
+      <div class="card-subheading" style=${{fontSize: FontSize.small, ...TextStyle.label, ...TextStyle.secondary, marginTop: "1em"}}>${title}</div>
       ${children}
     </div>
   `;
