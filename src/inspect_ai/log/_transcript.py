@@ -1,14 +1,22 @@
 import sqlite3
 from logging import getLogger
-from typing import Callable
+from typing import Callable, cast, overload
 
 import mmh3
+from pydantic import JsonValue
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
+from inspect_ai._util.json import JsonChange
 from inspect_ai.log._log import TranscriptEvent
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.solver._subtask.transcript import ModelEvent
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.solver._subtask.transcript import (
+    Event,
+    ModelEvent,
+    StateEvent,
+    SubtaskEvent,
+)
 
 logger = getLogger(__name__)
 
@@ -107,30 +115,81 @@ def to_db_transcript_events(
     content: dict[str, str] = {}
 
     def content_fn(text: str) -> str:
-        hash = mm3_hash(text)
-        content[hash] = text
-        return f"{CONTENT_PROTOCOL}{hash}"
+        if len(text) > 50:
+            hash = mm3_hash(text)
+            content[hash] = text
+            return f"{CONTENT_PROTOCOL}{hash}"
+        else:
+            return text
 
     events = walk_events(events, content_fn)
+
+    print(content)
+    print("[")
+    print(
+        "\n,".join(
+            [event.model_dump_json(indent=2, exclude_none=True) for event in events]
+        )
+    )
+    print("]")
 
     return events, content
 
 
+@overload
+def walk_events(
+    events: list[Event], content_fn: Callable[[str], str]
+) -> list[Event]: ...
+
+
+@overload
 def walk_events(
     events: list[TranscriptEvent], content_fn: Callable[[str], str]
-) -> list[TranscriptEvent]:
-    return [walk_event(event, content_fn) for event in events]
+) -> list[TranscriptEvent]: ...
+
+
+def walk_events(
+    events: list[TranscriptEvent] | list[Event], content_fn: Callable[[str], str]
+) -> list[TranscriptEvent] | list[Event]:
+    if len(events) > 0:
+        if isinstance(events[0], TranscriptEvent):
+            return [
+                walk_event(cast(TranscriptEvent, event), content_fn) for event in events
+            ]
+        else:
+            return [walk_event(cast(Event, event), content_fn) for event in events]
+
+    else:
+        return []
+
+
+@overload
+def walk_event(
+    event: TranscriptEvent, content_fn: Callable[[str], str]
+) -> TranscriptEvent: ...
+
+
+@overload
+def walk_event(event: Event, content_fn: Callable[[str], str]) -> Event: ...
 
 
 def walk_event(
-    event: TranscriptEvent, content_fn: Callable[[str], str]
-) -> TranscriptEvent:
-    if isinstance(event.event, ModelEvent):
-        return event.model_copy(
-            update=dict(event=walk_model_event(event.event, content_fn))
-        )
+    event: TranscriptEvent | Event, content_fn: Callable[[str], str]
+) -> TranscriptEvent | Event:
+    def walk(ev: Event) -> Event:
+        if isinstance(ev, ModelEvent):
+            return walk_model_event(ev, content_fn)
+        elif isinstance(ev, StateEvent):
+            return walk_state_event(ev, content_fn)
+        elif isinstance(ev, SubtaskEvent):
+            return ev.model_copy(update=dict(events=walk_events(ev.events, content_fn)))
+        else:
+            return ev
+
+    if isinstance(event, TranscriptEvent):
+        return event.model_copy(update=dict(event=walk(event.event)))
     else:
-        return event
+        return walk(event)
 
 
 def walk_model_event(event: ModelEvent, content_fn: Callable[[str], str]) -> ModelEvent:
@@ -139,6 +198,57 @@ def walk_model_event(event: ModelEvent, content_fn: Callable[[str], str]) -> Mod
             input=[walk_chat_message(message, content_fn) for message in event.input],
         ),
     )
+
+
+def walk_model_output(
+    output: ModelOutput, content_fn: Callable[[str], str]
+) -> ModelOutput:
+    return output.model_copy(
+        update=dict(
+            choices=[
+                choice.model_copy(
+                    update=dict(message=walk_chat_message(choice.message, content_fn))
+                )
+                for choice in output.choices
+            ]
+        )
+    )
+
+
+def walk_state_event(event: StateEvent, content_fn: Callable[[str], str]) -> StateEvent:
+    event = event.model_copy(
+        update=dict(
+            changes=[
+                walk_state_json_change(change, content_fn) for change in event.changes
+            ]
+        )
+    )
+    return event
+
+
+def walk_state_json_change(
+    change: JsonChange, content_fn: Callable[[str], str]
+) -> JsonChange:
+    return change.model_copy(
+        update=dict(value=walk_json_value(change.value, content_fn))
+    )
+
+
+def walk_json_value(value: JsonValue, content_fn: Callable[[str], str]) -> JsonValue:
+    if isinstance(value, str):
+        return content_fn(value)
+    elif isinstance(value, list):
+        return [walk_json_value(v, content_fn) for v in value]
+    elif isinstance(value, dict):
+        updates: dict[str, JsonValue] = {}
+        for k, v in value.items():
+            if k in ["content", "message", "text", "value"]:
+                updates[k] = walk_json_value(v, content_fn)
+        value = value.copy()
+        value.update(updates)
+        return value
+    else:
+        return value
 
 
 def walk_chat_message(
