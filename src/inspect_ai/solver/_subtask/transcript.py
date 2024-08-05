@@ -1,6 +1,7 @@
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
+from logging import getLogger
 from typing import (
     Any,
     Callable,
@@ -10,9 +11,11 @@ from typing import (
     Union,
 )
 
+import mmh3
 from pydantic import BaseModel, Field, JsonValue, field_serializer
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import JsonChange, json_changes
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
@@ -24,6 +27,8 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 from .._task_state import state_jsonable
 from .store import store, store_changes, store_jsonable
+
+logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
@@ -126,6 +131,14 @@ class StepEvent(BaseEvent):
     """Event name."""
 
 
+class EvalEvents(BaseModel):
+    events: list["Event"] = Field(default_factory=list)
+    """List of events."""
+
+    content: dict[str, str] = Field(default_factory=dict)
+    """Content references."""
+
+
 class SubtaskEvent(BaseEvent):
     """Subtask spawned."""
 
@@ -141,7 +154,7 @@ class SubtaskEvent(BaseEvent):
     result: Any
     """Subtask function result."""
 
-    events: list["Event"]
+    events: EvalEvents
     """Transcript of events for subtask."""
 
 
@@ -161,11 +174,9 @@ Event: TypeAlias = Union[
 class Transcript:
     """Transcript of events."""
 
-    def __init__(
-        self, name: str = "", on_event: Callable[[Event], None] | None = None
-    ) -> None:
+    def __init__(self, name: str = "") -> None:
         self.name = name
-        self.on_event = on_event
+        self.events: list[Event] = []
 
     def info(self, data: JsonValue) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -194,8 +205,7 @@ class Transcript:
         self._event(StepEvent(action="end", name=name, type=type))
 
     def _event(self, event: Event) -> None:
-        if self.on_event:
-            self.on_event(event)
+        self.events.append(event)
 
 
 def transcript() -> Transcript:
@@ -238,3 +248,139 @@ def init_transcript(transcript: Transcript) -> None:
 _transcript: ContextVar[Transcript] = ContextVar(
     "subtask_transcript", default=Transcript()
 )
+
+
+CONTENT_PROTOCOL = "tc://"
+
+
+def eval_events(events: list[Event]) -> EvalEvents:
+    content: dict[str, str] = {}
+
+    def content_fn(text: str) -> str:
+        if len(text) > 50:
+            hash = mm3_hash(text)
+            content[hash] = text
+            return f"{CONTENT_PROTOCOL}{hash}"
+        else:
+            return text
+
+    events = walk_events(events, content_fn)
+
+    return EvalEvents(events=events, content=content)
+
+
+def eval_events_with_content(events: EvalEvents) -> list[Event]:
+    def content_fn(text: str) -> str:
+        if text.startswith(CONTENT_PROTOCOL):
+            return events.content.get(text, text)
+        else:
+            return text
+
+    return walk_events(events.events, content_fn)
+
+
+def walk_events(events: list[Event], content_fn: Callable[[str], str]) -> list[Event]:
+    return [walk_event(event, content_fn) for event in events]
+
+
+def walk_event(event: Event, content_fn: Callable[[str], str]) -> Event:
+    if isinstance(event, ModelEvent):
+        return walk_model_event(event, content_fn)
+    elif isinstance(event, StateEvent):
+        return walk_state_event(event, content_fn)
+    else:
+        return event
+
+
+def walk_model_event(event: ModelEvent, content_fn: Callable[[str], str]) -> ModelEvent:
+    return event.model_copy(
+        update=dict(
+            input=[walk_chat_message(message, content_fn) for message in event.input],
+            output=walk_model_output(event.output, content_fn),
+        ),
+    )
+
+
+def walk_model_output(
+    output: ModelOutput, content_fn: Callable[[str], str]
+) -> ModelOutput:
+    return output.model_copy(
+        update=dict(
+            choices=[
+                choice.model_copy(
+                    update=dict(message=walk_chat_message(choice.message, content_fn))
+                )
+                for choice in output.choices
+            ]
+        )
+    )
+
+
+def walk_state_event(event: StateEvent, content_fn: Callable[[str], str]) -> StateEvent:
+    event = event.model_copy(
+        update=dict(
+            changes=[
+                walk_state_json_change(change, content_fn) for change in event.changes
+            ]
+        )
+    )
+    return event
+
+
+def walk_state_json_change(
+    change: JsonChange, content_fn: Callable[[str], str]
+) -> JsonChange:
+    if change.path.startswith("/messages") or change.path.startswith("/output"):
+        return change.model_copy(
+            update=dict(value=walk_json_value(change.value, content_fn))
+        )
+    else:
+        return change
+
+
+def walk_json_value(value: JsonValue, content_fn: Callable[[str], str]) -> JsonValue:
+    if isinstance(value, str):
+        return content_fn(value)
+    elif isinstance(value, list):
+        return [walk_json_value(v, content_fn) for v in value]
+    elif isinstance(value, dict):
+        updates: dict[str, JsonValue] = {}
+        for k, v in value.items():
+            if k in ["content", "message", "text", "image", "value"]:
+                updates[k] = walk_json_value(v, content_fn)
+        if updates:
+            value = value.copy()
+            value.update(updates)
+        return value
+    else:
+        return value
+
+
+def walk_chat_message(
+    message: ChatMessage, content_fn: Callable[[str], str]
+) -> ChatMessage:
+    if isinstance(message.content, str):
+        return message.model_copy(update=dict(content=content_fn(message.content)))
+    else:
+        return message.model_copy(
+            update=dict(
+                content=[
+                    walk_content(content, content_fn) for content in message.content
+                ]
+            )
+        )
+
+
+def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
+    if isinstance(content, ContentText):
+        return content.model_copy(update=dict(text=content_fn(content.text)))
+    elif isinstance(content, ContentImage):
+        return content.model_copy(update=dict(image=content_fn(content.image)))
+
+
+def mm3_hash(message: str) -> str:
+    # Generate the 128-bit hash as two 64-bit integers
+    h1, h2 = mmh3.hash64(message.encode("utf-8"))
+
+    # Convert to unsigned integers and then to hexadecimal
+    return f"{h1 & 0xFFFFFFFFFFFFFFFF:016x}{h2 & 0xFFFFFFFFFFFFFFFF:016x}"

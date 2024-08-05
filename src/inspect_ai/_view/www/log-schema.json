@@ -550,6 +550,53 @@
       "type": "object",
       "additionalProperties": false
     },
+    "EvalEvents": {
+      "properties": {
+        "events": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "content": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Content",
+          "type": "object"
+        }
+      },
+      "title": "EvalEvents",
+      "type": "object",
+      "required": ["events", "content"],
+      "additionalProperties": false
+    },
     "EvalMetric": {
       "properties": {
         "name": {
@@ -838,37 +885,7 @@
           "type": "object"
         },
         "transcript": {
-          "default": [],
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/StateEvent"
-              },
-              {
-                "$ref": "#/$defs/StoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ModelEvent"
-              },
-              {
-                "$ref": "#/$defs/ScoreEvent"
-              },
-              {
-                "$ref": "#/$defs/LoggerEvent"
-              },
-              {
-                "$ref": "#/$defs/InfoEvent"
-              },
-              {
-                "$ref": "#/$defs/StepEvent"
-              },
-              {
-                "$ref": "#/$defs/SubtaskEvent"
-              }
-            ]
-          },
-          "title": "Transcript",
-          "type": "array"
+          "$ref": "#/$defs/EvalEvents"
         }
       },
       "required": [
@@ -2014,36 +2031,7 @@
           "title": "Result"
         },
         "events": {
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/StateEvent"
-              },
-              {
-                "$ref": "#/$defs/StoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ModelEvent"
-              },
-              {
-                "$ref": "#/$defs/ScoreEvent"
-              },
-              {
-                "$ref": "#/$defs/LoggerEvent"
-              },
-              {
-                "$ref": "#/$defs/InfoEvent"
-              },
-              {
-                "$ref": "#/$defs/StepEvent"
-              },
-              {
-                "$ref": "#/$defs/SubtaskEvent"
-              }
-            ]
-          },
-          "title": "Events",
-          "type": "array"
+          "$ref": "#/$defs/EvalEvents"
         }
       },
       "required": ["timestamp", "event", "name", "input", "result", "events"],

@@ -76,12 +76,12 @@ export const SampleDisplay = ({
     </${TabPanel}>`,
   ];
 
-  if (sample.transcript && sample.transcript.length > 0) {
+  if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.push(html`
       <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
         selectedTab === transcriptTabId
       }>
-        <${SampleTranscript} transcript=${sample.transcript}/>
+        <${SampleTranscript} eval_events=${sample.transcript}/>
       </${TabPanel}>`);
   }
 

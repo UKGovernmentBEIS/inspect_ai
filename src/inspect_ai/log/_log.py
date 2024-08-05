@@ -22,7 +22,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.scorer import Score
-from inspect_ai.solver._subtask.transcript import Event
+from inspect_ai.solver._subtask.transcript import EvalEvents
 
 from ._message import LoggingMessage
 
@@ -103,7 +103,7 @@ class EvalSample(BaseModel):
     store: dict[str, Any] = Field(default={})
     """State at end of sample execution."""
 
-    transcript: list[Event] = Field(default=[])
+    transcript: EvalEvents = Field(default_factory=EvalEvents)
     """Transcript of sample events."""
 
     @model_validator(mode="before")
@@ -421,17 +421,6 @@ class EvalLog(BaseModel):
         return self
 
 
-class TranscriptEvent(BaseModel):
-    sample_id: str
-    """Sample ID."""
-
-    epoch: int
-    """Sample epoch."""
-
-    event: Event
-    """Sample event."""
-
-
 LogType = Literal["plan", "sample", "score", "results", "scorer", "logging"]
 
 
@@ -450,9 +439,6 @@ class Recorder(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def log_transcript(self, eval: EvalSpec, event: TranscriptEvent) -> None: ...
-
-    @abc.abstractmethod
     def log_cancelled(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
 
     @abc.abstractmethod
@@ -467,12 +453,7 @@ class Recorder(abc.ABC):
     def read_log(self, location: str) -> EvalLog: ...
 
     @abc.abstractmethod
-    def write_log(
-        self,
-        location: str,
-        log: EvalLog,
-        events: list[TranscriptEvent] | None = None,
-    ) -> None: ...
+    def write_log(self, location: str, log: EvalLog) -> None: ...
 
     @abc.abstractmethod
     def read_latest_log(self) -> EvalLog: ...

@@ -13,13 +13,13 @@ import { ScoreEventView } from "./ScoreEventView.mjs";
  * Renders the TranscriptView component.
  *
  * @param {Object} params - The parameters for the component.
- * @param {import("../../types/log").Transcript} params.transcript - The transcript to display.
+ * @param {import("../../types/log").EvalEvents} params.transcript - The transcript to display.
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const TranscriptView = ({ transcript }) => {
   let stepDepth = 0;
   const render = getRenderer();
-  const rows = transcript.map((e, index) => {
+  const rows = transcript.events.map((e, index) => {
     const endStep = e.event === "step" && e.action === "end";
     if (endStep) {
       stepDepth--;

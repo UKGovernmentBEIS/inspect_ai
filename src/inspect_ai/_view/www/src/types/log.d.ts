@@ -235,16 +235,6 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
-export type Transcript = (
-  | StateEvent
-  | StoreEvent
-  | ModelEvent
-  | ScoreEvent
-  | LoggerEvent
-  | InfoEvent
-  | StepEvent
-  | SubtaskEvent
-)[];
 export type Logging = LoggingMessage[];
 
 export interface EvalLog {
@@ -394,7 +384,7 @@ export interface EvalSample {
   scores: Scores1;
   metadata: Metadata5;
   store: Store;
-  transcript: Transcript;
+  transcript: EvalEvents;
 }
 export interface ChatMessageSystem {
   content: Content;
@@ -491,6 +481,10 @@ export interface Score {
 }
 export interface Metadata5 {}
 export interface Store {}
+export interface EvalEvents {
+  events: Events;
+  content: Content5;
+}
 /**
  * Change to the current `TaskState`
  */
@@ -643,9 +637,12 @@ export interface SubtaskEvent {
   name: Name8;
   input: Input2;
   result: Result;
-  events: Events;
+  events: EvalEvents;
 }
 export interface Input2 {}
 export interface Result {
   [k: string]: unknown;
+}
+export interface Content5 {
+  [k: string]: string;
 }

@@ -40,7 +40,12 @@ const TokenHeader = () => {
         colspan="3"
         align="center"
         class="card-subheading"
-        style=${{ paddingBottom: "0.7rem", fontSize: FontSize.small, ...TextStyle.label, ...TextStyle.secondary }}
+        style=${{
+          paddingBottom: "0.7rem",
+          fontSize: FontSize.small,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+        }}
       >
         Tokens
       </td>

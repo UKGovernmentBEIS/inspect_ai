@@ -37,7 +37,7 @@ export const UsageCard = ({ stats, context }) => {
         }}>
 
           <div style=${{ flex: "1 1 40%", marginRight: "1em" }}>
-          <div style=${{ marginTop: "1em",  fontSize: FontSize.smaller, ...TextStyle.label, ...TextStyle.secondary }}>Duration</div>
+          <div style=${{ marginTop: "1em", fontSize: FontSize.smaller, ...TextStyle.label, ...TextStyle.secondary }}>Duration</div>
           <${MetaDataView}
             entries="${{
               ["Start"]: new Date(stats.started_at).toLocaleString(),

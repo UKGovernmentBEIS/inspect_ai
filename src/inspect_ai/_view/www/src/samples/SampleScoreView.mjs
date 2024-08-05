@@ -13,7 +13,7 @@ const labelStyle = {
   paddingLeft: "0",
   paddingBottom: "0",
   ...TextStyle.label,
-  ...TextStyle.secondary
+  ...TextStyle.secondary,
 };
 
 export const SampleScoreView = ({
@@ -66,8 +66,21 @@ export const SampleScoreView = ({
         <thead style=${{ borderBottomColor: "#00000000" }}>
           <tr>
             <th style=${{ ...labelStyle, fontWeight: "400" }}>Target</th>
-            <th style=${{ ...labelStyle, paddingBottom: "0", fontWeight: "400" }}>Answer</th>
-            <th style=${{ ...labelStyle, paddingLeft: "2em", paddingBottom: "0", fontWeight: "400" }}>Score</th>
+            <th
+              style=${{ ...labelStyle, paddingBottom: "0", fontWeight: "400" }}
+            >
+              Answer
+            </th>
+            <th
+              style=${{
+                ...labelStyle,
+                paddingLeft: "2em",
+                paddingBottom: "0",
+                fontWeight: "400",
+              }}
+            >
+              Score
+            </th>
           </tr>
         </thead>
         <tbody style=${{ borderBottomColor: "#00000000" }}>
@@ -113,8 +126,8 @@ export const SampleScoreView = ({
                   <th style=${{
                     paddingBottom: "0",
                     paddingLeft: "0",
-                    ...labelStyle
-                    , fontWeight: "400"
+                    ...labelStyle,
+                    fontWeight: "400",
                   }}>Explanation</th>
                 </tr>
               </thead>

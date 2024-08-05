@@ -403,7 +403,17 @@ const colCount = (...other) => {
 const PlanColumn = ({ title, classes, style, children }) => {
   return html`
     <div class="${classes || ""}" ...${{ style }}>
-      <div class="card-subheading" style=${{fontSize: FontSize.small, ...TextStyle.label, ...TextStyle.secondary, marginTop: "1em"}}>${title}</div>
+      <div
+        class="card-subheading"
+        style=${{
+          fontSize: FontSize.small,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+          marginTop: "1em",
+        }}
+      >
+        ${title}
+      </div>
       ${children}
     </div>
   `;
