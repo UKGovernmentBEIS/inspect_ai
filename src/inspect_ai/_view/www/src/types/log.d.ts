@@ -225,7 +225,6 @@ export type Name7 = string;
 export type Timestamp7 = string;
 export type Event7 = "subtask";
 export type Name8 = string;
-export type Name9 = string;
 export type Events = (
   | StateEvent
   | StoreEvent
@@ -644,16 +643,9 @@ export interface SubtaskEvent {
   name: Name8;
   input: Input2;
   result: Result;
-  transcript: Transcript1;
+  events: Events;
 }
 export interface Input2 {}
 export interface Result {
   [k: string]: unknown;
-}
-/**
- * Transcript of events.
- */
-export interface Transcript1 {
-  name: Name9;
-  events: Events;
 }

@@ -2013,18 +2013,40 @@
         "result": {
           "title": "Result"
         },
-        "transcript": {
-          "$ref": "#/$defs/Transcript"
+        "events": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
         }
       },
-      "required": [
-        "timestamp",
-        "event",
-        "name",
-        "input",
-        "result",
-        "transcript"
-      ],
+      "required": ["timestamp", "event", "name", "input", "result", "events"],
       "title": "SubtaskEvent",
       "type": "object",
       "additionalProperties": false
@@ -2297,53 +2319,6 @@
       "required": ["token", "logprob", "bytes"],
       "title": "TopLogprob",
       "type": "object",
-      "additionalProperties": false
-    },
-    "Transcript": {
-      "description": "Transcript of events.",
-      "properties": {
-        "name": {
-          "default": "",
-          "title": "Name",
-          "type": "string"
-        },
-        "events": {
-          "default": [],
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/StateEvent"
-              },
-              {
-                "$ref": "#/$defs/StoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ModelEvent"
-              },
-              {
-                "$ref": "#/$defs/ScoreEvent"
-              },
-              {
-                "$ref": "#/$defs/LoggerEvent"
-              },
-              {
-                "$ref": "#/$defs/InfoEvent"
-              },
-              {
-                "$ref": "#/$defs/StepEvent"
-              },
-              {
-                "$ref": "#/$defs/SubtaskEvent"
-              }
-            ]
-          },
-          "title": "Events",
-          "type": "array"
-        }
-      },
-      "title": "Transcript",
-      "type": "object",
-      "required": ["name", "events"],
       "additionalProperties": false
     }
   },

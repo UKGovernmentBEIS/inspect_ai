@@ -16,7 +16,7 @@ from inspect_ai.solver._subtask.transcript import init_transcript
 from inspect_ai.tool._tool import ToolResult
 
 from .store import Store, dict_jsonable, init_subtask_store
-from .transcript import SubtaskEvent, Transcript, track_store_changes, transcript
+from .transcript import Event, SubtaskEvent, Transcript, track_store_changes, transcript
 
 RT = TypeVar("RT", ToolResult, Any)
 
@@ -89,7 +89,8 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
             async def run() -> tuple[RT, SubtaskEvent]:
                 # initialise subtask (provisions store and transcript)
                 store = Store()
-                init_subtask(subtask_name, store)
+                events: list[Event] = []
+                init_subtask(subtask_name, store, events.append)
 
                 # run the subtask
                 with track_store_changes():
@@ -100,7 +101,7 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
                     name=subtask_name,
                     input=input,
                     result=result,
-                    transcript=transcript(),
+                    events=events,
                 )
 
                 # return result and event
@@ -128,6 +129,6 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
         return create_subtask_wrapper(name)
 
 
-def init_subtask(name: str, store: Store) -> None:
+def init_subtask(name: str, store: Store, on_event: Callable[[Event], None]) -> None:
     init_subtask_store(store)
-    init_transcript(Transcript(name=name))
+    init_transcript(Transcript(name=name, on_event=on_event))

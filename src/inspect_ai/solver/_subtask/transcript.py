@@ -141,7 +141,7 @@ class SubtaskEvent(BaseEvent):
     result: Any
     """Subtask function result."""
 
-    transcript: "Transcript"
+    events: list["Event"]
     """Transcript of events for subtask."""
 
 
@@ -158,17 +158,14 @@ Event: TypeAlias = Union[
 """Event in a transcript."""
 
 
-class Transcript(BaseModel):
+class Transcript:
     """Transcript of events."""
 
-    name: str = Field(default="")
-    """Transcript name (e.g. 'sample')."""
-
-    events: list[Event] = Field(default=[])
-    """List of events."""
-
-    on_event: Callable[[Event], None] | None = Field(default=None, exclude=True)
-    """Callback for when events are added."""
+    def __init__(
+        self, name: str = "", on_event: Callable[[Event], None] | None = None
+    ) -> None:
+        self.name = name
+        self.on_event = on_event
 
     def info(self, data: JsonValue) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -199,8 +196,6 @@ class Transcript(BaseModel):
     def _event(self, event: Event) -> None:
         if self.on_event:
             self.on_event(event)
-        else:
-            self.events.append(event)
 
 
 def transcript() -> Transcript:

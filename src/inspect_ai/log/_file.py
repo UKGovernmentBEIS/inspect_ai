@@ -15,7 +15,6 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_BUFFER_REMOTE,
 )
 from inspect_ai._util.file import FileInfo, absolute_file_path, file, filesystem
-from inspect_ai.solver._subtask.transcript import Event
 
 from ._log import (
     EvalError,

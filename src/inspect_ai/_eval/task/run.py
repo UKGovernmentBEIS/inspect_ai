@@ -343,15 +343,13 @@ async def task_run_sample(
         semaphore if semaphore else contextlib.nullcontext()
     )
 
-    # initialise subtask
-    init_subtask(SAMPLE_SUBTASK, state.store)
-
-    # subscribe to events and forward to task logger
+    # forward events to task logger
     def on_transcript_event(event: Event) -> None:
         if logger:
             logger.log_event(str(state.sample_id), state.epoch, event)
 
-    transcript().on_event = on_transcript_event
+    # initialise subtask
+    init_subtask(SAMPLE_SUBTASK, state.store, on_transcript_event)
 
     # use toolenv if provided
     sandboxenv_cm = (
