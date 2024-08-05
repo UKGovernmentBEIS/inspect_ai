@@ -29,6 +29,7 @@ from ._log import (
     TranscriptEvent,
 )
 from ._message import LoggingMessage
+from ._transcript import init_transcript, log_transcript_events, transcript_file
 
 LOG_SCHEMA_VERSION = 2
 
@@ -280,7 +281,7 @@ class JSONRecorder(FileRecorder):
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
-        events: list[TranscriptEvent]
+        events: list[TranscriptEvent] | None
 
     def __init__(self, log_dir: str, log_buffer: int | None = None):
         # call super
@@ -308,14 +309,25 @@ class JSONRecorder(FileRecorder):
 
     def log_start(self, eval: EvalSpec) -> str:
         # initialize file log for this eval
-        file = self._log_file_path(eval)
+        # compute an absolute path if it's a relative ref
+        # (so that the writes go to the correct place even
+        # if the working directory is switched for a task)
+        file = absolute_file_path(self._log_file_path(eval))
+
+        # attempt to initialiase an event database for this
+        # log file. if we succeed then initialise event
+        events: list[TranscriptEvent] | None = None
+        if init_transcript(self._local_db_path(file)):
+            events = []
 
         # compute an absolute path if it's a relative ref
         # (so that the writes go to the correct place even
         # if the working directory is switched for a task)
         self.data[self._log_file_key(eval)] = JSONRecorder.JSONLogFile(
-            file=absolute_file_path(file), data=EvalLog(eval=eval), events=[]
+            file=file, data=EvalLog(eval=eval), events=events
         )
+
+        # attempt to
         return file
 
     def log(
@@ -343,7 +355,8 @@ class JSONRecorder(FileRecorder):
 
     def log_transcript(self, spec: EvalSpec, event: TranscriptEvent) -> None:
         log = self.data[self._log_file_key(spec)]
-        log.events.append(event)
+        if log.events is not None:
+            log.events.append(event)
 
     def log_cancelled(
         self,
@@ -370,7 +383,12 @@ class JSONRecorder(FileRecorder):
     def flush_log(self, log: JSONLogFile) -> None:
         self.flush_pending += 1
         if self.flush_pending >= self.flush_buffer:
+            # write the log and current batch of events
             self.write_log(log.file, log.data, log.events)
+
+            # clear the events so they aren't logged again
+            if log.events is not None:
+                log.events.clear()
 
     def write_log(
         self,
@@ -395,19 +413,9 @@ class JSONRecorder(FileRecorder):
         # write the log file
         write_eval_log(log, location)
 
+        # write transcript events
         if events:
-            # append events to the local db
-            events_db = self._local_db_path(location)
-            with open(events_db, "a+") as file:
-                file.writelines(
-                    [
-                        f"{event.sample_id}-{event.epoch}-{event.event}\n"
-                        for event in events
-                    ]
-                )
-
-            # clear the events
-            events.clear()
+            log_transcript_events(self._local_db_path(location), events)
 
         self.flush_pending = 0
 
@@ -431,7 +439,7 @@ class JSONRecorder(FileRecorder):
         # move the db file into the final target dir
         event_db = self._local_db_path(log.file)
         fs = filesystem(log.file)
-        fs.put_file(event_db, self._with_db_suffix(log.file))
+        fs.put_file(event_db, transcript_file(log.file))
         Path(event_db).unlink(True)
 
         # stop tracking this data
@@ -440,7 +448,4 @@ class JSONRecorder(FileRecorder):
         return log.data
 
     def _local_db_path(self, location: str) -> str:
-        return self._with_db_suffix((self.events_dir / Path(location).name).as_posix())
-
-    def _with_db_suffix(self, location: str) -> str:
-        return location[: -len(".json")] + ".trsc"
+        return transcript_file((self.events_dir / Path(location).name).as_posix())
