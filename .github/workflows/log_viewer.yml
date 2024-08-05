@@ -9,7 +9,7 @@ on:
       - "*"
 
 jobs:
-  setup:
+  prettier:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -20,45 +20,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.x"
-
       - name: Install dependencies
         run: yarn install
-
-      - name: Cache node_modules
-        id: cache-save
-        uses: actions/cache@v3
-        with:
-          path: src/inspect_ai/_view/www/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('src/inspect_ai/_view/www/yarn.lock') }}
-
-  prettier:
-    needs: setup
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/inspect_ai/_view/www
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-      - name: Fetch node_modules cache
-        id: cache-fetch
-        uses: actions/cache/restore@v3
-        with:
-          path: src/inspect_ai/_view/www/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('src/inspect_ai/_view/www/yarn.lock') }}
-      - if: ${{ steps.cache-fetch.outputs.cache-hit != 'true' }}
-        name: Failed to load node_modules
-        continue-on-error: false
-        run: exit 1
 
       - name: Check prettier
         run: yarn prettier:check
 
   lint:
-    needs: setup
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -69,22 +37,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.x"
-      - name: Fetch node_modules cache
-        id: cache-fetch
-        uses: actions/cache/restore@v3
-        with:
-          path: src/inspect_ai/_view/www/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('src/inspect_ai/_view/www/yarn.lock') }}
-      - if: ${{ steps.cache-fetch.outputs.cache-hit != 'true' }}
-        name: Failed to load node_modules
-        continue-on-error: false
-        run: exit 1
+      - name: Install dependencies
+        run: yarn install
 
       - name: Run eslint
         run: yarn eslint
 
   build:
-    needs: setup
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -95,16 +54,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.x"
-      - name: Fetch node_modules cache
-        id: cache-fetch
-        uses: actions/cache/restore@v3
-        with:
-          path: src/inspect_ai/_view/www/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('src/inspect_ai/_view/www/yarn.lock') }}
-      - if: ${{ steps.cache-fetch.outputs.cache-hit != 'true' }}
-        name: Failed to load node_modules
-        continue-on-error: false
-        run: exit 1
+      - name: Install dependencies
+        run: yarn install
 
       - name: Build log viewer
         run: yarn build
