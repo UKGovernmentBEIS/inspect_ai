@@ -269,6 +269,9 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
           )}</script>`
           : "";
 
+      // decorate the html tag
+      indexHtml = indexHtml.replace("<html ", '<html class="vscode" ');
+
       // add content security policy
       indexHtml = indexHtml.replace(
         "<head>\n",
