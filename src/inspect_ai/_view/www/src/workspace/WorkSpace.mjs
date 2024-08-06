@@ -11,7 +11,6 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
-import { LoggingPanel } from "../logging/LoggingPanel.mjs";
 import { PlanCard } from "../plan/PlanCard.mjs";
 import { samplesDescriptor } from "../samples/SamplesDescriptor.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
@@ -27,7 +26,6 @@ import { FontSize } from "../appearance/Fonts.mjs";
 
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
-const kLoggingTabId = "logging-tab";
 const kInfoTabId = "plan-tab";
 
 const kPrismRenderMaxSize = 250000;
@@ -217,22 +215,6 @@ export const WorkSpace = (props) => {
           ${infoCards}
         </div>`;
       },
-    };
-
-    // The Logging Messages tab
-    resolvedTabs.logging = {
-      id: kLoggingTabId,
-      label: "Logging",
-      scrollable: true,
-      content: () => {
-        return html`<${LoggingPanel}
-          logFile=${workspaceLog.name}
-          logging=${workspaceLog.contents?.logging}
-          capabilities=${props.capabilities}
-          context=${context}
-        />`;
-      },
-      tools: () => [],
     };
 
     // The JSON Tab

@@ -25,7 +25,6 @@ from ._log import (
     LogType,
     Recorder,
 )
-from ._message import LoggingMessage
 
 LOG_SCHEMA_VERSION = 2
 
@@ -181,7 +180,6 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
         # prune if header_only
         if header_only:
             log.samples = None
-            log.logging.clear()
 
         # return log
         return log
@@ -317,7 +315,7 @@ class JSONRecorder(FileRecorder):
         self,
         spec: EvalSpec,
         type: LogType,
-        data: EvalPlan | EvalSample | EvalResults | LoggingMessage,
+        data: EvalPlan | EvalSample | EvalResults,
         flush: bool = False,
     ) -> None:
         log = self.data[self._log_file_key(spec)]
@@ -327,8 +325,6 @@ class JSONRecorder(FileRecorder):
             if log.data.samples is None:
                 log.data.samples = []
             log.data.samples.append(cast(EvalSample, data))
-        elif type == "logging":
-            log.data.logging.append(cast(LoggingMessage, data))
         elif type == "results":
             log.data.results = cast(EvalResults, data)
         else:

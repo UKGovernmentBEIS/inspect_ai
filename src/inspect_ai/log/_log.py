@@ -24,8 +24,6 @@ from inspect_ai.model import (
 from inspect_ai.scorer import Score
 from inspect_ai.solver._subtask.transcript import EvalEvents
 
-from ._message import LoggingMessage
-
 SCORER_PLACEHOLDER = "88F74D2C"
 
 
@@ -406,9 +404,6 @@ class EvalLog(BaseModel):
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
 
-    logging: list[LoggingMessage] = Field(default=[])
-    """Logging message captured during eval."""
-
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:
@@ -421,7 +416,7 @@ class EvalLog(BaseModel):
         return self
 
 
-LogType = Literal["plan", "sample", "score", "results", "scorer", "logging"]
+LogType = Literal["plan", "sample", "score", "results", "scorer"]
 
 
 class Recorder(abc.ABC):
@@ -433,7 +428,7 @@ class Recorder(abc.ABC):
         self,
         spec: EvalSpec,
         type: LogType,
-        data: EvalSample | EvalPlan | EvalResults | LoggingMessage,
+        data: EvalSample | EvalPlan | EvalResults,
         flush: bool = False,
     ) -> None:
         pass

@@ -1,5 +1,4 @@
 from importlib import metadata as importlib_metadata
-from logging import LogRecord
 from typing import Any, cast
 
 from shortuuid import uuid
@@ -7,7 +6,6 @@ from shortuuid import uuid
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.git import git_context
-from inspect_ai._util.logger import logger_records
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (
     registry_log_name,
@@ -26,7 +24,6 @@ from inspect_ai.log import (
     EvalSample,
     EvalSpec,
     EvalStats,
-    LoggingMessage,
 )
 from inspect_ai.log._log import LogType, Recorder
 from inspect_ai.model import (
@@ -110,7 +107,7 @@ class TaskLogger:
     def log(
         self,
         type: LogType,
-        data: EvalSample | EvalPlan | EvalResults | LoggingMessage,
+        data: EvalSample | EvalPlan | EvalResults,
         flush: bool = False,
     ) -> None:
         self.recorder.log(self.eval, type, data, flush)
@@ -188,11 +185,3 @@ def collect_eval_data(stats: EvalStats, logger: TaskLogger) -> None:
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()
-
-    # collect log output
-    log_logger_records(logger, logger_records())
-
-
-def log_logger_records(logger: TaskLogger, records: list[LogRecord]) -> None:
-    for record in records:
-        logger.log("logging", LoggingMessage.from_log_record(record))
