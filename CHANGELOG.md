@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Log viewer: Ctrl/Cmd+F to find text when running in VS Code.
+- Set Claude default `max_tokens` to 4096
 
 ## v0.3.20 (03 August 2024)
 
