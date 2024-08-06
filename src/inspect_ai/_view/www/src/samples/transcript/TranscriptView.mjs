@@ -9,6 +9,8 @@ import { InfoEventView } from "./InfoEventView.mjs";
 import { StepEventViewEnd } from "./StepEventViewEnd.mjs";
 import { ScoreEventView } from "./ScoreEventView.mjs";
 
+const kContentProtocol = "tc://";
+
 /**
  * Renders the TranscriptView component.
  *
@@ -145,8 +147,7 @@ const resolveEventContent = (evalEvents) => {
       // @ts-ignore
       e.output = resolveValue(e.output, evalEvents);
       return e;
-    } else if (e.event === "store" || e.event === "state") {
-      // @ts-ignore (Changes|Changes1 are both ok)
+    } else if (e.event === "state") {
       e.changes = e.changes.map((change) => {
         change.value = resolveValue(change.value, evalEvents);
         return change;
@@ -178,10 +179,8 @@ const resolveValue = (value, evalEvents) => {
     }
     return resolvedObject;
   } else if (typeof value === "string") {
-    if (value.startsWith("tc://")) {
-      const contentUri = new URL(value);
-      const contentId = contentUri.host;
-      value = evalEvents.content[contentId];
+    if (value.startsWith(kContentProtocol)) {
+      value = evalEvents.content[value.replace(kContentProtocol, "")];
     }
   }
   return value;
