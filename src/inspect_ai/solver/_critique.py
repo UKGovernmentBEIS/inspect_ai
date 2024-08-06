@@ -1,3 +1,4 @@
+from inspect_ai._util.dict import omit
 from inspect_ai.model import (
     ChatMessageUser,
     Model,
@@ -27,6 +28,8 @@ def self_critique(
       critique_template (str | None): String or path to file
          containing critique template. The template uses two
          variables: `question` and `completion`.
+         Variables from sample `metadata` are also available
+         in the template.
       completion_template (str | None): String or path to file
           containing completion template. The template uses
           three variables: `question`,  `completion`, and `critique`
@@ -44,11 +47,15 @@ def self_critique(
     model = get_model(model)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # metadata without critique template variables
+        metadata = omit(state.metadata, ["question", "completion", "critique"])
+
         # run critique
         critique = await model.generate(
             critique_template.format(
                 question=state.input_text,
                 completion=state.output.completion,
+                **metadata,
             )
         )
 
@@ -59,6 +66,7 @@ def self_critique(
                     question=state.input_text,
                     completion=state.output.completion,
                     critique=critique.completion,
+                    **metadata,
                 ),
             )
         )
