@@ -32,7 +32,7 @@ def http_rate_limit_count() -> int:
 
 def warn_once(logger: Logger, message: str) -> None:
     if message not in _warned:
-        logger.warn(message)
+        logger.warning(message)
         _warned.append(message)
 
 
