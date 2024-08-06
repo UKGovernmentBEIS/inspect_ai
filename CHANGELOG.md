@@ -6,6 +6,7 @@
 - Log viewer: Ctrl/Cmd+F to find text when running in VS Code.
 - Set Claude default `max_tokens` to 4096
 - Combine user and assistant messages for Vertex models.
+- Warn when using the `name` parameter with task created from `@task` decorated function.
 
 ## v0.3.20 (03 August 2024)
 
