@@ -38,7 +38,7 @@ export const Navbar = ({ file, logs, log, offcanvas }) => {
             display: "flex",
             paddingTop: 0,
             marginLeft: "0.5rem",
-            minWidth: "350px",
+            minWidth: "250px",
           }}
         >
           ${logs.files.length > 1 || logs.log_dir
