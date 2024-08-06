@@ -3,6 +3,7 @@ import os
 from typing import Any, cast
 
 from openai import (
+    APIConnectionError,
     APIStatusError,
     APITimeoutError,
     AsyncAzureOpenAI,
@@ -198,7 +199,7 @@ class OpenAIAPI(ModelAPI):
                 and "You exceeded your current quota" not in ex.message
             ):
                 return True
-        elif isinstance(ex, APITimeoutError):
+        elif isinstance(ex, (APIConnectionError | APITimeoutError)):
             return True
         return False
 
