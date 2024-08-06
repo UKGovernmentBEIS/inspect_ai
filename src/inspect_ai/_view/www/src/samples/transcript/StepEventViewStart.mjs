@@ -39,7 +39,7 @@ export const StepEventViewStart = ({ event }) => {
       display: "grid",
       gridTemplateRows: "max-content auto",
       marginBottom: "1em",
-      borderBottom: "solid 1px var(--bs-light-border-subtle)"
+      borderBottom: "solid 1px var(--bs-light-border-subtle)",
     }}
   >
     <div
@@ -48,7 +48,7 @@ export const StepEventViewStart = ({ event }) => {
         justifySelf: "left",
         fontSize: FontSize.base,
         fontWeight: 500,
-        ...TextStyle.label
+        ...TextStyle.label,
       }}
     >
       <i class=${icon()} style=${{ marginRight: "0.2em" }} />${event.name}

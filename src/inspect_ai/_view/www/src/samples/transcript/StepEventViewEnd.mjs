@@ -21,8 +21,7 @@ export const StepEventViewEnd = ({ event, stepStartTime }) => {
       marginBottom: "2em",
       fontSize: FontSize.smaller,
       ...TextStyle.label,
-      ...TextStyle.secondary
+      ...TextStyle.secondary,
     }}
-  >
-  </div>`;
+  ></div>`;
 };
