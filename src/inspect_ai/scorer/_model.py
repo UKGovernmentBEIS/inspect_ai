@@ -1,6 +1,7 @@
 import re
 from functools import partial
 
+from inspect_ai._util.dict import omit
 from inspect_ai.model import ChatMessageUser, Model, get_model
 from inspect_ai.solver import TaskState
 from inspect_ai.util import resource
@@ -25,7 +26,8 @@ def model_graded_fact(
     Args:
       template (str): Template for grading prompt. This template uses
         four variables: `question`, `criterion`, `answer`, and
-        `instructions` (which is fed from the `instructions` parameter)
+        `instructions` (which is fed from the `instructions` parameter).
+        Variables from sample `metadata` are also available in the template.
       instructions (str): Grading instructions. This should
         include a prompt for the model to answer (e.g. with
         with chain of thought reasoning) in a way that matches
@@ -65,7 +67,8 @@ def model_graded_qa(
     Args:
       template (str): Template for grading prompt. This template uses
         four variables: `question`, `criterion`, `answer`, and
-        `instructions` (which is fed from the `instructions` parameter)
+        `instructions` (which is fed from the `instructions` parameter).
+        Variables from sample `metadata` are also available in the template.
       instructions (str): Grading instructions. This should
         include a prompt for the model to answer (e.g. with
         with chain of thought reasoning) in a way that matches
@@ -119,12 +122,17 @@ def _model_graded_qa_single(
     grade_pattern = grade_pattern if grade_pattern else DEFAULT_GRADE_PATTERN
 
     async def score(state: TaskState, target: Target) -> Score:
+        # metadata without grading template variables
+        metadata = omit(
+            state.metadata, ["question", "answer", "criterion", "instructions"]
+        )
         # format the scoring template
         score_prompt = grading_template.format(
             question=state.input_text,
             answer=state.output.completion,
             criterion=target.text,
             instructions=instructions,
+            **metadata,
         )
 
         # query the model for the score
