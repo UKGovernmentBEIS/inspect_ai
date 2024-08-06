@@ -13,13 +13,13 @@ import { ScoreEventView } from "./ScoreEventView.mjs";
  * Renders the TranscriptView component.
  *
  * @param {Object} params - The parameters for the component.
- * @param {import("../../types/log").EvalEvents} params.transcript - The transcript to display.
+ * @param {import("../../types/log").EvalEvents} params.evalEvents - The transcript events to display.
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export const TranscriptView = ({ transcript }) => {
+export const TranscriptView = ({ evalEvents }) => {
   let stepDepth = 0;
   const render = getRenderer();
-  const rows = transcript.events.map((e, index) => {
+  const rows = evalEvents.events.map((e, index) => {
     const endStep = e.event === "step" && e.action === "end";
     if (endStep) {
       stepDepth--;
@@ -40,26 +40,8 @@ export const TranscriptView = ({ transcript }) => {
       html`
         <div
           style=${{
-            gridColumn: "1",
-            opacity: beginStep ? "1" : "0.7",
-            fontSize: "0.7rem",
-            paddingTop: ".5em",
-          }}
-        >
-          ${e.timestamp}
-        </div>
-        <div
-          style=${{
-            gridColumn: "2",
-            width: ".1em",
-            borderRight: "solid var(--bs-light-border-subtle) .1em",
-            paddingTop: ".5em",
-          }}
-        ></div>
-        <div
-          style=${{
-            gridColumn: "3",
-            paddingTop: ".5em",
+            paddingTop: ".4em",
+            paddingBottom: ".4em",
           }}
         >
           <div style=${indentStyle}>${render(e, index)}</div>
@@ -71,7 +53,6 @@ export const TranscriptView = ({ transcript }) => {
       rows.push(
         html`<div
           style=${{
-            gridColumn: "1/-1",
             borderTop: "solid var(--bs-light-border-subtle) .1em",
             height: ".1em",
             width: "100%",
@@ -88,8 +69,6 @@ export const TranscriptView = ({ transcript }) => {
     style=${{
       fontSize: "0.8em",
       display: "grid",
-      gridTemplateColumns: "max-content max-content auto",
-      columnGap: "1em",
     }}
   >
     ${rows}

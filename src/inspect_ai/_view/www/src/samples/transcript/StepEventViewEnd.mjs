@@ -1,6 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { formatTime } from "../../utils/Format.mjs";
+import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -17,11 +18,11 @@ export const StepEventViewEnd = ({ event, stepStartTime }) => {
 
   return html`<div
     style=${{
-      marginBottom: "0.5em",
-      textTransform: "uppercase",
-      fontSize: "0.7rem",
+      marginBottom: "2em",
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary
     }}
   >
-    ${event.name} finished (${formatTime(durationSec)})
   </div>`;
 };

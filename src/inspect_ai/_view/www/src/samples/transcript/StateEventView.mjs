@@ -34,11 +34,11 @@ export const StateEventView = ({ event }) => {
   <${TranscriptEvent} name=${title}>
     <div
       style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content max-content 1fr",
-        columnGap: "1em",
-        rowGap: 0,
-      }}
+      display: "grid",
+      gridTemplateColumns: "max-content max-content 1fr",
+      columnGap: "1em",
+      rowGap: 0,
+    }}
     >
       ${mutations}
     </div>  

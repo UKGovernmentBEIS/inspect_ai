@@ -1,6 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -37,14 +38,17 @@ export const StepEventViewStart = ({ event }) => {
     style=${{
       display: "grid",
       gridTemplateRows: "max-content auto",
+      marginBottom: "1em",
+      borderBottom: "solid 1px var(--bs-light-border-subtle)"
     }}
   >
     <div
       style=${{
         display: "inline-block",
         justifySelf: "left",
-        fontSize: "0.9rem",
-        fontWeight: 600,
+        fontSize: FontSize.base,
+        fontWeight: 500,
+        ...TextStyle.label
       }}
     >
       <i class=${icon()} style=${{ marginRight: "0.2em" }} />${event.name}

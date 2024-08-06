@@ -14,7 +14,7 @@ export const SubtaskEventView = ({ event }) => {
   return html`
     <${TranscriptEvent} name="Subtask: ${event.name}" collapse="true">
     <${TranscriptView}
-      transcript=${event.events}
+      evalEvents=${event.events}
     />
     </${TranscriptEvent}>`;
 };

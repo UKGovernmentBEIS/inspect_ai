@@ -81,7 +81,7 @@ export const SampleDisplay = ({
       <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
         selectedTab === transcriptTabId
       }>
-        <${SampleTranscript} eval_events=${sample.transcript}/>
+        <${SampleTranscript} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
 
