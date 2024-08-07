@@ -38,14 +38,14 @@ export const ModelEventView = ({ event, baseId }) => {
 
   return html`
   <${EventPanel} title="Model Call: ${event.model}">
-  <div>
-    <${MetaDataView} entries=${modelProperties} compact=${true} />
-  </div>
-  <div>
+  
+  <div style=${{ display: "grid", gridTemplateColumns: "1fr max-content" }}>
     <${ChatView}
       id="model-input-${baseId}"
       messages=${[...outputMessages]}
       />
-  </div>  
+    <${MetaDataView} entries=${modelProperties} compact=${true} />
+  </div>
+
   </${EventPanel}>`;
 };

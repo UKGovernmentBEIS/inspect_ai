@@ -16,13 +16,14 @@ export const LoggerEventView = ({ event }) => {
   const date = new Date(event.message.created);
 
   return html`
-  <${EventPanel}>
-  <div
-    style=${{ width: "100%", display: "grid", gridTemplateColumns: "max-content max-content max-content max-content 1fr", columnGap: "0.5em", fontSize: FontSize.base }}
+  <${EventPanel} 
+    title=${event.message.level} 
+    icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
+    style="compact"
   >
-    <div><i class=${ApplicationIcons.logging[event.message.level.toLowerCase()]}/></div>
-    <div>${date.toUTCString()}</div>
-    <div>${event.message.name}</div>
+  <div
+    style=${{ width: "100%", display: "grid", gridTemplateColumns: "max-content max-content 1fr", columnGap: "0.5em", fontSize: FontSize.base }}
+  >
     <div>${event.message.filename} (L:${event.message.lineno})</div>
     <div>${event.message.message}</div>
   </div>

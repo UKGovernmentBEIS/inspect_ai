@@ -9,18 +9,13 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param {string | undefined} props.title - The name of the event
- * @param {Object} props.stats - The stats for the event
- * @param {number} props.stats.steps - The child steps for this event
- * @param {number} props.stats.duration - The duration of this event
- * @param {Object} props.contents - The contents for the event
- * @param {import("preact").JSX.Element | undefined} props.contents.summary - The summary view for the event
- * @param {import("preact").JSX.Element | undefined} props.contents.detail - The detailed view for the event
- * @param {import("preact").JSX.Element | undefined} props.contents.raw - The raw view for the event
+ * @param {string | undefined} props.icon - The name of the event
+ * @param {"normal"|"compact"} props.style - The style of the display
  * @param {boolean | undefined} props.collapse - Whether to collapse this entry
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const EventPanel = ({ title, stats, contents, collapse, children }) => {
+export const EventPanel = ({ title, icon, style, collapse, children }) => {
   /**
    * State hook for managing the collapsed state.
    *
@@ -31,21 +26,41 @@ export const EventPanel = ({ title, stats, contents, collapse, children }) => {
     setCollapsed(!collapsed);
   }, [collapsed, setCollapsed]);
 
+  style = style || "normal";
   const titleEl = title
     ? html`<div
-        class="card-title"
-        style=${{ fontSize: FontSize.large, ...TextStyle.secondary }}
+        style=${{
+          paddingLeft: "0.5em",
+          display: "grid",
+          gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
+          columnGap: "0.5em",
+          fontSize: FontSize.small,
+        }}
       >
-        <i class=${ApplicationIcons.metadata} /> ${title}
+        <i
+          class=${icon || ApplicationIcons.metadata}
+          style=${{ ...TextStyle.secondary }}
+        />
+        <div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+          ${title}
+        </div>
+        <div>${style === "compact" ? children : ""}</div>
       </div>`
     : "";
 
   const card = html` <div
     class="card"
-    style=${{ padding: "0.5rem", marginBottom: "-1px" }}
+    style=${{
+      padding: style === "normal" ? "0.5em" : "0.1em 0.5em",
+      marginBottom: "-1px",
+    }}
   >
     ${titleEl}
-    <div class="card-body" style=${{ padding: 0, margin: 0 }}>${children}</div>
+    ${style === "normal"
+      ? html`<div class="card-body" style=${{ padding: 0, marginLeft: "2em" }}>
+          ${children}
+        </div>`
+      : ""}
   </div>`;
 
   return card;
