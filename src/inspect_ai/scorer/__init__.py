@@ -27,6 +27,7 @@ from ._reducer import (
     mean_score,
     median_score,
     mode_score,
+    pass_at,
     score_reducer,
 )
 from ._scorer import Scorer, scorer
@@ -68,4 +69,5 @@ __all__ = [
     "median_score",
     "max_score",
     "at_least",
+    "pass_at",
 ]
