@@ -123,6 +123,7 @@ def pass_at(
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_at_k)
 
+    setattr(at_least, REDUCER_NAME, f"pass_at_{k}")
     return reduce
 
 
