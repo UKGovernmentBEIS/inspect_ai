@@ -1,5 +1,5 @@
 from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.version import verify_required_version
+from inspect_ai._util.version import verify_max_version, verify_required_version
 
 from .._model import ModelAPI
 from .._registry import modelapi
@@ -138,7 +138,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "0.1.3"
+    MAX_VERSION = "0.4.2"
 
     # verify we have the package
     try:
@@ -147,7 +147,7 @@ def mistral() -> type[ModelAPI]:
         raise pip_dependency_error(FEATURE, [PACKAGE])
 
     # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+    verify_max_version(FEATURE, PACKAGE, MAX_VERSION)
 
     # in the clear
     from .mistral import MistralAPI
