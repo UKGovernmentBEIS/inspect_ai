@@ -21,28 +21,32 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const EventPanel = ({ title, stats, contents, collapse, children }) => {
-    /**
-     * State hook for managing the collapsed state.
-     *
-     * @type {[boolean|undefined, (value: boolean|undefined) => void]}
-     */
-    const [collapsed, setCollapsed] = useState(collapse);
-    const onCollapse = useCallback(() => {
-        setCollapsed(!collapsed);
-    }, [collapsed, setCollapsed]);
+  /**
+   * State hook for managing the collapsed state.
+   *
+   * @type {[boolean|undefined, (value: boolean|undefined) => void]}
+   */
+  const [collapsed, setCollapsed] = useState(collapse);
+  const onCollapse = useCallback(() => {
+    setCollapsed(!collapsed);
+  }, [collapsed, setCollapsed]);
 
+  const titleEl = title
+    ? html`<div
+        class="card-title"
+        style=${{ fontSize: FontSize.large, ...TextStyle.secondary }}
+      >
+        <i class=${ApplicationIcons.metadata} /> ${title}
+      </div>`
+    : "";
 
-    const titleEl = title ? html`<div class="card-title" style=${{ fontSize: FontSize.large, ...TextStyle.secondary}}><i class=${ApplicationIcons.metadata}/> ${title}</div>` : "";
+  const card = html` <div
+    class="card"
+    style=${{ padding: "0.5rem", marginBottom: "-1px" }}
+  >
+    ${titleEl}
+    <div class="card-body" style=${{ padding: 0, margin: 0 }}>${children}</div>
+  </div>`;
 
-    const card = html`
-    <div class="card" style=${{padding: "0.5rem", marginBottom: "-1px"}}>
-        ${titleEl}
-        <div class="card-body" style=${{ padding: 0, margin: 0}}>
-            ${children}
-        </div>
-    </div>`
-
-
-    return card;
+  return card;
 };
-

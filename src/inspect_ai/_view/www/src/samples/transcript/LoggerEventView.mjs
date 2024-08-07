@@ -12,7 +12,6 @@ import { FontSize } from "../../appearance/Fonts.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const LoggerEventView = ({ event }) => {
-
   // Create a Date object from the timestamp
   const date = new Date(event.message.created);
 

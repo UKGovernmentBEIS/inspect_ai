@@ -13,10 +13,11 @@ import { EventPanel } from "./EventPanel.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const ModelEventView = ({ event, baseId }) => {
-
-  const tools = event.tools.map((tool) => {
-    return tool.name;
-  }).join(",");
+  const tools = event.tools
+    .map((tool) => {
+      return tool.name;
+    })
+    .join(",");
 
   const modelProperties = {
     ...event.config,

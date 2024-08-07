@@ -45,25 +45,30 @@ export const StepEventView = ({ event, baseId, children }) => {
       rowGap: "0.3em",
       marginBottom: "2em",
       fontSize: FontSize.larger,
-      
     }}
   >
     <i class=${icon()} style=${{ marginRight: "0.2em" }} />
     <div
       style=${{
-      display: "inline-block",
-      justifySelf: "left",
-    }}
-    >  
-       ${event.name}
+        display: "inline-block",
+        justifySelf: "left",
+      }}
+    >
+      ${event.name}
     </div>
     <div style=${{ display: "grid", justifyContent: "center" }}>
-      <div style=${{ background: "var(--bs-light-border-subtle", height: "100%", width: "2px" }}></div>
+      <div
+        style=${{
+          background: "var(--bs-light-border-subtle",
+          height: "100%",
+          width: "2px",
+        }}
+      ></div>
     </div>
-    <div>
+    <div style=${{ fontSize: FontSize.small }}>
       ${children.map((child, index) => {
-      return renderNode(child, `${baseId}-1`);
-    })}
+        return renderNode(child, `${baseId}-1`);
+      })}
     </div>
-    </div>`;
+  </div>`;
 };
