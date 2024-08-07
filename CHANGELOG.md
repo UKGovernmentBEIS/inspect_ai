@@ -1,6 +1,18 @@
 # Changelog
 
-## v0.3.19 (Unreleased)
+## v0.3.20 (03 August 2024)
+
+- `Epochs` data type for specifying epochs and reducers together (deprecated `epochs_reducer` argument). 
+- Enable customisation of model generation cache dir via `INSPECT_CACHE_DIR` environment variable.
+- Use doc comment description rather than `prompt` attribute of `@tool` for descriptions.
+- Include examples section from doc comments in tool descriptions.
+- Add `tool_with()` function for adapting tools to have varying names and parameter descriptions.
+- Improve recording of `@task` arguments so that dynamically created tasks can be retried.
+- Only print `eval-retry` message to terminal for filesystem based tasks.
+- Enhance Python logger messages to capture more context from the log record.
+- Fix an issue that could result in duplicate display of scorers in log view when using multiple epoch reducers.
+
+## v0.3.19 (02 August 2024)
 
 - [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
 - [Groq](https://groq.com/) model provider.
@@ -41,6 +53,7 @@
 - Preserve `tool_error` text for Anthropic tool call responses.
 - Fix issue with rate limit reporting being per task not per eval.
 - Set maximum rate limit backoff time to 30 minutes
+- Retry with exponential backoff for web_search Google provider.
 
 
 

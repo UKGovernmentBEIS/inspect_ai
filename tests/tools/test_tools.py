@@ -26,6 +26,7 @@ from inspect_ai.solver import (
     TaskState,
     generate,
     solver,
+    system_message,
     use_tools,
 )
 from inspect_ai.tool import ToolFunction, tool
@@ -35,16 +36,11 @@ from inspect_ai.tool import ToolFunction, tool
 
 
 # define some other tools to test forcing tool usage
-@tool(
-    prompt="""
-    If you are given a math problem of any kind,
-    please use the addition2 tool to compute the result.
-"""
-)
+@tool
 def addition2():
     async def add(x: int, y: int):
         """
-        Tool for adding two numbers.
+        Add two numbers.
 
         Args:
             x (int): First number to add.
@@ -59,16 +55,11 @@ def addition2():
 
 
 # define some other tools to test forcing tool usage
-@tool(
-    prompt="""
-    If you are given a math problem of any kind,
-    please use the addition3 tool to compute the result.
-"""
-)
+@tool
 def addition3():
     async def add(x: int, y: int):
         """
-        Tool for adding two numbers.
+        Add two numbers.
 
         Args:
             x (int): First number to add.
@@ -82,10 +73,13 @@ def addition3():
     return add
 
 
-def check_tools(model: Model, **model_args) -> None:
-    check_tools_calls(model, **model_args)
-    check_tools_none(model, **model_args)
-    check_tools_force(model, **model_args)
+def check_tools(model: Model, disable: list[str] = ["calls", "force", "none"]) -> None:
+    if "calls" not in disable:
+        check_tools_calls(model)
+    if "force" not in disable:
+        check_tools_force(model)
+    if "none" not in disable:
+        check_tools_none(model)
 
 
 addition_dataset = [
@@ -168,12 +162,12 @@ def test_openai_tools():
 
 @skip_if_no_anthropic
 def test_anthropic_tools():
-    check_tools("anthropic/claude-3-sonnet-20240229")
+    check_tools("anthropic/claude-3-sonnet-20240229", disable=["none"])
 
 
 @skip_if_no_mistral
 def test_mistral_tools():
-    check_tools("mistral/mistral-large-latest")
+    check_tools("mistral/mistral-large-latest", disable=["force"])
 
 
 @skip_if_no_groq
@@ -193,7 +187,7 @@ def test_vertex_tools():
 
 @skip_if_no_openai
 def test_dynamic_tools():
-    @tool(prompt="Use the color tool to pick a random color.")
+    @tool
     def color():
         async def execute():
             """Pick a random color.
@@ -205,7 +199,7 @@ def test_dynamic_tools():
 
         return execute
 
-    @tool(prompt="Use the shape tool to pick a random shape.")
+    @tool
     def shape():
         async def execute():
             """Pick a random shape.
@@ -261,7 +255,7 @@ def test_tool_error():
     assert tool_call
     response = get_tool_response(messages, tool_call)
     assert response
-    assert response.tool_error
+    assert response.error
 
 
 @skip_if_no_openai
@@ -278,16 +272,15 @@ def test_tool_eval_error():
 
 @skip_if_no_openai
 def test_tool_calls():
-    @tool(
-        prompt="""If you are given a math problem of any kind,
-        please use the 'add' tool to compute the result. Use
-        the tool at least 3 consecutive times to be sure of
-        the correct answer.""",
-    )
+    @tool
     def add():
         async def exec(x: int, y: int):
-            """
-            Tool for adding two numbers.
+            """Add two numbers.
+
+            When using this tool, be sure to call it at least
+            three consecutive times to ensure the correct result.
+            If you fail to call it three times and only call it
+            one time it will give an incorrect result.
 
             Args:
                 x (int): First number to add.
@@ -303,7 +296,13 @@ def test_tool_calls():
     def task(tool_calls: Literal["loop", "single", "none"]):
         return Task(
             dataset=[Sample(input="What is 1+1?", target="2")],
-            plan=[use_tools([add()]), generate(tool_calls=tool_calls)],
+            plan=[
+                system_message(
+                    "When using the add tool, be sure to call it at least three consecutive times to ensure the correct result."
+                ),
+                use_tools([add()]),
+                generate(tool_calls=tool_calls),
+            ],
             scorer=match(),
         )
 

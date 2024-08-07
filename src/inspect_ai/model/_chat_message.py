@@ -69,9 +69,6 @@ class ChatMessageSystem(ChatMessageBase):
     role: Literal["system"] = Field(default="system")
     """Conversation role."""
 
-    tool: str | None = Field(default=None)
-    """Tool that injected this message."""
-
 
 class ChatMessageUser(ChatMessageBase):
     role: Literal["user"] = Field(default="user")

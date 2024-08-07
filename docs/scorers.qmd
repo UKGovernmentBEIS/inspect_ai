@@ -265,14 +265,6 @@ Note also we use the `input_text` property of the `TaskState` to access a string
 
 ## Multiple Scorers {#sec-multiple-scorers}
 
-::: {.callout-note appearance="simple"}
-The multiple scorers feature described below is available in only the very latest version of Inspect (v0.3.18). You can upgrade to the latest version with:
-
-``` bash
-$ pip install --upgrade inspect-ai
-```
-:::
-
 There are several ways to use multiple scorers in an evaluation:
 
 1.  You can provide a list of scorers in a `Task` definition (this is the best option when scorers are entirely independent)
@@ -413,18 +405,9 @@ Note that the `Score` class contains a `Value` that is a union over several scal
 
 ## Reducing Epochs {#sec-reducing-epochs}
 
-
-::: {.callout-note appearance="simple"}
-The reducing epochs feature described below is currently available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs. 
 
-By default, this is done by taking the mean of the all the sample scores, but you may specify other strategies for reducing the samples using the `epochs_reducer` parameter. For example, here we specify that we we want to use the most commonly occurring value (the mode):
+By default, this is done by taking the mean of all sample scores, but you may specify other strategies for reducing the samples by passing an `Epochs`, which includes both a count and one or more reducers to combine sample scores with. For example:
 
 ``` python
 @task
@@ -436,20 +419,18 @@ def gpqa():
             multiple_choice(),
         ],
         scorer=choice(),
-        epochs=5,
-        epochs_reducer="mode"
+        epochs=Epochs(5, "mode"),
     )
 ```
 
-In addition, you may specify more than one reducer which will compute metrics using each of the reducers. For example:
+You may also specify more than one reducer which will compute metrics using each of the reducers. For example:
 
 ``` python
 @task
 def gpqa():
     return Task(
         ...
-        epochs=5,
-        epochs_reducer=["at_least_2", "at_least_5"]
+        epochs=Epochs(5, ["at_least_2", "at_least_5"]),
     )
 ```
 

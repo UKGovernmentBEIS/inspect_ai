@@ -5,6 +5,7 @@ import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
+from pathlib import PurePath
 from typing import AsyncGenerator, Callable, Literal
 
 from typing_extensions import Unpack
@@ -76,6 +77,7 @@ class TaskRunOptions:
     model: Model
     sandbox: tuple[str, str | None] | None
     logger: TaskLogger
+    eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     plan: Plan | Solver | list[Solver] | None = field(default=None)
     score: bool = field(default=True)
@@ -90,6 +92,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     model = options.model
     sandbox = options.sandbox
     logger = options.logger
+    eval_wd = options.eval_wd
     config = options.config
     plan = options.plan
     score = options.score
@@ -144,9 +147,16 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         len(plan.steps) + (1 if plan.finish else 0) + (1)  # scorer
     )
 
+    # compute an eval directory relative log location if we can
+    if PurePath(logger.location).is_relative_to(PurePath(eval_wd)):
+        log_location = PurePath(logger.location).relative_to(eval_wd).as_posix()
+    else:
+        log_location = logger.location
+
     # create task profile for display
     profile = TaskProfile(
         name=task.name,
+        file=logger.eval.task_file,
         model=model_name,
         dataset=task.dataset.name or "(samples)",
         scorer=", ".join(scorer_profiles),
@@ -155,7 +165,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         eval_config=config,
         task_args=logger.eval.task_args,
         generate_config=generate_config,
-        log_location=logger.location,
+        log_location=log_location,
     )
 
     with display().task(profile) as td:

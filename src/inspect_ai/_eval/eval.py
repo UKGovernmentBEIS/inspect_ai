@@ -20,14 +20,14 @@ from inspect_ai.model import (
     Model,
 )
 from inspect_ai.model._model import init_active_model, resolve_models
-from inspect_ai.scorer._reducer import ScoreReducers, create_reducers, reducer_log_names
+from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver import Plan, Solver
 from inspect_ai.util import SandboxEnvironmentSpec
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
 from .run import eval_run
-from .task import PreviousTask, Tasks
+from .task import Epochs, PreviousTask, Tasks
 
 log = logging.getLogger(__name__)
 
@@ -44,8 +44,7 @@ def eval(
     log_level: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
-    epochs: int | None = None,
-    epochs_reducer: ScoreReducers | None = None,
+    epochs: int | Epochs | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -79,11 +78,9 @@ def eval(
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
         limit (int | tuple[int, int] | None): Limit evaluated samples
-            (defaults to all samples).
-        epochs (int | None): Number of times to repeat evaluation of
-            samples (defaults to 1)
-        epochs_reducer (ScoreReducers | None):
-           Reducer function(s) for aggregating scores in each sample (defaults to avg).
+           (defaults to all samples).
+        epochs (int | Epochs | None): Epochs to repeat samples for and optional score
+           reducer function(s) used to combine sample scores (defaults to "mean")
         max_messages (int | None): Maximum number of messages to allow
            in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -120,7 +117,6 @@ def eval(
             log_dir=log_dir,
             limit=limit,
             epochs=epochs,
-            epochs_reducer=epochs_reducer,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -146,8 +142,7 @@ async def eval_async(
     log_level: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
-    epochs: int | None = None,
-    epochs_reducer: ScoreReducers | None = None,
+    epochs: int | Epochs | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -182,10 +177,8 @@ async def eval_async(
             (defaults to file log in ./logs directory).
         limit (int | tuple[int, int] | None): Limit evaluated samples
             (defaults to all samples).
-        epochs (int | None): Number of times to repeat evaluation of
-            samples (defaults to 1)
-        epochs_reducer (ScoreReducers | None):
-           Reducer function(s) for aggregating scores in each sample (defaults to avg).
+        epochs (int | Epochs | None): Epochs to repeat samples for and optional score
+            reducer function(s) used to combine sample scores (defaults to "mean")
         max_messages (int | None): Maximum number of messages to allow
             in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -231,6 +224,10 @@ async def eval_async(
             model, model_base_url, model_args, GenerateConfig(**kwargs)
         )
 
+        # resolve epochs
+        if isinstance(epochs, int):
+            epochs = Epochs(epochs)
+
         # resolve tasks (set active model to resolve uses of the
         # 'default' model in tools, solvers, and scorers)
         resolved_tasks: list[ResolvedTask] = []
@@ -249,11 +246,13 @@ async def eval_async(
         recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
 
         # create config
-        epochs_reducer = create_reducers(epochs_reducer)
+        epochs_reducer = epochs.reducer if epochs else None
         eval_config = EvalConfig(
             limit=limit,
-            epochs=epochs,
-            epochs_reducer=reducer_log_names(epochs_reducer),
+            epochs=epochs.epochs if epochs else None,
+            epochs_reducer=reducer_log_names(epochs_reducer)
+            if epochs_reducer
+            else None,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
