@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `pass_at_{k}` score reducer to compute the probability of at least 1 correct sample given `k` epochs.
 - Improved metrics `value_to_float` string conversion (handle numbers, "true", "false", etc.)
 - Log viewer: Ctrl/Cmd+F to find text when running in VS Code.
 - Set Claude default `max_tokens` to 4096
