@@ -55,7 +55,7 @@ def humaneval():
         dataset=hf_dataset(
             path="openai_humaneval", split="test", sample_fields=record_to_sample
         ),
-        epochs=Epochs(NUM_EPOCHS, ["mean", "at_least_1", "at_least_2", "at_least_5"]),
+        epochs=Epochs(NUM_EPOCHS, ["mean", "pass_at_1", "pass_at_2", "pass_at_5"]),
         plan=[generate()],
         scorer=verify(),
         sandbox="docker",
