@@ -445,6 +445,7 @@ Inspect includes several built in reducers which are summarised below.
 | mode             | Reduce to the most common score.                                                             |
 | max              | Reduce to the maximum of all scores.                                                            |
 | at_least_{k} | Reduce to `1` if at least `k` of the samples have a value greater than or equal to 1, otherwise reduce to `0`. |
+| pass_at_{k}  | The total fraction of correct samples.
 
 : {tbl-colwidths="\[40,60\]"}
 

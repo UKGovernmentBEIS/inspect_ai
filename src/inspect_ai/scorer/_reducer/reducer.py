@@ -2,6 +2,8 @@ import statistics
 from collections import Counter
 from typing import Callable, cast
 
+import numpy as np
+
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
 from .registry import REDUCER_NAME, score_reducer
@@ -95,6 +97,32 @@ def at_least(
             return _count_scalar(scores, gte_n)
 
     setattr(at_least, REDUCER_NAME, f"at_least_{k}")
+    return reduce
+
+
+@score_reducer
+def pass_at(
+    k: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
+) -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        def pass_at_k(values: list[float]) -> float:
+            total = len(scores)
+            correct = sum(1 for v in values if value == value)
+            if total - correct < k:
+                return 1.0
+            else:
+                return 1.0 - cast(
+                    float,
+                    np.prod(1.0 - k / np.arange(total - correct + 1, total + 1)).item(),
+                )
+
+        if isinstance(scores[0].value, dict):
+            return _compute_dict_stat(scores, value_to_float, pass_at_k)
+        elif isinstance(scores[0].value, list):
+            return _compute_list_stat(scores, value_to_float, pass_at_k)
+        else:
+            return _compute_scalar_stat(scores, value_to_float, pass_at_k)
+
     return reduce
 
 
