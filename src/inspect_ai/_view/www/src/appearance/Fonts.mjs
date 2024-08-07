@@ -19,6 +19,7 @@ const ScaleBaseFont = (scale) => {
  * @property {string} title - The font size for titles.
  * @property {string} title-secondary - The font size for secondary titles.
  * @property {string} larger - The font size for larger text.
+ * @property {string} large - The font size for large text.
  * @property {string} base - The base font size.
  * @property {string} small - The font size for small text.
  * @property {string} smaller - The font size for smaller text.
@@ -32,6 +33,7 @@ export const FontSize = {
   title: ScaleBaseFont(0.6),
   "title-secondary": ScaleBaseFont(0.4),
   larger: ScaleBaseFont(0.2),
+  large: ScaleBaseFont(0.1),
   base: ScaleBaseFont(0),
   small: ScaleBaseFont(-0.1),
   smaller: ScaleBaseFont(-0.1),

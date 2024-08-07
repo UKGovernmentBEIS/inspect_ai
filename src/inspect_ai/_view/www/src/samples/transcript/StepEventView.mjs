@@ -2,15 +2,18 @@
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { renderNode } from "./TranscriptView.mjs";
 
 /**
  * Renders the StateEventView component.
  *
  * @param {Object} props - The properties passed to the component.
  * @param {import("../../types/log").StepEvent} props.event - The event object to display.
+ * @param {import("../../types/log").Events} props.children - The child events to display.
+ * @param {string} props.baseId - The baseId of this item
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StepEventViewStart = ({ event }) => {
+export const StepEventView = ({ event, baseId, children }) => {
   const icon = () => {
     if (event.type === "solver") {
       switch (event.name) {
@@ -37,26 +40,30 @@ export const StepEventViewStart = ({ event }) => {
   return html`<div
     style=${{
       display: "grid",
-      gridTemplateRows: "max-content auto",
-      marginBottom: "1em",
-      borderBottom: "solid 1px var(--bs-light-border-subtle)",
+      gridTemplateColumns: "max-content 1fr",
+      columnGap: "0.3em",
+      rowGap: "0.3em",
+      marginBottom: "2em",
+      fontSize: FontSize.larger,
+      
     }}
   >
+    <i class=${icon()} style=${{ marginRight: "0.2em" }} />
     <div
       style=${{
-        display: "inline-block",
-        justifySelf: "left",
-        fontSize: FontSize.base,
-        fontWeight: 500,
-        ...TextStyle.label,
-      }}
-    >
-      <i class=${icon()} style=${{ marginRight: "0.2em" }} />${event.name}
+      display: "inline-block",
+      justifySelf: "left",
+    }}
+    >  
+       ${event.name}
     </div>
-    <div
-      style=${{
-        width: "100%",
-      }}
-    ></div>
-  </div>`;
+    <div style=${{ display: "grid", justifyContent: "center" }}>
+      <div style=${{ background: "var(--bs-light-border-subtle", height: "100%", width: "2px" }}></div>
+    </div>
+    <div>
+      ${children.map((child, index) => {
+      return renderNode(child, `${baseId}-1`);
+    })}
+    </div>
+    </div>`;
 };

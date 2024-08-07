@@ -19,6 +19,7 @@
  * @typedef {Object} LoggingIcons
  * @property {string} notset
  * @property {string} debug
+ * @property {string} http
  * @property {string} info
  * @property {string} warning
  * @property {string} error
@@ -132,6 +133,7 @@ export const ApplicationIcons = {
   logging: {
     notset: "bi bi-card-text",
     debug: "bi bi-bug",
+    http: "bi bi-download",
     info: "bi bi-info-square",
     warning: "bi bi-exclamation-triangle",
     error: "bi bi-x-circle",

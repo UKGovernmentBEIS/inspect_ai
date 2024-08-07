@@ -1,12 +1,11 @@
 // @ts-check
 import { html } from "htm/preact";
 import { StateEventView } from "./StateEventView.mjs";
-import { StepEventViewStart } from "./StepEventViewStart.mjs";
+import { StepEventView } from "./StepEventView.mjs";
 import { SubtaskEventView } from "./SubtaskEventView.mjs";
 import { ModelEventView } from "./ModelEventView.mjs";
 import { LoggerEventView } from "./LoggerEventView.mjs";
 import { InfoEventView } from "./InfoEventView.mjs";
-import { StepEventViewEnd } from "./StepEventViewEnd.mjs";
 import { ScoreEventView } from "./ScoreEventView.mjs";
 
 const kContentProtocol = "tc://";
@@ -19,50 +18,27 @@ const kContentProtocol = "tc://";
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const TranscriptView = ({ evalEvents }) => {
-  let stepDepth = 0;
-  const render = getRenderer();
-  const rows = resolveEventContent(evalEvents).map((e, index) => {
-    const endStep = e.event === "step" && e.action === "end";
-    if (endStep) {
-      stepDepth--;
-    }
 
-    const indentStyle = {};
-    const indentDepth = stepDepth * 1.5;
-    if (indentDepth > 0) {
-      indentStyle["marginLeft"] = `${indentDepth}em`;
-    }
+  // Resolve content Uris (content may be stored separately to avoid
+  // repetition - it will be address with a uri)
+  const resolvedEvents = resolveEventContent(evalEvents);
 
-    const beginStep = e.event === "step" && e.action === "begin";
-    if (beginStep) {
-      stepDepth++;
-    }
-
+  // Resolve the events into a tree, with steps having children
+  const eventNodes = resolveEventTree(resolvedEvents);
+  
+  const rows = eventNodes.map((node, index) => {
     const rows = [
       html`
         <div
           style=${{
-            paddingTop: ".4em",
-            paddingBottom: ".4em",
+            paddingTop: 0,
+            paddingBottom: 0,
           }}
         >
-          <div style=${indentStyle}>${render(e, index)}</div>
+          <div>${renderNode(node, `${index}`)}</div>
         </div>
       `,
     ];
-
-    if (endStep && stepDepth === 0) {
-      rows.push(
-        html`<div
-          style=${{
-            borderTop: "solid var(--bs-light-border-subtle) .1em",
-            height: ".1em",
-            width: "100%",
-            rowGap: "1em",
-          }}
-        ></div>`,
-      );
-    }
 
     return rows;
   });
@@ -71,6 +47,7 @@ export const TranscriptView = ({ evalEvents }) => {
     style=${{
       fontSize: "0.8em",
       display: "grid",
+      marginTop: "1em"
     }}
   >
     ${rows}
@@ -78,60 +55,43 @@ export const TranscriptView = ({ evalEvents }) => {
 };
 
 /**
- * Fetches the renderer for the event
+ * Renders the event based on its type.
  *
- * @returns {Function} - A function that returns the rendered event.
+ * @param {EventNode} node
+ * @param {string} baseId - The baseId for this event.
+ * @returns {import("preact").JSX.Element} The rendered event.
  */
-const getRenderer = () => {
-  /**
-   * @type {Date[]}
-   */
-  const stepStarts = [];
+export const renderNode = (node, baseId) => {
+  switch (node.event.event) {
+    case "info":
+      return html`<${InfoEventView} baseId=${baseId} event=${node.event} />`;
 
-  /**
-   * Renders the event based on its type.
-   *
-   * @param {import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent} event - The event to render.
-   * @param {number} index - The current event index.
-   * @returns {import("preact").JSX.Element} The rendered event.
-   */
-  return (event, index) => {
-    switch (event.event) {
-      case "info":
-        return html`<${InfoEventView} index=${index} event=${event} />`;
+    case "logger":
+      return html`<${LoggerEventView} baseId=${baseId} event=${node.event} />`;
 
-      case "logger":
-        return html`<${LoggerEventView} index=${index} event=${event} />`;
+    case "model":
+      return html`<${ModelEventView} baseId=${baseId} event=${node.event} />`;
 
-      case "model":
-        return html`<${ModelEventView} index=${index} event=${event} />`;
+    case "score":
+      return html`<${ScoreEventView} baseId=${baseId} event=${node.event} />`;
 
-      case "score":
-        return html`<${ScoreEventView} index=${index} event=${event} />`;
+    case "state":
+      return html`<${StateEventView} baseId=${baseId} event=${node.event} />`;
 
-      case "state":
-        return html`<${StateEventView} index=${index} event=${event} />`;
+    case "step":
+      return html`<${StepEventView} baseId=${baseId} event=${node.event} children=${node.children}/>`;
 
-      case "step":
-        if (event.action === "begin") {
-          stepStarts.push(new Date(event.timestamp));
-          return html`<${StepEventViewStart} index=${index} event=${event} />`;
-        } else {
-          const stepStartTime = stepStarts.pop();
-          return html`<${StepEventViewEnd}
-            event=${event}
-            stepStartTime=${stepStartTime}
-          />`;
-        }
+    case "store":
+      return html`<${StateEventView} baseId=${baseId} event=${node.event} />`;
 
-      case "store":
-        return html`<${StateEventView} index=${index} event=${event} />`;
+    case "subtask":
+      return html`<${SubtaskEventView} event=${node.event} />`;
 
-      case "subtask":
-        return html`<${SubtaskEventView} event=${event} />`;
-    }
-  };
+    default:
+      return html``;
+  }
 };
+
 
 /**
  * Resolves event content
@@ -185,3 +145,50 @@ const resolveValue = (value, evalEvents) => {
   }
   return value;
 };
+
+
+/**
+ * @typedef {Object} EventNode
+   * @param {import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent} event - This event
+ * @property {import("../../types/log").StateEvent} children - child events
+ */
+
+/**
+ * Resolves Events into a tree of nodes with children
+ *
+ * @param {import("../../types/log").Events} events - The transcript events to display.
+ * @returns {EventNode[]} Nodes containing events and children.
+ */
+const resolveEventTree = (events) => {
+  const rootNodes = [];
+  let currentNode = null;
+  const stack = [];
+
+  events.forEach(event => {
+    if (event.event === 'step' && event.action === 'begin') {
+      const newNode = { event, children: []};
+      if (currentNode) {
+        currentNode.children.push(newNode);
+        stack.push(currentNode);
+      } else {
+        rootNodes.push(newNode);
+      }
+      currentNode = newNode;
+    } else if (event.event === 'step' && event.action === 'end') {
+      if (stack.length > 0) {
+        currentNode = stack.pop();
+      } else {
+        currentNode = null;
+      }
+    } else {
+      const newNode = { event, children: []};
+      if (currentNode) {
+        currentNode.children.push(newNode);
+      } else {
+        rootNodes.push(newNode);
+      }
+    }
+  });
+  return rootNodes;
+}
+

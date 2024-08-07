@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { TranscriptEvent } from "./TranscriptEvent.mjs";
+import { EventPanel } from "./EventPanel.mjs";
 
 /**
  * Renders the InfoEventView component.
@@ -12,7 +12,7 @@ import { TranscriptEvent } from "./TranscriptEvent.mjs";
  */
 export const InfoEventView = ({ event }) => {
   return html`
-  <${TranscriptEvent} name="Info">
+  <${EventPanel} title="Info">
   <div
     style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
   >
@@ -20,5 +20,5 @@ export const InfoEventView = ({ event }) => {
     <div>${event.message}</div>
     <div></div>
   </div>
-  </${TranscriptEvent}>`;
+  </${EventPanel}>`;
 };

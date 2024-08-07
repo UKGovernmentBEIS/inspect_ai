@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { TranscriptEvent } from "./TranscriptEvent.mjs";
+import { EventPanel } from "./EventPanel.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -31,7 +31,7 @@ export const StateEventView = ({ event }) => {
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return html`
-  <${TranscriptEvent} name=${title}>
+  <${EventPanel} title=${title}>
     <div
       style=${{
         display: "grid",
@@ -42,7 +42,7 @@ export const StateEventView = ({ event }) => {
     >
       ${mutations}
     </div>  
-  </${TranscriptEvent}>`;
+  </${EventPanel}>`;
 };
 
 /**

@@ -1,8 +1,8 @@
 // @ts-check
 import { html } from "htm/preact";
-import { TranscriptEvent } from "./TranscriptEvent.mjs";
 import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
+import { EventPanel } from "./EventPanel.mjs";
 
 /**
  * Renders the InfoEventView component.
@@ -12,9 +12,8 @@ import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const ScoreEventView = ({ event }) => {
-  console.log({ event });
   return html`
-  <${TranscriptEvent} name="Score">
+  <${EventPanel} title="Score">
   <div
     style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em" }}
   >
@@ -40,5 +39,5 @@ export const ScoreEventView = ({ event }) => {
           }
 
 
-  </${TranscriptEvent}>`;
+  </${EventPanel}>`;
 };

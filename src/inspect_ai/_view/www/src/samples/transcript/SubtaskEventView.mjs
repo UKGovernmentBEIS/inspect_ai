@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { TranscriptView } from "./TranscriptView.mjs";
-import { TranscriptEvent } from "./TranscriptEvent.mjs";
+import { EventPanel } from "./EventPanel.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -12,9 +12,9 @@ import { TranscriptEvent } from "./TranscriptEvent.mjs";
  */
 export const SubtaskEventView = ({ event }) => {
   return html`
-    <${TranscriptEvent} name="Subtask: ${event.name}" collapse="true">
+    <${EventPanel} title="Subtask: ${event.name}" collapse="true">
     <${TranscriptView}
       evalEvents=${event.events}
     />
-    </${TranscriptEvent}>`;
+    </${EventPanel}>`;
 };
