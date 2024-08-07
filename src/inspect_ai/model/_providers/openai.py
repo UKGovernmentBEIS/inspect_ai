@@ -8,6 +8,7 @@ from openai import (
     APITimeoutError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
+    InternalServerError,
     RateLimitError,
 )
 from openai._types import NOT_GIVEN
@@ -199,7 +200,9 @@ class OpenAIAPI(ModelAPI):
                 and "You exceeded your current quota" not in ex.message
             ):
                 return True
-        elif isinstance(ex, (APIConnectionError | APITimeoutError)):
+        elif isinstance(
+            ex, (APIConnectionError | APITimeoutError | InternalServerError)
+        ):
             return True
         return False
 
