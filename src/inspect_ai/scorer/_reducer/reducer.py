@@ -70,7 +70,7 @@ def median_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReduce
 
 @score_reducer
 def at_least(
-    n: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
+    k: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
 ) -> ScoreReducer:
     def reduce(scores: list[Score]) -> Score:
         r"""A utility function for scoring a value as correct if there are at least n score values greater than or equal to the value
@@ -85,7 +85,7 @@ def at_least(
             count_gte_n = sum(
                 count for key, count in counter.items() if value_to_float(key) >= value
             )
-            return 1 if count_gte_n >= n else 0
+            return 1 if count_gte_n >= k else 0
 
         if isinstance(scores[0].value, dict):
             return _count_dict(scores, gte_n)
@@ -94,7 +94,7 @@ def at_least(
         else:
             return _count_scalar(scores, gte_n)
 
-    setattr(at_least, REDUCER_NAME, f"at_least_{n}")
+    setattr(at_least, REDUCER_NAME, f"at_least_{k}")
     return reduce
 
 
