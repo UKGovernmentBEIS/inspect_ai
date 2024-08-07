@@ -3,14 +3,13 @@ import os
 from typing import Any
 
 from mistralai import FunctionCall, Mistral
+from mistralai.models import Function as MistralFunction
+from mistralai.models import Tool as MistralTool
 from mistralai.models.assistantmessage import (
     AssistantMessage as MistralAssistantMessage,
 )
 from mistralai.models.chatcompletionchoice import (
     ChatCompletionChoice as MistralChatCompletionChoice,
-)
-from mistralai.models.chatcompletionchoice import (
-    FinishReason,
 )
 from mistralai.models.chatcompletionrequest import (
     ToolChoice as MistralToolChoice,
@@ -18,14 +17,11 @@ from mistralai.models.chatcompletionrequest import (
 from mistralai.models.chatcompletionresponse import ChatCompletionResponse
 from mistralai.models.sdkerror import SDKError
 from mistralai.models.systemmessage import SystemMessage as MistralSystemMessage
-from mistralai.models.toolcall import (
-    ToolCall as MistralToolCall,
-)
+from mistralai.models.toolcall import ToolCall as MistralToolCall
 from mistralai.models.toolmessage import ToolMessage as MistralToolMessage
 from mistralai.models.usermessage import UserMessage as MistralUserMessage
 from typing_extensions import override
 
-# TODO: Tool use in general in rough shape
 # TODO: Migration guide:
 # https://github.com/mistralai/client-python/blob/main/MIGRATION.md
 from inspect_ai._util.constants import (
@@ -78,7 +74,7 @@ class MistralAPI(ModelAPI):
             if self.api_key:
                 base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
                 if base_url:
-                    model_args["endpoint"] = base_url
+                    model_args["server_url"] = base_url
             else:
                 self.api_key = os.environ.get(
                     AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
@@ -93,14 +89,11 @@ class MistralAPI(ModelAPI):
                         "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
                         + " environment variable or the --model-base-url CLI flag to set the base URL."
                     )
-                model_args["endpoint"] = base_url
+                model_args["server_url"] = base_url
 
         # create client
         self.client = Mistral(
             api_key=self.api_key,
-            # max_retries=(
-            #    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-            # ),
             timeout_ms=config.timeout if config.timeout else DEFAULT_TIMEOUT,
             **model_args,
         )
@@ -127,7 +120,7 @@ class MistralAPI(ModelAPI):
         )
 
         if response is None:
-            raise ValueError("No response from model")
+            raise RuntimeError("Mistral model did not return a response from generate.")
 
         # return model output (w/ tool calls if they exist)
         choices = completion_choices_from_response(response, tools)
@@ -160,9 +153,9 @@ class MistralAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
 
-def mistral_chat_tools(tools: list[ToolInfo]) -> list[dict[str, Any]]:
+def mistral_chat_tools(tools: list[ToolInfo]) -> list[MistralTool]:
     return [
-        dict(type="function", function=tool.model_dump(exclude_none=True))
+        MistralTool(function=MistralFunction(**tool.model_dump(exclude_none=True)))
         for tool in tools
     ]
 
@@ -222,37 +215,54 @@ def mistral_function_call(tool_call: ToolCall) -> FunctionCall:
 
 
 def chat_tool_calls(
-    message: MistralToolMessage, tools: list[ToolInfo]
-) -> list[ToolCall] | None:
-    if message.tool_calls:
-        return [
-            parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
-            for call in message.tool_calls
-        ]
+    tool_calls: list[MistralToolCall], tools: list[ToolInfo]
+) -> list[ToolCall]:
+    return [chat_tool_call(tool, tools) for tool in tool_calls]
+
+
+def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCall:
+    id = tool_call.id or tool_call.function.name
+    if isinstance(tool_call.function.arguments, str):
+        return parse_tool_call(
+            id, tool_call.function.name, tool_call.function.arguments, tools
+        )
     else:
-        return None
+        return ToolCall(
+            id, tool_call.function.name, tool_call.function.arguments, type="function"
+        )
 
 
 def completion_choice(
     choice: MistralChatCompletionChoice, tools: list[ToolInfo]
 ) -> ChatCompletionChoice:
     message = choice.message
-
-    completion = message.content
-    if isinstance(completion, list):
-        completion = " ".join(completion)
-    return ChatCompletionChoice(
-        message=ChatMessageAssistant(
-            content=completion,
-            tool_calls=chat_tool_calls(message, tools),
-            source="generate",
-        ),
-        stop_reason=(
-            choice_stop_reason(choice)
-            if choice.finish_reason is not None
-            else "unknown"
-        ),
-    )
+    if message:
+        completion = message.content or ""
+        if isinstance(completion, list):
+            completion = " ".join(completion)
+        return ChatCompletionChoice(
+            message=ChatMessageAssistant(
+                content=completion,
+                tool_calls=chat_tool_calls(message.tool_calls, tools)
+                if message.tool_calls
+                else None,
+                source="generate",
+            ),
+            stop_reason=(
+                choice_stop_reason(choice)
+                if choice.finish_reason is not None
+                else "unknown"
+            ),
+        )
+    else:
+        return ChatCompletionChoice(
+            message=ChatMessageAssistant(content="", tool_calls=[], source="generate"),
+            stop_reason=(
+                choice_stop_reason(choice)
+                if choice.finish_reason is not None
+                else "unknown"
+            ),
+        )
 
 
 def completion_choices_from_response(
@@ -264,13 +274,13 @@ def completion_choices_from_response(
         return [completion_choice(choice, tools) for choice in response.choices]
 
 
-def choice_stop_reason(choice: ChatCompletionChoice) -> StopReason:
+def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
     match choice.finish_reason:
-        case FinishReason.stop:
+        case "stop":
             return "stop"
-        case FinishReason.length:
+        case "length", "model_length":
             return "length"
-        case FinishReason.tool_calls:
+        case "tool_calls":
             return "tool_calls"
         case _:
             return "unknown"
