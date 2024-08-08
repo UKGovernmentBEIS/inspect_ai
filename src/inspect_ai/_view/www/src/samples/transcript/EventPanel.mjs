@@ -14,7 +14,6 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const EventPanel = ({ title, icon, style, children }) => {
-
   style = style || "normal";
   const titleEl = title
     ? html`<div
