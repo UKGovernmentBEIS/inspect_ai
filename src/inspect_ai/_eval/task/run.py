@@ -386,6 +386,7 @@ async def task_run_sample(
                 if score_result is not None:
                     sample_score = SampleScore(
                         value=score_result.value,
+                        answer=score_result.answer,
                         explanation=score_result.explanation,
                         metadata=score_result.metadata,
                         sample_id=sample.id,

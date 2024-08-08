@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
+- Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).
+- Improved resolution of AWS region for Bedrock (respecting already defined AWS_REGION and AWS_DEFAULT_REGION)
+
+## v0.3.21 (07 August 2024)
+
+- Add `pass_at_{k}` score reducer to compute the probability of at least 1 correct sample given `k` epochs.
+- Improved metrics `value_to_float` string conversion (handle numbers, "true", "false", etc.)
+- Log viewer: Ctrl/Cmd+F to find text when running in VS Code.
+- Set Claude default `max_tokens` to 4096
+- Combine user and assistant messages for Vertex models.
+- Warn when using the `name` parameter with task created from `@task` decorated function.
+- Make sample `metadata` available in prompt, grading, and self-criqique templates.
+- Retry on several additional OpenAI errors (APIConnectionError | APITimeoutError | InternalServerError)
+- Fix a regression which would cause the 'answer' to be improperly recorded when scoring a sample.
+
 ## v0.3.20 (03 August 2024)
 
 - `Epochs` data type for specifying epochs and reducers together (deprecated `epochs_reducer` argument). 

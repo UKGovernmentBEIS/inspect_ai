@@ -1,5 +1,6 @@
 from typing import Any
 
+from inspect_ai._util.dict import omit
 from inspect_ai.model import ChatMessageSystem
 from inspect_ai.util import resource
 
@@ -13,7 +14,8 @@ def prompt_template(template: str, **params: dict[str, Any]) -> Solver:
     """Parameterized prompt template.
 
     Prompt template containing a `{prompt}` placeholder and any
-    number of additional `params`.
+    number of additional `params`. All values contained in sample
+    `metadata` are also automatically included in the `params`.
 
     Args:
       template (str | list[Message]):
@@ -32,7 +34,8 @@ def prompt_template(template: str, **params: dict[str, Any]) -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         prompt = state.user_prompt
-        prompt.text = prompt_template.format(prompt=prompt.text, **params)
+        kwargs = omit(state.metadata, ["prompt"]) | params
+        prompt.text = prompt_template.format(prompt=prompt.text, **kwargs)
         return state
 
     return solve
