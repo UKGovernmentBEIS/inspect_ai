@@ -24,4 +24,4 @@ The benchmark uses the $\text{pass}@k$ metric to measure functional correctness.
 
 $$ \text{pass@}k := \underset{\text{Problems}}{\mathbb{E}}\left[1-\frac{{n-c}\choose{k}}{{n}\choose{k}}\right]$$
 
-where we sample $n \geq k$ generations to reduce variance. Note that the default in this benchmark implementation is $n = 5$, and we evaluate $\text{pass}@k$ for $k \in \{1, 2, 5\}$.
+where we sample $n \geq k$ generations to reduce variance. Note that the default in this benchmark implementation is $n = 5$, and we evaluate $\text{pass}@k$ for $k \in \\{1, 2, 5\\}$.
