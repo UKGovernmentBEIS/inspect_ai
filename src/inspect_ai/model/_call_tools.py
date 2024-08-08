@@ -20,7 +20,6 @@ from pydantic import BaseModel
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.registry import registry_info
-from inspect_ai.solver._subtask.transcript import transcript
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import TOOL_PROMPT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallError
@@ -50,6 +49,8 @@ async def call_tools(
         tdefs = tool_defs(tools)
 
         async def call_tool_task(call: ToolCall) -> ChatMessageTool:
+            from inspect_ai.solver._subtask.transcript import transcript
+
             with transcript().step(call.function, type="tool_call"):
                 result: Any = ""
                 tool_error: ToolCallError | None = None
