@@ -22,9 +22,6 @@ export const EventPanel = ({ title, icon, style, collapse, children }) => {
    * @type {[boolean|undefined, (value: boolean|undefined) => void]}
    */
   const [collapsed, setCollapsed] = useState(collapse);
-  const onCollapse = useCallback(() => {
-    setCollapsed(!collapsed);
-  }, [collapsed, setCollapsed]);
 
   style = style || "normal";
   const titleEl = title

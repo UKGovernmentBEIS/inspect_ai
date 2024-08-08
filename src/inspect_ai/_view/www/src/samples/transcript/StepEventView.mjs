@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { FontSize } from "../../appearance/Fonts.mjs";
 import { renderNode } from "./TranscriptView.mjs";
 
 /**
@@ -66,7 +66,7 @@ export const StepEventView = ({ event, baseId, children }) => {
       ></div>
     </div>
     <div style=${{ fontSize: FontSize.small }}>
-      ${children.map((child, index) => {
+      ${children.map((child) => {
         return renderNode(child, `${baseId}-1`);
       })}
     </div>

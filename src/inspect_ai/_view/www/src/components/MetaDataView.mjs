@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { RenderedContent } from "./RenderedContent.mjs";
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 /**
  * Renders the MetaDataView component.

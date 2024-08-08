@@ -132,12 +132,10 @@ const resolveValue = (value, evalEvents) => {
     return value.map((v) => {
       return resolveValue(v, evalEvents);
     });
-  } else if (typeof value === "object") {
+  } else if (value && typeof value === "object") {
     const resolvedObject = {};
-    for (const key in value) {
-      if (value.hasOwnProperty(key)) {
-        resolvedObject[key] = resolveValue(value[key], evalEvents);
-      }
+    for (const key in Object.keys(value)) {
+      resolvedObject[key] = resolveValue(value[key], evalEvents);
     }
     return resolvedObject;
   } else if (typeof value === "string") {

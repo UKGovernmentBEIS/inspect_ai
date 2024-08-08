@@ -13,8 +13,6 @@ import { FontSize } from "../../appearance/Fonts.mjs";
  */
 export const LoggerEventView = ({ event }) => {
   // Create a Date object from the timestamp
-  const date = new Date(event.message.created);
-
   return html`
   <${EventPanel} 
     title=${event.message.level} 
