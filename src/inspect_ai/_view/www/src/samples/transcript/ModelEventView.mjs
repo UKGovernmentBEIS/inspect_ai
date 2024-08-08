@@ -32,7 +32,9 @@ export const ModelEventView = ({ event, baseId }) => {
     modelProperties["usage"] = event.output.usage;
   }
 
-  const outputMessages = event.output.choices.map((choice) => {
+  // Note: despite the type system saying otherwise, this has appeared empircally
+  // to sometimes be undefined
+  const outputMessages = event.output.choices?.map((choice) => {
     return choice.message;
   });
 
@@ -42,7 +44,7 @@ export const ModelEventView = ({ event, baseId }) => {
   <div style=${{ display: "grid", gridTemplateColumns: "1fr max-content" }}>
     <${ChatView}
       id="model-input-${baseId}"
-      messages=${[...outputMessages]}
+      messages=${[...(outputMessages || [])]}
       />
     <${MetaDataView} entries=${modelProperties} compact=${true} />
   </div>
