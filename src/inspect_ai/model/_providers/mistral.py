@@ -3,30 +3,30 @@ import os
 from typing import Any
 
 from mistralai import FunctionCall, Mistral
-from mistralai.models import Function as MistralFunction
-from mistralai.models import Tool as MistralTool
-from mistralai.models.assistantmessage import (
+from mistralai.models import (
     AssistantMessage as MistralAssistantMessage,
 )
-from mistralai.models.chatcompletionchoice import (
+from mistralai.models import (
     ChatCompletionChoice as MistralChatCompletionChoice,
 )
-from mistralai.models.chatcompletionrequest import (
+from mistralai.models import Function as MistralFunction
+from mistralai.models import SDKError
+from mistralai.models import SystemMessage as MistralSystemMessage
+from mistralai.models import Tool as MistralTool
+from mistralai.models import ToolCall as MistralToolCall
+from mistralai.models import (
     ToolChoice as MistralToolChoice,
 )
-from mistralai.models.chatcompletionresponse import ChatCompletionResponse
-from mistralai.models.sdkerror import SDKError
-from mistralai.models.systemmessage import SystemMessage as MistralSystemMessage
-from mistralai.models.toolcall import ToolCall as MistralToolCall
-from mistralai.models.toolmessage import ToolMessage as MistralToolMessage
-from mistralai.models.usermessage import UserMessage as MistralUserMessage
+from mistralai.models import ToolMessage as MistralToolMessage
+from mistralai.models import UserMessage as MistralUserMessage
+from mistralai.models.chatcompletionresponse import (
+    ChatCompletionResponse as MistralChatCompletionResponse,
+)
 from typing_extensions import override
 
 # TODO: Migration guide:
 # https://github.com/mistralai/client-python/blob/main/MIGRATION.md
 from inspect_ai._util.constants import (
-    # TODO: LEarn whats up with retries DEFAULT_MAX_RETRIES,
-    DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT,
 )
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -94,7 +94,7 @@ class MistralAPI(ModelAPI):
         # create client
         self.client = Mistral(
             api_key=self.api_key,
-            timeout_ms=config.timeout if config.timeout else DEFAULT_TIMEOUT,
+            timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT) * 1000,
             **model_args,
         )
 
@@ -146,12 +146,6 @@ class MistralAPI(ModelAPI):
     def connection_key(self) -> str:
         return str(self.api_key)
 
-    # not clear what the mistral default max tokens is (not documented)
-    # so we set it to the default to be sure
-    @override
-    def max_tokens(self) -> int:
-        return DEFAULT_MAX_TOKENS
-
 
 def mistral_chat_tools(tools: list[ToolInfo]) -> list[MistralTool]:
     return [
@@ -197,7 +191,9 @@ def mistral_chat_message(
         )
     elif message.role == "user":
         return MistralUserMessage(content=message.text)
-    else:
+    elif message.role == "system":
+        return MistralSystemMessage(content=message.text)
+    elif message.role == "assistant":
         return MistralAssistantMessage(content=message.text)
 
 
@@ -255,18 +251,13 @@ def completion_choice(
             ),
         )
     else:
-        return ChatCompletionChoice(
-            message=ChatMessageAssistant(content="", tool_calls=[], source="generate"),
-            stop_reason=(
-                choice_stop_reason(choice)
-                if choice.finish_reason is not None
-                else "unknown"
-            ),
+        raise ValueError(
+            f"Mistral did not return a message in Completion Choice: {choice.model_dump_json(indent=2, exclude_none=True)}"
         )
 
 
 def completion_choices_from_response(
-    response: ChatCompletionResponse, tools: list[ToolInfo]
+    response: MistralChatCompletionResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
     if response.choices is None:
         return []
@@ -278,7 +269,7 @@ def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
     match choice.finish_reason:
         case "stop":
             return "stop"
-        case "length", "model_length":
+        case "length" | "model_length":
             return "length"
         case "tool_calls":
             return "tool_calls"
