@@ -8,11 +8,12 @@ import { EventPanel } from "./EventPanel.mjs";
  * Renders the StateEventView component.
  *
  * @param {Object} props - The properties passed to the component.
+ * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").ModelEvent} props.event - The event object to display.
  * @param {string} props.baseId - The baseId of the event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ModelEventView = ({ event, baseId }) => {
+export const ModelEventView = ({ id, event }) => {
   const tools = event.tools
     .map((tool) => {
       return tool.name;
@@ -39,11 +40,11 @@ export const ModelEventView = ({ event, baseId }) => {
   });
 
   return html`
-  <${EventPanel} title="Model Call: ${event.model}">
+  <${EventPanel} id=${id} title="Model Call: ${event.model}">
   
   <div style=${{ display: "grid", gridTemplateColumns: "1fr max-content" }}>
     <${ChatView}
-      id="model-input-${baseId}"
+      id="${id}-model-input}"
       messages=${[...(outputMessages || [])]}
       />
     <${MetaDataView} entries=${modelProperties} compact=${true} />

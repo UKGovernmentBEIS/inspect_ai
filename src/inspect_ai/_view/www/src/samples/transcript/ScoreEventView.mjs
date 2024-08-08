@@ -8,12 +8,13 @@ import { EventPanel } from "./EventPanel.mjs";
  * Renders the InfoEventView component.
  *
  * @param {Object} props - The properties passed to the component.
+ * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").ScoreEvent} props.event - The event object to display.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ScoreEventView = ({ event }) => {
+export const ScoreEventView = ({ id, event }) => {
   return html`
-  <${EventPanel} title="Score">
+  <${EventPanel} id=${id} title="Score">
   <div
     style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em" }}
   >

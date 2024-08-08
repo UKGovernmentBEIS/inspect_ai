@@ -16,6 +16,7 @@
     "prettier": "^3.3.3"
   },
   "dependencies": {
+    "fast-json-patch": "^3.1.1",
     "htm": "^3.1.1",
     "preact": "^10.22.1"
   }

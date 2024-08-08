@@ -34,7 +34,7 @@ export const TranscriptView = ({ evalEvents }) => {
             paddingBottom: 0,
           }}
         >
-          <div>${renderNode(node, `${index}`)}</div>
+          <div>${renderNode(`event${index}`, node)}</div>
         </div>
       `,
     ];
@@ -57,38 +57,38 @@ export const TranscriptView = ({ evalEvents }) => {
  * Renders the event based on its type.
  *
  * @param {EventNode} node
- * @param {string} baseId - The baseId for this event.
+ * @param {string} id - The id for this event.
  * @returns {import("preact").JSX.Element} The rendered event.
  */
-export const renderNode = (node, baseId) => {
+export const renderNode = (id, node) => {
   switch (node.event.event) {
     case "info":
-      return html`<${InfoEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${InfoEventView} id=${id} event=${node.event} />`;
 
     case "logger":
-      return html`<${LoggerEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${LoggerEventView} id=${id} event=${node.event} />`;
 
     case "model":
-      return html`<${ModelEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${ModelEventView} id=${id} event=${node.event} />`;
 
     case "score":
-      return html`<${ScoreEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${ScoreEventView} id=${id} event=${node.event} />`;
 
     case "state":
-      return html`<${StateEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${StateEventView} id=${id} event=${node.event} />`;
 
     case "step":
       return html`<${StepEventView}
-        baseId=${baseId}
+        id=${id}
         event=${node.event}
         children=${node.children}
       />`;
 
     case "store":
-      return html`<${StateEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${StateEventView} id=${id} event=${node.event} />`;
 
     case "subtask":
-      return html`<${SubtaskEventView} event=${node.event} />`;
+      return html`<${SubtaskEventView} id=${id} event=${node.event} />`;
 
     default:
       return html``;

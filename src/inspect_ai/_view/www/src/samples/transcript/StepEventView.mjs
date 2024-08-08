@@ -8,12 +8,12 @@ import { renderNode } from "./TranscriptView.mjs";
  * Renders the StateEventView component.
  *
  * @param {Object} props - The properties passed to the component.
+ * @param { string  } props.id - The id of this event. *
  * @param {import("../../types/log").StepEvent} props.event - The event object to display.
  * @param {import("../../types/log").Events} props.children - The child events to display.
- * @param {string} props.baseId - The baseId of this item
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StepEventView = ({ event, baseId, children }) => {
+export const StepEventView = ({ id, event, children }) => {
   const icon = () => {
     if (event.type === "solver") {
       switch (event.name) {
@@ -66,8 +66,8 @@ export const StepEventView = ({ event, baseId, children }) => {
       ></div>
     </div>
     <div style=${{ fontSize: FontSize.small }}>
-      ${children.map((child) => {
-        return renderNode(child, `${baseId}-1`);
+      ${children.map((child, index) => {
+        return renderNode(`${id}_${index}`, child);
       })}
     </div>
   </div>`;
