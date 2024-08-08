@@ -20,8 +20,8 @@ The model is then tasked to fill in the missing code pieces in order to make thi
 ## Evaluation
 Once a generation is completed, the entire function, accompanied with unit tests, is run in a subprocess and is considered a success if all unit tests pass.
 
-The benchmark uses the $\text{pass}@k$ metric to measure functional correctness. In brief terms, this is the probability of at least 1 correct sample generation given $k$ generations, per problem. It is defined using the following expectation:
+The benchmark uses the $\text{pass}@k$ metric to measure functional correctness. In brief terms, this is the per problem probability of at least 1 correct sample generation given $k$ generations. It is defined using the following expectation:
 
-$$\text{pass@}k := \mathbb{E}\left[1-\frac{{n-c}\choose{k}}{{n}\choose{k}}\right]$$
+$$ \text{pass@}k := \underset{\text{Problems}}{\mathbb{E}}\left[1-\frac{{n-c}\choose{k}}{{n}\choose{k}}\right]$$
 
 where we sample $n \geq k$ generations to reduce variance. Note that the default in this benchmark implementation is $n = 5$, and we evaluate $\text{pass}@k$ for $k \in \{1, 2, 5\}$.
