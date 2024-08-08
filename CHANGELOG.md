@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Update to new Mistral API (v1.0.1 of `mistralai` is now required).
 - Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
 - Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).
 - Improved resolution of AWS region for Bedrock (respecting already defined AWS_REGION and AWS_DEFAULT_REGION)
