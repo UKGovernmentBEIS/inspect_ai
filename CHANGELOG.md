@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
+- Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).
 
 ## v0.3.21 (07 August 2024)
 
