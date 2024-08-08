@@ -1,0 +1,11 @@
+services:
+  default:
+    image: attacker_ubuntu
+    command: tail -f /dev/null
+    x-local: true
+    networks:
+      - in_house_ctf_network
+
+networks:
+  in_house_ctf_network:
+    external: true
