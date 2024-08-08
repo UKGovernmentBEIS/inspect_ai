@@ -7,6 +7,7 @@ from typing import Any, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
@@ -288,5 +289,10 @@ def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
         completed=state.completed,
         metadata=as_jsonable(state.metadata),
     )
-    jsononable = as_jsonable(state_data)
-    return cast(dict[str, Any], deepcopy(jsononable))
+    jsonable = as_jsonable(state_data)
+    return cast(dict[str, Any], deepcopy(jsonable))
+
+
+def sample_jsonable(sample: Sample) -> dict[str, Any]:
+    jsonable = to_jsonable_python(sample, exclude_none=True, fallback=lambda _x: None)
+    return cast(dict[str, Any], deepcopy(jsonable))

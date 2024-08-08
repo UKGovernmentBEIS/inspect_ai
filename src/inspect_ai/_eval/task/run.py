@@ -362,7 +362,9 @@ async def task_run_sample(
     async with semaphore_cm, sandboxenv_cm:
         try:
             # sample init event
-            transcript()._event(SampleInitEvent(state=state_jsonable(state)))
+            transcript()._event(
+                SampleInitEvent(sample=sample, state=state_jsonable(state))
+            )
 
             # run plan steps (checking for early termination)
             for index, solver in enumerate(plan.steps):

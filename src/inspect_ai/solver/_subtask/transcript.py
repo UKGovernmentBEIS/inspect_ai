@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, JsonValue, field_serializer
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import JsonChange, json_changes
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
@@ -40,14 +41,17 @@ class BaseEvent(BaseModel):
         return dt.astimezone().isoformat()
 
 
-class SampleInitEvent(BaseModel):
+class SampleInitEvent(BaseEvent):
     """Beginning of processing a Sample."""
 
     event: Literal["sample_init"] = Field(default="sample_init")
     """Event type."""
 
+    sample: Sample
+    """Sample."""
+
     state: JsonValue
-    """Initial task state."""
+    """Initial state."""
 
 
 class StoreEvent(BaseEvent):
@@ -308,7 +312,27 @@ def walk_event(event: Event, content_fn: Callable[[str], str]) -> Event:
 def walk_sample_init_event(
     event: SampleInitEvent, content_fn: Callable[[str], str]
 ) -> SampleInitEvent:
-    return event.model_copy(update=dict(state=walk_json_value(event.state, content_fn)))
+    return event.model_copy(
+        update=dict(
+            sample=walk_sample(event.sample, content_fn),
+            state=walk_json_value(event.state, content_fn),
+        )
+    )
+
+
+def walk_sample(sample: Sample, content_fn: Callable[[str], str]) -> Sample:
+    if isinstance(sample.input, str):
+        return sample.model_copy(
+            update=dict(input=walk_json_value(sample.input, content_fn))
+        )
+    else:
+        return sample.model_copy(
+            update=dict(
+                input=[
+                    walk_chat_message(message, content_fn) for message in sample.input
+                ]
+            )
+        )
 
 
 def walk_model_event(event: ModelEvent, content_fn: Callable[[str], str]) -> ModelEvent:

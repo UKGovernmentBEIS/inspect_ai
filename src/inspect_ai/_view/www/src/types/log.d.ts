@@ -158,18 +158,37 @@ export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata4 = {} | null;
 export type Timestamp = string;
-export type Event = "state";
+export type Event = "sample_init";
+export type Input1 =
+  | string
+  | (
+      | ChatMessageSystem
+      | ChatMessageUser
+      | ChatMessageAssistant
+      | ChatMessageTool
+    )[];
+export type Choices2 = string[] | null;
+export type Target1 = string | string[];
+export type Id2 = number | string | null;
+export type Metadata6 = {} | null;
+export type Files = {
+  [k: string]: string;
+} | null;
+export type Setup = string | null;
+export type JsonValue = unknown;
+export type Timestamp1 = string;
+export type Event1 = "state";
 export type Op = "remove" | "add" | "replace" | "move" | "test" | "copy";
 export type Path = string;
 export type From = string | null;
 export type Changes = JsonChange[];
-export type Timestamp1 = string;
-export type Event1 = "store";
-export type Changes1 = JsonChange[];
 export type Timestamp2 = string;
-export type Event2 = "model";
+export type Event2 = "store";
+export type Changes1 = JsonChange[];
+export type Timestamp3 = string;
+export type Event3 = "model";
 export type Model2 = string;
-export type Input1 = (
+export type Input2 = (
   | ChatMessageSystem
   | ChatMessageUser
   | ChatMessageAssistant
@@ -196,10 +215,10 @@ export type Required1 = string[];
 export type Tools = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name5 = string;
-export type Timestamp3 = string;
-export type Event3 = "score";
 export type Timestamp4 = string;
-export type Event4 = "logger";
+export type Event4 = "score";
+export type Timestamp5 = string;
+export type Event5 = "logger";
 export type Name6 = string | null;
 export type Level =
   | "debug"
@@ -214,18 +233,18 @@ export type Created1 = number;
 export type Filename = string;
 export type Module = string;
 export type Lineno = number;
-export type Timestamp5 = string;
-export type Event5 = "info";
-export type JsonValue = unknown;
 export type Timestamp6 = string;
-export type Event6 = "step";
+export type Event6 = "info";
+export type Timestamp7 = string;
+export type Event7 = "step";
 export type Action = "begin" | "end";
 export type Type7 = string | null;
 export type Name7 = string;
-export type Timestamp7 = string;
-export type Event7 = "subtask";
+export type Timestamp8 = string;
+export type Event8 = "subtask";
 export type Name8 = string;
 export type Events = (
+  | SampleInitEvent
   | StateEvent
   | StoreEvent
   | ModelEvent
@@ -235,7 +254,6 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
-export type Logging = LoggingMessage[];
 
 export interface EvalLog {
   version?: Version;
@@ -246,7 +264,6 @@ export interface EvalLog {
   stats?: EvalStats;
   error?: EvalError | null;
   samples?: Samples1;
-  logging?: Logging;
 }
 export interface EvalSpec {
   task: Task;
@@ -486,11 +503,45 @@ export interface EvalEvents {
   content: Content5;
 }
 /**
+ * Beginning of processing a Sample.
+ */
+export interface SampleInitEvent {
+  timestamp: Timestamp;
+  event: Event;
+  sample: Sample;
+  state: JsonValue;
+}
+/**
+ * Sample to be used in an evaluation task.
+ *
+ * Args:
+ *     input (str | list[ChatMessage]): The input to be submitted to the model.
+ *     choices (list[str] | None): Optional. List of available answer choices
+ *        (used only for multiple-choice evals).
+ *     target (str | list[str]): Optional. Ideal target output. May be a literal value
+ *         or narrative text to be used by a model grader.
+ *     id (int | str | None): Optional. Unique identifier for sample.
+ *     metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
+ *     files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
+ *       SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
+ *     setup: (str | None): Optional. Setup script to run for sample (run
+ *       within default SandboxEnvironment).
+ */
+export interface Sample {
+  input: Input1;
+  choices: Choices2;
+  target: Target1;
+  id: Id2;
+  metadata: Metadata6;
+  files: Files;
+  setup: Setup;
+}
+/**
  * Change to the current `TaskState`
  */
 export interface StateEvent {
-  timestamp: Timestamp;
-  event: Event;
+  timestamp: Timestamp1;
+  event: Event1;
   changes: Changes;
 }
 /**
@@ -506,18 +557,18 @@ export interface JsonChange {
  * Change to data within the current `Store`.
  */
 export interface StoreEvent {
-  timestamp: Timestamp1;
-  event: Event1;
+  timestamp: Timestamp2;
+  event: Event2;
   changes: Changes1;
 }
 /**
  * Call to a language model.
  */
 export interface ModelEvent {
-  timestamp: Timestamp2;
-  event: Event2;
+  timestamp: Timestamp3;
+  event: Event3;
   model: Model2;
-  input: Input1;
+  input: Input2;
   tools: Tools;
   tool_choice: ToolChoice;
   config: GenerateConfig;
@@ -588,16 +639,16 @@ export interface ToolFunction {
  * Event with sample score.
  */
 export interface ScoreEvent {
-  timestamp: Timestamp3;
-  event: Event3;
+  timestamp: Timestamp4;
+  event: Event4;
   score: Score;
 }
 /**
  * Log message recorded with Python logger.
  */
 export interface LoggerEvent {
-  timestamp: Timestamp4;
-  event: Event4;
+  timestamp: Timestamp5;
+  event: Event5;
   message: LoggingMessage;
 }
 export interface LoggingMessage {
@@ -614,16 +665,16 @@ export interface LoggingMessage {
  * Event with custom info/data.
  */
 export interface InfoEvent {
-  timestamp: Timestamp5;
-  event: Event5;
+  timestamp: Timestamp6;
+  event: Event6;
   data: JsonValue;
 }
 /**
  * Step within current sample or subtask.
  */
 export interface StepEvent {
-  timestamp: Timestamp6;
-  event: Event6;
+  timestamp: Timestamp7;
+  event: Event7;
   action: Action;
   type: Type7;
   name: Name7;
@@ -632,14 +683,14 @@ export interface StepEvent {
  * Subtask spawned.
  */
 export interface SubtaskEvent {
-  timestamp: Timestamp7;
-  event: Event7;
+  timestamp: Timestamp8;
+  event: Event8;
   name: Name8;
-  input: Input2;
+  input: Input3;
   result: Result;
   events: EvalEvents;
 }
-export interface Input2 {}
+export interface Input3 {}
 export interface Result {
   [k: string]: unknown;
 }
