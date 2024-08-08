@@ -82,7 +82,9 @@ def match_str(
 
 
 def first_number_normalized(words: list[str]) -> str:
-    number = next((word for word in words if word.isnumeric()), words[0])
+    number = next(
+        (word for word in words if word.replace(".", "").isnumeric()), words[0]
+    )
     return normalize_number(number)
 
 
