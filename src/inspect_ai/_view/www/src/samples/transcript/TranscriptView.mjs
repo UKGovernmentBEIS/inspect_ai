@@ -1,6 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
-import { StateEventView } from "./StateEventView.mjs";
+import { StateEventView } from "./state/StateEventView.mjs";
 import { StepEventView } from "./StepEventView.mjs";
 import { SubtaskEventView } from "./SubtaskEventView.mjs";
 import { ModelEventView } from "./ModelEventView.mjs";
