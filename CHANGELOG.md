@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Change default to not log base64 encoded versions of images, as this often resulted in extremely large log files (use `--log-images` to opt back in).
 - Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
 
 ## v0.3.21 (07 August 2024)
