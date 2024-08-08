@@ -134,7 +134,7 @@ const resolveValue = (value, evalEvents) => {
     });
   } else if (value && typeof value === "object") {
     const resolvedObject = {};
-    for (const key in Object.keys(value)) {
+    for (const key of Object.keys(value)) {
       resolvedObject[key] = resolveValue(value[key], evalEvents);
     }
     return resolvedObject;
