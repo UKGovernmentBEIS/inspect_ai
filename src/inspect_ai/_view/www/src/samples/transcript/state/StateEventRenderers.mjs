@@ -2,7 +2,6 @@
 import { html } from "htm/preact";
 import { ChatView } from "../../../components/ChatView.mjs";
 
-
 /**
  * @typedef {Object} Signature
  * @property {string[]} remove - Array of paths to be removed.
@@ -19,34 +18,33 @@ import { ChatView } from "../../../components/ChatView.mjs";
 
 /** @type {ChangeType} */
 const system_msg_added_sig = {
-    type: "system_message",
-    signature: {
-        remove: ["/messages/0/source"],
-        replace: ["/messages/0/role", "/messages/0/content"],
-        add: ["/messages/1"],
-    },
-    render: (resolvedState) => {
-        const message = resolvedState["messages"][0];
-        return html`<${ChatView}
-        id="system_msg_event_preview"
-        messages=${[message]}
-      />`;
-    },
+  type: "system_message",
+  signature: {
+    remove: ["/messages/0/source"],
+    replace: ["/messages/0/role", "/messages/0/content"],
+    add: ["/messages/1"],
+  },
+  render: (resolvedState) => {
+    const message = resolvedState["messages"][0];
+    return html`<${ChatView}
+      id="system_msg_event_preview"
+      messages=${[message]}
+    />`;
+  },
 };
 
 /** @type {ChangeType} */
 const tools_choice = {
-    type: "tools_choice",
-    signature: {
-        add: ["/tools/0"],
-        replace: ["/tool_choice"],
-        remove: []
-    },
-    render: (resolvedState) => {
-        return html`Tool Choice: ${resolvedState.tool_choice}`;
-    }
-}
+  type: "tools_choice",
+  signature: {
+    add: ["/tools/0"],
+    replace: ["/tool_choice"],
+    remove: [],
+  },
+  render: (resolvedState) => {
+    return html`Tool Choice: ${resolvedState.tool_choice}`;
+  },
+};
 
 /** @type {ChangeType[]} */
 export const RenderableChangeTypes = [system_msg_added_sig, tools_choice];
-

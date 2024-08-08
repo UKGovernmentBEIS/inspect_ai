@@ -21,8 +21,8 @@ export const EventPanel = ({ id, title, icon, children }) => {
     children === undefined
       ? children
       : Array.isArray(children)
-      ? children
-      : [children];
+        ? children
+        : [children];
 
   /**
    * Generates the id for the navigation pill.
@@ -61,8 +61,8 @@ export const EventPanel = ({ id, title, icon, children }) => {
                       index === 0
                         ? "summary"
                         : index + 1 === arrChildren.length
-                        ? "raw"
-                        : `item-${index + 1}`,
+                          ? "raw"
+                          : `item-${index + 1}`,
                     target: pillId(index),
                   };
                 })}

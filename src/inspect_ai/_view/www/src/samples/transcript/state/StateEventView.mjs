@@ -1,6 +1,5 @@
 // @ts-check
 import { html } from "htm/preact";
-import { ApplicationIcons } from "../../../appearance/Icons.mjs";
 import { EventPanel } from "../EventPanel.mjs";
 import { applyOperation } from "fast-json-patch";
 import { RenderableChangeTypes } from "./StateEventRenderers.mjs";
@@ -48,7 +47,6 @@ export const StateEventView = ({ id, event }) => {
   </${EventPanel}>`;
 };
 
-
 /**
  * Renders the value of a change based on its type.
  *
@@ -78,4 +76,3 @@ const generatePreview = (changes, resolvedState) => {
   }
   return undefined;
 };
-
