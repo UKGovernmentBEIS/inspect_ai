@@ -40,6 +40,16 @@ class BaseEvent(BaseModel):
         return dt.astimezone().isoformat()
 
 
+class SampleInitEvent(BaseModel):
+    """Beginning of processing a Sample."""
+
+    event: Literal["sample_init"] = Field(default="sample_init")
+    """Event type."""
+
+    state: JsonValue
+    """Initial task state."""
+
+
 class StoreEvent(BaseEvent):
     """Change to data within the current `Store`."""
 
@@ -159,7 +169,8 @@ class SubtaskEvent(BaseEvent):
 
 
 Event: TypeAlias = Union[
-    StateEvent
+    SampleInitEvent
+    | StateEvent
     | StoreEvent
     | ModelEvent
     | ScoreEvent
@@ -284,12 +295,20 @@ def walk_events(events: list[Event], content_fn: Callable[[str], str]) -> list[E
 
 
 def walk_event(event: Event, content_fn: Callable[[str], str]) -> Event:
+    if isinstance(event, SampleInitEvent):
+        return walk_sample_init_event(event, content_fn)
     if isinstance(event, ModelEvent):
         return walk_model_event(event, content_fn)
     elif isinstance(event, StateEvent):
         return walk_state_event(event, content_fn)
     else:
         return event
+
+
+def walk_sample_init_event(
+    event: SampleInitEvent, content_fn: Callable[[str], str]
+) -> SampleInitEvent:
+    return event.model_copy(update=dict(state=walk_json_value(event.state, content_fn)))
 
 
 def walk_model_event(event: ModelEvent, content_fn: Callable[[str], str]) -> ModelEvent:
@@ -346,7 +365,7 @@ def walk_json_value(value: JsonValue, content_fn: Callable[[str], str]) -> JsonV
     elif isinstance(value, dict):
         updates: dict[str, JsonValue] = {}
         for k, v in value.items():
-            if k in ["content", "message", "text", "image", "value"]:
+            if k in ["content", "message", "messages", "text", "image", "value"]:
                 updates[k] = walk_json_value(v, content_fn)
         if updates:
             value = value.copy()

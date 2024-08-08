@@ -57,7 +57,12 @@ from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.solver._subtask.subtask import init_subtask
-from inspect_ai.solver._subtask.transcript import ScoreEvent, transcript
+from inspect_ai.solver._subtask.transcript import (
+    SampleInitEvent,
+    ScoreEvent,
+    transcript,
+)
+from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.util._sandbox.context import (
     cleanup_sandbox_environments_sample,
     init_sandbox_environments_sample,
@@ -356,6 +361,9 @@ async def task_run_sample(
     # solver loop
     async with semaphore_cm, sandboxenv_cm:
         try:
+            # sample init event
+            transcript()._event(SampleInitEvent(state=state_jsonable(state)))
+
             # run plan steps (checking for early termination)
             for index, solver in enumerate(plan.steps):
                 # run the solver
