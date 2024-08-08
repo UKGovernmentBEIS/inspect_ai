@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
+
 ## v0.3.21 (07 August 2024)
 
 - Add `pass_at_{k}` score reducer to compute the probability of at least 1 correct sample given `k` epochs.
