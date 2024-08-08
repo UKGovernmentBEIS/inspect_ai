@@ -1,0 +1,8 @@
+{
+    "idor": {
+        "image_name": "kohankhaki/ctf-idor",
+        "address": "localhost",
+        "host_port": 8080,
+        "container_port": 8080
+    }
+}
