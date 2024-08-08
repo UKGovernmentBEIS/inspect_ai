@@ -120,12 +120,16 @@ def value_to_float(
 ) -> ValueToFloat:
     """Create a ValueToFloat function.
 
-    Create a ValueToFloat function that maps string values of
-    the form "C", "I", "P", and "N" to 1, 0, 0.5, and 0
-    (respectively). Note that those are the default literal
-    values, but they can be customized. Numeric values are
-    cast to float. Arrays and dictionaries give a warning
-    and return 0.
+    Create a ValueToFloat function that maps scalar values of
+    different types into floats. For strings, common boolean
+    representations (e.g. 'yes', 'no', 'true', 'false') are
+    mapped to 1 and 0. In addition, the specified correct,
+    incorrect, partial, and noanswer values (by default "C"
+    "I", "P", are mapped to "N" to 1, 0, 0.5, and 0. Note that
+    those are the default literal values, but they can be
+    customized. Strings with only numbers are converted, and
+    numeric values are cast to float. Arrays and dictionarie
+    give a warning and return 0.
 
     Args:
        correct (Value): Value that represents a correct answer (1)
@@ -146,9 +150,18 @@ def value_to_float(
             return 0.5
         elif value == incorrect or value == noanswer:
             return 0
-        else:
-            logger.warning(f"Unable to convert value to float: {value}")
-            return 0
+        elif isinstance(value, str):
+            value = value.lower()
+            if value in ["yes", "true"]:
+                return 1.0
+            elif value in ["no", "false"]:
+                return 0.0
+            elif value.replace(".", "").isnumeric():
+                return float(value)
+
+        # couldn't extract a value
+        logger.warning(f"Unable to convert value to float: {value}")
+        return 0.0
 
     return to_float
 

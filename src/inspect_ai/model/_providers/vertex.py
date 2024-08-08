@@ -140,6 +140,14 @@ class VertexAPI(ModelAPI):
         """Scope for enforcing max_connections (could also use endpoint)."""
         return self.model_name
 
+    @override
+    def collapse_user_messages(self) -> bool:
+        return True
+
+    @override
+    def collapse_assistant_messages(self) -> bool:
+        return True
+
 
 async def as_chat_messages(messages: list[ChatMessage]) -> list[Content]:
     # google does not support system messages so filter them out to start with

@@ -1,5 +1,11 @@
 import { html } from "htm/preact";
-import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 
 // Registration component
 import "./src/Register.mjs";
@@ -8,6 +14,7 @@ import "./src/Register.mjs";
 import api from "./src/api/index.mjs";
 
 import { sleep, throttle } from "./src/utils/Sync.mjs";
+import { clearDocumentSelection } from "./src/components/Browser.mjs";
 
 import { AppErrorBoundary } from "./src/components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./src/components/ErrorPanel.mjs";
@@ -15,6 +22,7 @@ import { ProgressBar } from "./src/components/ProgressBar.mjs";
 
 import { Sidebar } from "./src/sidebar/Sidebar.mjs";
 import { WorkSpace } from "./src/workspace/WorkSpace.mjs";
+import { FindBand } from "./src/components/FindBand.mjs";
 
 export function App() {
   const [selected, setSelected] = useState(-1);
@@ -36,6 +44,8 @@ export function App() {
     downloadFiles: true,
     webWorkers: true,
   });
+  const [showFind, setShowFind] = useState(false);
+  const mainAppRef = useRef();
 
   // Read header information for the logs
   // and then update
@@ -306,6 +316,8 @@ export function App() {
         fullScreen=${fullScreen}
         offcanvas=${offcanvas}
         capabilities=${capabilities}
+        showFind=${showFind}
+        setShowFind=${setShowFind}
       />`;
     }
   }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
@@ -313,11 +325,32 @@ export function App() {
   const fullScreenClz = fullScreen ? " full-screen" : "";
   const offcanvasClz = offcanvas ? " off-canvas" : "";
 
+  const hideFind = useCallback(() => {
+    clearDocumentSelection();
+    if (showFind) {
+      setShowFind(false);
+    }
+  }, [showFind, setShowFind]);
+
   return html`
     <${AppErrorBoundary}>
     ${sidebar}
-    <div class="app-main-grid${fullScreenClz}${offcanvasClz}">
-      <${ProgressBar} animating=${status.loading} style=${{ marginTop: "2px" }}/>
+    <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(
+      e,
+    ) => {
+      // regular browsers user their own find
+      if (!window.acquireVsCodeApi) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        setShowFind(true);
+      } else if (e.key === "Escape") {
+        hideFind();
+      }
+    }}>
+      ${showFind ? html`<${FindBand} hideBand=${hideFind} />` : ""}
+      <${ProgressBar} animating=${status.loading} />
       ${workspace}
     </div>
     </${AppErrorBoundary}>

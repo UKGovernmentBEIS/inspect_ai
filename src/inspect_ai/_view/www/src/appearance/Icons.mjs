@@ -4,6 +4,7 @@
  * @typedef {Object} ArrowIcons
  * @property {string} right
  * @property {string} down
+ * @property {string} up
  */
 
 /**
@@ -104,6 +105,7 @@ export const ApplicationIcons = {
   arrows: {
     right: "bi bi-arrow-right",
     down: "bi bi-arrow-down",
+    up: "bi bi-arrow-up",
   },
   caret: {
     right: "bi bi-caret-right",
