@@ -1,6 +1,5 @@
 // @ts-check
 import { html } from "htm/preact";
-import { useCallback, useState } from "preact/hooks";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
@@ -11,17 +10,10 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {string | undefined} props.title - The name of the event
  * @param {string | undefined} props.icon - The name of the event
  * @param {"normal"|"compact"} props.style - The style of the display
- * @param {boolean | undefined} props.collapse - Whether to collapse this entry
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const EventPanel = ({ title, icon, style, collapse, children }) => {
-  /**
-   * State hook for managing the collapsed state.
-   *
-   * @type {[boolean|undefined, (value: boolean|undefined) => void]}
-   */
-  const [collapsed, setCollapsed] = useState(collapse);
+export const EventPanel = ({ title, icon, style, children }) => {
 
   style = style || "normal";
   const titleEl = title

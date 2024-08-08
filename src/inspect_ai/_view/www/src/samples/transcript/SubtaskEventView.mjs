@@ -12,7 +12,7 @@ import { EventPanel } from "./EventPanel.mjs";
  */
 export const SubtaskEventView = ({ event }) => {
   return html`
-    <${EventPanel} title="Subtask: ${event.name}" collapse="true">
+    <${EventPanel} title="Subtask: ${event.name}">
     <${TranscriptView}
       evalEvents=${event.events}
     />
