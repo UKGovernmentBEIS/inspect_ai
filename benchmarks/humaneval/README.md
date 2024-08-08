@@ -1,6 +1,6 @@
 # HumanEval
 
-[HumanEval](https://arxiv.org/pdf/2107.03374) is a benchmark to evaluate a model's performance on synthesizing programs from docstrings.
+[HumanEval](https://arxiv.org/pdf/2107.03374) is a benchmark to evaluate a model's performance on synthesizing programs from docstrings. This implementation is based on the [official implementation](https://github.com/openai/human-eval).
 
 ## Execution
 Here is an example prompt from the dataset:
