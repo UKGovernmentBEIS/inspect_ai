@@ -2,29 +2,31 @@ import json
 import os
 from typing import Any
 
-from mistralai.async_client import MistralAsyncClient
-from mistralai.exceptions import MistralAPIStatusException
-from mistralai.models.chat_completion import (
-    ChatCompletionResponse,
-    ChatCompletionResponseChoice,
-    FinishReason,
-    FunctionCall,
-    ToolType,
+from mistralai import FunctionCall, Mistral
+from mistralai.models import (
+    AssistantMessage as MistralAssistantMessage,
 )
-from mistralai.models.chat_completion import (
-    ChatMessage as MistralChatMessage,
+from mistralai.models import (
+    ChatCompletionChoice as MistralChatCompletionChoice,
 )
-from mistralai.models.chat_completion import (
-    ToolCall as MistralToolCall,
-)
-from mistralai.models.chat_completion import (
+from mistralai.models import Function as MistralFunction
+from mistralai.models import SDKError
+from mistralai.models import SystemMessage as MistralSystemMessage
+from mistralai.models import Tool as MistralTool
+from mistralai.models import ToolCall as MistralToolCall
+from mistralai.models import (
     ToolChoice as MistralToolChoice,
+)
+from mistralai.models import ToolMessage as MistralToolMessage
+from mistralai.models import UserMessage as MistralUserMessage
+from mistralai.models.chatcompletionresponse import (
+    ChatCompletionResponse as MistralChatCompletionResponse,
 )
 from typing_extensions import override
 
+# TODO: Migration guide:
+# https://github.com/mistralai/client-python/blob/main/MIGRATION.md
 from inspect_ai._util.constants import (
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT,
 )
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -72,7 +74,7 @@ class MistralAPI(ModelAPI):
             if self.api_key:
                 base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
                 if base_url:
-                    model_args["endpoint"] = base_url
+                    model_args["server_url"] = base_url
             else:
                 self.api_key = os.environ.get(
                     AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
@@ -87,15 +89,12 @@ class MistralAPI(ModelAPI):
                         "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
                         + " environment variable or the --model-base-url CLI flag to set the base URL."
                     )
-                model_args["endpoint"] = base_url
+                model_args["server_url"] = base_url
 
         # create client
-        self.client = MistralAsyncClient(
+        self.client = Mistral(
             api_key=self.api_key,
-            max_retries=(
-                config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-            ),
-            timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
+            timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT) * 1000,
             **model_args,
         )
 
@@ -107,7 +106,7 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput:
         # send request
-        response = await self.client.chat(
+        response = await self.client.chat.complete_async(
             model=self.model_name,
             messages=[mistral_chat_message(message) for message in input],
             temperature=config.temperature,
@@ -119,6 +118,9 @@ class MistralAPI(ModelAPI):
                 mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
             ),
         )
+
+        if response is None:
+            raise RuntimeError("Mistral model did not return a response from generate.")
 
         # return model output (w/ tool calls if they exist)
         choices = completion_choices_from_response(response, tools)
@@ -138,22 +140,16 @@ class MistralAPI(ModelAPI):
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
-        return isinstance(ex, MistralAPIStatusException) and ex.http_status == 429
+        return isinstance(ex, SDKError) and ex.status_code == 429
 
     @override
     def connection_key(self) -> str:
         return str(self.api_key)
 
-    # not clear what the mistral default max tokens is (not documented)
-    # so we set it to the default to be sure
-    @override
-    def max_tokens(self) -> int:
-        return DEFAULT_MAX_TOKENS
 
-
-def mistral_chat_tools(tools: list[ToolInfo]) -> list[dict[str, Any]]:
+def mistral_chat_tools(tools: list[ToolInfo]) -> list[MistralTool]:
     return [
-        dict(type="function", function=tool.model_dump(exclude_none=True))
+        MistralTool(function=MistralFunction(**tool.model_dump(exclude_none=True)))
         for tool in tools
     ]
 
@@ -162,38 +158,48 @@ def mistral_chat_tool_choice(tool_choice: ToolChoice) -> MistralToolChoice:
     if isinstance(tool_choice, ToolFunction):
         # mistral doesn't support specifically named tools to use
         # (rather just 'any' which says use at least one tool)
-        return MistralToolChoice.any
+        return "any"
     elif tool_choice == "any":
-        return MistralToolChoice.any
+        return "any"
     elif tool_choice == "auto":
-        return MistralToolChoice.auto
+        return "auto"
     else:
-        return MistralToolChoice.none
+        return "none"
 
 
-def mistral_chat_message(message: ChatMessage) -> MistralChatMessage:
+def mistral_chat_message(
+    message: ChatMessage,
+) -> (
+    MistralSystemMessage
+    | MistralUserMessage
+    | MistralAssistantMessage
+    | MistralToolMessage
+):
     if message.role == "assistant" and message.tool_calls:
-        return MistralChatMessage(
+        return MistralAssistantMessage(
             role=message.role,
             content=message.text,
             tool_calls=[mistral_tool_call(call) for call in message.tool_calls],
         )
     elif message.role == "tool":
-        return MistralChatMessage(
+        return MistralToolMessage(
             role=message.role,
             name=message.tool_call_id,
             content=(
                 f"Error: {message.error.message}" if message.error else message.text
             ),
         )
-    else:
-        return MistralChatMessage(role=message.role, content=message.text)
+    elif message.role == "user":
+        return MistralUserMessage(content=message.text)
+    elif message.role == "system":
+        return MistralSystemMessage(content=message.text)
+    elif message.role == "assistant":
+        return MistralAssistantMessage(content=message.text)
 
 
 def mistral_tool_call(tool_call: ToolCall) -> MistralToolCall:
     return MistralToolCall(
         id=tool_call.id,
-        type=ToolType.function,
         function=mistral_function_call(tool_call),
     )
 
@@ -205,51 +211,67 @@ def mistral_function_call(tool_call: ToolCall) -> FunctionCall:
 
 
 def chat_tool_calls(
-    message: MistralChatMessage, tools: list[ToolInfo]
-) -> list[ToolCall] | None:
-    if message.tool_calls:
-        return [
-            parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
-            for call in message.tool_calls
-        ]
+    tool_calls: list[MistralToolCall], tools: list[ToolInfo]
+) -> list[ToolCall]:
+    return [chat_tool_call(tool, tools) for tool in tool_calls]
+
+
+def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCall:
+    id = tool_call.id or tool_call.function.name
+    if isinstance(tool_call.function.arguments, str):
+        return parse_tool_call(
+            id, tool_call.function.name, tool_call.function.arguments, tools
+        )
     else:
-        return None
+        return ToolCall(
+            id, tool_call.function.name, tool_call.function.arguments, type="function"
+        )
 
 
 def completion_choice(
-    choice: ChatCompletionResponseChoice, tools: list[ToolInfo]
+    choice: MistralChatCompletionChoice, tools: list[ToolInfo]
 ) -> ChatCompletionChoice:
     message = choice.message
-    completion = message.content
-    if isinstance(completion, list):
-        completion = " ".join(completion)
-    return ChatCompletionChoice(
-        message=ChatMessageAssistant(
-            content=completion,
-            tool_calls=chat_tool_calls(message, tools),
-            source="generate",
-        ),
-        stop_reason=(
-            choice_stop_reason(choice)
-            if choice.finish_reason is not None
-            else "unknown"
-        ),
-    )
+    if message:
+        completion = message.content or ""
+        if isinstance(completion, list):
+            completion = " ".join(completion)
+        return ChatCompletionChoice(
+            message=ChatMessageAssistant(
+                content=completion,
+                tool_calls=chat_tool_calls(message.tool_calls, tools)
+                if message.tool_calls
+                else None,
+                source="generate",
+            ),
+            stop_reason=(
+                choice_stop_reason(choice)
+                if choice.finish_reason is not None
+                else "unknown"
+            ),
+        )
+    else:
+        raise ValueError(
+            f"Mistral did not return a message in Completion Choice: {choice.model_dump_json(indent=2, exclude_none=True)}"
+        )
 
 
 def completion_choices_from_response(
-    response: ChatCompletionResponse, tools: list[ToolInfo]
+    response: MistralChatCompletionResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
-    return [completion_choice(choice, tools) for choice in response.choices]
+    if response.choices is None:
+        return []
+    else:
+        return [completion_choice(choice, tools) for choice in response.choices]
 
 
-def choice_stop_reason(choice: ChatCompletionResponseChoice) -> StopReason:
+def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
     match choice.finish_reason:
-        case FinishReason.stop:
+        case "stop":
             return "stop"
-        case FinishReason.length:
+        case "length" | "model_length":
             return "length"
-        case FinishReason.tool_calls:
+        case "tool_calls":
             return "tool_calls"
         case _:
             return "unknown"

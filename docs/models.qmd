@@ -436,7 +436,7 @@ The additional `model_args` are forwarded as follows for the various providers:
 | OpenAI       | `AsyncOpenAI`                          |
 | Anthropic    | `AsyncAnthropic`                       |
 | Google       | `genai.configure`                      |
-| Mistral      | `MistralAsyncClient`                   |
+| Mistral      | `Mistral`                   |
 | Hugging Face | `AutoModelForCausalLM.from_pretrained` |
 | vLLM         | `SamplingParams`                       |
 | Ollama       | `AsyncOpenAI`                          |
