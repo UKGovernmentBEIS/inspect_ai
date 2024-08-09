@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
+
 import { EventPanel } from "../EventPanel.mjs";
-import { applyOperation } from "fast-json-patch";
 import { RenderableChangeTypes } from "./StateEventRenderers.mjs";
 import { StateDiffView } from "./StateDiffView.mjs";
 
@@ -10,28 +10,12 @@ import { StateDiffView } from "./StateDiffView.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
- * @param {import("../../../types/log").StateEvent | import("../../../types/log").StoreEvent} props.event - The event object to display.
+ * @param {import("../../../types/log").StateEvent } props.event - The event object to display.
+ * @param {import("../TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StateEventView = ({ id, event }) => {
-  const resolvedState = {
-    messages: [
-      {
-        source: undefined,
-        role: "user",
-        content: "sample input",
-      },
-    ],
-    metadata: {},
-    tools: [],
-    output: {
-      choices: [],
-    },
-  };
-  event.changes.forEach((change) => {
-    //@ts-ignore
-    applyOperation(resolvedState, change);
-  });
+export const StateEventView = ({ id, event, stateManager }) => {
+  const resolvedState = stateManager.applyChanges(event.changes);
 
   const tabs = [
     html`<${StateDiffView} changes=${event.changes} name="Diffs" />`,
@@ -54,7 +38,7 @@ export const StateEventView = ({ id, event }) => {
  *
  * @param {import("../../../types/log").JsonChange[]} changes - The change object containing the value.
  * @param {Object} resolvedState - The change object containing the value.
- * @returns {import("preact").JSX.Element|Object|string} - The rendered HTML template if the value is an object with content and source, otherwise the value itself.
+ * @returns {import("preact").JSX.Element|Object|string|undefined} - The rendered HTML template if the value is an object with content and source, otherwise the value itself.
  */
 const generatePreview = (changes, resolvedState) => {
   for (const changeType of RenderableChangeTypes) {

@@ -14757,7 +14757,7 @@ const SampleScoreView = ({
     </div>
   `;
 };
-const EventPanel = ({ id: id2, title, icon, collapse, children }) => {
+const EventPanel = ({ id: id2, title, icon, collapse, style, children }) => {
   var _a;
   const arrChildren = (_a = children === void 0 ? children : Array.isArray(children) ? children : [children]) == null ? void 0 : _a.filter((child) => !!child);
   const hasCollapse = collapse !== void 0;
@@ -14826,7 +14826,8 @@ const EventPanel = ({ id: id2, title, icon, collapse, children }) => {
     class="card"
     style=${{
     padding: "0.5em",
-    marginBottom: "-1px"
+    marginBottom: "-1px",
+    ...style
   }}
   >
     ${titleEl}
@@ -14884,6 +14885,302 @@ const EventNav = ({ target, title, active }) => {
       ${title}
     </button>
   </li>`;
+};
+const MetaDataGrid = ({ id: id2, entries, classes, context, expanded }) => {
+  const baseId = "metadata-grid";
+  const cellKeyStyle = {
+    fontWeight: "400",
+    whiteSpace: "nowrap",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  };
+  const cellValueStyle = {
+    whiteSpace: "pre-wrap",
+    wordWrap: "anywhere",
+    fontSize: FontSize.small
+  };
+  const cellKeyTextStyle = {
+    fontSize: FontSize.small
+  };
+  if (entries && !Array.isArray(entries)) {
+    entries = Object.entries(entries || {}).map(([key2, value]) => {
+      return { name: key2, value };
+    });
+  }
+  const entryEls = (entries || []).map((entry, index) => {
+    const id3 = `${baseId}-value-${index}`;
+    return m$1`
+      <div
+        style=${{
+      gridColumn: "1 / -1",
+      borderBottom: "solid 1px var(--bs-light-border-subtle"
+    }}
+      ></div>
+      <div
+        class="${baseId}-key"
+        style=${{ ...cellKeyStyle, ...cellKeyTextStyle }}
+      >
+        ${entry.name}
+      </div>
+      <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
+        <${RenderedContent}
+          id=${id3}
+          entry=${entry}
+          context=${context}
+          options=${{ expanded }}
+        />
+      </div>
+    `;
+  });
+  return m$1`<div
+    ...${{ id: id2 }}
+    class="${classes || ""}"
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content auto",
+    columnGap: "1em"
+  }}
+  >
+    ${entryEls}
+  </div>`;
+};
+const SampleInitEventView = ({ id: id2, event, stateManager }) => {
+  stateManager.setState(event.state);
+  return m$1`
+  <${EventPanel} id=${id2} title="Sample Init" style=${{ marginLeft: "2em", marginBottom: "1em" }}>
+
+    <div name="Sample">
+      <${MetaDataGrid} entries=${event.sample}/>
+    </div>
+
+    <div name="State">
+      <${MetaDataGrid} entries=${event.state}/>
+    </div>
+  </${EventPanel}>`;
+};
+const system_msg_added_sig = {
+  type: "system_message",
+  signature: {
+    remove: ["/messages/0/source"],
+    replace: ["/messages/0/role", "/messages/0/content"],
+    add: ["/messages/1"]
+  },
+  render: (resolvedState) => {
+    const message = resolvedState["messages"][0];
+    return m$1`<${ChatView}
+      id="system_msg_event_preview"
+      messages=${[message]}
+    />`;
+  }
+};
+const tools_choice = {
+  type: "tools_choice",
+  signature: {
+    add: ["/tools/0"],
+    replace: ["/tool_choice"],
+    remove: []
+  },
+  render: (resolvedState) => {
+    const toolsInfo = {
+      "Tool Choice": resolvedState.tool_choice
+    };
+    if (resolvedState.tools.length > 0) {
+      toolsInfo["Tools"] = m$1`<${Tools}
+        toolDefinitions=${resolvedState.tools}
+      />`;
+    }
+    return m$1`
+      <div
+        style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content max-content",
+      columnGap: "1rem"
+    }}
+      >
+        ${Object.keys(toolsInfo).map((key2) => {
+      return m$1` <div
+              style=${{
+        fontSize: FontSize.smaller,
+        ...TextStyle.label,
+        ...TextStyle.secondary
+      }}
+            >
+              ${key2}
+            </div>
+            <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key2]}</div>`;
+    })}
+      </div>
+    `;
+  }
+};
+const RenderableChangeTypes = [system_msg_added_sig, tools_choice];
+const Tools = ({ toolDefinitions }) => {
+  return toolDefinitions.map((toolDefinition) => {
+    const toolName = toolDefinition.name;
+    const toolArgs = Object.keys(toolDefinition.parameters.properties);
+    return m$1`<${Tool} toolName=${toolName} toolArgs=${toolArgs} />`;
+  });
+};
+const Tool = ({ toolName, toolArgs }) => {
+  const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
+  return m$1`<code style=${{ fontSize: FontSize.small }}
+    >${functionCall}</code
+  >`;
+};
+const StateDiffView = ({ changes }) => {
+  const mutations = changes.map((change) => {
+    const symbol = iconForOp(change.op);
+    const color = colorForOp(change.op);
+    const toStyle = {};
+    const baseStyle = {
+      color
+    };
+    return m$1`
+      <div style=${baseStyle}>${symbol ? symbol : ""}</div>
+      <code style=${{ padding: "0", ...baseStyle }}>${change.path}</code>
+      <div style=${toStyle}>${renderValue(change)}</div>
+    `;
+  });
+  return m$1`<div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content 1fr",
+    columnGap: "1em",
+    rowGap: 0
+  }}
+  >
+    ${mutations}
+  </div>`;
+};
+const iconForOp = (op) => {
+  switch (op) {
+    case "add":
+      return m$1`<i class="${ApplicationIcons.changes.add}" />`;
+    case "remove":
+      return m$1`<i class="${ApplicationIcons.changes.remove}" />`;
+    case "replace":
+      return m$1`<i class="${ApplicationIcons.changes.replace}" />`;
+    case "copy":
+    case "move":
+    case "test":
+    default:
+      return void 0;
+  }
+};
+const colorForOp = (op) => {
+  switch (op) {
+    case "add":
+      return "var(--bs-success)";
+    case "remove":
+      return "var(--bs-danger)";
+    case "replace":
+      return "var(--bs-success)";
+    case "copy":
+    case "move":
+    case "test":
+    default:
+      return void 0;
+  }
+};
+const renderValue = (change) => {
+  const contents = typeof change.value === "object" || Array.isArray(change.value) ? JSON.stringify(change.value, null, 2) : typeof change.value === "string" ? change.value.trim() : change.value;
+  return m$1`<pre
+    style=${{
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    marginBottom: "0"
+  }}
+  >
+  ${contents || ""}</pre
+  >`;
+};
+const StateEventView = ({ id: id2, event, stateManager }) => {
+  const resolvedState = stateManager.applyChanges(event.changes);
+  const tabs = [
+    m$1`<${StateDiffView} changes=${event.changes} name="Diffs" />`
+  ];
+  const changePreview = generatePreview(event.changes, resolvedState);
+  if (changePreview) {
+    tabs.unshift(m$1`<div name="Summary">${changePreview}</div>`);
+  }
+  const title = event.event === "state" ? "State Updated" : "Store Updated";
+  return m$1`
+  <${EventPanel} id=${id2} title=${title} collapse=${changePreview === void 0 ? true : void 0}>
+    ${tabs}
+  </${EventPanel}>`;
+};
+const generatePreview = (changes, resolvedState) => {
+  for (const changeType of RenderableChangeTypes) {
+    const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
+    let matchingOps = 0;
+    for (const change of changes) {
+      if (changeType.signature.remove.includes(change.path) || changeType.signature.replace.includes(change.path) || changeType.signature.add.includes(change.path)) {
+        matchingOps++;
+      }
+      if (matchingOps === requiredMatchCount) {
+        return changeType.render(resolvedState);
+      }
+    }
+  }
+  return void 0;
+};
+const StepEventView = ({ id: id2, event, stateManager, children }) => {
+  const icon = () => {
+    if (event.type === "solver") {
+      switch (event.name) {
+        case "chain_of_thought":
+          return ApplicationIcons.solvers.chain_of_thought;
+        case "generate":
+          return ApplicationIcons.solvers.generate;
+        case "self_critique":
+          return ApplicationIcons.solvers.self_critique;
+        case "system_message":
+          return ApplicationIcons.solvers.system_message;
+        case "use_tools":
+          return ApplicationIcons.solvers.use_tools;
+        default:
+          return ApplicationIcons.solvers.default;
+      }
+    } else if (event.type === "scorer") {
+      return ApplicationIcons.scorer;
+    } else {
+      return ApplicationIcons.step;
+    }
+  };
+  return m$1`<div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content 1fr",
+    columnGap: "0.3em",
+    rowGap: "0.3em",
+    marginBottom: "2em",
+    fontSize: FontSize.larger
+  }}
+  >
+    <i class=${icon()} style=${{ marginRight: "0.2em" }} />
+    <div
+      style=${{
+    display: "inline-block",
+    justifySelf: "left"
+  }}
+    >
+      ${event.name}
+    </div>
+    <div style=${{ display: "grid", justifyContent: "center" }}>
+      <div
+        style=${{
+    background: "var(--bs-light-border-subtle",
+    height: "100%",
+    width: "2px"
+  }}
+      ></div>
+    </div>
+    <div style=${{ fontSize: FontSize.small }}>
+      ${children.map((child, index) => {
+    return renderNode(`${id2}_${index}`, child, stateManager);
+  })}
+    </div>
+  </div>`;
 };
 /*!
  * https://github.com/Starcounter-Jack/JSON-Patch
@@ -15519,253 +15816,47 @@ Object.assign({}, core, duplex, {
   escapePathComponent,
   unescapePathComponent
 });
-const system_msg_added_sig = {
-  type: "system_message",
-  signature: {
-    remove: ["/messages/0/source"],
-    replace: ["/messages/0/role", "/messages/0/content"],
-    add: ["/messages/1"]
-  },
-  render: (resolvedState) => {
-    const message = resolvedState["messages"][0];
-    return m$1`<${ChatView}
-      id="system_msg_event_preview"
-      messages=${[message]}
-    />`;
-  }
-};
-const tools_choice = {
-  type: "tools_choice",
-  signature: {
-    add: ["/tools/0"],
-    replace: ["/tool_choice"],
-    remove: []
-  },
-  render: (resolvedState) => {
-    const toolsInfo = {
-      "Tool Choice": resolvedState.tool_choice
-    };
-    if (resolvedState.tools.length > 0) {
-      toolsInfo["Tools"] = m$1`<${Tools}
-        toolDefinitions=${resolvedState.tools}
-      />`;
-    }
-    return m$1`
-      <div
-        style=${{
-      display: "grid",
-      gridTemplateColumns: "max-content max-content",
-      columnGap: "1rem"
-    }}
-      >
-        ${Object.keys(toolsInfo).map((key2) => {
-      return m$1` <div
-              style=${{
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-            >
-              ${key2}
-            </div>
-            <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key2]}</div>`;
-    })}
-      </div>
-    `;
-  }
-};
-const RenderableChangeTypes = [system_msg_added_sig, tools_choice];
-const Tools = ({ toolDefinitions }) => {
-  return toolDefinitions.map((toolDefinition) => {
-    const toolName = toolDefinition.name;
-    const toolArgs = Object.keys(toolDefinition.parameters.properties);
-    return m$1`<${Tool} toolName=${toolName} toolArgs=${toolArgs} />`;
-  });
-};
-const Tool = ({ toolName, toolArgs }) => {
-  const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
-  return m$1`<code style=${{ fontSize: FontSize.small }}
-    >${functionCall}</code
-  >`;
-};
-const StateDiffView = ({ changes }) => {
-  const mutations = changes.map((change) => {
-    const symbol = iconForOp(change.op);
-    const color = colorForOp(change.op);
-    const toStyle = {};
-    const baseStyle = {
-      color
-    };
-    return m$1`
-      <div style=${baseStyle}>${symbol ? symbol : ""}</div>
-      <code style=${{ padding: "0", ...baseStyle }}>${change.path}</code>
-      <div style=${toStyle}>${renderValue(change)}</div>
-    `;
-  });
-  return m$1`<div
-    style=${{
-    display: "grid",
-    gridTemplateColumns: "max-content max-content 1fr",
-    columnGap: "1em",
-    rowGap: 0
-  }}
-  >
-    ${mutations}
-  </div>`;
-};
-const iconForOp = (op) => {
-  switch (op) {
-    case "add":
-      return m$1`<i class="${ApplicationIcons.changes.add}" />`;
-    case "remove":
-      return m$1`<i class="${ApplicationIcons.changes.remove}" />`;
-    case "replace":
-      return m$1`<i class="${ApplicationIcons.changes.replace}" />`;
-    case "copy":
-    case "move":
-    case "test":
-    default:
-      return void 0;
-  }
-};
-const colorForOp = (op) => {
-  switch (op) {
-    case "add":
-      return "var(--bs-success)";
-    case "remove":
-      return "var(--bs-danger)";
-    case "replace":
-      return "var(--bs-success)";
-    case "copy":
-    case "move":
-    case "test":
-    default:
-      return void 0;
-  }
-};
-const renderValue = (change) => {
-  const contents = typeof change.value === "object" || Array.isArray(change.value) ? JSON.stringify(change.value, null, 2) : typeof change.value === "string" ? change.value.trim() : change.value;
-  return m$1`<pre
-    style=${{
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-    marginBottom: "0"
-  }}
-  >
-  ${contents || ""}</pre
-  >`;
-};
-const StateEventView = ({ id: id2, event }) => {
-  const resolvedState = {
-    messages: [
-      {
-        source: void 0,
-        role: "user",
-        content: "sample input"
-      }
-    ],
-    metadata: {},
-    tools: [],
-    output: {
-      choices: []
+const initStateManager = () => {
+  let state = {};
+  return {
+    /**
+     * Retrieves the current state object.
+     *
+     * @returns {Object} The current state object.
+     */
+    getState: () => {
+      return state;
+    },
+    /**
+     * Updates the current state with a new state object.
+     *
+     * @param {Object} newState - The new state object to update with.
+     */
+    setState: (newState) => {
+      state = structuredClone(newState);
+    },
+    /**
+     * Updates the current state with a new state object.
+     *
+     * @param {import("../../types/log").Changes} changes - The new state object to update with.
+     */
+    applyChanges: (changes) => {
+      state = structuredClone(state);
+      changes.forEach((change) => {
+        applyOperation(state, change);
+      });
+      return state;
     }
   };
-  event.changes.forEach((change) => {
-    applyOperation(resolvedState, change);
-  });
-  const tabs = [
-    m$1`<${StateDiffView} changes=${event.changes} name="Diffs" />`
-  ];
-  const changePreview = generatePreview(event.changes, resolvedState);
-  if (changePreview) {
-    tabs.unshift(m$1`<div name="Summary">${changePreview}</div>`);
-  }
-  const title = event.event === "state" ? "State Updated" : "Store Updated";
-  return m$1`
-  <${EventPanel} id=${id2} title=${title} collapse=${changePreview === void 0 ? true : void 0}>
-    ${tabs}
-  </${EventPanel}>`;
 };
-const generatePreview = (changes, resolvedState) => {
-  for (const changeType of RenderableChangeTypes) {
-    const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
-    let matchingOps = 0;
-    for (const change of changes) {
-      if (changeType.signature.remove.includes(change.path) || changeType.signature.replace.includes(change.path) || changeType.signature.add.includes(change.path)) {
-        matchingOps++;
-      }
-      if (matchingOps === requiredMatchCount) {
-        return changeType.render(resolvedState);
-      }
-    }
-  }
-  return void 0;
-};
-const StepEventView = ({ id: id2, event, children }) => {
-  const icon = () => {
-    if (event.type === "solver") {
-      switch (event.name) {
-        case "chain_of_thought":
-          return ApplicationIcons.solvers.chain_of_thought;
-        case "generate":
-          return ApplicationIcons.solvers.generate;
-        case "self_critique":
-          return ApplicationIcons.solvers.self_critique;
-        case "system_message":
-          return ApplicationIcons.solvers.system_message;
-        case "use_tools":
-          return ApplicationIcons.solvers.use_tools;
-        default:
-          return ApplicationIcons.solvers.default;
-      }
-    } else if (event.type === "scorer") {
-      return ApplicationIcons.scorer;
-    } else {
-      return ApplicationIcons.step;
-    }
-  };
-  return m$1`<div
-    style=${{
-    display: "grid",
-    gridTemplateColumns: "max-content 1fr",
-    columnGap: "0.3em",
-    rowGap: "0.3em",
-    marginBottom: "2em",
-    fontSize: FontSize.larger
-  }}
-  >
-    <i class=${icon()} style=${{ marginRight: "0.2em" }} />
-    <div
-      style=${{
-    display: "inline-block",
-    justifySelf: "left"
-  }}
-    >
-      ${event.name}
-    </div>
-    <div style=${{ display: "grid", justifyContent: "center" }}>
-      <div
-        style=${{
-    background: "var(--bs-light-border-subtle",
-    height: "100%",
-    width: "2px"
-  }}
-      ></div>
-    </div>
-    <div style=${{ fontSize: FontSize.small }}>
-      ${children.map((child, index) => {
-    return renderNode(`${id2}_${index}`, child);
-  })}
-    </div>
-  </div>`;
-};
-const SubtaskEventView = ({ id: id2, event }) => {
+const SubtaskEventView = ({ id: id2, event, stateManager }) => {
   return m$1`
     <${EventPanel} id=${id2} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
       <${TranscriptView}
         name="Transcript"
         evalEvents=${event.events}
+        stateManager=${stateManager}
       />
     </${EventPanel}>`;
 };
@@ -15875,64 +15966,6 @@ const InfoEventView = ({ id: id2, event }) => {
   </div>
   </${EventPanel}>`;
 };
-const MetaDataGrid = ({ id: id2, entries, classes, context, expanded }) => {
-  const baseId = "metadata-grid";
-  const cellKeyStyle = {
-    fontWeight: "400",
-    whiteSpace: "nowrap",
-    ...TextStyle.label
-  };
-  const cellValueStyle = {
-    fontWeight: "300",
-    whiteSpace: "pre-wrap",
-    wordWrap: "anywhere",
-    fontSize: FontSize.small
-  };
-  const cellKeyTextStyle = {
-    fontSize: FontSize.small
-  };
-  if (entries && !Array.isArray(entries)) {
-    entries = Object.entries(entries || {}).map(([key2, value]) => {
-      return { name: key2, value };
-    });
-  }
-  const entryEls = (entries || []).map((entry, index) => {
-    const id3 = `${baseId}-value-${index}`;
-    return m$1`
-      <div
-        style=${{
-      gridColumn: "1 / -1",
-      borderBottom: "solid 1px var(--bs-light-border-subtle"
-    }}
-      ></div>
-      <div
-        class="${baseId}-key"
-        style=${{ ...cellKeyStyle, ...cellKeyTextStyle }}
-      >
-        ${entry.name}
-      </div>
-      <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id3}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
-      </div>
-    `;
-  });
-  return m$1`<div
-    ...${{ id: id2 }}
-    class="${classes || ""}"
-    style=${{
-    display: "grid",
-    gridTemplateColumns: "max-content auto",
-    columnGap: "1em"
-  }}
-  >
-    ${entryEls}
-  </div>`;
-};
 const ScoreEventView = ({ id: id2, event }) => {
   return m$1`
   <${EventPanel} id=${id2} title="Score">
@@ -15959,23 +15992,23 @@ const ScoreEventView = ({ id: id2, event }) => {
   </${EventPanel}>`;
 };
 const kContentProtocol = "tc://";
-const TranscriptView = ({ evalEvents }) => {
+const TranscriptView = ({ evalEvents, stateManager }) => {
   const resolvedEvents = resolveEventContent(evalEvents);
   const eventNodes = resolveEventTree(resolvedEvents);
   const rows = eventNodes.map((node, index) => {
-    const rows2 = [
-      m$1`
-        <div
-          style=${{
-        paddingTop: 0,
-        paddingBottom: 0
-      }}
-        >
-          <div>${renderNode(`event${index}`, node)}</div>
+    const row = m$1`
+      <div
+        style=${{
+      paddingTop: 0,
+      paddingBottom: 0
+    }}
+      >
+        <div>
+          ${renderNode(`event${index}`, node, stateManager)}
         </div>
-      `
-    ];
-    return rows2;
+      </div>
+    `;
+    return row;
   });
   return m$1`<div
     style=${{
@@ -15988,8 +16021,14 @@ const TranscriptView = ({ evalEvents }) => {
     ${rows}
   </div>`;
 };
-const renderNode = (id2, node) => {
+const renderNode = (id2, node, stateManager) => {
   switch (node.event.event) {
+    case "sample_init":
+      return m$1`<${SampleInitEventView}
+        id=${id2}
+        event=${node.event}
+        stateManager=${stateManager}
+      />`;
     case "info":
       return m$1`<${InfoEventView} id=${id2} event=${node.event} />`;
     case "logger":
@@ -15999,17 +16038,22 @@ const renderNode = (id2, node) => {
     case "score":
       return m$1`<${ScoreEventView} id=${id2} event=${node.event} />`;
     case "state":
-      return m$1`<${StateEventView} id=${id2} event=${node.event} />`;
+      return m$1`<${StateEventView}
+        id=${id2}
+        event=${node.event}
+        stateManager=${stateManager}
+      />`;
     case "step":
       return m$1`<${StepEventView}
         id=${id2}
         event=${node.event}
         children=${node.children}
+        stateManager=${stateManager}
       />`;
     case "store":
-      return m$1`<${StateEventView} id=${id2} event=${node.event} />`;
+      return m$1`<${StateEventView} id=${id2} event=${node.event} stateManager=${stateManager}/>`;
     case "subtask":
-      return m$1`<${SubtaskEventView} id=${id2} event=${node.event} />`;
+      return m$1`<${SubtaskEventView} id=${id2} event=${node.event} stateManager=${stateManager}/>`;
     default:
       return m$1``;
   }
@@ -16019,22 +16063,18 @@ const resolveEventContent = (evalEvents) => {
     if (e2.event === "model") {
       e2.input = resolveValue(e2.input, evalEvents);
       e2.output = resolveValue(e2.output, evalEvents);
-      return e2;
     } else if (e2.event === "state") {
       e2.changes = e2.changes.map((change) => {
         change.value = resolveValue(change.value, evalEvents);
         return change;
       });
-      return e2;
     }
     return e2;
   });
 };
 const resolveValue = (value, evalEvents) => {
   if (Array.isArray(value)) {
-    return value.map((v2) => {
-      return resolveValue(v2, evalEvents);
-    });
+    return value.map((v2) => resolveValue(v2, evalEvents));
   } else if (value && typeof value === "object") {
     const resolvedObject = {};
     for (const key2 of Object.keys(value)) {
@@ -16043,14 +16083,14 @@ const resolveValue = (value, evalEvents) => {
     return resolvedObject;
   } else if (typeof value === "string") {
     if (value.startsWith(kContentProtocol)) {
-      value = evalEvents.content[value.replace(kContentProtocol, "")];
+      return evalEvents.content[value.replace(kContentProtocol, "")];
     }
   }
   return value;
 };
 const resolveEventTree = (events) => {
   const rootNodes = [];
-  let currentNode = null;
+  let currentNode = void 0;
   const stack2 = [];
   events.forEach((event) => {
     if (event.event === "step" && event.action === "begin") {
@@ -16066,7 +16106,7 @@ const resolveEventTree = (events) => {
       if (stack2.length > 0) {
         currentNode = stack2.pop();
       } else {
-        currentNode = null;
+        currentNode = void 0;
       }
     } else {
       const newNode = { event, children: [] };
@@ -16080,7 +16120,8 @@ const resolveEventTree = (events) => {
   return rootNodes;
 };
 const SampleTranscript = ({ evalEvents }) => {
-  return m$1`<${TranscriptView} evalEvents=${evalEvents} />`;
+  const stateManager = initStateManager();
+  return m$1`<${TranscriptView} evalEvents=${evalEvents} stateManager=${stateManager} />`;
 };
 const InlineSampleDisplay = ({
   index,
@@ -20151,3 +20192,4 @@ function App({ api: api2, pollForLogs = true }) {
   `;
 }
 B$1(m$1`<${App} api=${api} />`, document.getElementById("app"));
+//# sourceMappingURL=index.js.map

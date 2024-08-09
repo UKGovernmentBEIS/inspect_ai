@@ -4,6 +4,7 @@ import { TranscriptView } from "./TranscriptView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { initStateManager } from "./TranscriptState.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -11,15 +12,17 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").SubtaskEvent} props.event - The event object to display.
+ * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object. 
  * @returns {import("preact").JSX.Element} The component.
  */
-export const SubtaskEventView = ({ id, event }) => {
+export const SubtaskEventView = ({ id, event, stateManager }) => {
   return html`
     <${EventPanel} id=${id} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
       <${TranscriptView}
         name="Transcript"
         evalEvents=${event.events}
+        stateManager=${stateManager}
       />
     </${EventPanel}>`;
 };
@@ -51,6 +54,13 @@ const SubtaskSummary = ({ input, result }) => {
   </div>`;
 };
 
+/**
+ * Recursively renders content based on the type of `values`.
+ *
+ * @param {Object} props - The component props.
+ * @param {Array<unknown>|Object|string|number} props.values - The values to be rendered. Can be an array, object, string, or number.
+ * @returns {import("preact").JSX.Element|Array<import("preact").JSX.Element>|string|number} The rendered content, which can be a JSX element, an array of JSX elements, or a primitive value.
+ */
 const Rendered = ({ values }) => {
   if (Array.isArray(values)) {
     return values.map((val) => {

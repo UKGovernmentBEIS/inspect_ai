@@ -1,6 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { TranscriptView } from "./transcript/TranscriptView.mjs";
+import { initStateManager } from "./transcript/TranscriptState.mjs";
 
 /**
  * Renders the SampleTranscript component.
@@ -10,5 +11,7 @@ import { TranscriptView } from "./transcript/TranscriptView.mjs";
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
 export const SampleTranscript = ({ evalEvents }) => {
-  return html`<${TranscriptView} evalEvents=${evalEvents} />`;
+  const stateManager = initStateManager();
+
+  return html`<${TranscriptView} evalEvents=${evalEvents} stateManager=${stateManager} />`;
 };

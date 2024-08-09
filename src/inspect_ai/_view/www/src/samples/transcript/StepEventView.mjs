@@ -10,10 +10,11 @@ import { renderNode } from "./TranscriptView.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event. *
  * @param {import("../../types/log").StepEvent} props.event - The event object to display.
- * @param {import("../../types/log").Events} props.children - The child events to display.
+ * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object. 
+ * @param {import("./TranscriptView.mjs").EventNode[]} props.children - The child events to display.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StepEventView = ({ id, event, children }) => {
+export const StepEventView = ({ id, event, stateManager, children }) => {
   const icon = () => {
     if (event.type === "solver") {
       switch (event.name) {
@@ -67,7 +68,7 @@ export const StepEventView = ({ id, event, children }) => {
     </div>
     <div style=${{ fontSize: FontSize.small }}>
       ${children.map((child, index) => {
-        return renderNode(`${id}_${index}`, child);
+        return renderNode(`${id}_${index}`, child, stateManager);
       })}
     </div>
   </div>`;

@@ -12,10 +12,11 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {string | undefined} props.title - The name of the event
  * @param {string | undefined} props.icon - The icon of the event
  * @param {boolean | undefined} props.collapse - Default collapse behavior for card. If omitted, not collapsible.
+ * @param {Object} props.style - The style properties passed to the component.
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const EventPanel = ({ id, title, icon, collapse, children }) => {
+export const EventPanel = ({ id, title, icon, collapse, style, children }) => {
   /**
    * @type {import("preact").ComponentChildren[] | undefined}
    */
@@ -116,6 +117,7 @@ export const EventPanel = ({ id, title, icon, collapse, children }) => {
     style=${{
       padding: "0.5em",
       marginBottom: "-1px",
+      ...style
     }}
   >
     ${titleEl}
