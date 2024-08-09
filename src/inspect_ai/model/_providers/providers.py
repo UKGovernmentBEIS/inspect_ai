@@ -191,6 +191,13 @@ def bedrock() -> type[ModelAPI]:
     return BedrockAPI
 
 
+@modelapi(name="trest")
+def trest() -> type[ModelAPI]:
+    from .trest import TogetherRESTAPI
+
+    return TogetherRESTAPI
+
+
 @modelapi(name="mockllm")
 def mockllm() -> type[ModelAPI]:
     from .mockllm import MockLLM
