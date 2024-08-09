@@ -35,7 +35,7 @@ from inspect_ai.log._file import (
 logger = logging.getLogger(__name__)
 
 
-WWW_DIR = os.path.abspath((Path(__file__).parent / "www").as_posix())
+WWW_DIR = os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
 
 
 LOGS_PATH = "/api/logs"
