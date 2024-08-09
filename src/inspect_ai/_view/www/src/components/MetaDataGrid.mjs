@@ -23,7 +23,7 @@ export const MetaDataGrid = ({ id, entries, classes, context, expanded }) => {
     fontWeight: "400",
     whiteSpace: "nowrap",
     ...TextStyle.label,
-    ...TextStyle.secondary
+    ...TextStyle.secondary,
   };
   const cellValueStyle = {
     whiteSpace: "pre-wrap",

@@ -1,8 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
-import { FontSize } from "../../appearance/Fonts.mjs";
-import { TextStyle } from "../../appearance/Fonts.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 
 /**
@@ -19,7 +17,6 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
   // it as a baseline when applying their state updates)
   //@ts-ignore
   stateManager.setState(event.state);
-
 
   // sample
   // id

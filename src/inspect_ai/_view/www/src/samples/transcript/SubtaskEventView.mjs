@@ -4,7 +4,6 @@ import { TranscriptView } from "./TranscriptView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { initStateManager } from "./TranscriptState.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -12,7 +11,7 @@ import { initStateManager } from "./TranscriptState.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").SubtaskEvent} props.event - The event object to display.
- * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object. 
+ * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
 export const SubtaskEventView = ({ id, event, stateManager }) => {

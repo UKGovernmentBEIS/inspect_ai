@@ -17,7 +17,7 @@ const kContentProtocol = "tc://";
  *
  * @param {Object} params - The parameters for the component.
  * @param {import("../../types/log").EvalEvents} params.evalEvents - The transcript events to display.
- * @param {import("./TranscriptState.mjs").StateManager} params.stateManager - A function that updates the state with a new state object. 
+ * @param {import("./TranscriptState.mjs").StateManager} params.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const TranscriptView = ({ evalEvents, stateManager }) => {
@@ -32,13 +32,11 @@ export const TranscriptView = ({ evalEvents, stateManager }) => {
     const row = html`
       <div
         style=${{
-        paddingTop: 0,
-        paddingBottom: 0,
-      }}
+          paddingTop: 0,
+          paddingBottom: 0,
+        }}
       >
-        <div>
-          ${renderNode(`event${index}`, node, stateManager)}
-        </div>
+        <div>${renderNode(`event${index}`, node, stateManager)}</div>
       </div>
     `;
     return row;
@@ -101,10 +99,18 @@ export const renderNode = (id, node, stateManager) => {
       />`;
 
     case "store":
-      return html`<${StateEventView} id=${id} event=${node.event} stateManager=${stateManager}/>`;
+      return html`<${StateEventView}
+        id=${id}
+        event=${node.event}
+        stateManager=${stateManager}
+      />`;
 
     case "subtask":
-      return html`<${SubtaskEventView} id=${id} event=${node.event} stateManager=${stateManager}/>`;
+      return html`<${SubtaskEventView}
+        id=${id}
+        event=${node.event}
+        stateManager=${stateManager}
+      />`;
 
     default:
       return html``;
@@ -208,4 +214,3 @@ const resolveEventTree = (events) => {
   });
   return rootNodes;
 };
-

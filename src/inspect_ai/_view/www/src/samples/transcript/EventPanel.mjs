@@ -117,7 +117,7 @@ export const EventPanel = ({ id, title, icon, collapse, style, children }) => {
     style=${{
       padding: "0.5em",
       marginBottom: "-1px",
-      ...style
+      ...style,
     }}
   >
     ${titleEl}

@@ -13,5 +13,8 @@ import { initStateManager } from "./transcript/TranscriptState.mjs";
 export const SampleTranscript = ({ evalEvents }) => {
   const stateManager = initStateManager();
 
-  return html`<${TranscriptView} evalEvents=${evalEvents} stateManager=${stateManager} />`;
+  return html`<${TranscriptView}
+    evalEvents=${evalEvents}
+    stateManager=${stateManager}
+  />`;
 };
