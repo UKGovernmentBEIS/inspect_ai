@@ -8,7 +8,7 @@ def get_task_details(task_name, challenges_path, task_info_path):
             task_info = tasks.get(task_name)
             if task_info:
                 command = task_info["command"]
-                prompt = task_info["prompt"]
+                objective_prompt = task_info["objective_prompt"]
                 flag = task_info["flag"]
             else:
                 print("Task {task_name} information does not exist.")
@@ -22,15 +22,19 @@ def get_task_details(task_name, challenges_path, task_info_path):
     except Exception as e:
         print(f"Error: {e}")
 
-    return command, prompt, flag, address
+    return command, objective_prompt, flag, address
 
 
-def create_system_message_file(command, address, template_file_path, output_file_path):
+def create_system_message_file(
+    command, address, objective_prompt, template_file_path, output_file_path
+):
     try:
         with open(template_file_path, "r") as file:
             content = file.read()
         content = content.replace("{TARGET_ADDR}", address)
-        content = content.replace("{COMMAND}", command)
+        content = content.replace("{OBJECTIVE_PROMPT}", objective_prompt)
+        print(objective_prompt)
+        # content = content.replace("{COMMAND}", command)
         with open(output_file_path, "w") as file:
             file.write(content)
     except Exception as e:
