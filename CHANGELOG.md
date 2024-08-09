@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Support for `strict` mode in OpenAI tool calls (update to v1.40.0 of `openai` package required).
 - Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
 
 ## v0.3.21 (07 August 2024)
