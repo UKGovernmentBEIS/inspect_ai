@@ -8,6 +8,7 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { resolveToolInput } from "./Tools.mjs";
 
 /**
  * Renders the ChatView component.
@@ -275,72 +276,4 @@ const resolveToolMessage = (toolMessage) => {
       }
     });
   }
-};
-
-const resolveToolInput = (tool_call) => {
-  const toolName = tool_call.function;
-
-  const extractInputMetadata = () => {
-    if (toolName === "bash") {
-      return ["cmd", "bash"];
-    } else if (toolName === "python") {
-      return ["code", "python"];
-    } else if (toolName === "web_search") {
-      return ["query", "text"];
-    } else {
-      return [undefined, undefined];
-    }
-  };
-  const [inputKey, inputType] = extractInputMetadata();
-
-  const extractInput = (inputKey, tool_call) => {
-    const formatArg = (key, value) => {
-      const quotedValue = typeof value === "string" ? `"${value}"` : value;
-      return `${key}: ${quotedValue}`;
-    };
-
-    if (tool_call.arguments) {
-      if (Object.keys(tool_call.arguments).length === 1) {
-        return {
-          input: tool_call.arguments[Object.keys(tool_call.arguments)[0]],
-          args: [],
-        };
-      } else if (tool_call.arguments[inputKey]) {
-        const input = tool_call.arguments[inputKey];
-        const args = Object.keys(tool_call.arguments)
-          .filter((key) => {
-            return key !== inputKey;
-          })
-          .map((key) => {
-            return formatArg(key, tool_call.arguments[key]);
-          });
-        return {
-          input,
-          args,
-        };
-      } else {
-        const args = Object.keys(tool_call.arguments).map((key) => {
-          return formatArg(key, tool_call.arguments[key]);
-        });
-
-        return {
-          input: undefined,
-          args: args,
-        };
-      }
-    }
-    return {
-      input: undefined,
-      args: [],
-    };
-  };
-  const { input, args } = extractInput(inputKey, tool_call);
-
-  const functionCall =
-    args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
-  return {
-    functionCall,
-    input,
-    inputType,
-  };
 };

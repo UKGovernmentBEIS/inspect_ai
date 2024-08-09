@@ -55,6 +55,13 @@
  */
 
 /**
+ * Chevron Icons
+ * @typedef {Object} ChevronIcons
+ * @property {string} down
+ * @property {string} right
+ */
+
+/**
  * Caret Icons
  * @typedef {Object} CaretIcons
  * @property {string} right
@@ -68,6 +75,7 @@
  * @property {ArrowIcons} arrows
  * @property {CaretIcons} caret
  * @property {ChangeIcons} changes
+ * @property {ChevronIcons} chevron
  * @property {CollapseIcons} collapse
  * @property {string} close
  * @property {string} config
@@ -115,6 +123,10 @@ export const ApplicationIcons = {
     add: "bi bi-plus",
     remove: "bi bi-dash",
     replace: "bi bi-plus-slash-minus",
+  },
+  chevron: {
+    right: "bi bi-chevron-right",
+    down: "bi bi-chevron-down",
   },
   collapse: {
     all: "bi bi-arrows-collapse",

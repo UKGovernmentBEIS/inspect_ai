@@ -1,19 +1,9 @@
 // @ts-check
 import { html } from "htm/preact";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { EventPanel } from "./EventPanel.mjs";
+import { ApplicationIcons } from "../../../appearance/Icons.mjs";
 
-/**
- * Renders the StateEventView component.
- *
- * @param {Object} props - The properties passed to the component.
- * @param {import("../../types/log").StateEvent | import("../../types/log").StoreEvent} props.event - The event object to display.
- * @returns {import("preact").JSX.Element} The component.
- */
-export const StateEventView = ({ event }) => {
-  const mutations = event.changes.map((change) => {
-    // TODO: change.from is always undefined
-
+export const StateDiffView = ({ changes }) => {
+  const mutations = changes.map((change) => {
     // Compute the change rows
     const symbol = iconForOp(change.op);
     const color = colorForOp(change.op);
@@ -28,21 +18,16 @@ export const StateEventView = ({ event }) => {
     `;
   });
 
-  // Compute the title
-  const title = event.event === "state" ? "State Updated" : "Store Updated";
-  return html`
-  <${EventPanel} title=${title}>
-    <div
-      style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content max-content 1fr",
-        columnGap: "1em",
-        rowGap: 0,
-      }}
-    >
-      ${mutations}
-    </div>  
-  </${EventPanel}>`;
+  return html`<div
+    style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content max-content 1fr",
+      columnGap: "1em",
+      rowGap: 0,
+    }}
+  >
+    ${mutations}
+  </div>`;
 };
 
 /**
@@ -92,7 +77,7 @@ const colorForOp = (op) => {
 /**
  * Renders the value of a change based on its type.
  *
- * @param {import("../../types/log").JsonChange} change - The change object containing the value.
+ * @param {import("../../../types/log").JsonChange} change - The change object containing the value.
  * @returns {import("preact").JSX.Element|Object|string} - The rendered HTML template if the value is an object with content and source, otherwise the value itself.
  */
 const renderValue = (change) => {
@@ -110,6 +95,6 @@ const renderValue = (change) => {
       marginBottom: "0",
     }}
   >
-${contents || ""}</pre
+  ${contents || ""}</pre
   >`;
 };

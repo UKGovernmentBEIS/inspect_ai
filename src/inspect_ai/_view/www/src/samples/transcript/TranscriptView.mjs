@@ -1,12 +1,13 @@
 // @ts-check
 import { html } from "htm/preact";
-import { StateEventView } from "./StateEventView.mjs";
+import { StateEventView } from "./state/StateEventView.mjs";
 import { StepEventView } from "./StepEventView.mjs";
 import { SubtaskEventView } from "./SubtaskEventView.mjs";
 import { ModelEventView } from "./ModelEventView.mjs";
 import { LoggerEventView } from "./LoggerEventView.mjs";
 import { InfoEventView } from "./InfoEventView.mjs";
 import { ScoreEventView } from "./ScoreEventView.mjs";
+import { FontSize } from "../../appearance/Fonts.mjs";
 
 const kContentProtocol = "tc://";
 
@@ -34,7 +35,7 @@ export const TranscriptView = ({ evalEvents }) => {
             paddingBottom: 0,
           }}
         >
-          <div>${renderNode(node, `${index}`)}</div>
+          <div>${renderNode(`event${index}`, node)}</div>
         </div>
       `,
     ];
@@ -44,9 +45,10 @@ export const TranscriptView = ({ evalEvents }) => {
 
   return html`<div
     style=${{
-      fontSize: "0.8em",
+      fontSize: FontSize.small,
       display: "grid",
       marginTop: "1em",
+      width: "100%",
     }}
   >
     ${rows}
@@ -57,38 +59,38 @@ export const TranscriptView = ({ evalEvents }) => {
  * Renders the event based on its type.
  *
  * @param {EventNode} node
- * @param {string} baseId - The baseId for this event.
+ * @param {string} id - The id for this event.
  * @returns {import("preact").JSX.Element} The rendered event.
  */
-export const renderNode = (node, baseId) => {
+export const renderNode = (id, node) => {
   switch (node.event.event) {
     case "info":
-      return html`<${InfoEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${InfoEventView} id=${id} event=${node.event} />`;
 
     case "logger":
-      return html`<${LoggerEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${LoggerEventView} id=${id} event=${node.event} />`;
 
     case "model":
-      return html`<${ModelEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${ModelEventView} id=${id} event=${node.event} />`;
 
     case "score":
-      return html`<${ScoreEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${ScoreEventView} id=${id} event=${node.event} />`;
 
     case "state":
-      return html`<${StateEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${StateEventView} id=${id} event=${node.event} />`;
 
     case "step":
       return html`<${StepEventView}
-        baseId=${baseId}
+        id=${id}
         event=${node.event}
         children=${node.children}
       />`;
 
     case "store":
-      return html`<${StateEventView} baseId=${baseId} event=${node.event} />`;
+      return html`<${StateEventView} id=${id} event=${node.event} />`;
 
     case "subtask":
-      return html`<${SubtaskEventView} event=${node.event} />`;
+      return html`<${SubtaskEventView} id=${id} event=${node.event} />`;
 
     default:
       return html``;
@@ -134,7 +136,7 @@ const resolveValue = (value, evalEvents) => {
     });
   } else if (value && typeof value === "object") {
     const resolvedObject = {};
-    for (const key in Object.keys(value)) {
+    for (const key of Object.keys(value)) {
       resolvedObject[key] = resolveValue(value[key], evalEvents);
     }
     return resolvedObject;
