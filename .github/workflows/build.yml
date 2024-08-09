@@ -72,10 +72,6 @@ jobs:
 
         # Without this step, the build fails due to these static assets
         # being duplicated into the `dist` folder.
-        #
-        # REVIEW: Is there a better way to do this? The only thing I found on
-        # `check-wheel-contents` was to ignore the duplicate file check
-        # completely which seems like throwing the baby out with the bathwater...
       - name: Delete knowingly duplicated files
         run: rm src/inspect_ai/_view/www/favicon.svg
 
