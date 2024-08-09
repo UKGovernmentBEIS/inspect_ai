@@ -15182,6 +15182,282 @@ const StepEventView = ({ id: id2, event, stateManager, children }) => {
     </div>
   </div>`;
 };
+const SubtaskEventView = ({ id: id2, event, stateManager }) => {
+  return m$1`
+    <${EventPanel} id=${id2} title="Subtask: ${event.name}">
+      <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
+      <${TranscriptView}
+        name="Transcript"
+        evalEvents=${event.events}
+        stateManager=${stateManager}
+      />
+    </${EventPanel}>`;
+};
+const SubtaskSummary = ({ input, result }) => {
+  result = typeof result === "object" ? result : { result };
+  return m$1` <div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "minmax(0,max-content) max-content minmax(0,max-content)",
+    columnGap: "1em"
+  }}
+  >
+    <div>Input</div>
+    <div></div>
+    <div>Output</div>
+    <${Rendered} values=${input} />
+    <div><i class="${ApplicationIcons.arrows.right}" /></div>
+    <${Rendered} values=${result} />
+  </div>`;
+};
+const Rendered = ({ values }) => {
+  if (Array.isArray(values)) {
+    return values.map((val) => {
+      return m$1`<${Rendered} values=${val} />`;
+    });
+  } else if (values && typeof values === "object") {
+    return m$1`<${MetaDataView} entries=${values} />`;
+  } else {
+    return values;
+  }
+};
+const ModelEventView = ({ id: id2, event }) => {
+  var _a, _b;
+  const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
+  const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
+  const outputMessages = (_b = event.output.choices) == null ? void 0 : _b.map((choice) => {
+    return choice.message;
+  });
+  return m$1`
+  <${EventPanel} id=${id2} title="Model Call: ${event.model} ${subtitle}">
+  
+  <div style=${{ display: "grid", gridTemplateColumns: "1fr max-content" }}>
+    <${ChatView}
+      id="${id2}-model-input}"
+      name="Output"
+      messages=${[...outputMessages || []]}
+      />
+  </div>
+
+  </${EventPanel}>`;
+};
+const EventRow = ({ title, icon, children }) => {
+  const contentEl = title ? m$1`<div
+        style=${{
+    paddingLeft: "0.5em",
+    display: "grid",
+    gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
+    columnGap: "0.5em",
+    fontSize: FontSize.small
+  }}
+      >
+        <i
+          class=${icon || ApplicationIcons.metadata}
+          style=${{ ...TextStyle.secondary }}
+        />
+        <div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+          ${title}
+        </div>
+        <div>${children}</div>
+      </div>` : "";
+  const card = m$1` <div
+    class="card"
+    style=${{
+    padding: "0.1em 0.5em",
+    marginBottom: "-1px"
+  }}
+  >
+    ${contentEl}
+  </div>`;
+  return card;
+};
+const LoggerEventView = ({ id: id2, event }) => {
+  return m$1`
+  <${EventRow} 
+    id=${id2}
+    title=${event.message.level} 
+    icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
+    style="compact"
+  >
+  <div
+    style=${{ width: "100%", display: "grid", gridTemplateColumns: "max-content 1fr", columnGap: "0.5em", fontSize: FontSize.base }}
+  >
+    <div>${event.message.filename} (L:${event.message.lineno})</div>
+    <div>${event.message.message}</div>
+  </div>
+  </${EventRow}>`;
+};
+const InfoEventView = ({ id: id2, event }) => {
+  return m$1`
+  <${EventPanel} id=${id2} title="Info">
+  <div
+    style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
+  >
+    <div><i class=${ApplicationIcons.logging.info} /></div>
+    <div>${event.message}</div>
+    <div></div>
+  </div>
+  </${EventPanel}>`;
+};
+const ScoreEventView = ({ id: id2, event }) => {
+  return m$1`
+  <${EventPanel} id=${id2} title="Score">
+    <div
+      name="Explanation"
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em" }}
+    >
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+      <div>Answer</div>
+      <div>${event.score.answer}</div>
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+      <div>Explanation</div>
+      <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+      <div>Score</div>  
+      <div>${event.score.value}</div>
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+    </div>
+    ${event.score.metadata ? m$1`<div name="Metadata">
+            <${MetaDataGrid} entries=${event.score.metadata} compact=${true} />
+          </div>` : void 0}
+
+
+  </${EventPanel}>`;
+};
+const kContentProtocol = "tc://";
+const TranscriptView = ({ evalEvents, stateManager }) => {
+  const resolvedEvents = resolveEventContent(evalEvents);
+  const eventNodes = resolveEventTree(resolvedEvents);
+  const rows = eventNodes.map((node, index) => {
+    const row = m$1`
+      <div
+        style=${{
+      paddingTop: 0,
+      paddingBottom: 0
+    }}
+      >
+        <div>${renderNode(`event${index}`, node, stateManager)}</div>
+      </div>
+    `;
+    return row;
+  });
+  return m$1`<div
+    style=${{
+    fontSize: FontSize.small,
+    display: "grid",
+    marginTop: "1em",
+    width: "100%"
+  }}
+  >
+    ${rows}
+  </div>`;
+};
+const renderNode = (id2, node, stateManager) => {
+  switch (node.event.event) {
+    case "sample_init":
+      return m$1`<${SampleInitEventView}
+        id=${id2}
+        event=${node.event}
+        stateManager=${stateManager}
+      />`;
+    case "info":
+      return m$1`<${InfoEventView} id=${id2} event=${node.event} />`;
+    case "logger":
+      return m$1`<${LoggerEventView} id=${id2} event=${node.event} />`;
+    case "model":
+      return m$1`<${ModelEventView} id=${id2} event=${node.event} />`;
+    case "score":
+      return m$1`<${ScoreEventView} id=${id2} event=${node.event} />`;
+    case "state":
+      return m$1`<${StateEventView}
+        id=${id2}
+        event=${node.event}
+        stateManager=${stateManager}
+      />`;
+    case "step":
+      return m$1`<${StepEventView}
+        id=${id2}
+        event=${node.event}
+        children=${node.children}
+        stateManager=${stateManager}
+      />`;
+    case "store":
+      return m$1`<${StateEventView}
+        id=${id2}
+        event=${node.event}
+        stateManager=${stateManager}
+      />`;
+    case "subtask":
+      return m$1`<${SubtaskEventView}
+        id=${id2}
+        event=${node.event}
+        stateManager=${stateManager}
+      />`;
+    default:
+      return m$1``;
+  }
+};
+const resolveEventContent = (evalEvents) => {
+  return evalEvents.events.map((e2) => {
+    if (e2.event === "model") {
+      e2.input = resolveValue(e2.input, evalEvents);
+      e2.output = resolveValue(e2.output, evalEvents);
+    } else if (e2.event === "state") {
+      e2.changes = e2.changes.map((change) => {
+        change.value = resolveValue(change.value, evalEvents);
+        return change;
+      });
+    }
+    return e2;
+  });
+};
+const resolveValue = (value, evalEvents) => {
+  if (Array.isArray(value)) {
+    return value.map((v2) => resolveValue(v2, evalEvents));
+  } else if (value && typeof value === "object") {
+    const resolvedObject = {};
+    for (const key2 of Object.keys(value)) {
+      resolvedObject[key2] = resolveValue(value[key2], evalEvents);
+    }
+    return resolvedObject;
+  } else if (typeof value === "string") {
+    if (value.startsWith(kContentProtocol)) {
+      return evalEvents.content[value.replace(kContentProtocol, "")];
+    }
+  }
+  return value;
+};
+const resolveEventTree = (events) => {
+  const rootNodes = [];
+  let currentNode = void 0;
+  const stack2 = [];
+  events.forEach((event) => {
+    if (event.event === "step" && event.action === "begin") {
+      const newNode = { event, children: [] };
+      if (currentNode) {
+        currentNode.children.push(newNode);
+        stack2.push(currentNode);
+      } else {
+        rootNodes.push(newNode);
+      }
+      currentNode = newNode;
+    } else if (event.event === "step" && event.action === "end") {
+      if (stack2.length > 0) {
+        currentNode = stack2.pop();
+      } else {
+        currentNode = void 0;
+      }
+    } else {
+      const newNode = { event, children: [] };
+      if (currentNode) {
+        currentNode.children.push(newNode);
+      } else {
+        rootNodes.push(newNode);
+      }
+    }
+  });
+  return rootNodes;
+};
 /*!
  * https://github.com/Starcounter-Jack/JSON-Patch
  * (c) 2017-2022 Joachim Wester
@@ -15849,279 +16125,12 @@ const initStateManager = () => {
     }
   };
 };
-const SubtaskEventView = ({ id: id2, event, stateManager }) => {
-  return m$1`
-    <${EventPanel} id=${id2} title="Subtask: ${event.name}">
-      <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
-      <${TranscriptView}
-        name="Transcript"
-        evalEvents=${event.events}
-        stateManager=${stateManager}
-      />
-    </${EventPanel}>`;
-};
-const SubtaskSummary = ({ input, result }) => {
-  result = typeof result === "object" ? result : { result };
-  return m$1` <div
-    style=${{
-    display: "grid",
-    gridTemplateColumns: "minmax(0,max-content) max-content minmax(0,max-content)",
-    columnGap: "1em"
-  }}
-  >
-    <div>Input</div>
-    <div></div>
-    <div>Output</div>
-    <${Rendered} values=${input} />
-    <div><i class="${ApplicationIcons.arrows.right}" /></div>
-    <${Rendered} values=${result} />
-  </div>`;
-};
-const Rendered = ({ values }) => {
-  if (Array.isArray(values)) {
-    return values.map((val) => {
-      return m$1`<${Rendered} values=${val} />`;
-    });
-  } else if (values && typeof values === "object") {
-    return m$1`<${MetaDataView} entries=${values} />`;
-  } else {
-    return values;
-  }
-};
-const ModelEventView = ({ id: id2, event }) => {
-  var _a, _b;
-  const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
-  const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
-  const outputMessages = (_b = event.output.choices) == null ? void 0 : _b.map((choice) => {
-    return choice.message;
-  });
-  return m$1`
-  <${EventPanel} id=${id2} title="Model Call: ${event.model} ${subtitle}">
-  
-  <div style=${{ display: "grid", gridTemplateColumns: "1fr max-content" }}>
-    <${ChatView}
-      id="${id2}-model-input}"
-      name="Output"
-      messages=${[...outputMessages || []]}
-      />
-  </div>
-
-  </${EventPanel}>`;
-};
-const EventRow = ({ title, icon, children }) => {
-  const contentEl = title ? m$1`<div
-        style=${{
-    paddingLeft: "0.5em",
-    display: "grid",
-    gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
-    columnGap: "0.5em",
-    fontSize: FontSize.small
-  }}
-      >
-        <i
-          class=${icon || ApplicationIcons.metadata}
-          style=${{ ...TextStyle.secondary }}
-        />
-        <div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
-          ${title}
-        </div>
-        <div>${children}</div>
-      </div>` : "";
-  const card = m$1` <div
-    class="card"
-    style=${{
-    padding: "0.1em 0.5em",
-    marginBottom: "-1px"
-  }}
-  >
-    ${contentEl}
-  </div>`;
-  return card;
-};
-const LoggerEventView = ({ id: id2, event }) => {
-  return m$1`
-  <${EventRow} 
-    id=${id2}
-    title=${event.message.level} 
-    icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
-    style="compact"
-  >
-  <div
-    style=${{ width: "100%", display: "grid", gridTemplateColumns: "max-content 1fr", columnGap: "0.5em", fontSize: FontSize.base }}
-  >
-    <div>${event.message.filename} (L:${event.message.lineno})</div>
-    <div>${event.message.message}</div>
-  </div>
-  </${EventRow}>`;
-};
-const InfoEventView = ({ id: id2, event }) => {
-  return m$1`
-  <${EventPanel} id=${id2} title="Info">
-  <div
-    style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
-  >
-    <div><i class=${ApplicationIcons.logging.info} /></div>
-    <div>${event.message}</div>
-    <div></div>
-  </div>
-  </${EventPanel}>`;
-};
-const ScoreEventView = ({ id: id2, event }) => {
-  return m$1`
-  <${EventPanel} id=${id2} title="Score">
-    <div
-      name="Explanation"
-      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em" }}
-    >
-      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-      <div>Answer</div>
-      <div>${event.score.answer}</div>
-      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-      <div>Explanation</div>
-      <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
-      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-      <div>Score</div>  
-      <div>${event.score.value}</div>
-      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-    </div>
-    ${event.score.metadata ? m$1`<div name="Metadata">
-            <${MetaDataGrid} entries=${event.score.metadata} compact=${true} />
-          </div>` : void 0}
-
-
-  </${EventPanel}>`;
-};
-const kContentProtocol = "tc://";
-const TranscriptView = ({ evalEvents, stateManager }) => {
-  const resolvedEvents = resolveEventContent(evalEvents);
-  const eventNodes = resolveEventTree(resolvedEvents);
-  const rows = eventNodes.map((node, index) => {
-    const row = m$1`
-      <div
-        style=${{
-      paddingTop: 0,
-      paddingBottom: 0
-    }}
-      >
-        <div>
-          ${renderNode(`event${index}`, node, stateManager)}
-        </div>
-      </div>
-    `;
-    return row;
-  });
-  return m$1`<div
-    style=${{
-    fontSize: FontSize.small,
-    display: "grid",
-    marginTop: "1em",
-    width: "100%"
-  }}
-  >
-    ${rows}
-  </div>`;
-};
-const renderNode = (id2, node, stateManager) => {
-  switch (node.event.event) {
-    case "sample_init":
-      return m$1`<${SampleInitEventView}
-        id=${id2}
-        event=${node.event}
-        stateManager=${stateManager}
-      />`;
-    case "info":
-      return m$1`<${InfoEventView} id=${id2} event=${node.event} />`;
-    case "logger":
-      return m$1`<${LoggerEventView} id=${id2} event=${node.event} />`;
-    case "model":
-      return m$1`<${ModelEventView} id=${id2} event=${node.event} />`;
-    case "score":
-      return m$1`<${ScoreEventView} id=${id2} event=${node.event} />`;
-    case "state":
-      return m$1`<${StateEventView}
-        id=${id2}
-        event=${node.event}
-        stateManager=${stateManager}
-      />`;
-    case "step":
-      return m$1`<${StepEventView}
-        id=${id2}
-        event=${node.event}
-        children=${node.children}
-        stateManager=${stateManager}
-      />`;
-    case "store":
-      return m$1`<${StateEventView} id=${id2} event=${node.event} stateManager=${stateManager}/>`;
-    case "subtask":
-      return m$1`<${SubtaskEventView} id=${id2} event=${node.event} stateManager=${stateManager}/>`;
-    default:
-      return m$1``;
-  }
-};
-const resolveEventContent = (evalEvents) => {
-  return evalEvents.events.map((e2) => {
-    if (e2.event === "model") {
-      e2.input = resolveValue(e2.input, evalEvents);
-      e2.output = resolveValue(e2.output, evalEvents);
-    } else if (e2.event === "state") {
-      e2.changes = e2.changes.map((change) => {
-        change.value = resolveValue(change.value, evalEvents);
-        return change;
-      });
-    }
-    return e2;
-  });
-};
-const resolveValue = (value, evalEvents) => {
-  if (Array.isArray(value)) {
-    return value.map((v2) => resolveValue(v2, evalEvents));
-  } else if (value && typeof value === "object") {
-    const resolvedObject = {};
-    for (const key2 of Object.keys(value)) {
-      resolvedObject[key2] = resolveValue(value[key2], evalEvents);
-    }
-    return resolvedObject;
-  } else if (typeof value === "string") {
-    if (value.startsWith(kContentProtocol)) {
-      return evalEvents.content[value.replace(kContentProtocol, "")];
-    }
-  }
-  return value;
-};
-const resolveEventTree = (events) => {
-  const rootNodes = [];
-  let currentNode = void 0;
-  const stack2 = [];
-  events.forEach((event) => {
-    if (event.event === "step" && event.action === "begin") {
-      const newNode = { event, children: [] };
-      if (currentNode) {
-        currentNode.children.push(newNode);
-        stack2.push(currentNode);
-      } else {
-        rootNodes.push(newNode);
-      }
-      currentNode = newNode;
-    } else if (event.event === "step" && event.action === "end") {
-      if (stack2.length > 0) {
-        currentNode = stack2.pop();
-      } else {
-        currentNode = void 0;
-      }
-    } else {
-      const newNode = { event, children: [] };
-      if (currentNode) {
-        currentNode.children.push(newNode);
-      } else {
-        rootNodes.push(newNode);
-      }
-    }
-  });
-  return rootNodes;
-};
 const SampleTranscript = ({ evalEvents }) => {
   const stateManager = initStateManager();
-  return m$1`<${TranscriptView} evalEvents=${evalEvents} stateManager=${stateManager} />`;
+  return m$1`<${TranscriptView}
+    evalEvents=${evalEvents}
+    stateManager=${stateManager}
+  />`;
 };
 const InlineSampleDisplay = ({
   index,
