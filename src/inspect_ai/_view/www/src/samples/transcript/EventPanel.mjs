@@ -45,7 +45,8 @@ export const EventPanel = ({ id, title, icon, collapse, children }) => {
         style=${{
           paddingLeft: "0.5em",
           display: "grid",
-          gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
+          gridTemplateColumns:
+            "max-content max-content auto minmax(0, max-content)",
           columnGap: "0.5em",
           fontSize: FontSize.small,
           cursor: hasCollapse ? "pointer" : undefined,
@@ -66,6 +67,11 @@ export const EventPanel = ({ id, title, icon, collapse, children }) => {
         >
           ${title}
         </div>
+        <div
+          onclick=${() => {
+            setCollapsed(!collapsed);
+          }}
+        ></div>
         <div
           style=${{
             justifySelf: "end",

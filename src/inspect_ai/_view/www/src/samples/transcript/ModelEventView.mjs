@@ -28,6 +28,7 @@ export const ModelEventView = ({ id, event }) => {
   <div style=${{ display: "grid", gridTemplateColumns: "1fr max-content" }}>
     <${ChatView}
       id="${id}-model-input}"
+      name="Output"
       messages=${[...(outputMessages || [])]}
       />
   </div>
