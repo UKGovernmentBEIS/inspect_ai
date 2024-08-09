@@ -7,6 +7,7 @@ import { ModelEventView } from "./ModelEventView.mjs";
 import { LoggerEventView } from "./LoggerEventView.mjs";
 import { InfoEventView } from "./InfoEventView.mjs";
 import { ScoreEventView } from "./ScoreEventView.mjs";
+import { FontSize } from "../../appearance/Fonts.mjs";
 
 const kContentProtocol = "tc://";
 
@@ -44,9 +45,10 @@ export const TranscriptView = ({ evalEvents }) => {
 
   return html`<div
     style=${{
-      fontSize: "0.8em",
+      fontSize: FontSize.small,
       display: "grid",
       marginTop: "1em",
+      width: "100%",
     }}
   >
     ${rows}

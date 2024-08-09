@@ -1,6 +1,5 @@
 // @ts-check
 import { html } from "htm/preact";
-import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 
@@ -14,24 +13,8 @@ import { EventPanel } from "./EventPanel.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const ModelEventView = ({ id, event }) => {
-  const tools = event.tools
-    .map((tool) => {
-      return tool.name;
-    })
-    .join(",");
-
-  const modelProperties = {
-    ...event.config,
-  };
-
-  if (tools.length > 0) {
-    modelProperties["tools"] = tools;
-    modelProperties["tool_choice"] = event.tool_choice;
-  }
-
-  if (event.output.usage) {
-    modelProperties["usage"] = event.output.usage;
-  }
+  const totalUsage = event.output.usage?.total_tokens;
+  const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined
@@ -40,14 +23,13 @@ export const ModelEventView = ({ id, event }) => {
   });
 
   return html`
-  <${EventPanel} id=${id} title="Model Call: ${event.model}">
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}">
   
   <div style=${{ display: "grid", gridTemplateColumns: "1fr max-content" }}>
     <${ChatView}
       id="${id}-model-input}"
       messages=${[...(outputMessages || [])]}
       />
-    <${MetaDataView} entries=${modelProperties} compact=${true} />
   </div>
 
   </${EventPanel}>`;

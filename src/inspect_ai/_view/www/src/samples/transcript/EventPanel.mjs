@@ -1,5 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
+import { useState } from "preact/hooks";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
@@ -10,19 +11,24 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {string} props.id - The id of the event
  * @param {string | undefined} props.title - The name of the event
  * @param {string | undefined} props.icon - The icon of the event
+ * @param {boolean | undefined} props.collapse - Default collapse behavior for card. If omitted, not collapsible.
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const EventPanel = ({ id, title, icon, children }) => {
+export const EventPanel = ({ id, title, icon, collapse, children }) => {
   /**
    * @type {import("preact").ComponentChildren[] | undefined}
    */
-  const arrChildren =
+  const arrChildren = (
     children === undefined
       ? children
       : Array.isArray(children)
         ? children
-        : [children];
+        : [children]
+  )?.filter((child) => !!child);
+
+  const hasCollapse = collapse !== undefined;
+  const [collapsed, setCollapsed] = useState(!!collapse);
 
   /**
    * Generates the id for the navigation pill.
@@ -42,30 +48,57 @@ export const EventPanel = ({ id, title, icon, children }) => {
           gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
           columnGap: "0.5em",
           fontSize: FontSize.small,
+          cursor: hasCollapse ? "pointer" : undefined,
         }}
       >
         <i
           class=${icon || ApplicationIcons.metadata}
           style=${{ ...TextStyle.secondary }}
+          onclick=${() => {
+            setCollapsed(!collapsed);
+          }}
         />
-        <div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+        <div
+          style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+          onclick=${() => {
+            setCollapsed(!collapsed);
+          }}
+        >
           ${title}
         </div>
-        <div style=${{ justifySelf: "end" }}>
-          ${arrChildren && arrChildren.length > 1
+        <div
+          style=${{
+            justifySelf: "end",
+            display: "flex",
+            flexDirection: "columns",
+          }}
+        >
+          ${(!hasCollapse || !collapsed) &&
+          arrChildren &&
+          arrChildren.length > 1
             ? html` <${EventNavs}
                 navs=${arrChildren.map((child, index) => {
+                  const defaultTitle = `Tab ${index}`;
+                  const title =
+                    child && typeof child === "object"
+                      ? child["props"]?.name || defaultTitle
+                      : defaultTitle;
                   return {
                     id: `eventpanel-${id}-${index}`,
-                    title:
-                      index === 0
-                        ? "summary"
-                        : index + 1 === arrChildren.length
-                          ? "raw"
-                          : `item-${index + 1}`,
+                    title: title,
                     target: pillId(index),
                   };
                 })}
+              />`
+            : ""}
+          ${hasCollapse
+            ? html`<i
+                onclick=${() => {
+                  setCollapsed(!collapsed);
+                }}
+                class=${collapsed
+                  ? ApplicationIcons.chevron.right
+                  : ApplicationIcons.chevron.down}
               />`
             : ""}
         </div>
@@ -80,19 +113,21 @@ export const EventPanel = ({ id, title, icon, children }) => {
     }}
   >
     ${titleEl}
-    <div
-      class="card-body tab-content"
-      style=${{ padding: 0, marginLeft: "2em" }}
-    >
-      ${arrChildren?.map((child, index) => {
-        return html`<div
-          id=${pillId(index)}
-          class="tab-pane show ${index === 0 ? "active" : ""}"
+    ${!hasCollapse || !collapsed
+      ? html` <div
+          class="card-body tab-content"
+          style=${{ padding: 0, marginLeft: "2em" }}
         >
-          ${child}
-        </div>`;
-      })}
-    </div>
+          ${arrChildren?.map((child, index) => {
+            return html`<div
+              id=${pillId(index)}
+              class="tab-pane show ${index === 0 ? "active" : ""}"
+            >
+              ${child}
+            </div>`;
+          })}
+        </div>`
+      : ""}
   </div>`;
   return card;
 };

@@ -33,16 +33,18 @@ export const StateEventView = ({ id, event }) => {
     applyOperation(resolvedState, change);
   });
 
-  const tabs = [html`<${StateDiffView} changes=${event.changes} />`];
+  const tabs = [
+    html`<${StateDiffView} changes=${event.changes} name="Diffs" />`,
+  ];
   const changePreview = generatePreview(event.changes, resolvedState);
   if (changePreview) {
-    tabs.unshift(changePreview);
+    tabs.unshift(html`<div name="Summary">${changePreview}</div>`);
   }
 
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return html`
-  <${EventPanel} id=${id} title=${title}>
+  <${EventPanel} id=${id} title=${title} collapse=${changePreview === undefined ? true : undefined}>
     ${tabs}
   </${EventPanel}>`;
 };
