@@ -11,6 +11,7 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+!src/inspect_ai/_view/www/dist
 downloads/
 eggs/
 .eggs/

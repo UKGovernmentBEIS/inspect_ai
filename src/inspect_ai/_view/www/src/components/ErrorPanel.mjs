@@ -44,11 +44,14 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
       >
         <div>
           Error: ${message || ""}
-          <pre style=${{ fontSize: FontSize.smaller }}>
+          ${stack &&
+          html`
+            <pre style=${{ fontSize: FontSize.smaller }}>
             <code>
               at ${stack}
             </code>
           </pre>
+          `}
         </div>
       </div>
     </div>
