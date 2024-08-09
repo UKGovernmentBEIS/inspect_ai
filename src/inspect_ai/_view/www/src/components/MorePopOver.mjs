@@ -1,3 +1,4 @@
+import { Popover } from "bootstrap";
 import { html } from "htm/preact";
 import { useEffect, useRef } from "preact/hooks";
 
@@ -14,7 +15,7 @@ export const MorePopOver = ({ title, customClass, children }) => {
     contentEl.childNodes.forEach((child) =>
       popOverContent.appendChild(child.cloneNode(true)),
     );
-    new bootstrap.Popover(popoverRef.current, {
+    new Popover(popoverRef.current, {
       content: popOverContent,
       title,
       html: true,

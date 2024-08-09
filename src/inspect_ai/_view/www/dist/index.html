@@ -4,17 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Inspect View</title>
-    <link rel="icon" href="./favicon.svg" />
-    <link href="./libs/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="./libs/prism/prism-dark.css" rel="stylesheet" />
-    <link href="./libs/prism/prism.min.css" rel="stylesheet" />
+    <link rel="icon" href="/assets/favicon.svg" />
 
-    <link
-      href="./libs/bootstrap/css/bootstrap-icons.min.css"
-      rel="stylesheet"
-    />
 
-    <link href="./App.css" rel="stylesheet" />
     <script>
       // Forward the theme (dark or light) onto the root html element
       // this parameter will tend to appear when the view is hosted within
@@ -26,10 +18,11 @@
         document.documentElement.setAttribute("data-bs-theme", theme);
       }
     </script>
+    <script type="module" crossorigin src="/assets/index.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index.css">
   </head>
 
   <body>
     <div id="app"></div>
-    <script type="module" src="./src/index.js"></script>
   </body>
 </html>
