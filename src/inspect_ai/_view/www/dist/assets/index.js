@@ -14661,13 +14661,17 @@ const messageRenderers = {
   },
   image: {
     render: (content) => {
-      return m$1`<img
-        src="${content.image}"
-        style=${{
-        maxWidth: "400px",
-        border: "solid var(--bs-border-color) 1px"
-      }}
-      />`;
+      if (content.image.startsWith("data:")) {
+        return m$1`<img
+          src="${content.image}"
+          style=${{
+          maxWidth: "400px",
+          border: "solid var(--bs-border-color) 1px"
+        }}
+        />`;
+      } else {
+        return m$1`<code>${content.image}</code>`;
+      }
     }
   },
   tool: {
@@ -18761,7 +18765,6 @@ function App({ api: api2, pollForLogs = true }) {
     if (showFind) {
       setShowFind(false);
     }
-    mainAppRef.current.focus();
   }, [showFind, setShowFind]);
   return m$1`
     <${AppErrorBoundary}>
