@@ -306,7 +306,10 @@ def test_dict_with_list_of_pydantic_models() -> None:
 
     info = parse_tool_info(func_with_dict_list_pydantic)
     assert info.parameters.properties["data"].type == "object"
-    assert info.parameters.properties["data"].additionalProperties
+    assert isinstance(
+        info.parameters.properties["data"].additionalProperties, ToolParam
+    )
+
     assert info.parameters.properties["data"].additionalProperties.type == "array"
     assert info.parameters.properties["data"].additionalProperties.items
     assert (

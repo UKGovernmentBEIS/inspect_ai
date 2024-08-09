@@ -201,9 +201,7 @@ def test_vertex_tool_types():
 
 @skip_if_no_mistral
 def test_mistral_tool_types() -> None:
-    # mistral currently can't handle the advanced types
-    # check_tool_types("mistral/mistral-large-latest")
-    pass
+    check_tool_types("mistral/mistral-large-latest")
 
 
 @skip_if_no_groq
