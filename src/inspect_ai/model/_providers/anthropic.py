@@ -78,11 +78,18 @@ class AnthropicAPI(ModelAPI):
                 base_url, ["ANTHROPIC_BEDROCK_BASE_URL", "BEDROCK_ANTHROPIC_BASE_URL"]
             )
 
+            # resolve the default region
+            aws_region = None
+            base_region = os.environ.get("AWS_REGION", None)
+            if base_region is None:
+                aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
+
             self.client: AsyncAnthropic | AsyncAnthropicBedrock = AsyncAnthropicBedrock(
                 base_url=base_url,
                 max_retries=(
                     config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
                 ),
+                aws_region=aws_region,
                 **model_args,
             )
         else:
