@@ -4,6 +4,8 @@
 
 - Support for `strict` mode in OpenAI tool calls (update to v1.40.0 of `openai` package required).
 - Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
+- Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).
+- Improved resolution of AWS region for Bedrock (respecting already defined AWS_REGION and AWS_DEFAULT_REGION)
 
 ## v0.3.21 (07 August 2024)
 

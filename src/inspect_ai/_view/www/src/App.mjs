@@ -1,3 +1,5 @@
+import { default as ClipboardJS } from "clipboard";
+import { Offcanvas } from "bootstrap";
 import { html } from "htm/preact";
 import {
   useCallback,
@@ -8,25 +10,22 @@ import {
 } from "preact/hooks";
 
 // Registration component
-import "./src/Register.mjs";
+import "./Register.mjs";
 
-// The api for loading evals
-import api from "./src/api/index.mjs";
+import { throttle } from "./utils/events.mjs";
+import { sleep } from "./utils/sleep.mjs";
+import { clearDocumentSelection } from "./components/Browser.mjs";
 
-import { throttle } from "./src/utils/events.mjs";
-import { sleep } from "./src/utils/sleep.mjs";
-import { clearDocumentSelection } from "./src/components/Browser.mjs";
+import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
+import { ErrorPanel } from "./components/ErrorPanel.mjs";
+import { ProgressBar } from "./components/ProgressBar.mjs";
 
-import { AppErrorBoundary } from "./src/components/AppErrorBoundary.mjs";
-import { ErrorPanel } from "./src/components/ErrorPanel.mjs";
-import { ProgressBar } from "./src/components/ProgressBar.mjs";
+import { Navbar } from "./navbar/Navbar.mjs";
+import { Sidebar } from "./sidebar/Sidebar.mjs";
+import { WorkSpace } from "./workspace/WorkSpace.mjs";
+import { FindBand } from "./components/FindBand.mjs";
 
-import { Navbar } from "./src/navbar/Navbar.mjs";
-import { Sidebar } from "./src/sidebar/Sidebar.mjs";
-import { WorkSpace } from "./src/workspace/WorkSpace.mjs";
-import { FindBand } from "./src/components/FindBand.mjs";
-
-export function App() {
+export function App({ api, pollForLogs = true }) {
   const [selected, setSelected] = useState(-1);
   const [pendingLog, setPendingLog] = useState(undefined);
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
@@ -264,18 +263,22 @@ export function App() {
       setSelected(0);
     }
 
+    new ClipboardJS(".clipboard-button,.copy-button");
+
     // poll every 1s for events
-    setInterval(() => {
-      api.client_events().then(async (events) => {
-        if (events.includes("reload")) {
-          window.location.reload(true);
-        }
-        if (events.includes("refresh-evals")) {
-          await load();
-          setSelected(0);
-        }
-      });
-    }, 1000);
+    if (pollForLogs) {
+      setInterval(() => {
+        api.client_events().then(async (events) => {
+          if (events.includes("reload")) {
+            window.location.reload(true);
+          }
+          if (events.includes("refresh-evals")) {
+            await load();
+            setSelected(0);
+          }
+        });
+      }, 1000);
+    }
   }, []);
 
   // Configure an app envelope specific to the current state
@@ -307,7 +310,7 @@ export function App() {
 
               // hide the sidebar offcanvas
               var myOffcanvas = document.getElementById("sidebarOffCanvas");
-              var bsOffcanvas = bootstrap.Offcanvas.getInstance(myOffcanvas);
+              var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
               if (bsOffcanvas) {
                 bsOffcanvas.hide();
               }

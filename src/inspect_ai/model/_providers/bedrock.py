@@ -24,8 +24,9 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, simple_input_messages
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
-from .anthropic import ANTHROPIC_API_KEY
 from .util import as_stop_reason, model_base_url
+
+ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
 
 class BedrockAPI(ModelAPI):
