@@ -12,7 +12,6 @@ import {
 // Registration component
 import "./Register.mjs";
 
-
 import { sleep, throttle } from "./utils/sync.mjs";
 import { clearDocumentSelection } from "./components/Browser.mjs";
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
