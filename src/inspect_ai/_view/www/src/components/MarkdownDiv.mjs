@@ -1,3 +1,4 @@
+import * as showdown from "showdown";
 import { html } from "htm/preact";
 
 showdown.setOption("simpleLineBreaks", true);

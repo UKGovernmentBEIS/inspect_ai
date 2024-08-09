@@ -37,13 +37,17 @@ const messageRenderers = {
   },
   image: {
     render: (content) => {
-      return html`<img
-        src="${content.image}"
-        style=${{
-          maxWidth: "400px",
-          border: "solid var(--bs-border-color) 1px",
-        }}
-      />`;
+      if (content.image.startsWith("data:")) {
+        return html`<img
+          src="${content.image}"
+          style=${{
+            maxWidth: "400px",
+            border: "solid var(--bs-border-color) 1px",
+          }}
+        />`;
+      } else {
+        return html`<code>${content.image}</code>`;
+      }
     },
   },
   tool: {
