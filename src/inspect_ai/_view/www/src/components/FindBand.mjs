@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 import { useEffect, useRef } from "preact/hooks";
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 export const FindBand = ({ hideBand }) => {
   const searchBoxRef = useRef();
@@ -90,9 +91,9 @@ export const FindBand = ({ hideBand }) => {
       type="text"
       ref=${searchBoxRef}
       style=${{
-        height: "1.5em",
+        height: "2em",
         fontSize: "0.9em",
-        marginTop: "0.1rem",
+        margin: "0.1rem",
         outline: "none",
         border: "solid 1px var(--inspect-input-border)",
         color: "var(--inspect-input-foreground)",
@@ -110,45 +111,46 @@ export const FindBand = ({ hideBand }) => {
     <span
       id="inspect-find-no-results"
       style=${{
-        fontSize: "0.8rem",
+        fontSize: FontSize.base,
         opacity: 0,
-        marginTop: "0.1rem",
+        marginTop: "auto",
+        marginBottom: "auto",
         marginRight: "0.5em",
       }}
       >No results</span
     >
     <button
       title="Previous match"
-      style=${{ padding: 0, fontSize: "0.7rem" }}
+      style=${{ padding: 0, fontSize: FontSize.larger }}
       class="btn"
       onclick=${() => {
         search(searchTerm(), true);
       }}
     >
-      <i class=${icons.arrows.up}></i>
+      <i class=${ApplicationIcons.arrows.up}></i>
     </button>
     <button
       title="Next match"
-      style=${{ padding: 0, fontSize: "0.8rem" }}
+      style=${{ padding: 0, fontSize: FontSize.larger }}
       class="btn"
       onclick=${() => {
         search(searchTerm());
       }}
     >
-      <i class=${icons.arrows.down}></i>
+      <i class=${ApplicationIcons.arrows.down}></i>
     </button>
     <button
       title="Close"
       style=${{
         padding: 0,
-        fontSize: "1rem",
+        fontSize: FontSize["title-secondary"],
         marginTop: "-0.1rem",
         marginBottom: "-0.1rem",
       }}
       class="btn"
       onclick=${() => hideBand()}
     >
-      <i class=${icons.close}></i>
+      <i class=${ApplicationIcons.close}></i>
     </button>
   </div>`;
 };

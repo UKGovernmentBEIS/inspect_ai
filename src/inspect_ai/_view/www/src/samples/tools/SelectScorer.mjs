@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
 export const SelectScorer = ({ scores, score, setScore }) => {
   const scorers = scores.reduce((accum, scorer) => {
@@ -16,7 +17,14 @@ export const SelectScorer = ({ scores, score, setScore }) => {
     // There is only a single scorer in play, just show the list of available scores
     return html`
       <div style=${{ display: "flex" }}>
-        <span class="select-scorer-label" style=${{ alignSelf: "center" }}
+        <span
+          class="select-scorer-label"
+          style=${{
+            alignSelf: "center",
+            fontSize: FontSize.smaller,
+            ...TextStyle.label,
+            ...TextStyle.secondary,
+          }}
           >Score:</span
         >
         <${ScoreSelector}
@@ -60,7 +68,16 @@ export const SelectScorer = ({ scores, score, setScore }) => {
     // There are multiple scorers, so show a scorer selector and a r
     return html`
       <div style=${{ display: "flex" }}>
-        <span class="select-scorer-label" style=${{ alignSelf: "center" }}
+        <span
+          class="select-scorer-label"
+          style=${{
+            alignSelf: "center",
+            fontSize: FontSize.smaller,
+            ...TextStyle.label,
+            ...TextStyle.secondary,
+            marginRight: "0.3em",
+            marginLeft: "0.2em",
+          }}
           >Scorer:</span
         >
         ${selectors}
@@ -77,8 +94,8 @@ const ScoreSelector = ({
 }) => {
   return html`<select
     class="form-select form-select-sm"
-    aria-label=".epoch-filter-label"
-    style=${{ fontSize: "0.7rem", ...style }}
+    aria-label=".select-scorer-label"
+    style=${{ fontSize: FontSize.smaller, ...style }}
     value=${scores[selectedIndex].name}
     onChange=${(e) => {
       selectedIndexChanged(e.target.selectedIndex);
@@ -94,7 +111,7 @@ const ScorerSelector = ({ scorers, selectedIndex, selectedIndexChanged }) => {
   return html`<select
     class="form-select form-select-sm"
     aria-label=".epoch-filter-label"
-    style=${{ fontSize: "0.7rem" }}
+    style=${{ fontSize: FontSize.smaller }}
     value=${scorers[selectedIndex].scorer}
     onChange=${(e) => {
       selectedIndexChanged(e.target.selectedIndex);

@@ -7,11 +7,14 @@ import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/Format.mjs";
 
-import { icons, sharedStyles } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { arrayToString, shortenCompletion } from "../utils/Format.mjs";
 
 import { SampleScoreView } from "./SampleScoreView.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { SampleTranscript } from "./SampleTranscript.mjs";
 
 export const InlineSampleDisplay = ({
   index,
@@ -43,6 +46,7 @@ export const SampleDisplay = ({
   // Tab ids
   const baseId = `sample-${index}`;
   const msgTabId = `${baseId}-messages`;
+  const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
 
@@ -63,7 +67,7 @@ export const SampleDisplay = ({
   // The core tabs
   const tabs = [
     html`
-    <${TabPanel} id=${msgTabId} title="Messages" icon=${icons.messages} onSelected=${onSelectedTab} selected=${
+    <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${
       selectedTab === msgTabId || selectedTab === undefined
     }>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
@@ -72,10 +76,19 @@ export const SampleDisplay = ({
     </${TabPanel}>`,
   ];
 
+  if (sample.transcript && sample.transcript.events.length > 0) {
+    tabs.push(html`
+      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
+        selectedTab === transcriptTabId
+      }>
+        <${SampleTranscript} evalEvents=${sample.transcript}/>
+      </${TabPanel}>`);
+  }
+
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(html`
-      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${
+      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${
         selectedTab === scoringTabId
       }>
         <${SampleScoreView}
@@ -89,7 +102,7 @@ export const SampleDisplay = ({
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(html`
-        <${TabPanel} id="${tabId}" title="${scorer}" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${
+        <${TabPanel} id="${tabId}" title="${scorer}" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${
           selectedTab === tabId
         }>
           <${SampleScoreView}
@@ -109,7 +122,7 @@ export const SampleDisplay = ({
       <${TabPanel} 
           id=${metdataTabId} 
           title="Metadata" 
-          icon=${icons.metadata}
+          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
         ${sampleMetadatas}
@@ -124,11 +137,10 @@ export const SampleDisplay = ({
 
   <${TabSet} id="task-sample-details-tab-${id}" styles=${{
     tabs: {
-      fontSize: "0.8em",
+      fontSize: FontSize.base,
     },
     tabBody: {
       paddingLeft: ".4em",
-      marginTop: "0.5rem",
     },
   }}>
     ${tabs}
@@ -195,7 +207,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
   columns.push({
     label: "Id",
     value: id,
-    size: "minmax(2em, 25%)",
+    size: "minmax(min-content, max-content)",
   });
 
   columns.push({
@@ -255,7 +267,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
           })
           .join(" ")}`,
         gridColumnGap: "0.5em",
-        fontSize: "0.8em",
+        fontSize: FontSize.base,
         borderBottom: "solid var(--bs-border-color) 1px",
         marginBottom: "1em",
         padding: "0em 1em 1em 1em",
@@ -263,8 +275,9 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
     >
       ${columns.map((col) => {
         const style = {
-          textTransform: "uppercase",
-          fontSize: "0.6rem",
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+          fontSize: FontSize.base,
         };
         if (col.center) {
           style.display = "flex";
@@ -274,7 +287,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
       })}
       ${columns.map((col) => {
         const style = {
-          ...(col.clamp ? sharedStyles.threeLineClamp : {}),
+          ...(col.clamp ? ApplicationStyles.threeLineClamp : {}),
         };
         if (col.center) {
           style.display = "flex";

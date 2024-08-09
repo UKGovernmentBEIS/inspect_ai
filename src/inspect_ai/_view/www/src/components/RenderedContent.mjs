@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 import { ANSIDisplay } from "./AnsiDisplay.mjs";
 import { MetaDataView } from "./MetaDataView.mjs";
@@ -74,7 +75,8 @@ const contentRenderers = {
     },
     render: (_id, entry) => {
       return {
-        rendered: html`<i class="${icons.model}"></i> ${entry.value._model}`,
+        rendered: html`<i class="${ApplicationIcons.model}"></i> ${entry.value
+            ._model}`,
       };
     },
   },
@@ -135,7 +137,7 @@ const contentRenderers = {
 
       const arrayRendered = html`<${MetaDataView}
         id=${id}
-        style=${{ fontSize: "0.8rem" }}
+        style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
         context=${context}
@@ -170,7 +172,7 @@ const contentRenderers = {
       const results = [];
       results.push(
         html`<div style=${{ marginBottom: "0.5rem", fontWeight: "500" }}>
-          <i class=${icons.search}></i> ${entry.value.query}
+          <i class=${ApplicationIcons.search}></i> ${entry.value.query}
         </div>`,
       );
       entry.value.results.forEach((result) => {
@@ -180,7 +182,9 @@ const contentRenderers = {
           </div>`,
         );
         results.push(
-          html`<div style=${{ fontSize: "0.7rem", marginBottom: "0.5rem" }}>
+          html`<div
+            style=${{ fontSize: FontSize.smaller, marginBottom: "0.5rem" }}
+          >
             ${result.summary}
           </div>`,
         );
@@ -221,10 +225,11 @@ const contentRenderers = {
       return {
         rendered: html`<${MetaDataView}
           id=${id}
-          style=${{ fontSize: "0.8rem" }}
+          style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
           context=${context}
+          compact
         />`,
       };
     },

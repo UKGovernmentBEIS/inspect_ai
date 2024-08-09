@@ -9,6 +9,12 @@
   --inspect-input-border: var(--bs-light-border-subtle);
 }
 
+body:not([class^="vscode-"]) button {
+  --bs-nav-pills-link-active-bg: #e3eaf1;
+  --bs-nav-pills-link-active-color: black;
+  --bs-nav-link-color: black;
+}
+
 #app {
   height: 100vh;
   overflow-y: hidden;
@@ -18,7 +24,7 @@
   display: grid;
   height: 100vh;
   overflow-y: hidden;
-  grid-template-rows: minmax(65px, max-content) max-content 1fr;
+  grid-template-rows: max-content max-content 1fr;
 }
 
 .modal {
@@ -30,7 +36,7 @@
 }
 
 body[class^="vscode-"] .app-main-grid {
-  grid-template-rows: minmax(55px, max-content) max-content 1fr;
+  grid-template-rows: max-content max-content 1fr;
 }
 
 body[class^="vscode-"] {
@@ -59,6 +65,10 @@ body[class^="vscode-"] {
   --inspect-input-background: var(--vscode-input-background);
   --inspect-input-foreground: var(--vscode-input-foreground);
   --inspect-input-border: var(--vscode-input-border);
+}
+
+html.vscode {
+  font-size: 13px;
 }
 
 body[class^="vscode-"] .modal-backdrop {
@@ -92,15 +102,19 @@ body[class^="vscode-"] {
 }
 
 body[class^="vscode-"] .navbar-brand {
-  font-size: 1em;
-}
-
-body[class^="vscode-"] .navbar-brand .navbar-secondary-text {
-  font-size: 0.8em;
-}
-
-body[class^="vscode-"] .navbar #sidebarToggle > i.bi {
   font-size: 1.1em;
+}
+body[class^="vscode-"] .navbar-brand > div {
+  margin-top: -0.2rem !important;
+}
+
+body[class^="vscode-"] .task-title {
+  margin-top: 0.4em;
+}
+
+body[class^="vscode-"] .task-model {
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
 }
 
 body[class^="vscode-"] .accordion-button::after {
@@ -211,7 +225,7 @@ body[class^="vscode-"] .sidebar .list-group {
 :root {
   --bs-navbar-padding-y: 0;
   --bs-navbar-brand-padding-y: 0;
-  --sidebar-width: 500px;
+  --sidebar-width: 550px;
 }
 
 body {
@@ -409,13 +423,6 @@ pre[class*="language-"] {
   padding: 0.1em 1em 0.1em 1em;
   font-size: 0.8rem;
   font-weight: 500;
-}
-
-.card-subheading {
-  margin-top: 1em;
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding-bottom: 0.2em;
 }
 
 .btn .btn-link {

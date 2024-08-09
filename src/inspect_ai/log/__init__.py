@@ -18,9 +18,8 @@ from ._log import (
     EvalScore,
     EvalSpec,
     EvalStats,
-    LoggingLevel,
-    LoggingMessage,
 )
+from ._message import LoggingLevel, LoggingMessage
 from ._retry import retryable_eval_logs
 
 __all__ = [

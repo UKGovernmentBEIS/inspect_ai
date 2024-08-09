@@ -3,7 +3,7 @@ from functools import partial
 
 from inspect_ai._util.dict import omit
 from inspect_ai.model import ChatMessageUser, Model, get_model
-from inspect_ai.solver import TaskState
+from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
 from ._metric import INCORRECT, Score

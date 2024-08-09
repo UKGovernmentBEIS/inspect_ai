@@ -1,6 +1,5 @@
-import JSON5 from "json5";
-
 import { asyncJsonParse } from "../utils/Json.mjs";
+import JSON5 from "json5";
 
 import {
   webViewJsonRpcClient,

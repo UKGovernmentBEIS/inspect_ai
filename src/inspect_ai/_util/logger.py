@@ -1,22 +1,15 @@
 from contextvars import ContextVar
 from logging import INFO, Logger, LogRecord
 
-_logger_records_context_var = ContextVar[list[LogRecord]]("logger_records", default=[])
-
-
-def init_logger_records() -> None:
-    _logger_records_context_var.set([])
+from inspect_ai.log._message import LoggingMessage
+from inspect_ai.solver._subtask.transcript import LoggerEvent, transcript
 
 
 def notify_logger_record(record: LogRecord, write: bool) -> None:
     if write:
-        _logger_records_context_var.get().append(record)
+        transcript()._event(LoggerEvent(message=LoggingMessage.from_log_record(record)))
     if record.levelno <= INFO and "429" in record.getMessage():
         _rate_limit_count_context_var.set(_rate_limit_count_context_var.get() + 1)
-
-
-def logger_records() -> list[LogRecord]:
-    return _logger_records_context_var.get()
 
 
 _rate_limit_count_context_var = ContextVar[int]("rate_limit_count", default=0)

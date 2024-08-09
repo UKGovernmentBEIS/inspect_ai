@@ -2,7 +2,8 @@ import { Popover } from "bootstrap";
 import { html } from "htm/preact";
 import { useEffect, useRef } from "preact/hooks";
 
-import { icons, sharedStyles } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
 
 export const MorePopOver = ({ title, customClass, children }) => {
   const popoverRef = useRef();
@@ -35,8 +36,8 @@ export const MorePopOver = ({ title, customClass, children }) => {
       role="button"
       data-bs-toggle="popover"
       data-bs-trigger="focus"
-      style=${sharedStyles.moreButton}
-      ><i class="${icons.more}"></i
+      style=${ApplicationStyles.moreButton}
+      ><i class="${ApplicationIcons.more}"></i
     ></a>
   `);
 

@@ -1,3 +1,4 @@
+import contextlib
 from typing import Literal
 
 from inspect_ai.model import (
@@ -8,6 +9,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._cache import epoch
 from inspect_ai.solver import TaskState
+from inspect_ai.solver._subtask.transcript import transcript
 from inspect_ai.tool import ToolFunction
 
 
@@ -18,46 +20,54 @@ async def task_generate(
     cache: bool | CachePolicy,
     config: GenerateConfig,
 ) -> TaskState:
-    # track tool_choice (revert to "auto" after first forced call of a tool)
-    tool_choice = state.tool_choice
+    # create a step if this is a generate_loop
+    step_cm = (
+        transcript().step("generate_loop", "generate_loop")
+        if tool_calls == "loop"
+        else contextlib.nullcontext()
+    )
 
-    while True:
-        # If we don't update the epoch here as we go, it's entirely possible
-        # we'd cache the same response for every single epoch, which would
-        # completely defeat the point!
-        epoch.set(state.epoch)
+    with step_cm:
+        # track tool_choice (revert to "auto" after first forced call of a tool)
+        tool_choice = state.tool_choice
 
-        # call the model
-        state.output = await model.generate(
-            input=state.messages,
-            tools=state.tools,
-            tool_choice=tool_choice,
-            config=config,
-            cache=cache,
-        )
+        while True:
+            # If we don't update the epoch here as we go, it's entirely possible
+            # we'd cache the same response for every single epoch, which would
+            # completely defeat the point!
+            epoch.set(state.epoch)
 
-        # append the assistant message
-        message = state.output.message
-        state.messages.append(message)
+            # call the model
+            state.output = await model.generate(
+                input=state.messages,
+                tools=state.tools,
+                tool_choice=tool_choice,
+                config=config,
+                cache=cache,
+            )
 
-        # check for completed
-        if state.completed:
-            return state
+            # append the assistant message
+            message = state.output.message
+            state.messages.append(message)
 
-        # resolve tool calls if necessary
-        if tool_calls != "none" and message.tool_calls:
-            # call tools and append messages to state
-            state.messages.extend(await call_tools(message, state.tools))
-
-            # check for completed or only executing a single tool call
-            if state.completed or tool_calls == "single":
+            # check for completed
+            if state.completed:
                 return state
 
-            # if a tool_call was forced set tool_choice to 'auto'
-            # (otherwise it will get forced over and over again)
-            if isinstance(tool_choice, ToolFunction):
-                tool_choice = "auto"
+            # resolve tool calls if necessary
+            if tool_calls != "none" and message.tool_calls:
+                # call tools and append messages to state
+                state.messages.extend(await call_tools(message, state.tools))
 
-        # no tool calls or not resolving tool calls, we are done!
-        else:
-            return state
+                # check for completed or only executing a single tool call
+                if state.completed or tool_calls == "single":
+                    return state
+
+                # if a tool_call was forced set tool_choice to 'auto'
+                # (otherwise it will get forced over and over again)
+                if isinstance(tool_choice, ToolFunction):
+                    tool_choice = "auto"
+
+            # no tool calls or not resolving tool calls, we are done!
+            else:
+                return state

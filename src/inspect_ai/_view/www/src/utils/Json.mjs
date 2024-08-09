@@ -1,3 +1,5 @@
+// @ts-check
+
 export const asyncJsonParse = (text) => {
   return new Promise((resolve, reject) => {
     // Create a Blob from the worker code

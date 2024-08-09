@@ -1,5 +1,6 @@
 import { html } from "htm/preact";
 import { isNumeric } from "../../utils/Type.mjs";
+import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
 const kSampleAscVal = "sample-asc";
 const kSampleDescVal = "sample-desc";
@@ -38,14 +39,21 @@ export const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
   return html`
     <div style=${{ display: "flex" }}>
       <span
-        class="epoch-filter-label"
-        style=${{ alignSelf: "center", marginRight: "0.5em" }}
+        class="sort-filter-label"
+        style=${{
+          alignSelf: "center",
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+          marginRight: "0.3em",
+          marginLeft: "0.2em",
+        }}
         >Sort:</span
       >
       <select
         class="form-select form-select-sm"
-        aria-label=".epoch-filter-label"
-        style=${{ fontSize: "0.7rem" }}
+        aria-label=".sort-filter-label"
+        style=${{ fontSize: FontSize.smaller }}
         value=${sort}
         onChange=${(e) => {
           setSort(e.target.value);

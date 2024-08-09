@@ -49,48 +49,51 @@ async def call_tools(
         tdefs = tool_defs(tools)
 
         async def call_tool_task(call: ToolCall) -> ChatMessageTool:
-            result: Any = ""
-            tool_error: ToolCallError | None = None
-            try:
-                result = await call_tool(tdefs, call)
-            except TimeoutError:
-                tool_error = ToolCallError(
-                    "timeout", "Command timed out before completing."
-                )
-            except UnicodeDecodeError as ex:
-                tool_error = ToolCallError(
-                    "unicode_decode",
-                    f"Error decoding bytes to {ex.encoding}: {ex.reason}",
-                )
-            except PermissionError as ex:
-                message = f"{ex.strerror}."
-                if isinstance(ex.filename, str):
-                    message = f"{message} Filename '{ex.filename}'."
-                tool_error = ToolCallError("permission", message)
-            except FileNotFoundError as ex:
-                tool_error = ToolCallError(
-                    "file_not_found",
-                    f"File '{ex.filename}' was not found.",
-                )
-            except ToolParsingError as ex:
-                tool_error = ToolCallError("parsing", ex.message)
-            except ToolError as ex:
-                tool_error = ToolCallError("unknown", ex.message)
+            from inspect_ai.solver._subtask.transcript import transcript
 
-            # massage result, leave list[Content] alone, convert all other
-            # types to string as that is what the model APIs accept
-            if isinstance(result, list) and (
-                isinstance(result[0], ContentText | ContentImage)
-            ):
-                content: str | list[Content] = result
-            else:
-                content = str(result)
+            with transcript().step(call.function, type="tool_call"):
+                result: Any = ""
+                tool_error: ToolCallError | None = None
+                try:
+                    result = await call_tool(tdefs, call)
+                except TimeoutError:
+                    tool_error = ToolCallError(
+                        "timeout", "Command timed out before completing."
+                    )
+                except UnicodeDecodeError as ex:
+                    tool_error = ToolCallError(
+                        "unicode_decode",
+                        f"Error decoding bytes to {ex.encoding}: {ex.reason}",
+                    )
+                except PermissionError as ex:
+                    message = f"{ex.strerror}."
+                    if isinstance(ex.filename, str):
+                        message = f"{message} Filename '{ex.filename}'."
+                    tool_error = ToolCallError("permission", message)
+                except FileNotFoundError as ex:
+                    tool_error = ToolCallError(
+                        "file_not_found",
+                        f"File '{ex.filename}' was not found.",
+                    )
+                except ToolParsingError as ex:
+                    tool_error = ToolCallError("parsing", ex.message)
+                except ToolError as ex:
+                    tool_error = ToolCallError("unknown", ex.message)
 
-            return ChatMessageTool(
-                content=content,
-                tool_call_id=call.id,
-                error=tool_error,
-            )
+                # massage result, leave list[Content] alone, convert all other
+                # types to string as that is what the model APIs accept
+                if isinstance(result, list) and (
+                    isinstance(result[0], ContentText | ContentImage)
+                ):
+                    content: str | list[Content] = result
+                else:
+                    content = str(result)
+
+                return ChatMessageTool(
+                    content=content,
+                    tool_call_id=call.id,
+                    error=tool_error,
+                )
 
         tasks = [call_tool_task(call) for call in message.tool_calls]
         return await asyncio.gather(*tasks)

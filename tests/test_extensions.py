@@ -21,7 +21,7 @@ async def test_extension_model():
 
     # call the model
     mdl = get_model("custom/gpt7")
-    result = await mdl.generate({"role": "user", "content": "hello"}, [], "none", {})
+    result = await mdl.generate([{"role": "user", "content": "hello"}], [], "none", {})
     assert result.completion == "Hello from gpt7"
 
 

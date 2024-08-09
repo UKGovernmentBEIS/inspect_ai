@@ -6,11 +6,14 @@ import {
 } from "../utils/Format.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleScores } from "./SampleScores.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 
 const labelStyle = {
   paddingRight: "2em",
   paddingLeft: "0",
   paddingBottom: "0",
+  ...TextStyle.label,
+  ...TextStyle.secondary,
 };
 
 export const SampleScoreView = ({
@@ -40,14 +43,14 @@ export const SampleScoreView = ({
     <div
       class="container-fluid"
       style=${{
-        paddingTop: "0",
+        paddingTop: "1em",
         paddingLeft: "0",
-        fontSize: "0.8rem",
+        fontSize: FontSize.base,
         ...style,
       }}
     >
       <div>
-        <div style=${{ ...labelStyle, fontWeight: 600 }}>Input</div>
+        <div style=${{ ...labelStyle }}>Input</div>
         <div>
           <${MarkdownDiv}
             markdown=${scoreInput.join("\n")}
@@ -62,9 +65,22 @@ export const SampleScoreView = ({
       >
         <thead style=${{ borderBottomColor: "#00000000" }}>
           <tr>
-            <th style=${labelStyle}>Target</th>
-            <th style=${{ paddingBottom: "0" }}>Answer</th>
-            <th style=${{ paddingLeft: "2em", paddingBottom: "0" }}>Score</th>
+            <th style=${{ ...labelStyle, fontWeight: "400" }}>Target</th>
+            <th
+              style=${{ ...labelStyle, paddingBottom: "0", fontWeight: "400" }}
+            >
+              Answer
+            </th>
+            <th
+              style=${{
+                ...labelStyle,
+                paddingLeft: "2em",
+                paddingBottom: "0",
+                fontWeight: "400",
+              }}
+            >
+              Score
+            </th>
           </tr>
         </thead>
         <tbody style=${{ borderBottomColor: "#00000000" }}>
@@ -84,7 +100,7 @@ export const SampleScoreView = ({
                 class="no-last-para-padding"
               />
             </td>
-            <td style=${{ paddingTop: "0" }}>
+            <td style=${{ paddingTop: "0", paddingLeft: "0" }}>
               <${MarkdownDiv}
                 class="no-last-para-padding"
                 markdown=${shortenCompletion(answer)}
@@ -110,6 +126,8 @@ export const SampleScoreView = ({
                   <th style=${{
                     paddingBottom: "0",
                     paddingLeft: "0",
+                    ...labelStyle,
+                    fontWeight: "400",
                   }}>Explanation</th>
                 </tr>
               </thead>

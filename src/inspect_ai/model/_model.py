@@ -204,8 +204,15 @@ class Model:
         Returns:
            ModelOutput
         """
-        # merge with config from init
-        config = self.config.merge(config)
+        # base config for this model
+        base_config = self.config
+
+        # if we are the active_model then merge active generate config
+        if self == active_model():
+            base_config = base_config.merge(active_generate_config())
+
+        # merge passed config
+        config = base_config.merge(config)
 
         # provide max_tokens from the model api if required
         config.max_tokens = (
@@ -315,6 +322,15 @@ class Model:
                 config=config,
             )
 
+            # write to transcript
+            await self._model_transcript(
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                output=output,
+            )
+
             # record usage
             if output.usage:
                 record_model_usage(f"{self}", output.usage)
@@ -357,6 +373,27 @@ class Model:
             name=f"{model_name.api}",
             concurrency=max_connections,
             key=f"Model{self.api.connection_key()}",
+        )
+
+    async def _model_transcript(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+        output: ModelOutput,
+    ) -> None:
+        from inspect_ai.solver._subtask.transcript import ModelEvent, transcript
+
+        transcript()._event(
+            ModelEvent(
+                model=str(self),
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                output=output,
+            )
         )
 
 
@@ -624,8 +661,9 @@ def combine_messages(
         return message_type(content=content)
 
 
-def init_active_model(model: Model) -> None:
+def init_active_model(model: Model, config: GenerateConfig) -> None:
     active_model_context_var.set(model)
+    active_generate_config_context_var.set(config)
 
 
 def active_model() -> Model | None:
@@ -637,8 +675,15 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
+def active_generate_config() -> GenerateConfig:
+    return active_generate_config_context_var.get()
+
+
 # shared contexts for asyncio tasks
 active_model_context_var: ContextVar[Model] = ContextVar("active_model")
+active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
+    "generate_config", default=GenerateConfig()
+)
 
 
 def init_model_usage() -> None:

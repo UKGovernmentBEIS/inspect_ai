@@ -1,6 +1,17 @@
+// @ts-check
 import { html } from "htm/preact";
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 
+/**
+ * @typedef {Object} CopyButtonProps
+ * @property {string} value - The text value to be copied to the clipboard.
+ */
+
+/**
+ * CopyButton component.
+ * @param {CopyButtonProps} props - The props object.
+ * @returns {import("preact").JSX.Element} The CopyButton component.
+ */
 export const CopyButton = ({ value }) => {
   return html`<button
     class="copy-button"
@@ -14,14 +25,14 @@ export const CopyButton = ({ value }) => {
     onclick=${(e) => {
       const iEl = e.target;
       if (iEl) {
-        iEl.className = `${icons.confirm} primary`;
+        iEl.className = `${ApplicationIcons.confirm} primary`;
         setTimeout(() => {
-          iEl.className = icons.copy;
+          iEl.className = ApplicationIcons.copy;
         }, 1250);
       }
       return false;
     }}
   >
-    <i class=${icons.copy}></i>
+    <i class=${ApplicationIcons.copy}></i>
   </button>`;
 };

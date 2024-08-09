@@ -12,15 +12,12 @@ import {
 // Registration component
 import "./Register.mjs";
 
-import { throttle } from "./utils/events.mjs";
-import { sleep } from "./utils/sleep.mjs";
+import { sleep, throttle } from "./utils/sync.mjs";
 import { clearDocumentSelection } from "./components/Browser.mjs";
-
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
 import { ProgressBar } from "./components/ProgressBar.mjs";
 
-import { Navbar } from "./navbar/Navbar.mjs";
 import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
@@ -284,18 +281,6 @@ export function App({ api, pollForLogs = true }) {
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
   const fullScreen = filteredLogs.files.length === 1 && !filteredLogs.log_dir;
-
-  const navbar = html` <${Navbar}
-    file=${currentLog.name}
-    logs=${filteredLogs}
-    task=${currentLog.contents?.eval?.task}
-    model=${currentLog.contents?.eval?.model}
-    results=${currentLog.contents?.results}
-    samples=${currentLog.contents?.samples}
-    status=${currentLog.contents?.status}
-    offcanvas=${offcanvas}
-  />`;
-
   const sidebar =
     !fullScreen && currentLog.contents
       ? html`
@@ -367,7 +352,6 @@ export function App({ api, pollForLogs = true }) {
       }
     }}>
       ${showFind ? html`<${FindBand} hideBand=${hideFind} />` : ""}
-      ${navbar}
       <${ProgressBar} animating=${status.loading} />
       ${workspace}
     </div>

@@ -1,7 +1,8 @@
 import { html } from "htm/preact";
 
-import { icons } from "./../Constants.mjs";
-import { formatPrettyDecimal } from "./../utils/Format.mjs";
+import { ApplicationIcons } from "./../appearance/Icons.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { formatPrettyDecimal } from "../utils/Format.mjs";
 import { ProgressBar } from "../components/ProgressBar.mjs";
 
 export const Sidebar = ({
@@ -33,6 +34,8 @@ export const Sidebar = ({
           width: "var(--sidebar-width)",
           zIndex: 10,
           borderBottom: "solid var(--bs-light-border-subtle) 1px",
+          paddingBottom: "0.5rem",
+          paddingTop: "0.5rem",
         }}
       >
         <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
@@ -50,11 +53,11 @@ export const Sidebar = ({
             flex: "0 0 content",
           }}
         >
-          <i class=${icons.close}></i>
+          <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "41px", zIndex: 3 }}>
-        <${ProgressBar} animating=${loading} />
+      <div style=${{ marginTop: "61px", zIndex: 3 }}>
+        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
       </div>
       <ul
         class="list-group"
@@ -98,7 +101,6 @@ export const Sidebar = ({
             <li
               class="list-group-item list-group-item-action${active}"
               onclick=${() => onSelectedIndexChanged(index)}
-              style=${{ fontSize: "0.8rem" }}
             >
               <div
                 style=${{
@@ -110,8 +112,7 @@ export const Sidebar = ({
                 <div style=${{ overflow: "hidden" }}>
                   <div
                     style=${{
-                      fontSize: "1.5em",
-                      fontWeight: "600",
+                      fontSize: FontSize["title-secondary"],
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -119,18 +120,24 @@ export const Sidebar = ({
                   >
                     ${logHeader?.eval?.task || file.task}
                   </div>
-                  <small class="mb-1 text-muted"> ${timeStr} </small>
+                  <small class="mb-1" style=${{ fontSize: FontSize.small }}>
+                    ${timeStr}
+                  </small>
 
                   ${model
                     ? html` <div>
-                        <small class="mb-1 text-muted">${model}</small>
+                        <small
+                          class="mb-1"
+                          style=${{ fontSize: FontSize.small }}
+                          >${model}</small
+                        >
                       </div>`
                     : ""}
                 </div>
                 <${EvalStatus} logHeader=${logHeader} />
               </div>
-              <div style=${{ marginTop: "0.4em" }}>
-                <small class="mb-1 text-muted">
+              <div style=${{ marginTop: "1em" }}>
+                <small class="mb-1">
                   ${hyperparameters
                     ? Object.keys(hyperparameters)
                         .map((key) => {
@@ -145,7 +152,8 @@ export const Sidebar = ({
                     style=${{
                       display: "flex",
                       justifyContent: "space-between",
-                      marginTop: "0.5em",
+                      marginTop: "0em",
+                      fontSize: FontSize.small,
                     }}
                   >
                     <span>dataset: ${dataset.name || "(samples)"}</span
@@ -219,12 +227,15 @@ const SidebarScore = ({ scorer }) => {
             alignItems: "flex-end",
             marginLeft: "1em",
             marginBottom: "0.4em",
+            marginTop: "0.5rem",
           }}
         >
           <div
             style=${{
-              fontWeight: 300,
               marginBottom: "-0.3em",
+              fontSize: FontSize.small,
+              ...TextStyle.label,
+              ...TextStyle.secondary,
             }}
           >
             ${scorer.metrics[metric].name}
@@ -232,15 +243,14 @@ const SidebarScore = ({ scorer }) => {
           ${scorer.reducer
             ? html`<div
                 style=${{
-                  fontWeight: 300,
-                  fontSize: "0.9em",
+                  fontSize: FontSize.small,
                   marginBottom: "-0.2rem",
                 }}
               >
                 ${scorer.reducer}
               </div>`
             : ""}
-          <div style=${{ fontWeight: 600, fontSize: "1.5em" }}>
+          <div style=${{ fontSize: FontSize["title-secondary"] }}>
             ${formatPrettyDecimal(scorer.metrics[metric].value)}
           </div>
         </div>
@@ -273,11 +283,12 @@ const SidebarScores = ({ scores }) => {
         >
           <div
             style=${{
-              fontSize: "0.6rem",
+              fontSize: FontSize.base,
               width: "100%",
               fontWeight: 300,
               borderBottom: "solid var(--bs-border-color) 1px",
-              textTransform: "uppercase",
+              ...TextStyle.label,
+              ...TextStyle.secondary,
             }}
           >
             ${name}
@@ -285,7 +296,7 @@ const SidebarScores = ({ scores }) => {
           ${reducer
             ? html` <div
                 style=${{
-                  fontSize: "0.6rem",
+                  fontSize: FontSize.smaller,
                   width: "100%",
                   fontWeight: 300,
                 }}
@@ -295,7 +306,7 @@ const SidebarScores = ({ scores }) => {
             : ""}
           <div
             style=${{
-              fontSize: "0.7rem",
+              fontSize: FontSize.smaller,
               display: "grid",
               gridTemplateColumns: "max-content max-content",
               gridGap: "0 0.3rem",
@@ -303,7 +314,11 @@ const SidebarScores = ({ scores }) => {
           >
             ${Object.keys(score.metrics).map((key) => {
               const metric = score.metrics[key];
-              return html` <div>${metric.name}</div>
+              return html` <div
+                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+                >
+                  ${metric.name}
+                </div>
                 <div style=${{ fontWeight: "600" }}>
                   ${formatPrettyDecimal(metric.value)}
                 </div>`;
@@ -316,7 +331,7 @@ const SidebarScores = ({ scores }) => {
 };
 
 const StatusCancelled = ({ message }) => {
-  return html`<div style=${{ color: "var(--bs-secondary)" }}>${message}</div>`;
+  return html`<div style=${{ ...TextStyle.secondary }}>${message}</div>`;
 };
 
 const StatusRunning = ({ message }) => {
@@ -333,14 +348,18 @@ const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   if (log_dir) {
     const displayDir = prettyDir(log_dir);
     return html`<div style=${{ display: "flex", flexDirection: "column" }}>
-      <span style=${{ fontSize: "0.5rem", textTransform: "uppercase" }}
+      <span
+        style=${{
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+        }}
         >Log Directory</span
       >
       <span
         title=${displayDir}
         style=${{
-          fontWeight: "400",
-          fontSize: "0.7rem",
+          fontSize: FontSize.base,
           overflow: "hidden",
           whiteSpace: "nowrap",
           textOverflow: "ellipsis",
@@ -351,8 +370,7 @@ const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   } else {
     return html`<span
       style=${{
-        fontWeight: "500",
-        fontSize: "1.5rem",
+        fontSize: FontSize.title,
       }}
       >${offcanvas ? "Log History" : ""}
     </span>`;

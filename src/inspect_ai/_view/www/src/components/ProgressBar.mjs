@@ -2,7 +2,6 @@ import { html } from "htm/preact";
 
 export const ProgressBar = ({ style, animating }) => {
   const emptyStyle = {
-    ...style,
     display: "flex",
     textAlign: "center",
     flex: "0 0 content",
@@ -10,21 +9,22 @@ export const ProgressBar = ({ style, animating }) => {
     justifyContent: "center",
     border: "none",
     padding: "0",
-    background: "#FFFFFF00",
-    fontSize: "0.7em",
     zIndex: 1001,
     width: "100%",
+    height: "0px",
+    overflow: "visible",
   };
 
   const progressContainerStyle = {
     width: "100%",
-    height: "4px",
+    height: "2px",
     background: "none",
   };
 
   const progressBarStyle = {
     width: "5%",
     height: "2px",
+    ...style,
   };
 
   return html`

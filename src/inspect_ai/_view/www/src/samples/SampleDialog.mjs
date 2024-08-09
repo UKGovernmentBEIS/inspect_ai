@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 import { useCallback, useMemo } from "preact/hooks";
 
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { LargeModal } from "../components/LargeModal.mjs";
 
@@ -28,14 +28,14 @@ export const SampleDialog = (props) => {
   const tools = useMemo(() => {
     const nextTool = {
       label: "Next Sample",
-      icon: icons.next,
+      icon: ApplicationIcons.next,
       onclick: nextSample,
       enabled: !!nextSample,
     };
 
     const prevTool = {
       label: "Previous Sample",
-      icon: icons.previous,
+      icon: ApplicationIcons.previous,
       onclick: prevSample,
       enabled: !!prevSample,
     };

@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { formatTime } from "../utils/Format.mjs";
 import { Card, CardHeader, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
@@ -16,13 +17,13 @@ export const UsageCard = ({ stats, context }) => {
   const totalDuration = duration(stats);
 
   const usageMetadataStyle = {
-    fontSize: "0.8em",
+    fontSize: FontSize.smaller,
   };
 
   return html`
 
     <${Card}>
-      <${CardHeader} icon=${icons.usage} label="Usage"/>
+      <${CardHeader} icon=${ApplicationIcons.usage} label="Usage"/>
       <${CardBody} id=${kUsageCardBodyId} style=${{
         paddingTop: "0",
         paddingBottom: "0",
@@ -36,7 +37,7 @@ export const UsageCard = ({ stats, context }) => {
         }}>
 
           <div style=${{ flex: "1 1 40%", marginRight: "1em" }}>
-          <div class="card-subheading">Duration</div>
+          <div style=${{ marginTop: "1em", fontSize: FontSize.smaller, ...TextStyle.label, ...TextStyle.secondary }}>Duration</div>
           <${MetaDataView}
             entries="${{
               ["Start"]: new Date(stats.started_at).toLocaleString(),

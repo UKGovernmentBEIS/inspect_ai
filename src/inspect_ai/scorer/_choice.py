@@ -1,10 +1,10 @@
-from inspect_ai.solver import Choices, TaskState
 from inspect_ai.solver._multiple_choice import (
     answer_character,
     answer_index,
     answer_options,
     unshuffle_choices,
 )
+from inspect_ai.solver._task_state import Choices, TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
 from ._metrics import accuracy, stderr
