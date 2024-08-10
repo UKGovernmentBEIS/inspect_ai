@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.27
+
+- Minor fix to view rendering across differing versions of Inspect.
+
 ## 0.3.26
 
 - Properly preserve focus When showing the log viewer upon task completion.
