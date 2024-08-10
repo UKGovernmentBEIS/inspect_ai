@@ -166,6 +166,13 @@ def together() -> type[ModelAPI]:
     return TogetherAIAPI
 
 
+@modelapi(name="trest")
+def trest() -> type[ModelAPI]:
+    from .together import TogetherRESTAPI
+
+    return TogetherRESTAPI
+
+
 @modelapi(name="ollama")
 def ollama() -> type[ModelAPI]:
     # validate
@@ -189,13 +196,6 @@ def bedrock() -> type[ModelAPI]:
     from .bedrock import BedrockAPI
 
     return BedrockAPI
-
-
-@modelapi(name="trest")
-def trest() -> type[ModelAPI]:
-    from .trest import TogetherRESTAPI
-
-    return TogetherRESTAPI
 
 
 @modelapi(name="mockllm")
