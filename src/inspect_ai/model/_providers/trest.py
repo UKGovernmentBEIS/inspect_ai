@@ -21,15 +21,12 @@ from .._model_output import (
     StopReason,
 )
 from .._util import (
-    chat_api_input,
     chat_api_request,
     is_chat_api_rate_limit,
+    llama31_chat_api_input,
+    llama31_parse_tool_call,
 )
 from .util import model_base_url
-
-# Cloudflare supported models:
-# https://developers.cloudflare.com/workers-ai/models/#text-generation
-
 
 TOGETHER_API_KEY = "TOGETHER_API_KEY"
 
@@ -71,8 +68,6 @@ class TogetherRESTAPI(ModelAPI):
         chat_url = f"{self.base_url}/chat/completions"
 
         # chat api input
-        # TODO: logprobs
-        # TODO: other options
         json: dict[str, Any] = dict(**self.model_args)
         json["model"] = self.model_name
         if config.max_tokens is not None:
@@ -87,7 +82,7 @@ class TogetherRESTAPI(ModelAPI):
             json["n"] = config.num_choices
         if config.logprobs:
             json["logprobs"] = config.logprobs
-        json["messages"] = chat_api_input(input)
+        json["messages"] = llama31_chat_api_input(input, tools)
 
         # make the call
         response = await chat_api_request(
@@ -107,7 +102,7 @@ class TogetherRESTAPI(ModelAPI):
             model = response.get("model", self.model_name)
 
             # generated choices
-            choices = together_choices(response.get("choices"))
+            choices = together_choices(response.get("choices"), tools)
 
             # model usage
             if "usage" in response:
@@ -137,21 +132,32 @@ class TogetherRESTAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
 
-def together_choices(choices: list[dict[str, Any]]) -> list[ChatCompletionChoice]:
+def together_choices(
+    choices: list[dict[str, Any]], tools: list[ToolInfo]
+) -> list[ChatCompletionChoice]:
     choices.sort(key=lambda c: c.get("index", 0))
-    return [together_choice(choice) for choice in choices]
+    return [together_choice(choice, tools) for choice in choices]
 
 
-def together_choice(choice: dict[str, Any]) -> ChatCompletionChoice:
+def together_choice(
+    choice: dict[str, Any], tools: list[ToolInfo]
+) -> ChatCompletionChoice:
     return ChatCompletionChoice(
-        message=together_chat_message(choice.get("message", {})),
+        message=together_chat_message(choice.get("message", {}), tools),
         stop_reason=together_stop_reason(choice.get("finish_reason", "")),
         logprobs=together_logprobs(choice),
     )
 
 
-def together_chat_message(message: dict[str, Any]) -> ChatMessageAssistant:
-    return ChatMessageAssistant(content=message.get("content", ""))
+def together_chat_message(
+    message: dict[str, str], tools: list[ToolInfo]
+) -> ChatMessageAssistant:
+    content: str = message.get("content", "")
+    tool_call = llama31_parse_tool_call(content, tools)
+    if tool_call:
+        return ChatMessageAssistant(content="", tool_calls=[tool_call])
+    else:
+        return ChatMessageAssistant(content=content)
 
 
 def together_stop_reason(reason: str) -> StopReason:
