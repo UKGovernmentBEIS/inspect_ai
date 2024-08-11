@@ -53,7 +53,8 @@ def chat_api_input(
     handler: ChatAPIHandler,
 ) -> list[ChatApiMessage]:
     # add tools to input
-    input = handler.input_with_tools(input, tools)
+    if len(tools) > 0:
+        input = handler.input_with_tools(input, tools)
 
     # resolve other messages
     return [chat_api_message(message, handler) for message in input]
