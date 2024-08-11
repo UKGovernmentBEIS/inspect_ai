@@ -1,6 +1,5 @@
 import json
 import re
-from logging import getLogger
 
 from typing_extensions import override
 
@@ -15,11 +14,10 @@ from ..._chat_message import (
 from .chatapi import ChatAPIHandler, ChatApiMessage
 from .util import parse_tool_call
 
-logger = getLogger(__name__)
-
 
 class Llama31Handler(ChatAPIHandler):
-    # see https://docs.together.ai/docs/llama-3-function-calling
+    # see: https://llama.meta.com/docs/model-cards-and-prompt-formats/llama3_1/#user-defined-custom-tool-calling
+    # see: https://docs.together.ai/docs/llama-3-function-calling
     @override
     def input_with_tools(
         self, input: list[ChatMessage], tools: list[ToolInfo]
@@ -29,7 +27,7 @@ class Llama31Handler(ChatAPIHandler):
 
         tool_descriptions = "\n\n".join(
             [
-                f"Use the '{tool.name}' tool to '{tool.description}':\n{tool.parameters.model_dump_json(exclude_none=True)}"
+                f"Use the '{tool.name}' function to: {tool.description}\n{tool.model_dump_json(exclude_none=True, indent=2)}"
                 for tool in tools
             ]
         )
@@ -39,9 +37,16 @@ You have access to the following functions:
 
 {tool_descriptions}
 
-If you choose to call a function ONLY reply in the following format with no prefix or suffix:
+If a you choose to call a function ONLY reply in the following format:
+<{{start_tag}}={{function_name}}>{{parameters}}{{end_tag}}
+where
 
-<function=example_function_name>{{\"example_name\": \"example_value\"}}</function>
+start_tag => `<function`
+parameters => a JSON dict with the function argument name as key and function argument value as value.
+end_tag => `</function>`
+
+Here is an example,
+<function=example_function_name>{{"example_name": "example_value"}}</function>
 
 Reminder:
 - Function calls MUST follow the specified format, start with <function= and end with </function>
@@ -50,18 +55,35 @@ Reminder:
 - Put the entire function call reply on one line
 - If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
 """
-
         return [ChatMessageSystem(content=toolPrompt)] + input
 
     @override
     def parse_assistent_response(
         self, response: str, tools: list[ToolInfo]
     ) -> ChatMessageAssistant:
-        function_regex = r"<function=(\w+)>(.*?)</function>"
+        # Note that in spite of the instructions above we have
+        # seem many varities of function call from Llama 3.1,
+        # including:
+        #
+        # <function=bash>{...}</function>
+        # <function=bash>{...}<function=bash>
+        # <function=bash {...}</function>
+        # <function=bash> {...}<function>
+        # <function=bash>{...}
+        # bash("...")
+        #
+        # Consequently, we define a regex that is more flexible
+        # than the documented specification.
+        function_regex = r"<function=(\w+)[> ]+(.*?)(</?function|$)"
 
+        # we've also seen llama 3.1 hallucinate that it needs to
+        # escape single quotes within double quoted strings
+        response = response.strip().replace("\\'", "'")
+
+        # try to find the tool call
         match = re.search(function_regex, response)
         if match:
-            function_name, args_string = match.groups()
+            function_name, args_string, _ = match.groups()
             tool_call = parse_tool_call(
                 function_name, function_name, args_string, tools
             )
