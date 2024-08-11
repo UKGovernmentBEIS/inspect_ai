@@ -278,7 +278,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
         `<head>
           <meta name="inspect-extension:version" content="${this.getExtensionVersion()}">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._webviewPanel.webview.cspSource
-        } data:; font-src ${this._webviewPanel.webview.cspSource}; style-src ${this._webviewPanel.webview.cspSource
+        } data:; font-src ${this._webviewPanel.webview.cspSource} data:; style-src ${this._webviewPanel.webview.cspSource
         } 'unsafe-inline'; worker-src 'self' ${this._webviewPanel.webview.cspSource
         } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this._webviewPanel.webview.cspSource
         };">
@@ -294,34 +294,54 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
           .asWebviewUri(Uri.joinPath(viewDirUri, path))
           .toString();
 
-      // fixup css references
-      indexHtml = indexHtml.replace(/href="\.([^"]+)"/g, (_, p1: string) => {
-        return `href="${resourceUri(p1)}"`;
-      });
-
-      // fixup js references
-      indexHtml = indexHtml.replace(/src="\.([^"]+)"/g, (_, p1: string) => {
-        return `src="${resourceUri(p1)}"`;
-      });
-
       // nonces for scripts
       indexHtml = indexHtml.replace(
         /<script([ >])/g,
         `<script nonce="${nonce}"$1`
       );
 
-      // fixup import maps
-      indexHtml = indexHtml.replace(
-        /": "\.([^?"]+)(["?])/g,
-        (_, p1: string, p2: string) => {
-          return `": "${resourceUri(p1)}${p2}`;
-        }
-      );
+      // Determine whether this is the old index.html format (before bundling),
+      // or the newer one. Fix up the html properly in each case
 
-      // fixup App.mjs
-      indexHtml = indexHtml.replace(/"\.(\/App\.mjs)"/g, (_, p1: string) => {
-        return `"${resourceUri(p1)}"`;
-      });
+      if (indexHtml.match(/"\.(\/App\.mjs)"/g)) {
+        // Old unbundle html
+        // fixup css references
+        indexHtml = indexHtml.replace(/href="\.([^"]+)"/g, (_, p1: string) => {
+          return `href="${resourceUri(p1)}"`;
+        });
+
+        // fixup js references
+        indexHtml = indexHtml.replace(/src="\.([^"]+)"/g, (_, p1: string) => {
+          return `src="${resourceUri(p1)}"`;
+        });
+
+        // fixup import maps
+        indexHtml = indexHtml.replace(
+          /": "\.([^?"]+)(["?])/g,
+          (_, p1: string, p2: string) => {
+            return `": "${resourceUri(p1)}${p2}`;
+          }
+        );
+
+        // fixup App.mjs
+        indexHtml = indexHtml.replace(/"\.(\/App\.mjs)"/g, (_, p1: string) => {
+          return `"${resourceUri(p1)}"`;
+        });
+
+      } else {
+        // New bundled html
+        // fixup css references
+        indexHtml = indexHtml.replace(/href="([^"]+)"/g, (_, p1: string) => {
+          return `href="${resourceUri(p1)}"`;
+        });
+
+        // fixup js references
+        indexHtml = indexHtml.replace(/src="([^"]+)"/g, (_, p1: string) => {
+          return `src="${resourceUri(p1)}"`;
+        });
+
+
+      }
 
       return indexHtml;
     } else {

@@ -7,15 +7,11 @@ export default [
       globals: {
         ...globals.browser,
         ...globals.node,
-        bootstrap: "readonly",
-        JSON5: "readonly",
-        Prism: "readonly",
-        showdown: "readonly",
       },
     },
   },
   pluginJs.configs.recommended,
   {
-    ignores: ["libs/**", "preact/**"],
+    ignores: ["libs/**", "preact/**", "dist/**"],
   },
 ];

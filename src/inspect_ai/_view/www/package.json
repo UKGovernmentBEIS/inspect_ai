@@ -2,17 +2,37 @@
   "name": "inspect_ai_log_viewer",
   "version": "0.0.1",
   "description": "Log viewer for the inspect_ai package",
-  "main": "index.js",
   "license": "MIT",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "prettier:check": "prettier --check .",
-    "prettier:write": "prettier --write ."
+    "build": "vite build",
+    "dev": "vite",
+    "prettier:check": "prettier --check src",
+    "prettier:write": "prettier --write src",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "exports": {
+    ".": "./src/App.mjs",
+    "./App.css": "./App.css"
   },
   "devDependencies": {
     "@eslint/js": "^9.5.0",
     "eslint": "9.x",
     "globals": "^15.6.0",
-    "prettier": "^3.3.2"
+    "postcss-url": "^10.1.3",
+    "prettier": "^3.3.2",
+    "vite": "^5.3.2"
+  },
+  "dependencies": {
+    "@popperjs/core": "^2.11.8",
+    "bootstrap": "^5.3.3",
+    "clipboard": "^2.0.11",
+    "htm": "^3.1.1",
+    "json": "^11.0.0",
+    "json5": "^2.2.3",
+    "preact": "^10.22.0",
+    "prismjs": "^1.29.0",
+    "showdown": "^2.1.0"
   }
 }

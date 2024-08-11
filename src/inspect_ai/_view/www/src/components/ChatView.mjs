@@ -1,3 +1,4 @@
+import Prism from "prismjs";
 import { html } from "htm/preact";
 import { useMemo, useRef } from "preact/hooks";
 
