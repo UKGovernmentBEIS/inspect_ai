@@ -1,3 +1,4 @@
+import { Modal } from "bootstrap";
 import { html } from "htm/preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
@@ -51,7 +52,7 @@ export const SamplesTab = (props) => {
   const showSample = useCallback(() => {
     const dialogEl = sampleDialogRef.current;
     if (dialogEl) {
-      const modal = new bootstrap.Modal(dialogEl.base);
+      const modal = new Modal(dialogEl.base);
       modal.show();
     }
   }, [sampleDialogRef]);
@@ -59,7 +60,7 @@ export const SamplesTab = (props) => {
   const hideSample = useCallback(() => {
     const dialogEl = sampleDialogRef.current;
     if (dialogEl && dialogEl.base) {
-      const modal = bootstrap.Modal.getInstance(dialogEl.base);
+      const modal = Modal.getInstance(dialogEl.base);
       if (modal) {
         modal.hide();
       }
