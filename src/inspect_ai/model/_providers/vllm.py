@@ -24,7 +24,8 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
-from .util import chat_api_input, chat_api_tools_handler
+from .util import chat_api_input
+from .util.chatapi import ChatAPIHandler
 
 DEFAULT_START_TOKEN = "<|im_start|>"
 DEFAULT_END_TOKEN = "<|im_end|>"
@@ -137,7 +138,7 @@ class VLLMAPI(ModelAPI):
         # handle system message and consecutive user messages
         messages = simple_input_messages(messages)
         # convert to chat template input format
-        chat_messages = chat_api_input(messages, tools, self.model_name)
+        chat_messages = chat_api_input(messages, tools, self.chat_api_handler())
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
             chat_messages,
@@ -239,10 +240,10 @@ class VLLMAPI(ModelAPI):
     def process_responses(
         self, responses: list[GenerateOutput], tools: list[ToolInfo]
     ) -> ModelOutput:
-        tools_handler = chat_api_tools_handler(self.model_name)
+        handler = self.chat_api_handler()
         choices = [
             ChatCompletionChoice(
-                message=tools_handler.parse_assistant_message(response.output, tools),
+                message=handler.parse_assistent_response(response.output, tools),
                 stop_reason=response.stop_reason,
                 logprobs=response.logprobs,
             )
@@ -263,6 +264,9 @@ class VLLMAPI(ModelAPI):
                 total_tokens=total_tokens,
             ),
         )
+
+    def chat_api_handler(self) -> ChatAPIHandler:
+        return ChatAPIHandler()
 
 
 @dataclass

@@ -9,6 +9,7 @@ from openai.types.chat import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai.model._providers.util.chatapi import ChatAPIHandler
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -31,7 +32,6 @@ from .util import (
     as_stop_reason,
     chat_api_input,
     chat_api_request,
-    chat_api_tools_handler,
     is_chat_api_rate_limit,
     model_base_url,
 )
@@ -161,7 +161,7 @@ class TogetherRESTAPI(ModelAPI):
             json["n"] = config.num_choices
         if config.logprobs:
             json["logprobs"] = config.logprobs
-        json["messages"] = chat_api_input(input, tools, self.model_name)
+        json["messages"] = chat_api_input(input, tools, self.chat_api_handler())
 
         # make the call
         response = await chat_api_request(
@@ -181,7 +181,9 @@ class TogetherRESTAPI(ModelAPI):
             model = response.get("model", self.model_name)
 
             # generated choices
-            choices = together_choices(response.get("choices"), tools, self.model_name)
+            choices = together_choices(
+                response.get("choices"), tools, self.chat_api_handler()
+            )
 
             # model usage
             if "usage" in response:
@@ -210,30 +212,32 @@ class TogetherRESTAPI(ModelAPI):
     def max_tokens(self) -> int:
         return DEFAULT_MAX_TOKENS
 
+    def chat_api_handler(self) -> ChatAPIHandler:
+        return ChatAPIHandler()
+
 
 def together_choices(
-    choices: list[dict[str, Any]], tools: list[ToolInfo], model: str
+    choices: list[dict[str, Any]], tools: list[ToolInfo], handler: ChatAPIHandler
 ) -> list[ChatCompletionChoice]:
     choices.sort(key=lambda c: c.get("index", 0))
-    return [together_choice(choice, tools, model) for choice in choices]
+    return [together_choice(choice, tools, handler) for choice in choices]
 
 
 def together_choice(
-    choice: dict[str, Any], tools: list[ToolInfo], model: str
+    choice: dict[str, Any], tools: list[ToolInfo], handler: ChatAPIHandler
 ) -> ChatCompletionChoice:
     return ChatCompletionChoice(
-        message=together_chat_message(choice.get("message", {}), tools, model),
+        message=together_chat_message(choice.get("message", {}), tools, handler),
         stop_reason=together_stop_reason(choice.get("finish_reason", "")),
         logprobs=together_logprobs(choice),
     )
 
 
 def together_chat_message(
-    message: dict[str, str], tools: list[ToolInfo], model: str
+    message: dict[str, str], tools: list[ToolInfo], handler: ChatAPIHandler
 ) -> ChatMessageAssistant:
     content: str = message.get("content", "")
-    tools_handler = chat_api_tools_handler(model)
-    return tools_handler.parse_assistant_message(content, tools)
+    return handler.parse_assistent_response(content, tools)
 
 
 def together_stop_reason(reason: str) -> StopReason:

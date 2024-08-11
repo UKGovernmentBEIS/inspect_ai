@@ -12,10 +12,10 @@ from .._model_output import ChatCompletionChoice
 from .util import (
     chat_api_input,
     chat_api_request,
-    chat_api_tools_handler,
     is_chat_api_rate_limit,
     model_base_url,
 )
+from .util.chatapi import ChatAPIHandler
 
 # Cloudflare supported models:
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
@@ -70,7 +70,7 @@ class CloudFlareAPI(ModelAPI):
         json: dict[str, Any] = dict(**self.model_args)
         if config.max_tokens is not None:
             json["max_tokens"] = config.max_tokens
-        json["messages"] = chat_api_input(input, tools, self.model_name)
+        json["messages"] = chat_api_input(input, tools, self.chat_api_handler())
 
         # make the call
         response = await chat_api_request(
@@ -84,13 +84,14 @@ class CloudFlareAPI(ModelAPI):
 
         # handle response
         if response["success"]:
-            tools_handler = chat_api_tools_handler(self.model_name)
             content = response["result"]["response"]
             return ModelOutput(
                 model=self.model_name,
                 choices=[
                     ChatCompletionChoice(
-                        message=tools_handler.parse_assistant_message(content, tools),
+                        message=self.chat_api_handler().parse_assistent_response(
+                            content, tools
+                        ),
                         stop_reason="stop",
                     )
                 ],
@@ -112,3 +113,6 @@ class CloudFlareAPI(ModelAPI):
     @override
     def max_tokens(self) -> int:
         return DEFAULT_MAX_TOKENS
+
+    def chat_api_handler(self) -> ChatAPIHandler:
+        return ChatAPIHandler()

@@ -7,6 +7,7 @@ import httpx
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai.model._providers.util.llama31 import Llama31Handler
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
@@ -22,10 +23,10 @@ from .util import (
     as_stop_reason,
     chat_api_input,
     chat_api_request,
-    chat_api_tools_handler,
     is_chat_api_rate_limit,
     model_base_url,
 )
+from .util.chatapi import ChatAPIHandler
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
@@ -128,7 +129,7 @@ class AzureAIAPI(ModelAPI):
             # build payload
             json = dict(
                 input_data=dict(
-                    input_string=chat_api_input(input, tools, self.model_name),
+                    input_string=chat_api_input(input, tools, self.chat_api_handler()),
                     parameters=parameters,
                 )
             )
@@ -146,7 +147,7 @@ class AzureAIAPI(ModelAPI):
 
             # request payload
             json = (
-                dict(messages=chat_api_input(input, tools, self.model_name))
+                dict(messages=chat_api_input(input, tools, self.chat_api_handler()))
                 | parameters
             )
 
@@ -174,7 +175,7 @@ class AzureAIAPI(ModelAPI):
         else:
             model = response.get("model", "")
             choices = chat_completion_choices(
-                response["choices"], tools, self.model_name
+                response["choices"], tools, self.chat_api_handler()
             )
             model_usage = response.get("usage", None)
             if model_usage:
@@ -224,20 +225,25 @@ class AzureAIAPI(ModelAPI):
     def is_mistral(self) -> bool:
         return "mistral" in self.model_name.lower()
 
+    def chat_api_handler(self) -> ChatAPIHandler:
+        if "llama" in self.model_name.lower():
+            return Llama31Handler()
+        else:
+            return ChatAPIHandler()
+
 
 def chat_completion_choices(
-    choices: list[dict[str, Any]], tools: list[ToolInfo], model: str
+    choices: list[dict[str, Any]], tools: list[ToolInfo], handler: ChatAPIHandler
 ) -> list[ChatCompletionChoice]:
-    return [chat_completion_choice(choice, tools, model) for choice in choices]
+    return [chat_completion_choice(choice, tools, handler) for choice in choices]
 
 
 def chat_completion_choice(
-    choice: dict[str, Any], tools: list[ToolInfo], model: str
+    choice: dict[str, Any], tools: list[ToolInfo], handler: ChatAPIHandler
 ) -> ChatCompletionChoice:
-    tools_handler = chat_api_tools_handler(model)
     content = choice["message"]["content"]
     return ChatCompletionChoice(
-        message=tools_handler.parse_assistant_message(content, tools),
+        message=handler.parse_assistent_response(content, tools),
         stop_reason=choice_stop_reason(choice),
     )
 

@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from tenacity import (
@@ -13,13 +13,59 @@ from tenacity import (
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool._tool_info import ToolInfo
 
 from ..._chat_message import ChatMessage
 from ..._generate_config import GenerateConfig
-from .tools import ChatApiMessage, ChatAPIToolsHandler, chat_api_tools_handler
 
 logger = getLogger(__name__)
+
+ChatApiMessage = dict[Literal["role", "content"], str]
+
+
+class ChatAPIHandler:
+    def input_with_tools(
+        self, input: list[ChatMessage], tools: list[ToolInfo]
+    ) -> list[ChatMessage]:
+        return input
+
+    def parse_assistent_response(
+        self, response: str, tools: list[ToolInfo]
+    ) -> ChatMessageAssistant:
+        return ChatMessageAssistant(content=response)
+
+    def assistant_message(self, message: ChatMessageAssistant) -> ChatApiMessage:
+        return {"role": "assistant", "content": message.text}
+
+    def tool_message(self, message: ChatMessageTool) -> ChatApiMessage:
+        return {
+            "role": "tool",
+            "content": f"Error: {message.error.message}"
+            if message.error
+            else message.text,
+        }
+
+
+def chat_api_input(
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    handler: ChatAPIHandler,
+) -> list[ChatApiMessage]:
+    # add tools to input
+    input = handler.input_with_tools(input, tools)
+
+    # resolve other messages
+    return [chat_api_message(message, handler) for message in input]
+
+
+def chat_api_message(message: ChatMessage, handler: ChatAPIHandler) -> ChatApiMessage:
+    if message.role == "assistant":
+        return handler.assistant_message(message)
+    elif message.role == "tool":
+        return handler.tool_message(message)
+    else:
+        return dict(role=message.role, content=message.text)
 
 
 async def chat_api_request(
@@ -51,30 +97,6 @@ async def chat_api_request(
 
     # make the call
     return await call_api()
-
-
-def chat_api_input(
-    input: list[ChatMessage], tools: list[ToolInfo], model: str
-) -> list[ChatApiMessage]:
-    # get tools handler
-    tools_handler = chat_api_tools_handler(model)
-
-    # add tools to input
-    input = tools_handler.input_with_tools(input, tools)
-
-    # resolve other messages
-    return [chat_api_message(message, tools_handler) for message in input]
-
-
-def chat_api_message(
-    message: ChatMessage, tools_handler: ChatAPIToolsHandler
-) -> ChatApiMessage:
-    if message.role == "assistant":
-        return tools_handler.chat_api_assistant_message(message)
-    elif message.role == "tool":
-        return tools_handler.chat_api_tool_message(message)
-    else:
-        return dict(role=message.role, content=message.text)
 
 
 # When calling chat_api_request() we use tenacity as the retry wrapper, so

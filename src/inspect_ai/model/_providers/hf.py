@@ -31,7 +31,8 @@ from .._model_output import (
     ModelUsage,
     TopLogprob,
 )
-from .util import chat_api_input, chat_api_tools_handler
+from .util import chat_api_input
+from .util.chatapi import ChatAPIHandler
 
 HF_TOKEN = "HF_TOKEN"
 
@@ -165,9 +166,10 @@ class HuggingFaceAPI(ModelAPI):
             )
 
         # construct choice
-        tools_handler = chat_api_tools_handler(self.model_name)
         choice = ChatCompletionChoice(
-            message=tools_handler.parse_assistant_message(response.output, tools),
+            message=self.chat_api_handler().parse_assistent_response(
+                response.output, tools
+            ),
             logprobs=(
                 Logprobs(content=final_logprobs) if final_logprobs is not None else None
             ),
@@ -198,7 +200,7 @@ class HuggingFaceAPI(ModelAPI):
         # handle system message and consecutive user messages
         messages = simple_input_messages(messages)
         # convert to hf format
-        hf_messages = chat_api_input(messages, tools, self.model_name)
+        hf_messages = chat_api_input(messages, tools, self.chat_api_handler())
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
             hf_messages,
@@ -208,6 +210,9 @@ class HuggingFaceAPI(ModelAPI):
         )
         # return
         return cast(str, chat)
+
+    def chat_api_handler(self) -> ChatAPIHandler:
+        return ChatAPIHandler()
 
 
 def set_random_seeds(seed: int | None = None) -> None:
