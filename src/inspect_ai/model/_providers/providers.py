@@ -166,13 +166,6 @@ def together() -> type[ModelAPI]:
     return TogetherAIAPI
 
 
-@modelapi(name="trest")
-def trest() -> type[ModelAPI]:
-    from .together import TogetherRESTAPI
-
-    return TogetherRESTAPI
-
-
 @modelapi(name="ollama")
 def ollama() -> type[ModelAPI]:
     # validate
