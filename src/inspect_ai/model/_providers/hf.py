@@ -20,7 +20,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, simple_input_messages
 from .._model_output import (
@@ -31,7 +31,7 @@ from .._model_output import (
     ModelUsage,
     TopLogprob,
 )
-from .util import chat_api_input
+from .util import chat_api_input, chat_api_tools_handler
 
 HF_TOKEN = "HF_TOKEN"
 
@@ -114,7 +114,7 @@ class HuggingFaceAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput:
         # create chat
-        chat = self.hf_chat(input)
+        chat = self.hf_chat(input, tools)
 
         # prepare tokenizer
         tokenizer = functools.partial(self.tokenizer, return_tensors="pt", padding=True)
@@ -165,11 +165,9 @@ class HuggingFaceAPI(ModelAPI):
             )
 
         # construct choice
+        tools_handler = chat_api_tools_handler(self.model_name)
         choice = ChatCompletionChoice(
-            message=ChatMessageAssistant(
-                content=response.output,
-                source="generate",
-            ),
+            message=tools_handler.parse_assistant_message(response.output, tools),
             logprobs=(
                 Logprobs(content=final_logprobs) if final_logprobs is not None else None
             ),
@@ -196,11 +194,11 @@ class HuggingFaceAPI(ModelAPI):
         """Effectively the batch size."""
         return 32
 
-    def hf_chat(self, messages: list[ChatMessage]) -> str:
+    def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
         # handle system message and consecutive user messages
         messages = simple_input_messages(messages)
         # convert to hf format
-        hf_messages = chat_api_input(messages)
+        hf_messages = chat_api_input(messages, tools, self.model_name)
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
             hf_messages,

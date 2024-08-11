@@ -1,4 +1,3 @@
-import re
 from logging import getLogger
 from typing import Any
 
@@ -14,12 +13,11 @@ from tenacity import (
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
-from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
 from ..._chat_message import ChatMessage
 from ..._generate_config import GenerateConfig
-from .tools import parse_tool_call
+from .tools import ChatApiMessage, ChatAPIToolsHandler, chat_api_tools_handler
 
 logger = getLogger(__name__)
 
@@ -55,71 +53,28 @@ async def chat_api_request(
     return await call_api()
 
 
-def chat_api_input(input: list[ChatMessage]) -> list[dict[str, str]]:
-    """Prepare chat prompt data for sending in an HTTP POST request.
+def chat_api_input(
+    input: list[ChatMessage], tools: list[ToolInfo], model: str
+) -> list[ChatApiMessage]:
+    # get tools handler
+    tools_handler = chat_api_tools_handler(model)
 
-    Many chat APIs (e.g. Mistral and Cloudflare) take the OpenAI
-    role/content data structure. This is a convenience function that
-    takes the `input` to `generate()` and converts it into a JSON
-    serializable object that conforms to this structure.
+    # add tools to input
+    input = tools_handler.input_with_tools(input, tools)
 
-    Args:
-        input (list[ChatMessage]): Input to generate from
-
-    Returns:
-       Dict that conforms to OpenAI role/content data structure.
-    """
-    return [dict(role=message.role, content=message.text) for message in input]
+    # resolve other messages
+    return [chat_api_message(message, tools_handler) for message in input]
 
 
-def llama31_chat_api_input(
-    input: list[ChatMessage], tools: list[ToolInfo]
-) -> list[dict[str, str]]:
-    messages: list[dict[str, str]] = []
-    if len(tools) > 0:
-        messages.append(llama31_tools_message(tools))
-    return messages + [
-        dict(role=message.role, content=message.text) for message in input
-    ]
-
-
-# see https://docs.together.ai/docs/llama-3-function-calling
-def llama31_tools_message(tools: list[ToolInfo]) -> dict[str, str]:
-    tool_descriptions = "\n\n".join(
-        [
-            f"Use the '{tool.name}' tool to '{tool.description}':\n{tool.parameters.model_dump_json(exclude_none=True)}"
-            for tool in tools
-        ]
-    )
-
-    toolPrompt = f"""
-You have access to the following functions:
-
-{tool_descriptions}
-
-If you choose to call a function ONLY reply in the following format with no prefix or suffix:
-
-<function=example_function_name>{{\"example_name\": \"example_value\"}}</function>
-
-Reminder:
-- Function calls MUST follow the specified format, start with <function= and end with </function>
-- Required parameters MUST be specified
-- Only call one function at a time
-- Put the entire function call reply on one line
-- If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
-"""
-
-    return {"role": "system", "content": toolPrompt}
-
-
-def llama31_parse_tool_call(response: str, tools: list[ToolInfo]) -> ToolCall | None:
-    function_regex = r"<function=(\w+)>(.*?)</function>"
-    match = re.search(function_regex, response)
-    if match:
-        function_name, args_string = match.groups()
-        return parse_tool_call(function_name, function_name, args_string, tools)
+def chat_api_message(
+    message: ChatMessage, tools_handler: ChatAPIToolsHandler
+) -> ChatApiMessage:
+    if message.role == "assistant":
+        return tools_handler.chat_api_assistant_message(message)
+    elif message.role == "tool":
+        return tools_handler.chat_api_tool_message(message)
     else:
-        return None
+        return dict(role=message.role, content=message.text)
 
 
 # When calling chat_api_request() we use tenacity as the retry wrapper, so

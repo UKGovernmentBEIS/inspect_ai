@@ -29,10 +29,10 @@ from .openai import (
 )
 from .util import (
     as_stop_reason,
+    chat_api_input,
     chat_api_request,
+    chat_api_tools_handler,
     is_chat_api_rate_limit,
-    llama31_chat_api_input,
-    llama31_parse_tool_call,
     model_base_url,
 )
 
@@ -161,7 +161,7 @@ class TogetherRESTAPI(ModelAPI):
             json["n"] = config.num_choices
         if config.logprobs:
             json["logprobs"] = config.logprobs
-        json["messages"] = llama31_chat_api_input(input, tools)
+        json["messages"] = chat_api_input(input, tools, self.model_name)
 
         # make the call
         response = await chat_api_request(
@@ -181,7 +181,7 @@ class TogetherRESTAPI(ModelAPI):
             model = response.get("model", self.model_name)
 
             # generated choices
-            choices = together_choices(response.get("choices"), tools)
+            choices = together_choices(response.get("choices"), tools, self.model_name)
 
             # model usage
             if "usage" in response:
@@ -212,31 +212,28 @@ class TogetherRESTAPI(ModelAPI):
 
 
 def together_choices(
-    choices: list[dict[str, Any]], tools: list[ToolInfo]
+    choices: list[dict[str, Any]], tools: list[ToolInfo], model: str
 ) -> list[ChatCompletionChoice]:
     choices.sort(key=lambda c: c.get("index", 0))
-    return [together_choice(choice, tools) for choice in choices]
+    return [together_choice(choice, tools, model) for choice in choices]
 
 
 def together_choice(
-    choice: dict[str, Any], tools: list[ToolInfo]
+    choice: dict[str, Any], tools: list[ToolInfo], model: str
 ) -> ChatCompletionChoice:
     return ChatCompletionChoice(
-        message=together_chat_message(choice.get("message", {}), tools),
+        message=together_chat_message(choice.get("message", {}), tools, model),
         stop_reason=together_stop_reason(choice.get("finish_reason", "")),
         logprobs=together_logprobs(choice),
     )
 
 
 def together_chat_message(
-    message: dict[str, str], tools: list[ToolInfo]
+    message: dict[str, str], tools: list[ToolInfo], model: str
 ) -> ChatMessageAssistant:
     content: str = message.get("content", "")
-    tool_call = llama31_parse_tool_call(content, tools)
-    if tool_call:
-        return ChatMessageAssistant(content="", tool_calls=[tool_call])
-    else:
-        return ChatMessageAssistant(content=content)
+    tools_handler = chat_api_tools_handler(model)
+    return tools_handler.parse_assistant_message(content, tools)
 
 
 def together_stop_reason(reason: str) -> StopReason:

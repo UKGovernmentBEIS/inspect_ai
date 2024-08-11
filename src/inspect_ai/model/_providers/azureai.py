@@ -9,7 +9,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
@@ -22,6 +22,7 @@ from .util import (
     as_stop_reason,
     chat_api_input,
     chat_api_request,
+    chat_api_tools_handler,
     is_chat_api_rate_limit,
     model_base_url,
 )
@@ -127,7 +128,7 @@ class AzureAIAPI(ModelAPI):
             # build payload
             json = dict(
                 input_data=dict(
-                    input_string=chat_api_input(input),
+                    input_string=chat_api_input(input, tools, self.model_name),
                     parameters=parameters,
                 )
             )
@@ -144,7 +145,10 @@ class AzureAIAPI(ModelAPI):
                 parameters["n"] = config.num_choices
 
             # request payload
-            json = dict(messages=chat_api_input(input)) | parameters
+            json = (
+                dict(messages=chat_api_input(input, tools, self.model_name))
+                | parameters
+            )
 
             # endpoint
             endpoint_url = f"{self.endpoint_url}/v1/chat/completions"
@@ -169,7 +173,9 @@ class AzureAIAPI(ModelAPI):
             )
         else:
             model = response.get("model", "")
-            choices = chat_completion_choices(response["choices"])
+            choices = chat_completion_choices(
+                response["choices"], tools, self.model_name
+            )
             model_usage = response.get("usage", None)
             if model_usage:
                 usage = ModelUsage(
@@ -220,16 +226,18 @@ class AzureAIAPI(ModelAPI):
 
 
 def chat_completion_choices(
-    choices: list[dict[str, Any]],
+    choices: list[dict[str, Any]], tools: list[ToolInfo], model: str
 ) -> list[ChatCompletionChoice]:
-    return [chat_completion_choice(choice) for choice in choices]
+    return [chat_completion_choice(choice, tools, model) for choice in choices]
 
 
-def chat_completion_choice(choice: dict[str, Any]) -> ChatCompletionChoice:
+def chat_completion_choice(
+    choice: dict[str, Any], tools: list[ToolInfo], model: str
+) -> ChatCompletionChoice:
+    tools_handler = chat_api_tools_handler(model)
+    content = choice["message"]["content"]
     return ChatCompletionChoice(
-        message=ChatMessageAssistant(
-            content=choice["message"]["content"], source="generate"
-        ),
+        message=tools_handler.parse_assistant_message(content, tools),
         stop_reason=choice_stop_reason(choice),
     )
 

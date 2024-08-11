@@ -5,12 +5,14 @@ import httpx
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai.model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
 from inspect_ai.tool import ToolChoice, ToolInfo
 
+from ...model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
+from .._model_output import ChatCompletionChoice
 from .util import (
     chat_api_input,
     chat_api_request,
+    chat_api_tools_handler,
     is_chat_api_rate_limit,
     model_base_url,
 )
@@ -68,7 +70,7 @@ class CloudFlareAPI(ModelAPI):
         json: dict[str, Any] = dict(**self.model_args)
         if config.max_tokens is not None:
             json["max_tokens"] = config.max_tokens
-        json["messages"] = chat_api_input(input)
+        json["messages"] = chat_api_input(input, tools, self.model_name)
 
         # make the call
         response = await chat_api_request(
@@ -82,8 +84,16 @@ class CloudFlareAPI(ModelAPI):
 
         # handle response
         if response["success"]:
-            return ModelOutput.from_content(
-                model=self.model_name, content=response["result"]["response"]
+            tools_handler = chat_api_tools_handler(self.model_name)
+            content = response["result"]["response"]
+            return ModelOutput(
+                model=self.model_name,
+                choices=[
+                    ChatCompletionChoice(
+                        message=tools_handler.parse_assistant_message(content, tools),
+                        stop_reason="stop",
+                    )
+                ],
             )
         else:
             error = str(response.get("errors", "Unknown"))
