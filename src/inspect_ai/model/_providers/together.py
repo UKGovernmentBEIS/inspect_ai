@@ -23,17 +23,18 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._util import (
-    chat_api_request,
-    is_chat_api_rate_limit,
-    llama31_chat_api_input,
-    llama31_parse_tool_call,
-)
 from .openai import (
     OpenAIAPI,
     chat_message_assistant,
 )
-from .util import as_stop_reason, model_base_url
+from .util import (
+    as_stop_reason,
+    chat_api_request,
+    is_chat_api_rate_limit,
+    llama31_chat_api_input,
+    llama31_parse_tool_call,
+    model_base_url,
+)
 
 
 def chat_choices_from_response_together(

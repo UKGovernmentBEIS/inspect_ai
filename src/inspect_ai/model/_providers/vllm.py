@@ -24,7 +24,7 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
-from .._util import chat_api_input
+from .util import chat_api_input
 
 DEFAULT_START_TOKEN = "<|im_start|>"
 DEFAULT_END_TOKEN = "<|im_end|>"

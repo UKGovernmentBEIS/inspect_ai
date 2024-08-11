@@ -8,12 +8,12 @@ from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._util import (
+from .util import (
     chat_api_input,
     chat_api_request,
     is_chat_api_rate_limit,
+    model_base_url,
 )
-from .util import model_base_url
 
 # Cloudflare supported models:
 # https://developers.cloudflare.com/workers-ai/models/#text-generation

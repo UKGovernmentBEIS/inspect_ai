@@ -31,7 +31,7 @@ from .._model_output import (
     ModelUsage,
     TopLogprob,
 )
-from .._util import chat_api_input
+from .util import chat_api_input
 
 HF_TOKEN = "HF_TOKEN"
 

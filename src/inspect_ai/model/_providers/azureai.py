@@ -18,12 +18,13 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._util import (
+from .util import (
+    as_stop_reason,
     chat_api_input,
     chat_api_request,
     is_chat_api_rate_limit,
+    model_base_url,
 )
-from .util import as_stop_reason, model_base_url
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
