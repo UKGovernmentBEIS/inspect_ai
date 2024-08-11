@@ -10,14 +10,14 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from ...model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
 from .._model_output import ChatCompletionChoice
 from .util import (
+    ChatAPIHandler,
+    Llama31Handler,
     chat_api_input,
     chat_api_request,
     is_chat_api_rate_limit,
     model_base_url,
 )
-from .util.chatapi import ChatAPIHandler
 
-# Cloudflare supported models:
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
 
 
@@ -115,4 +115,7 @@ class CloudFlareAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
     def chat_api_handler(self) -> ChatAPIHandler:
-        return ChatAPIHandler()
+        if "llama" in self.model_name.lower():
+            return Llama31Handler()
+        else:
+            return ChatAPIHandler()

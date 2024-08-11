@@ -20,7 +20,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._chat_message import ChatMessage
+from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, simple_input_messages
 from .._model_output import (
@@ -32,7 +32,6 @@ from .._model_output import (
     TopLogprob,
 )
 from .util import chat_api_input
-from .util.chatapi import ChatAPIHandler
 
 HF_TOKEN = "HF_TOKEN"
 
@@ -167,9 +166,7 @@ class HuggingFaceAPI(ModelAPI):
 
         # construct choice
         choice = ChatCompletionChoice(
-            message=self.chat_api_handler().parse_assistent_response(
-                response.output, tools
-            ),
+            message=ChatMessageAssistant(content=response.output, source="generate"),
             logprobs=(
                 Logprobs(content=final_logprobs) if final_logprobs is not None else None
             ),
@@ -200,7 +197,7 @@ class HuggingFaceAPI(ModelAPI):
         # handle system message and consecutive user messages
         messages = simple_input_messages(messages)
         # convert to hf format
-        hf_messages = chat_api_input(messages, tools, self.chat_api_handler())
+        hf_messages = chat_api_input(messages, tools)
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
             hf_messages,
@@ -210,9 +207,6 @@ class HuggingFaceAPI(ModelAPI):
         )
         # return
         return cast(str, chat)
-
-    def chat_api_handler(self) -> ChatAPIHandler:
-        return ChatAPIHandler()
 
 
 def set_random_seeds(seed: int | None = None) -> None:

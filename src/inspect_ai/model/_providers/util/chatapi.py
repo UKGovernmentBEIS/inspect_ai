@@ -50,7 +50,7 @@ class ChatAPIHandler:
 def chat_api_input(
     input: list[ChatMessage],
     tools: list[ToolInfo],
-    handler: ChatAPIHandler,
+    handler: ChatAPIHandler = ChatAPIHandler(),
 ) -> list[ChatApiMessage]:
     # add tools to input
     if len(tools) > 0:
