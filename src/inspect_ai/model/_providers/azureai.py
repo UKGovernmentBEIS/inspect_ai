@@ -7,9 +7,6 @@ import httpx
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai.model._providers.util.llama31 import (
-    Llama31HandlerOllama,
-)
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
@@ -22,6 +19,7 @@ from .._model_output import (
     StopReason,
 )
 from .util import (
+    Llama31Handler,
     as_stop_reason,
     chat_api_input,
     chat_api_request,
@@ -229,8 +227,7 @@ class AzureAIAPI(ModelAPI):
 
     def chat_api_handler(self) -> ChatAPIHandler:
         if "llama" in self.model_name.lower():
-            # return Llama31Handler()
-            return Llama31HandlerOllama()
+            return Llama31Handler()
         else:
             return ChatAPIHandler()
 

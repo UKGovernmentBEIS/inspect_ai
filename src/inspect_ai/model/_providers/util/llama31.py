@@ -19,8 +19,16 @@ from .util import parse_tool_call, tool_parse_error_message
 logger = getLogger(__name__)
 
 
-class Llama31HandlerOllama(ChatAPIHandler):
-    # see https://github.com/ollama/ollama/blob/main/server/testdata/tools/llama3-groq-tool-use.out
+# Llama 3.1 handler is based primarily on the tool calling conventions used by Ollama:
+# (https://github.com/ollama/ollama/blob/main/server/testdata/tools/llama3-groq-tool-use.out)
+#
+# We initially tried the conventions promoted in the Llama 3.1 model card but
+# this had severe problems with not formatting the function calls correctly
+# (https://llama.meta.com/docs/model-cards-and-prompt-formats/llama3_1/#user-defined-custom-tool-calling)
+
+
+class Llama31Handler(ChatAPIHandler):
+    @override
     def input_with_tools(
         self, input: list[ChatMessage], tools: list[ToolInfo]
     ) -> list[ChatMessage]:
@@ -51,6 +59,7 @@ Reminder:
 
         return [ChatMessageSystem(content=tool_prompt)] + input
 
+    @override
     def parse_assistent_response(
         self, response: str, tools: list[ToolInfo]
     ) -> ChatMessageAssistant:
@@ -96,6 +105,7 @@ Reminder:
         else:
             return ChatMessageAssistant(content=response)
 
+    @override
     def assistant_message(self, message: ChatMessageAssistant) -> ChatApiMessage:
         if message.tool_calls:
             content = "\n\n".join(
@@ -109,103 +119,7 @@ Reminder:
 
         return {"role": "assistant", "content": content}
 
-    def tool_message(self, message: ChatMessageTool) -> ChatApiMessage:
-        return {
-            "role": "tool",
-            "content": f"Error: {message.error.message}"
-            if message.error
-            else message.text,
-        }
-
-
-class Llama31Handler(ChatAPIHandler):
-    # see: https://llama.meta.com/docs/model-cards-and-prompt-formats/llama3_1/#user-defined-custom-tool-calling
-    # see: https://docs.together.ai/docs/llama-3-function-calling
     @override
-    def input_with_tools(
-        self, input: list[ChatMessage], tools: list[ToolInfo]
-    ) -> list[ChatMessage]:
-        tool_descriptions = "\n\n".join(
-            [
-                f"Use the '{tool.name}' function to: {tool.description}\n{tool.model_dump_json(exclude_none=True, indent=2)}"
-                for tool in tools
-            ]
-        )
-
-        toolPrompt = f"""
-You have access to the following functions:
-
-{tool_descriptions}
-
-If a you choose to call a function ONLY reply in the following format:
-<{{start_tag}}={{function_name}}>{{parameters}}{{end_tag}}
-where
-
-start_tag => `<function`
-parameters => a JSON dict with the function argument name as key and function argument value as value.
-end_tag => `</function>`
-
-Here is an example,
-<function=example_function_name>{{"example_name": "example_value"}}</function>
-
-Reminder:
-- Function calls MUST follow the specified format, start with <function= and end with </function>
-- Required parameters MUST be specified
-- Only call one function at a time
-- Put the entire function call reply on one line
-- If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
-"""
-        return [ChatMessageSystem(content=toolPrompt)] + input
-
-    @override
-    def parse_assistent_response(
-        self, response: str, tools: list[ToolInfo]
-    ) -> ChatMessageAssistant:
-        # Note that in spite of the instructions above we have
-        # seem many varities of function call from Llama 3.1,
-        # including:
-        #
-        # <function=bash>{...}</function>
-        # <function=bash>{...}<function=bash>
-        # <function=bash {...}</function>
-        # <function=bash> {...}<function>
-        # <function=bash>{...}
-        # bash("...")
-        #
-        # Consequently, we define a regex that is more flexible
-        # than the documented specification.
-        function_regex = r"<function=(\w+)[> ]+(.*?)(</?function|$)"
-
-        # we've also seen llama 3.1 hallucinate that it needs to
-        # escape single quotes within double quoted strings
-        response = response.strip().replace("\\'", "'")
-
-        # try to find the tool call
-        match = re.search(function_regex, response)
-        if match:
-            function_name, args_string, _ = match.groups()
-            tool_call = parse_tool_call(
-                function_name, function_name, args_string, tools
-            )
-            return ChatMessageAssistant(
-                content="", tool_calls=[tool_call], source="generate"
-            )
-        else:
-            return ChatMessageAssistant(content=response, source="generate")
-
-    def assistant_message(self, message: ChatMessageAssistant) -> ChatApiMessage:
-        if message.tool_calls:
-            content = "\n\n".join(
-                [
-                    f"<function={tool.function}>{json.dumps(tool.arguments)}</function>"
-                    for tool in message.tool_calls
-                ]
-            )
-        else:
-            content = message.text
-
-        return {"role": "assistant", "content": content}
-
     def tool_message(self, message: ChatMessageTool) -> ChatApiMessage:
         return {
             "role": "tool",
