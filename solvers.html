@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.32">
+<meta name="generator" content="quarto-1.5.54">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Solvers</title>
+<title>Solvers – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -403,7 +403,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><code>system_message()</code></p>
 <p>Prepend role=“system” <code>message</code> to the list of messages (will follow any other system messages it finds in the message stream).</p></li>
 <li><p><code>prompt_template()</code></p>
-<p>Modify the user prompt by substituting the current prompt into the <code>{prompt}</code> placeholder within the specified template, as well as any other custom named placeholder passed in <code>params</code>.</p></li>
+<p>Modify the user prompt by substituting the current prompt into the <code>{prompt}</code> placeholder within the specified template. Also automatically substitutes any variables defined in sample <code>metadata</code> as well as any other custom named paramters passed in <code>params</code>.</p></li>
 <li><p><code>chain_of_thought()</code></p>
 <p>Standard chain of thought template with <code>{prompt}</code> substitution variable. Asks the model to provide the final answer on a line by itself at the end for easier scoring.</p></li>
 <li><p><code>generate()</code></p>
@@ -411,7 +411,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><code>multiple_choice()</code></p>
 <p>A solver which presents A,B,C,D style <code>choices</code> from input samples (in a random order), calls <code>generate()</code> to yield model output, then maps the answer back to the correct index for scoring. Note that you don’t need to call <code>generate()</code> separately when using this solver.</p></li>
 <li><p><code>self_critique()</code></p>
-<p>Prompts the model to critique the results of a previous call to <code>generate()</code> (note that this need not be the same model as they one you are evaluating—use the <code>model</code> parameter to choose another model). Makes use of <code>{question}</code> and <code>{completion}</code> template variables.</p></li>
+<p>Prompts the model to critique the results of a previous call to <code>generate()</code> (note that this need not be the same model as they one you are evaluating—use the <code>model</code> parameter to choose another model). Makes use of <code>{question}</code> and <code>{completion}</code> template variables. Also automatically substitutes any variables defined in sample <code>metadata</code></p></li>
 <li><p><code>use_tools()</code></p>
 <p>Define the set tools available for use by the model during <code>generate()</code>.</p></li>
 </ul>
@@ -451,7 +451,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="task-states-1" class="level3">
 <h3 class="anchored" data-anchor-id="task-states-1">Task States</h3>
 <p>Before presenting the examples we’ll take a more in-depth look at the <code>TaskState</code> class. Task states consist of both lower level data members (e.g.&nbsp;<code>messages</code>, <code>output</code>) as well as a number of convenience properties. The core members of <code>TaskState</code> that are <em>modified</em> by solvers are <code>messages</code> / <code>user_prompt</code> and <code>output</code>:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">
@@ -493,7 +493,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <p>There are two additional fields that solvers might modify (but they are typically for more advanced use cases):</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">
@@ -520,7 +520,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>Sometimes its import to have access to the <em>original</em> prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the <code>input</code> and <code>input_text</code> properties:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">
@@ -547,7 +547,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>There are several other fields used to provide contextual data from either the task sample or evaluation:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">
@@ -584,7 +584,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>Finally, task states also include available tools as well as guidance for the model on which tools to use (if you haven’t yet encountered the concept of tool use in language models, don’t worry about understanding these fields, the <a href="./tools.html">Tools</a> article provides a more in-depth treatment):</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">
@@ -622,21 +622,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    prompt_template <span class="op">=</span> resource(template)</span>
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># its possible the messages payload has no user prompt</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># so only modify the prompt if there is one</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> state.user_prompt:</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>            state.user_prompt.text <span class="op">=</span> prompt_template.<span class="bu">format</span>(</span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>                prompt<span class="op">=</span>state.user_prompt.text, <span class="op">**</span>params</span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        prompt <span class="op">=</span> state.user_prompt</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        kwargs <span class="op">=</span> state.metadata <span class="op">|</span> params</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        prompt.text <span class="op">=</span> prompt_template.<span class="bu">format</span>(prompt<span class="op">=</span>prompt.text, <span class="op">**</span>kwargs)</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>A few things to note about this implementation:</p>
 <ol type="1">
 <li><p>The function applies the <code>@solver</code> decorator—this registers the <code>Solver</code> with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g.&nbsp;a YAML specification of an eval).</p></li>
 <li><p>The <code>solve()</code> function is declared as <code>async</code>. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this solver doesn’t call <code>generate()</code> but others will).</p></li>
 <li><p>The <code>resource()</code> function is used to read the specified <code>template</code>. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.</p></li>
 <li><p>We make use of the <code>user_prompt</code> property on the <code>TaskState</code>. This is a convenience property for locating the first <code>role="user"</code> message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the <code>state.user_prompt.text</code> property (so we are dealing with prompt as a string, recall that it can also be a list of messages).</p></li>
+<li><p>We make sample <code>metadata</code> available to the template as well as any <code>params</code> passed to the function.</p></li>
 </ol>
 </section>
 <section id="example-self-critique" class="level3">

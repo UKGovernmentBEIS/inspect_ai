@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.32">
+<meta name="generator" content="quarto-1.5.54">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Log Viewer</title>
+<title>Log Viewer – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -433,7 +433,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="viewer-embedding">Viewer Embedding</h2>
 <p>The log viewer can be published to a static web server and linked to or embedded in another page (for example, in an iframe). To embed the viewer:</p>
 <ol type="1">
-<li><p>Copy the contents of the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/_view/www"><code>www</code></a> directory (<code>src/inspect_ai/_view/www</code>) to the folder you will be publishing.</p></li>
+<li><p>Copy the contents of the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/_view/www/dist"><code>www/dist</code></a> directory (<code>src/inspect_ai/_view/www/dist</code>) to the folder you will be publishing.</p></li>
 <li><p>Create a <code>logs</code> sub-directory within the folder into which you placed the contents of the <code>www</code> directory. Place any logs you’d like to display within this <code>logs</code> folder.</p></li>
 <li><p>Link to the viewer with the query parameter <code>log_file</code> and the path to a log file. For example:</p>
 <p><code>https://&lt;deployment url&gt;/?log_file=logs/2024-07-18T09-00-04-04-00_bash_QuRMsu7hRUWrJjxe8xePLa.json</code></p></li>
@@ -970,30 +970,37 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"selector":".lightbox","closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom"});
-window.onload = () => {
-  lightboxQuarto.on('slide_before_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    const href = trigger.getAttribute('href');
-    if (href !== null) {
-      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-      if (imgEl !== null) {
-        const srcAttr = imgEl.getAttribute("src");
-        if (srcAttr && srcAttr.startsWith("data:")) {
-          slideConfig.href = srcAttr;
-        }
-      }
-    } 
-  });
-
-  lightboxQuarto.on('slide_after_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    if (window.Quarto?.typesetMath) {
-      window.Quarto.typesetMath(slideNode);
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom","closeEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
     }
-  });
-
-};
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
           </script>
 
 
