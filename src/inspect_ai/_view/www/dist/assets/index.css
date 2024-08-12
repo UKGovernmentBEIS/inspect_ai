@@ -361,6 +361,12 @@ body {
 }
 
 @media (max-width: 575px) {
+  .tab-tools  select { 
+    width: 50px;
+  }
+}
+
+@media (max-width: 575px) {
   .navbar .vertical-metric-value {
     margin-top: 0.2rem !important;
     font-size: 0.9rem !important;
