@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
+import { ChatView } from "../../components/ChatView.mjs";
 
 /**
  * Renders the SampleInitEventView component.
@@ -13,10 +14,17 @@ import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const SampleInitEventView = ({ id, event, stateManager }) => {
+
+  /**
+  * @type {Record<string, unknown>}
+  */
+  //@ts-ignore
+  const stateObj = event.state; 
+
+
   // Rememember the state (so other event viewers can use
   // it as a baseline when applying their state updates)
-  //@ts-ignore
-  stateManager.setState(event.state);
+  stateManager.setState(stateObj);
 
   // sample
   // id
@@ -26,8 +34,15 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
   // state
   // messages
 
+
+  
+
   return html`
   <${EventPanel} id=${id} title="Sample Init" style=${{ marginLeft: "2em", marginBottom: "1em" }}>
+
+    <div name="Message">
+      <${ChatView} messages=${stateObj["messages"]}/>
+    </div>
 
     <div name="Sample">
       <${MetaDataGrid} entries=${event.sample}/>

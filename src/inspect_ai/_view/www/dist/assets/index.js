@@ -14945,9 +14945,14 @@ const MetaDataGrid = ({ id: id2, entries, classes, context, expanded }) => {
   </div>`;
 };
 const SampleInitEventView = ({ id: id2, event, stateManager }) => {
-  stateManager.setState(event.state);
+  const stateObj = event.state;
+  stateManager.setState(stateObj);
   return m$1`
   <${EventPanel} id=${id2} title="Sample Init" style=${{ marginLeft: "2em", marginBottom: "1em" }}>
+
+    <div name="Message">
+      <${ChatView} messages=${stateObj["messages"]}/>
+    </div>
 
     <div name="Sample">
       <${MetaDataGrid} entries=${event.sample}/>
