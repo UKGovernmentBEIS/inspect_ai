@@ -1,5 +1,6 @@
 from .chatapi import (
     ChatAPIHandler,
+    ChatAPIMessage,
     chat_api_input,
     chat_api_request,
     is_chat_api_rate_limit,
@@ -15,5 +16,6 @@ __all__ = [
     "model_base_url",
     "parse_tool_call",
     "ChatAPIHandler",
+    "ChatAPIMessage",
     "Llama31Handler",
 ]

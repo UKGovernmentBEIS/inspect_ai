@@ -13,7 +13,7 @@ from ..._chat_message import (
     ChatMessageSystem,
     ChatMessageTool,
 )
-from .chatapi import ChatAPIHandler, ChatApiMessage
+from .chatapi import ChatAPIHandler, ChatAPIMessage
 from .util import parse_tool_call, tool_parse_error_message
 
 logger = getLogger(__name__)
@@ -106,7 +106,7 @@ Reminder:
             return ChatMessageAssistant(content=response)
 
     @override
-    def assistant_message(self, message: ChatMessageAssistant) -> ChatApiMessage:
+    def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:
         if message.tool_calls:
             content = "\n\n".join(
                 [
@@ -120,7 +120,7 @@ Reminder:
         return {"role": "assistant", "content": content}
 
     @override
-    def tool_message(self, message: ChatMessageTool) -> ChatApiMessage:
+    def tool_message(self, message: ChatMessageTool) -> ChatAPIMessage:
         return {
             "role": "tool",
             "content": f"Error: {message.error.message}"
