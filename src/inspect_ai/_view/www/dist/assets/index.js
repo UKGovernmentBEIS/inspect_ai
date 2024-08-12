@@ -6737,6 +6737,7 @@ const VerticalMetric = ({ metric, isFirst }) => {
       </div>` : "";
   return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
     <div
+      class="vertical-metric-label"
       style=${{
     fontSize: "0.8rem",
     fontWeight: "200",
@@ -6751,8 +6752,9 @@ const VerticalMetric = ({ metric, isFirst }) => {
     </div>
     ${reducer_component}
     <div
+      class="vertical-metric-value"
       style=${{
-    fontSize: "1.5rem",
+    fontSize: "1.1rem",
     fontWeight: "500",
     textAlign: "center"
   }}
@@ -8668,7 +8670,7 @@ const Tab2 = ({ type, tab, index, style }) => {
     ...style
   };
   return m$1`
-    <li class="nav-item" role="presentation">
+    <li class="nav-item" role="presentation" style=${{ alignSelf: "end" }}>
       <button
         id="${tabId}"
         style=${type === "tabs" ? tabStyle : pillStyle}
