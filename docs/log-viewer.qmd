@@ -165,7 +165,7 @@ The **Info** panel of the log viewer provides additional meta-information about 
 
 The log viewer can be published to a static web server and linked to or embedded in another page (for example, in an iframe). To embed the viewer:
 
-1.  Copy the contents of the [`www`](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/_view/www) directory (`src/inspect_ai/_view/www`) to the folder you will be publishing.
+1.  Copy the contents of the [`www/dist`](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/_view/www/dist) directory (`src/inspect_ai/_view/www/dist`) to the folder you will be publishing.
 
 2.  Create a `logs` sub-directory within the folder into which you placed the contents of the `www` directory. Place any logs you'd like to display within this `logs` folder.
 
