@@ -14944,23 +14944,96 @@ const MetaDataGrid = ({ id: id2, entries, classes, context, expanded }) => {
     ${entryEls}
   </div>`;
 };
+const isBase64 = (str) => {
+  const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+  return base64Pattern.test(str);
+};
 const SampleInitEventView = ({ id: id2, event, stateManager }) => {
   const stateObj = event.state;
   stateManager.setState(stateObj);
+  const addtl_sample_data = [];
+  addtl_sample_data.push(
+    m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+      Target
+    </div>`
+  );
+  addtl_sample_data.push(
+    m$1`<div style=${{ fontSize: FontSize.small, marginBottom: "1em" }}>
+      ${event.sample.target}
+    </div>`
+  );
+  if (event.sample.files && Object.keys(event.sample.files).length > 0) {
+    addtl_sample_data.push(
+      m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+        Files
+      </div>`
+    );
+    addtl_sample_data.push(
+      m$1` <div
+        style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content 1fr",
+        columnGap: "1em",
+        marginBottom: "1em"
+      }}
+      >
+        ${Object.keys(event.sample.files).map((key2) => {
+        if (event.sample.files) {
+          const value = isBase64(event.sample.files[key2]) ? `<Base64 string>` : event.sample.files[key2];
+          return m$1`
+              <div
+                style=${{
+            fontSize: FontSize.small,
+            ...TextStyle.label,
+            ...TextStyle.secondary
+          }}
+              >
+                ${key2}
+              </div>
+              <div style=${{ fontSize: FontSize.small }}>
+                <code>${value}</code>
+              </div>
+            `;
+        } else {
+          return "";
+        }
+      })}
+      </div>`
+    );
+  }
+  if (event.sample.setup) {
+    addtl_sample_data.push(
+      m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+        Setup
+      </div>`
+    );
+    addtl_sample_data.push(m$1`<pre>${event.sample.setup}</pre>`);
+  }
+  if (event.sample.metadata) {
+    addtl_sample_data.push(
+      m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+        Metadata
+      </div>`
+    );
+    addtl_sample_data.push(
+      m$1`<${MetaDataGrid}
+        entries=${event.sample.metadata}
+        style=${{ marginBottom: "1em" }}
+      />`
+    );
+  }
   return m$1`
   <${EventPanel} id=${id2} title="Sample Init" style=${{ marginLeft: "2em", marginBottom: "1em" }}>
 
     <div name="Message">
       <${ChatView} messages=${stateObj["messages"]}/>
-    </div>
-
-    <div name="Sample">
-      <${MetaDataGrid} entries=${event.sample}/>
+      <div style=${{ marginLeft: "2.1em" }}>${addtl_sample_data}</div>
     </div>
 
     <div name="State">
       <${MetaDataGrid} entries=${event.state}/>
     </div>
+
   </${EventPanel}>`;
 };
 const system_msg_added_sig = {

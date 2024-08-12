@@ -3,6 +3,8 @@ import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
+import { isBase64 } from "../../utils/Base64.mjs";
+import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
 /**
  * Renders the SampleInitEventView component.
@@ -24,27 +26,95 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
   // it as a baseline when applying their state updates)
   stateManager.setState(stateObj);
 
-  // sample
-  // id
-  // input
-  // target
+  const addtl_sample_data = [];
 
-  // state
-  // messages
+  addtl_sample_data.push(
+    html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+      Target
+    </div>`,
+  );
+  addtl_sample_data.push(
+    html`<div style=${{ fontSize: FontSize.small, marginBottom: "1em" }}>
+      ${event.sample.target}
+    </div>`,
+  );
+
+  if (event.sample.files && Object.keys(event.sample.files).length > 0) {
+    addtl_sample_data.push(
+      html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+        Files
+      </div>`,
+    );
+    addtl_sample_data.push(
+      html` <div
+        style=${{
+          display: "grid",
+          gridTemplateColumns: "max-content 1fr",
+          columnGap: "1em",
+          marginBottom: "1em",
+        }}
+      >
+        ${Object.keys(event.sample.files).map((key) => {
+          if (event.sample.files) {
+            const value = isBase64(event.sample.files[key])
+              ? `<Base64 string>`
+              : event.sample.files[key];
+            return html`
+              <div
+                style=${{
+                  fontSize: FontSize.small,
+                  ...TextStyle.label,
+                  ...TextStyle.secondary,
+                }}
+              >
+                ${key}
+              </div>
+              <div style=${{ fontSize: FontSize.small }}>
+                <code>${value}</code>
+              </div>
+            `;
+          } else {
+            return "";
+          }
+        })}
+      </div>`,
+    );
+  }
+
+  if (event.sample.setup) {
+    addtl_sample_data.push(
+      html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+        Setup
+      </div>`,
+    );
+    addtl_sample_data.push(html`<pre>${event.sample.setup}</pre>`);
+  }
+
+  if (event.sample.metadata) {
+    addtl_sample_data.push(
+      html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+        Metadata
+      </div>`,
+    );
+    addtl_sample_data.push(
+      html`<${MetaDataGrid}
+        entries=${event.sample.metadata}
+        style=${{ marginBottom: "1em" }}
+      />`,
+    );
+  }
 
   return html`
   <${EventPanel} id=${id} title="Sample Init" style=${{ marginLeft: "2em", marginBottom: "1em" }}>
 
     <div name="Message">
       <${ChatView} messages=${stateObj["messages"]}/>
-    </div>
-
-    <div name="Sample">
-      <${MetaDataGrid} entries=${event.sample}/>
+      <div style=${{ marginLeft: "2.1em" }}>${addtl_sample_data}</div>
     </div>
 
     <div name="State">
       <${MetaDataGrid} entries=${event.state}/>
     </div>
+
   </${EventPanel}>`;
 };
