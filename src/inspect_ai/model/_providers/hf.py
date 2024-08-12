@@ -31,7 +31,7 @@ from .._model_output import (
     ModelUsage,
     TopLogprob,
 )
-from .._util import chat_api_input
+from .util import chat_api_input
 
 HF_TOKEN = "HF_TOKEN"
 
@@ -114,7 +114,7 @@ class HuggingFaceAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput:
         # create chat
-        chat = self.hf_chat(input)
+        chat = self.hf_chat(input, tools)
 
         # prepare tokenizer
         tokenizer = functools.partial(self.tokenizer, return_tensors="pt", padding=True)
@@ -166,10 +166,7 @@ class HuggingFaceAPI(ModelAPI):
 
         # construct choice
         choice = ChatCompletionChoice(
-            message=ChatMessageAssistant(
-                content=response.output,
-                source="generate",
-            ),
+            message=ChatMessageAssistant(content=response.output, source="generate"),
             logprobs=(
                 Logprobs(content=final_logprobs) if final_logprobs is not None else None
             ),
@@ -196,11 +193,11 @@ class HuggingFaceAPI(ModelAPI):
         """Effectively the batch size."""
         return 32
 
-    def hf_chat(self, messages: list[ChatMessage]) -> str:
+    def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
         # handle system message and consecutive user messages
         messages = simple_input_messages(messages)
         # convert to hf format
-        hf_messages = chat_api_input(messages)
+        hf_messages = chat_api_input(messages, tools)
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
             hf_messages,
