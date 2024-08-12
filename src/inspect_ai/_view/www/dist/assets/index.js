@@ -15309,13 +15309,17 @@ const ModelEventView = ({ id: id2, event }) => {
   return m$1`
   <${EventPanel} id=${id2} title="Model Call: ${event.model} ${subtitle}">
   
-  <div style=${{ display: "grid", gridTemplateColumns: "1fr max-content" }}>
     <${ChatView}
-      id="${id2}-model-input}"
+      id="${id2}-model-output"
       name="Output"
       messages=${[...outputMessages || []]}
       />
-  </div>
+
+    <${ChatView}
+      id="${id2}-model-input-full"
+      name="Complete"
+      messages=${[...event.input, ...outputMessages || []]}
+      />      
 
   </${EventPanel}>`;
 };
@@ -15485,6 +15489,8 @@ const resolveEventContent = (evalEvents) => {
         change.value = resolveValue(change.value, evalEvents);
         return change;
       });
+    } else if (e2.event === "sample_init") {
+      e2.state["messages"] = resolveValue(e2.state["messages"], evalEvents);
     }
     return e2;
   });

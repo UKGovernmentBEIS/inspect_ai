@@ -135,6 +135,9 @@ const resolveEventContent = (evalEvents) => {
         change.value = resolveValue(change.value, evalEvents);
         return change;
       });
+    } else if (e.event === "sample_init") {
+      //@ts-ignore
+      e.state["messages"] = resolveValue(e.state["messages"], evalEvents);
     }
     return e;
   });

@@ -25,13 +25,17 @@ export const ModelEventView = ({ id, event }) => {
   return html`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}">
   
-  <div style=${{ display: "grid", gridTemplateColumns: "1fr max-content" }}>
     <${ChatView}
-      id="${id}-model-input}"
+      id="${id}-model-output"
       name="Output"
       messages=${[...(outputMessages || [])]}
       />
-  </div>
+
+    <${ChatView}
+      id="${id}-model-input-full"
+      name="Complete"
+      messages=${[...event.input, ...(outputMessages || [])]}
+      />      
 
   </${EventPanel}>`;
 };
