@@ -67,16 +67,16 @@ Reminder:
         match = re.search(tool_call_regex, response)
         if match:
             # attempt to parse the json (report parseerror to model)
-            (tool_call,) = match.groups()
+            (tool_call_content,) = match.groups()
             try:
-                tool_call = json.loads(tool_call)
+                tool_call = json.loads(tool_call_content)
             except json.JSONDecodeError as ex:
                 error_tool_call = ToolCall(
                     id="unknown",
                     function="unknown",
                     arguments={},
                     type="function",
-                    parse_error=tool_parse_error_message(tool_call, ex),
+                    parse_error=tool_parse_error_message(str(tool_call_content), ex),
                 )
                 return ChatMessageAssistant(
                     content="", tool_calls=[error_tool_call], source="generate"
