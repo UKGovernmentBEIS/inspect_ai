@@ -14,13 +14,11 @@ import { ChatView } from "../../components/ChatView.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const SampleInitEventView = ({ id, event, stateManager }) => {
-
   /**
-  * @type {Record<string, unknown>}
-  */
+   * @type {Record<string, unknown>}
+   */
   //@ts-ignore
-  const stateObj = event.state; 
-
+  const stateObj = event.state;
 
   // Rememember the state (so other event viewers can use
   // it as a baseline when applying their state updates)
@@ -33,9 +31,6 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
 
   // state
   // messages
-
-
-  
 
   return html`
   <${EventPanel} id=${id} title="Sample Init" style=${{ marginLeft: "2em", marginBottom: "1em" }}>
