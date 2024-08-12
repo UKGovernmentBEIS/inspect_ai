@@ -228,13 +228,32 @@ body {
 
 .navbar-title-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(350px, 1fr) 1fr;
   width: 100%;
 }
 
-@media (min-width: 575px) {
+@media (max-width: 575px) {
+  .navbar .vertical-metric-label {
+    font-size: 0.7rem !important;
+  }  
+}
+
+@media (max-width: 575px) {
+  .tab-tools  select { 
+    width: 50px;
+  }
+}
+
+@media (max-width: 575px) {
+  .navbar .vertical-metric-value {
+    margin-top: 0.2rem !important;
+    font-size: 0.9rem !important;
+  }
+}
+
+@media (max-width: 575px) {
   .navbar-title-grid {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto-fill;
   }
 }
 
