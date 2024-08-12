@@ -46,11 +46,7 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
 )
-from .util import (
-    as_stop_reason,
-    model_base_url,
-    parse_tool_call,
-)
+from .util import as_stop_reason, model_base_url, parse_tool_call
 
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
