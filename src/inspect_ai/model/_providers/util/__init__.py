@@ -6,7 +6,12 @@ from .chatapi import (
     is_chat_api_rate_limit,
 )
 from .llama31 import Llama31Handler
-from .util import as_stop_reason, model_base_url, parse_tool_call
+from .util import (
+    as_stop_reason,
+    model_base_url,
+    parse_tool_call,
+    tool_parse_error_message,
+)
 
 __all__ = [
     "as_stop_reason",
@@ -15,6 +20,7 @@ __all__ = [
     "is_chat_api_rate_limit",
     "model_base_url",
     "parse_tool_call",
+    "tool_parse_error_message",
     "ChatAPIHandler",
     "ChatAPIMessage",
     "Llama31Handler",
