@@ -2,9 +2,16 @@
 
 ## Unreleased
 
+- Change default to not log base64 encoded versions of images, as this often resulted in extremely large log files (use `--log-images` to opt back in).
+- Update to new Mistral API (v1.0.1 of `mistralai` is now required).
 - Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
 - Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).
 - Improved resolution of AWS region for Bedrock (respecting already defined AWS_REGION and AWS_DEFAULT_REGION)
+- Incrase default `max_tokens` from 1024 to 2048.
+
+## v0.3.22 (07 August 2024)
+
+- Fix issue affecting results of `pass_at_{k}` score reducer.
 
 ## v0.3.21 (07 August 2024)
 
