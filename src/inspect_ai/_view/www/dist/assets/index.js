@@ -8348,7 +8348,7 @@ const Tab2 = ({ type, tab, index, style }) => {
     ...style
   };
   return m$1`
-    <li class="nav-item" role="presentation">
+    <li class="nav-item" role="presentation" style=${{ alignSelf: "end" }}>
       <button
         id="${tabId}"
         style=${type === "tabs" ? tabStyle : pillStyle}
