@@ -270,7 +270,7 @@ class BaseLlamaChatHandler(BedrockChatHandler):
         if config.max_tokens:
             body["max_gen_len"] = config.max_tokens
         return body
-    
+
 
 
     @override
@@ -282,7 +282,7 @@ class BaseLlamaChatHandler(BedrockChatHandler):
             ),
             stop_reason=as_stop_reason(response.get("stop_reason")),
         )
-    
+
 
     @override
     def model_usage(self, response: dict[str, Any]) -> ModelUsage | None:
@@ -310,7 +310,7 @@ class Llama2ChatHandler(BaseLlamaChatHandler):
             return f"{message.text} </s>"
         elif isinstance(message, ChatMessageTool):
             return ""
-        
+
 
 class Llama3ChatHandler(BaseLlamaChatHandler):
     @override
