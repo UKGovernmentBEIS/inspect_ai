@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.28
+
+- Fix extraneous error that might appear in console output
+
 ## 0.3.27
 
 - Minor fix to view rendering across differing versions of Inspect.
