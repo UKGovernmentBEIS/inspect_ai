@@ -197,8 +197,7 @@ const SampleRow = ({
   setSelected,
   showSample,
 }) => {
-  const
-   selectedStyle = selected
+  const selectedStyle = selected
     ? {
         boxShadow: "inset 0 0 0px 2px var(--bs-focus-ring-color)",
       }

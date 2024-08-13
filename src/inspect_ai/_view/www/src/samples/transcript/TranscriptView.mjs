@@ -164,4 +164,3 @@ const resolveValue = (value, evalEvents) => {
   }
   return value;
 };
-

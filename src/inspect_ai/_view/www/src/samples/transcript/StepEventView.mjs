@@ -7,12 +7,10 @@ import { EventPanel } from "./EventPanel.mjs";
  * Renders the StateEventView component.
  *
  * @param {Object} props - The properties passed to the component.
- * @param { string  } props.id - The id of this event. *
  * @param {import("../../types/log").StepEvent} props.event - The event object to display.
- * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StepEventView = ({ id, event, stateManager }) => {
+export const StepEventView = ({ event }) => {
   const icon = () => {
     if (event.type === "solver") {
       switch (event.name) {
@@ -43,5 +41,9 @@ export const StepEventView = ({ id, event, stateManager }) => {
     return html``;
   }
 
-  return html`<${EventPanel} title=${event.name} icon=${icon()} style=${{background: "var(--bs-light"}}/>`;
+  return html`<${EventPanel}
+    title=${event.name}
+    icon=${icon()}
+    style=${{ background: "var(--bs-light" }}
+  />`;
 };

@@ -13101,14 +13101,14 @@ const resolveToolInput = (tool_call) => {
 };
 const ChatView = ({ id: id2, messages, style }) => {
   const toolMessages = {};
-  const nonToolMessages = messages.map((msg) => {
-    if (msg.role === "tool") {
-      toolMessages[msg.tool_call_id] = msg;
+  const nonToolMessages = [];
+  for (const message of messages) {
+    if (message.role === "tool") {
+      toolMessages[message.tool_call_id] = message;
+    } else {
+      nonToolMessages.push(message);
     }
-    return msg;
-  }).filter((msg) => {
-    return msg.role !== "tool";
-  });
+  }
   const systemMessages = [];
   const collapsedMessages = nonToolMessages.map((msg) => {
     if (msg.role === "system") {
@@ -13129,7 +13129,7 @@ const ChatView = ({ id: id2, messages, style }) => {
   if (systemMessage && systemMessage.content.length > 0) {
     collapsedMessages.unshift(systemMessage);
   }
-  return m$1`
+  const result = m$1`
     <div style=${{ paddingTop: "1em", ...style }}>
       ${collapsedMessages.map((msg) => {
     return m$1`<${ChatMessage}
@@ -13140,6 +13140,8 @@ const ChatView = ({ id: id2, messages, style }) => {
   })}
     </div>
   `;
+  console.log("---------------------------------");
+  return result;
 };
 const normalizeContent = (content) => {
   if (typeof content === "string") {
@@ -13224,14 +13226,13 @@ const MessageContents = ({ message, toolMessages }) => {
       }}></i>
         <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
         <div>
-          ${toolMessage ? m$1`
-              <div style=${{ marginLeft: "1.5em" }}>
-              <${ToolInput} type=${inputType} contents=${input}/>
+            <div style=${{ marginLeft: "1.5em" }}>
+            <${ToolInput} type=${inputType} contents=${input}/>
+            ${resolvedToolOutput ? m$1`
               <${ExpandablePanel} collapse=${true} border=${true} lines=10>
               <${MessageContent} contents=${resolvedToolOutput} />
-              </${ExpandablePanel}>
-              </div>
-              ` : ""}
+              </${ExpandablePanel}>` : ""}
+            </div>
         </div>
         </p>`;
     });
@@ -16196,7 +16197,7 @@ const SampleDisplay = ({
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   _(() => {
-    setSelectedTab(msgTabId);
+    setSelectedTab(transcriptTabId);
   }, [sample]);
   const [selectedTab, setSelectedTab] = p(void 0);
   const onSelectedTab = (e2) => {
@@ -16211,7 +16212,7 @@ const SampleDisplay = ({
     </${TabPanel}>`
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {
-    tabs.push(m$1`
+    tabs.unshift(m$1`
       <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId}>
         <${SampleTranscript} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);

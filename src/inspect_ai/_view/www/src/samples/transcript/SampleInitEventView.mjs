@@ -114,7 +114,7 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
     </div>
 
     <div name="Complete">
-      <${MetaDataGrid} entries=${event.state} style=${{margin: "1em 0"}}/>
+      <${MetaDataGrid} entries=${event.state} style=${{ margin: "1em 0" }}/>
     </div>
 
   </${EventPanel}>`;

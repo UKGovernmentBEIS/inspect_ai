@@ -16,7 +16,14 @@ import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
  * @param {boolean} [props.compact] - Whether to render the table in compact mode.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const MetaDataGrid = ({ id, entries, classes, context, style, expanded }) => {
+export const MetaDataGrid = ({
+  id,
+  entries,
+  classes,
+  context,
+  style,
+  expanded,
+}) => {
   const baseId = "metadata-grid";
 
   const cellKeyStyle = {
@@ -62,9 +69,9 @@ export const MetaDataGrid = ({ id, entries, classes, context, style, expanded })
     return html`
       <div
         style=${{
-        gridColumn: "1 / -1",
-        borderBottom: "solid 1px var(--bs-light-border-subtle",
-      }}
+          gridColumn: "1 / -1",
+          borderBottom: "solid 1px var(--bs-light-border-subtle",
+        }}
       ></div>
       <div
         class="${baseId}-key"
@@ -90,7 +97,7 @@ export const MetaDataGrid = ({ id, entries, classes, context, style, expanded })
       display: "grid",
       gridTemplateColumns: "max-content auto",
       columnGap: "1em",
-      ...style
+      ...style,
     }}
   >
     ${entryEls}
