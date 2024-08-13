@@ -1,5 +1,6 @@
 import json
 import re
+import textwrap
 from logging import getLogger
 
 from typing_extensions import override
@@ -26,36 +27,44 @@ logger = getLogger(__name__)
 # this had severe problems with not formatting the function calls correctly
 # (https://llama.meta.com/docs/model-cards-and-prompt-formats/llama3_1/#user-defined-custom-tool-calling)
 
+TOOL_CALL = "tool_call"
+
 
 class Llama31Handler(ChatAPIHandler):
     @override
     def input_with_tools(
         self, input: list[ChatMessage], tools: list[ToolInfo]
     ) -> list[ChatMessage]:
+        # JSON schema for available tools
         available_tools = "\n\n".join(
             [tool.model_dump_json(exclude_none=True, indent=2) for tool in tools]
         )
 
-        tool_prompt = f"""
-You are a knowledgable assistant. You can answer questions and perform tasks. You are provided with function signatures within <tools></tools> XML tags. You may call one or more functions to assist with the user query. Don't make assumptions about what values to plug into functions. For each function call return a json object with function name and arguments within <tool_call></tool_call> XML tags as follows:
+        # tool prompt
+        tool_prompt = textwrap.dedent(
+            f"""
+            You are a knowledgable assistant. You can answer questions and perform tasks. You are provided with function signatures within <tools></tools> XML tags. You may call one or more functions to assist with the user query. Don't make assumptions about what values to plug into functions. For each function call return a json object with function name and arguments within <{TOOL_CALL}></{TOOL_CALL}> XML tags as follows:
 
-<tool_call>
-{{"name": <function-name>,"arguments": <args-dict>}}
-</tool_call>
+            <{TOOL_CALL}>
+            {{"name": <function-name>,"arguments": <args-dict>}}
+            </{TOOL_CALL}>
 
-Here are the available tools:
+            Here are the available tools defined in JSON Schema:
 
-<tools>
-{available_tools}
-</tools>
+            <tools>
+            {available_tools}
+            </tools>
 
-Reminder:
-- Function calls MUST follow the specified format, start with <tool_call> and end with </tool_call>
-- Required parameters MUST be specified
-- Only call one function at a time
-- Put the entire function call reply on one line
-- If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
-"""
+            Reminder:
+            - Function calls MUST follow the specified format, start with <{TOOL_CALL}> and end with </{TOOL_CALL}>.
+            - Please call only one function at a time.
+            - It's fine to include some reasoning about which function to call and why.
+            - Please ensure that the function call is the last content in the message (there should be no text after it).
+            - Please be absolutely sure that the function name you have specified matches one of the functions described in <tools>.
+            - All function parameters MUST be specified.
+            - If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
+            """
+        )
 
         return [ChatMessageSystem(content=tool_prompt)] + input
 
@@ -63,57 +72,54 @@ Reminder:
     def parse_assistent_response(
         self, response: str, tools: list[ToolInfo]
     ) -> ChatMessageAssistant:
-        tool_call_regex = "<tool_call>(.*?)</tool_call>"
-        match = re.search(tool_call_regex, response)
-        if match:
-            # attempt to parse the json (report parseerror to model)
-            (tool_call_content,) = match.groups()
-            try:
-                tool_call = json.loads(tool_call_content)
-            except json.JSONDecodeError as ex:
-                error_tool_call = ToolCall(
-                    id="unknown",
-                    function="unknown",
-                    arguments={},
-                    type="function",
-                    parse_error=tool_parse_error_message(str(tool_call_content), ex),
-                )
-                return ChatMessageAssistant(
-                    content="", tool_calls=[error_tool_call], source="generate"
-                )
+        """Parse content and tool calls from a model response.
 
-            # if we got the right payload then extract the tool calls
-            if isinstance(tool_call, dict):
-                name = tool_call.get("name", None)
-                arguments = tool_call.get("arguments", None)
-                if name and arguments:
-                    return ChatMessageAssistant(
-                        content="",
-                        tool_calls=[
-                            parse_tool_call(name, name, json.dumps(arguments), tools)
-                        ],
-                        source="generate",
-                    )
-                else:
-                    logger.info(
-                        f"Required 'name' and 'arguments' fields not in tool call: {tool_call}"
-                    )
-                    return ChatMessageAssistant(content=response)
-            else:
-                logger.info(f"Tool call was not a dictionary: {tool_call}")
-                return ChatMessageAssistant(content=response)
+        This method has an interdependency with `input_with_tools()` (as that is the
+        prompt that asks the model to use the <tool_call>...</tool_call> syntax)
+        """
+        # extract tool calls
+        tool_call_regex = rf"<{TOOL_CALL}>((?:.|\n)*?)</{TOOL_CALL}>"
+        tool_calls_content: list[str] = re.findall(tool_call_regex, response)
+
+        # if there are tool calls proceed with parsing
+        if len(tool_calls_content) > 0:
+            # parse each tool call (if there are parsing error that occur
+            # this will be reported in the `parse_error` field of the ToolCall
+            # and ultimately reported back to the model)
+            tool_calls = [
+                parse_tool_call_content(content, tools)
+                for content in tool_calls_content
+            ]
+
+            # find other content that exists outside tool calls
+            tool_call_content_regex = rf"<{TOOL_CALL}>(?:.|\n)*?</{TOOL_CALL}>"
+            other_content = re.split(tool_call_content_regex, response, flags=re.DOTALL)
+            other_content = [
+                str(content).strip()
+                for content in other_content
+                if str(content).strip()
+            ]
+            content = "\n\n".join(other_content)
+
+            # return the message
+            return ChatMessageAssistant(
+                content=content, tool_calls=tool_calls, source="generate"
+            )
+
+        # otherwise this is just an ordinary assistant message
         else:
-            return ChatMessageAssistant(content=response)
+            return ChatMessageAssistant(content=response, source="generate")
 
     @override
     def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:
         if message.tool_calls:
             content = "\n\n".join(
-                [
+                [message.text]
+                + [
                     f'<tool_call>{{"name": "{tool.function}", "arguments": {json.dumps(tool.arguments)} }}</tool_call>'
                     for tool in message.tool_calls
                 ]
-            )
+            ).strip()
         else:
             content = message.text
 
@@ -127,3 +133,51 @@ Reminder:
             if message.error
             else message.text,
         }
+
+
+def parse_tool_call_content(content: str, tools: list[ToolInfo]) -> ToolCall:
+    """Attempt to parse content from inside <tool_call> tags.
+
+    Content inside a <tool_call> should be a JSON dictionary with `name` and
+    `arguments` (which in turn should be a `dict[str,Any]` but in some cases
+    we've seen models pass `str`). This function attempts to extract this from
+    the passed tcontentext. A `ToolCall` is returned for all cases (if the
+    parsing fails then it will have a `parse_error`, which will be subsequently
+    reported to the model.
+    """
+    try:
+        # parse raw JSON
+        tool_call_data = json.loads(content)
+
+        # if its not a dict then report error
+        if not isinstance(tool_call_data, dict):
+            raise ValueError("The provided arguments are not a JSON dictionary.")
+
+        # see if we can get the fields (if not report error)
+        name = tool_call_data.get("name", None)
+        arguments = tool_call_data.get("arguments", None)
+        if not name or not arguments:
+            raise ValueError(
+                "Required 'name' and 'arguments' not provided in JSON dictionary."
+            )
+
+        # now perform the parse (we need to call thi function because it includes
+        # the special handling to for mapping arguments that are a plain `str`
+        # to the first parameter of the function)
+        return parse_tool_call(name, name, json.dumps(arguments), tools)
+
+    except Exception as ex:
+        # buld error message
+        parse_error = tool_parse_error_message(content, ex)
+
+        # log it to 'info'
+        logger.info(parse_error)
+
+        # notify model
+        return ToolCall(
+            id="unknown",
+            function="unknown",
+            arguments={},
+            type="function",
+            parse_error=parse_error,
+        )
