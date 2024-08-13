@@ -18043,7 +18043,7 @@ const VerticalMetric = ({ metric, isFirst }) => {
     ...TextStyle.secondary,
     textAlign: "center",
     paddingTop: "0.3rem",
-    marginBottom: "-0.3rem",
+    marginBottom: "-0.2rem",
     ...TextStyle.label,
     ...TextStyle.secondary,
     borderBottom: "solid var(--bs-border-color) 1px"
@@ -18054,7 +18054,7 @@ const VerticalMetric = ({ metric, isFirst }) => {
     ${reducer_component}
     <div
       style=${{
-    fontSize: FontSize.title,
+    fontSize: FontSize.larger,
     textAlign: "center"
   }}
     >
