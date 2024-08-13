@@ -64,8 +64,10 @@ class BedrockAPI(ModelAPI):
             self.handler: BedrockChatHandler = MistralChatHandler(
                 model_name, base_url, config
             )
-        elif is_llama(model_name):
+        elif is_llama2(model_name):
             self.handler = Llama2ChatHandler(model_name, base_url, config)
+        elif is_llama3(model_name):
+            self.handler = Llama3ChatHandler(model_name, base_url, config)
         else:
             raise ValueError(f"Unsupported Bedrock model: {model_name}")
 
@@ -208,7 +210,8 @@ class BedrockChatHandler(abc.ABC):
     # optional hook to set max_tokens
     def max_tokens(self) -> int | None:
         return DEFAULT_MAX_TOKENS
-
+    def custom_remove_end_token(self,prompt: str) ->str:
+        remove_end_token(prompt)
 
 # https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-mistral.html
 class MistralChatHandler(BedrockChatHandler):
@@ -224,7 +227,7 @@ class MistralChatHandler(BedrockChatHandler):
         # build prompt
         prompt = "<s>" + " ".join([self.chat_message_str(message) for message in input])
 
-        body: dict[str, Any] = dict(prompt=remove_end_token(prompt))
+        body: dict[str, Any] = dict(prompt=self.custom_remove_end_token(prompt))
         if config.stop_seqs is not None:
             body["stop"] = config.stop_seqs
         if config.max_tokens is not None:
@@ -254,21 +257,21 @@ class MistralChatHandler(BedrockChatHandler):
             return ""
 
 
-# https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-meta.html
-class Llama2ChatHandler(BedrockChatHandler):
+
+class BaseLlamaChatHandler(BedrockChatHandler):
     @override
     def request_body(
         self,
         input: list[ChatMessage],
         config: GenerateConfig,
     ) -> dict[str, Any]:
-        # https://huggingface.co/blog/llama2#how-to-prompt-llama-2
-
         prompt = " ".join([self.chat_message_str(message) for message in input])
-        body: dict[str, Any] = dict(prompt=remove_end_token(prompt))
+        body: dict[str, Any] = dict(prompt=self.custom_remove_end_token(prompt))
         if config.max_tokens:
             body["max_gen_len"] = config.max_tokens
         return body
+    
+
 
     @override
     def completion_choice(self, response: dict[str, Any]) -> ChatCompletionChoice:
@@ -279,10 +282,7 @@ class Llama2ChatHandler(BedrockChatHandler):
             ),
             stop_reason=as_stop_reason(response.get("stop_reason")),
         )
-
-    @override
-    def fold_system_message(self, user: str, system: str) -> str:
-        return f"<SYS>\n{system}\n<</SYS>\n\n{user}"
+    
 
     @override
     def model_usage(self, response: dict[str, Any]) -> ModelUsage | None:
@@ -297,6 +297,12 @@ class Llama2ChatHandler(BedrockChatHandler):
         else:
             return None
 
+# https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-meta.html
+class Llama2ChatHandler(BaseLlamaChatHandler):
+    @override
+    def fold_system_message(self, user: str, system: str) -> str:
+        return f"<SYS>\n{system}\n<</SYS>\n\n{user}"
+
     def chat_message_str(self, message: ChatMessage) -> str:
         if isinstance(message, ChatMessageUser | ChatMessageSystem):
             return f"<s>[INST] {message.text} [/INST] "
@@ -304,7 +310,28 @@ class Llama2ChatHandler(BedrockChatHandler):
             return f"{message.text} </s>"
         elif isinstance(message, ChatMessageTool):
             return ""
+        
 
+class Llama3ChatHandler(BaseLlamaChatHandler):
+    @override
+    def custom_remove_end_token(self,prompt:str) -> str:
+        return remove_end_token(prompt,end_token='<|end_of_text|>')
+
+
+    @override
+    def fold_system_message(self, user: str, system: str) -> str:
+        return f"<|start_header_id|>system<|end_header_id|>\n{system}\n<|eot_id|>\n<|start_header_id|>user<|end_header_id|>\n\n{user}<|eot_id|>"
+
+
+    def chat_message_str(self, message: ChatMessage) -> str:
+        if isinstance(message, ChatMessageUser):
+            return f"<|start_header_id|>user<|end_header_id|>{message.text}<|eot_id|>"
+        if isinstance(message, ChatMessageSystem):
+            return f"<|start_header_id|>system<|end_header_id|>{message.text}<|eot_id|>"
+        elif isinstance(message, ChatMessageAssistant):
+            return f"<|start_header_id|>assistant<|end_header_id|>{message.text}<|eot_id|>"
+        elif isinstance(message, ChatMessageTool):
+            return ""
 
 def is_anthropic(model_name: str) -> bool:
     return model_name.startswith("anthropic.")
@@ -314,13 +341,16 @@ def is_mistral(model_name: str) -> bool:
     return model_name.startswith("mistral.")
 
 
-def is_llama(model_name: str) -> bool:
-    return model_name.startswith("meta.llama")
+def is_llama2(model_name: str) -> bool:
+    return model_name.startswith("meta.llama2")
 
 
-def remove_end_token(prompt: str) -> str:
+def is_llama3(model_name: str) -> bool:
+    return model_name.startswith("meta.llama3")
+
+
+def remove_end_token(prompt: str,end_token:str ="</s>") -> str:
     # pull off </s> at end so putting words in mouth is supported
-    end_token = "</s>"
     if prompt.endswith(end_token):
         index = prompt.rfind(end_token)
         prompt = prompt[:index]
