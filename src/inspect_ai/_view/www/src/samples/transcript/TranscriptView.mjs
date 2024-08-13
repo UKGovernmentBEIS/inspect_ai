@@ -25,10 +25,7 @@ export const TranscriptView = ({ evalEvents, stateManager }) => {
   // repetition - it will be address with a uri)
   const resolvedEvents = resolveEventContent(evalEvents);
 
-  // Resolve the events into a tree, with steps having children
-  const eventNodes = resolveEventTree(resolvedEvents);
-
-  const rows = eventNodes.map((node, index) => {
+  const rows = resolvedEvents.map((event, index) => {
     const row = html`
       <div
         style=${{
@@ -36,7 +33,7 @@ export const TranscriptView = ({ evalEvents, stateManager }) => {
           paddingBottom: 0,
         }}
       >
-        <div>${renderNode(`event${index}`, node, stateManager)}</div>
+        <div>${renderNode(`event${index}`, event, stateManager)}</div>
       </div>
     `;
     return row;
@@ -58,57 +55,56 @@ export const TranscriptView = ({ evalEvents, stateManager }) => {
  * Renders the event based on its type.
  *
  * @param {string} id - The id for this event.
- * @param {EventNode} node
+ * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent} event - This event.
  * @param {import("./TranscriptState.mjs").StateManager} stateManager State manager to track state as diffs are applied
  * @returns {import("preact").JSX.Element} The rendered event.
  */
-export const renderNode = (id, node, stateManager) => {
-  switch (node.event.event) {
+export const renderNode = (id, event, stateManager) => {
+  switch (event.event) {
     case "sample_init":
       return html`<${SampleInitEventView}
         id=${id}
-        event=${node.event}
+        event=${event}
         stateManager=${stateManager}
       />`;
 
     case "info":
-      return html`<${InfoEventView} id=${id} event=${node.event} />`;
+      return html`<${InfoEventView} id=${id} event=${event} />`;
 
     case "logger":
-      return html`<${LoggerEventView} id=${id} event=${node.event} />`;
+      return html`<${LoggerEventView} id=${id} event=${event} />`;
 
     case "model":
-      return html`<${ModelEventView} id=${id} event=${node.event} />`;
+      return html`<${ModelEventView} id=${id} event=${event} />`;
 
     case "score":
-      return html`<${ScoreEventView} id=${id} event=${node.event} />`;
+      return html`<${ScoreEventView} id=${id} event=${event} />`;
 
     case "state":
       return html`<${StateEventView}
         id=${id}
-        event=${node.event}
+        event=${event}
         stateManager=${stateManager}
       />`;
 
     case "step":
       return html`<${StepEventView}
         id=${id}
-        event=${node.event}
-        children=${node.children}
+        event=${event}
         stateManager=${stateManager}
       />`;
 
     case "store":
       return html`<${StateEventView}
         id=${id}
-        event=${node.event}
+        event=${event}
         stateManager=${stateManager}
       />`;
 
     case "subtask":
       return html`<${SubtaskEventView}
         id=${id}
-        event=${node.event}
+        event=${event}
         stateManager=${stateManager}
       />`;
 
@@ -169,51 +165,3 @@ const resolveValue = (value, evalEvents) => {
   return value;
 };
 
-/**
- * @typedef {Object} EventNode
- * @property { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent} event - This event.
- * @property {EventNode[]} children - Child events.
- */
-
-/**
- * Resolves Events into a tree of nodes with children.
- *
- * @param {import("../../types/log").Events} events - The transcript events to display.
- * @returns {EventNode[]} Nodes containing events and children.
- */
-const resolveEventTree = (events) => {
-  /** @type {EventNode[]} */
-  const rootNodes = [];
-  /** @type {EventNode | undefined} */
-  let currentNode = undefined;
-  /** @type {EventNode[]} */
-  const stack = [];
-
-  events.forEach((event) => {
-    if (event.event === "step" && event.action === "begin") {
-      const newNode = { event, children: [] };
-      if (currentNode) {
-        currentNode.children.push(newNode);
-        stack.push(currentNode);
-      } else {
-        rootNodes.push(newNode);
-      }
-      currentNode = newNode;
-    } else if (event.event === "step" && event.action === "end") {
-      if (stack.length > 0) {
-        currentNode = stack.pop();
-      } else {
-        currentNode = undefined;
-      }
-    } else {
-      /** @type {EventNode} */
-      const newNode = { event, children: [] };
-      if (currentNode) {
-        currentNode.children.push(newNode);
-      } else {
-        rootNodes.push(newNode);
-      }
-    }
-  });
-  return rootNodes;
-};

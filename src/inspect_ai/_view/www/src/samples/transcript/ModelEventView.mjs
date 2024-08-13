@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { ChatView } from "../../components/ChatView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
+import { ApplicationIcons } from "../../appearance/Icons.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -23,11 +24,11 @@ export const ModelEventView = ({ id, event }) => {
   });
 
   return html`
-  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}">
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
     <${ChatView}
       id="${id}-model-output"
-      name="Output"
+      name="Answer"
       messages=${[...(outputMessages || [])]}
       />
 

@@ -5,6 +5,7 @@ import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
 import { isBase64 } from "../../utils/Base64.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { ApplicationIcons } from "../../appearance/Icons.mjs";
 
 /**
  * Renders the SampleInitEventView component.
@@ -105,15 +106,15 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
   }
 
   return html`
-  <${EventPanel} id=${id} title="Sample Init" style=${{ marginLeft: "2em", marginBottom: "1em" }}>
+  <${EventPanel} id=${id} title="Sample Init" icon=${ApplicationIcons.sample}>
 
-    <div name="Message">
+    <div name="Summary">
       <${ChatView} messages=${stateObj["messages"]}/>
       <div style=${{ marginLeft: "2.1em" }}>${addtl_sample_data}</div>
     </div>
 
-    <div name="State">
-      <${MetaDataGrid} entries=${event.state}/>
+    <div name="Complete">
+      <${MetaDataGrid} entries=${event.state} style=${{margin: "1em 0"}}/>
     </div>
 
   </${EventPanel}>`;

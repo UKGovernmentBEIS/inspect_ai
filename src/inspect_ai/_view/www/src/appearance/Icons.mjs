@@ -91,6 +91,7 @@
  * @property {string} menu
  * @property {string} messages
  * @property {string} metadata
+ * @property {string} multiple-choice
  * @property {string} model
  * @property {string} toggle-right
  * @property {string} more
@@ -159,6 +160,7 @@ export const ApplicationIcons = {
   model: "bi bi-grid-3x3-gap",
   "toggle-right": "bi bi-chevron-right",
   more: "bi bi-zoom-in",
+  "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
   previous: "bi bi-chevron-left",
   role: {
@@ -167,7 +169,7 @@ export const ApplicationIcons = {
     assistant: "bi bi-robot",
     tool: "bi bi-tools",
   },
-  sample: "bi bi-speedometer",
+  sample: "bi bi-database",
   samples: "bi bi-file-spreadsheet",
   scorer: "bi bi-calculator",
   search: "bi bi-search",

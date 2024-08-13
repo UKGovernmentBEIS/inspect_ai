@@ -16,7 +16,7 @@ import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
  * @param {boolean} [props.compact] - Whether to render the table in compact mode.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const MetaDataGrid = ({ id, entries, classes, context, expanded }) => {
+export const MetaDataGrid = ({ id, entries, classes, context, style, expanded }) => {
   const baseId = "metadata-grid";
 
   const cellKeyStyle = {
@@ -37,20 +37,34 @@ export const MetaDataGrid = ({ id, entries, classes, context, expanded }) => {
   // entries can be either a Record<string, stringable>
   // or an array of record with name/value on way in
   // but coerce to array of records for order
-  if (entries && !Array.isArray(entries)) {
-    entries = Object.entries(entries || {}).map(([key, value]) => {
-      return { name: key, value };
-    });
-  }
+  /**
+   * Ensure the proper type for entries
+   *
+   * @param {Object[]|Record<string, string>} entries - The metadata entries to display.
+   * @returns {Record<string, unknown>[]} The component.
+   */
+  const entryRecords = (entries) => {
+    if (!entries) {
+      return [];
+    }
 
-  const entryEls = (entries || []).map((entry, index) => {
+    if (!Array.isArray(entries)) {
+      return Object.entries(entries || {}).map(([key, value]) => {
+        return { name: key, value };
+      });
+    } else {
+      return entries;
+    }
+  };
+
+  const entryEls = entryRecords(entries).map((entry, index) => {
     const id = `${baseId}-value-${index}`;
     return html`
       <div
         style=${{
-          gridColumn: "1 / -1",
-          borderBottom: "solid 1px var(--bs-light-border-subtle",
-        }}
+        gridColumn: "1 / -1",
+        borderBottom: "solid 1px var(--bs-light-border-subtle",
+      }}
       ></div>
       <div
         class="${baseId}-key"
@@ -76,6 +90,7 @@ export const MetaDataGrid = ({ id, entries, classes, context, expanded }) => {
       display: "grid",
       gridTemplateColumns: "max-content auto",
       columnGap: "1em",
+      ...style
     }}
   >
     ${entryEls}

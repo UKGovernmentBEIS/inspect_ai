@@ -1,8 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { FontSize } from "../../appearance/Fonts.mjs";
-import { renderNode } from "./TranscriptView.mjs";
+import { EventPanel } from "./EventPanel.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -11,10 +10,9 @@ import { renderNode } from "./TranscriptView.mjs";
  * @param { string  } props.id - The id of this event. *
  * @param {import("../../types/log").StepEvent} props.event - The event object to display.
  * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
- * @param {import("./TranscriptView.mjs").EventNode[]} props.children - The child events to display.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StepEventView = ({ id, event, stateManager, children }) => {
+export const StepEventView = ({ id, event, stateManager }) => {
   const icon = () => {
     if (event.type === "solver") {
       switch (event.name) {
@@ -28,6 +26,8 @@ export const StepEventView = ({ id, event, stateManager, children }) => {
           return ApplicationIcons.solvers.system_message;
         case "use_tools":
           return ApplicationIcons.solvers.use_tools;
+        case "multiple_choice":
+          return ApplicationIcons["multiple-choice"];
         default:
           return ApplicationIcons.solvers.default;
       }
@@ -38,38 +38,10 @@ export const StepEventView = ({ id, event, stateManager, children }) => {
     }
   };
 
-  return html`<div
-    style=${{
-      display: "grid",
-      gridTemplateColumns: "max-content 1fr",
-      columnGap: "0.3em",
-      rowGap: "0.3em",
-      marginBottom: "2em",
-      fontSize: FontSize.larger,
-    }}
-  >
-    <i class=${icon()} style=${{ marginRight: "0.2em" }} />
-    <div
-      style=${{
-        display: "inline-block",
-        justifySelf: "left",
-      }}
-    >
-      ${event.name}
-    </div>
-    <div style=${{ display: "grid", justifyContent: "center" }}>
-      <div
-        style=${{
-          background: "var(--bs-light-border-subtle",
-          height: "100%",
-          width: "2px",
-        }}
-      ></div>
-    </div>
-    <div style=${{ fontSize: FontSize.small }}>
-      ${children.map((child, index) => {
-        return renderNode(`${id}_${index}`, child, stateManager);
-      })}
-    </div>
-  </div>`;
+  if (event.action === "end") {
+    // end events have no special implicit UI
+    return html``;
+  }
+
+  return html`<${EventPanel} title=${event.name} icon=${icon()} style=${{background: "var(--bs-light"}}/>`;
 };

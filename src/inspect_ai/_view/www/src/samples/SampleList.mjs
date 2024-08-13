@@ -104,7 +104,6 @@ export const SampleList = (props) => {
       return html`
         <${SeparatorRow}
           id=${`sample-group${item.number}`}
-          class="cool"
           title=${item.data}
           height=${kSeparatorHeight}
         />
@@ -198,7 +197,8 @@ const SampleRow = ({
   setSelected,
   showSample,
 }) => {
-  const selectedStyle = selected
+  const
+   selectedStyle = selected
     ? {
         boxShadow: "inset 0 0 0px 2px var(--bs-focus-ring-color)",
       }

@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { EventPanel } from "./EventPanel.mjs";
+import { ApplicationIcons } from "../../appearance/Icons.mjs";
 
 /**
  * Renders the InfoEventView component.
@@ -14,7 +15,7 @@ import { EventPanel } from "./EventPanel.mjs";
  */
 export const ScoreEventView = ({ id, event }) => {
   return html`
-  <${EventPanel} id=${id} title="Score">
+  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer}>
     <div
       name="Explanation"
       style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em" }}

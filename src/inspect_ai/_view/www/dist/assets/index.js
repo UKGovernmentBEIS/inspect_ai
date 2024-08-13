@@ -6306,6 +6306,7 @@ const ApplicationIcons = {
   model: "bi bi-grid-3x3-gap",
   "toggle-right": "bi bi-chevron-right",
   more: "bi bi-zoom-in",
+  "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
   previous: "bi bi-chevron-left",
   role: {
@@ -6314,7 +6315,7 @@ const ApplicationIcons = {
     assistant: "bi bi-robot",
     tool: "bi bi-tools"
   },
-  sample: "bi bi-speedometer",
+  sample: "bi bi-database",
   samples: "bi bi-file-spreadsheet",
   scorer: "bi bi-calculator",
   search: "bi bi-search",
@@ -14886,7 +14887,7 @@ const EventNav = ({ target, title, active }) => {
     </button>
   </li>`;
 };
-const MetaDataGrid = ({ id: id2, entries, classes, context, expanded }) => {
+const MetaDataGrid = ({ id: id2, entries, classes, context, style, expanded }) => {
   const baseId = "metadata-grid";
   const cellKeyStyle = {
     fontWeight: "400",
@@ -14902,12 +14903,19 @@ const MetaDataGrid = ({ id: id2, entries, classes, context, expanded }) => {
   const cellKeyTextStyle = {
     fontSize: FontSize.small
   };
-  if (entries && !Array.isArray(entries)) {
-    entries = Object.entries(entries || {}).map(([key2, value]) => {
-      return { name: key2, value };
-    });
-  }
-  const entryEls = (entries || []).map((entry, index) => {
+  const entryRecords = (entries2) => {
+    if (!entries2) {
+      return [];
+    }
+    if (!Array.isArray(entries2)) {
+      return Object.entries(entries2 || {}).map(([key2, value]) => {
+        return { name: key2, value };
+      });
+    } else {
+      return entries2;
+    }
+  };
+  const entryEls = entryRecords(entries).map((entry, index) => {
     const id3 = `${baseId}-value-${index}`;
     return m$1`
       <div
@@ -14938,7 +14946,8 @@ const MetaDataGrid = ({ id: id2, entries, classes, context, expanded }) => {
     style=${{
     display: "grid",
     gridTemplateColumns: "max-content auto",
-    columnGap: "1em"
+    columnGap: "1em",
+    ...style
   }}
   >
     ${entryEls}
@@ -15023,15 +15032,15 @@ const SampleInitEventView = ({ id: id2, event, stateManager }) => {
     );
   }
   return m$1`
-  <${EventPanel} id=${id2} title="Sample Init" style=${{ marginLeft: "2em", marginBottom: "1em" }}>
+  <${EventPanel} id=${id2} title="Sample Init" icon=${ApplicationIcons.sample}>
 
-    <div name="Message">
+    <div name="Summary">
       <${ChatView} messages=${stateObj["messages"]}/>
       <div style=${{ marginLeft: "2.1em" }}>${addtl_sample_data}</div>
     </div>
 
-    <div name="State">
-      <${MetaDataGrid} entries=${event.state}/>
+    <div name="Complete">
+      <${MetaDataGrid} entries=${event.state} style=${{ margin: "1em 0" }}/>
     </div>
 
   </${EventPanel}>`;
@@ -15202,7 +15211,7 @@ const generatePreview = (changes, resolvedState) => {
   }
   return void 0;
 };
-const StepEventView = ({ id: id2, event, stateManager, children }) => {
+const StepEventView = ({ id: id2, event, stateManager }) => {
   const icon = () => {
     if (event.type === "solver") {
       switch (event.name) {
@@ -15216,6 +15225,8 @@ const StepEventView = ({ id: id2, event, stateManager, children }) => {
           return ApplicationIcons.solvers.system_message;
         case "use_tools":
           return ApplicationIcons.solvers.use_tools;
+        case "multiple_choice":
+          return ApplicationIcons["multiple-choice"];
         default:
           return ApplicationIcons.solvers.default;
       }
@@ -15225,40 +15236,10 @@ const StepEventView = ({ id: id2, event, stateManager, children }) => {
       return ApplicationIcons.step;
     }
   };
-  return m$1`<div
-    style=${{
-    display: "grid",
-    gridTemplateColumns: "max-content 1fr",
-    columnGap: "0.3em",
-    rowGap: "0.3em",
-    marginBottom: "2em",
-    fontSize: FontSize.larger
-  }}
-  >
-    <i class=${icon()} style=${{ marginRight: "0.2em" }} />
-    <div
-      style=${{
-    display: "inline-block",
-    justifySelf: "left"
-  }}
-    >
-      ${event.name}
-    </div>
-    <div style=${{ display: "grid", justifyContent: "center" }}>
-      <div
-        style=${{
-    background: "var(--bs-light-border-subtle",
-    height: "100%",
-    width: "2px"
-  }}
-      ></div>
-    </div>
-    <div style=${{ fontSize: FontSize.small }}>
-      ${children.map((child, index) => {
-    return renderNode(`${id2}_${index}`, child, stateManager);
-  })}
-    </div>
-  </div>`;
+  if (event.action === "end") {
+    return m$1``;
+  }
+  return m$1`<${EventPanel} title=${event.name} icon=${icon()} style=${{ background: "var(--bs-light" }}/>`;
 };
 const SubtaskEventView = ({ id: id2, event, stateManager }) => {
   return m$1`
@@ -15307,11 +15288,11 @@ const ModelEventView = ({ id: id2, event }) => {
     return choice.message;
   });
   return m$1`
-  <${EventPanel} id=${id2} title="Model Call: ${event.model} ${subtitle}">
+  <${EventPanel} id=${id2} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
     <${ChatView}
       id="${id2}-model-output"
-      name="Output"
+      name="Answer"
       messages=${[...outputMessages || []]}
       />
 
@@ -15383,7 +15364,7 @@ const InfoEventView = ({ id: id2, event }) => {
 };
 const ScoreEventView = ({ id: id2, event }) => {
   return m$1`
-  <${EventPanel} id=${id2} title="Score">
+  <${EventPanel} id=${id2} title="Score" icon=${ApplicationIcons.scorer}>
     <div
       name="Explanation"
       style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em" }}
@@ -15409,8 +15390,7 @@ const ScoreEventView = ({ id: id2, event }) => {
 const kContentProtocol = "tc://";
 const TranscriptView = ({ evalEvents, stateManager }) => {
   const resolvedEvents = resolveEventContent(evalEvents);
-  const eventNodes = resolveEventTree(resolvedEvents);
-  const rows = eventNodes.map((node, index) => {
+  const rows = resolvedEvents.map((event, index) => {
     const row = m$1`
       <div
         style=${{
@@ -15418,7 +15398,7 @@ const TranscriptView = ({ evalEvents, stateManager }) => {
       paddingBottom: 0
     }}
       >
-        <div>${renderNode(`event${index}`, node, stateManager)}</div>
+        <div>${renderNode(`event${index}`, event, stateManager)}</div>
       </div>
     `;
     return row;
@@ -15434,45 +15414,44 @@ const TranscriptView = ({ evalEvents, stateManager }) => {
     ${rows}
   </div>`;
 };
-const renderNode = (id2, node, stateManager) => {
-  switch (node.event.event) {
+const renderNode = (id2, event, stateManager) => {
+  switch (event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
         id=${id2}
-        event=${node.event}
+        event=${event}
         stateManager=${stateManager}
       />`;
     case "info":
-      return m$1`<${InfoEventView} id=${id2} event=${node.event} />`;
+      return m$1`<${InfoEventView} id=${id2} event=${event} />`;
     case "logger":
-      return m$1`<${LoggerEventView} id=${id2} event=${node.event} />`;
+      return m$1`<${LoggerEventView} id=${id2} event=${event} />`;
     case "model":
-      return m$1`<${ModelEventView} id=${id2} event=${node.event} />`;
+      return m$1`<${ModelEventView} id=${id2} event=${event} />`;
     case "score":
-      return m$1`<${ScoreEventView} id=${id2} event=${node.event} />`;
+      return m$1`<${ScoreEventView} id=${id2} event=${event} />`;
     case "state":
       return m$1`<${StateEventView}
         id=${id2}
-        event=${node.event}
+        event=${event}
         stateManager=${stateManager}
       />`;
     case "step":
       return m$1`<${StepEventView}
         id=${id2}
-        event=${node.event}
-        children=${node.children}
+        event=${event}
         stateManager=${stateManager}
       />`;
     case "store":
       return m$1`<${StateEventView}
         id=${id2}
-        event=${node.event}
+        event=${event}
         stateManager=${stateManager}
       />`;
     case "subtask":
       return m$1`<${SubtaskEventView}
         id=${id2}
-        event=${node.event}
+        event=${event}
         stateManager=${stateManager}
       />`;
     default:
@@ -15510,37 +15489,6 @@ const resolveValue = (value, evalEvents) => {
     }
   }
   return value;
-};
-const resolveEventTree = (events) => {
-  const rootNodes = [];
-  let currentNode = void 0;
-  const stack2 = [];
-  events.forEach((event) => {
-    if (event.event === "step" && event.action === "begin") {
-      const newNode = { event, children: [] };
-      if (currentNode) {
-        currentNode.children.push(newNode);
-        stack2.push(currentNode);
-      } else {
-        rootNodes.push(newNode);
-      }
-      currentNode = newNode;
-    } else if (event.event === "step" && event.action === "end") {
-      if (stack2.length > 0) {
-        currentNode = stack2.pop();
-      } else {
-        currentNode = void 0;
-      }
-    } else {
-      const newNode = { event, children: [] };
-      if (currentNode) {
-        currentNode.children.push(newNode);
-      } else {
-        rootNodes.push(newNode);
-      }
-    }
-  });
-  return rootNodes;
 };
 /*!
  * https://github.com/Starcounter-Jack/JSON-Patch
@@ -16657,7 +16605,6 @@ const SampleList = (props) => {
       return m$1`
         <${SeparatorRow}
           id=${`sample-group${item.number}`}
-          class="cool"
           title=${item.data}
           height=${kSeparatorHeight}
         />
