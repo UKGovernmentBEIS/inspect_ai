@@ -24,16 +24,14 @@ export const ChatView = ({ id, messages, style }) => {
   // Filter tool messages into a sidelist that the chat stream
   // can use to lookup the tool responses
   const toolMessages = {};
-  const nonToolMessages = messages
-    .map((msg) => {
-      if (msg.role === "tool") {
-        toolMessages[msg.tool_call_id] = msg;
-      }
-      return msg;
-    })
-    .filter((msg) => {
-      return msg.role !== "tool";
-    });
+  const nonToolMessages = [];
+  for (const message of messages) {
+    if (message.role === "tool") {
+      toolMessages[message.tool_call_id] = message;
+    } else {
+      nonToolMessages.push(message);
+    }
+  }
 
   // Capture system messages (there could be multiple)
   const systemMessages = [];
@@ -65,7 +63,7 @@ export const ChatView = ({ id, messages, style }) => {
     collapsedMessages.unshift(systemMessage);
   }
 
-  return html`
+  const result = html`
     <div style=${{ paddingTop: "1em", ...style }}>
       ${collapsedMessages.map((msg) => {
         return html`<${ChatMessage}
@@ -76,6 +74,9 @@ export const ChatView = ({ id, messages, style }) => {
       })}
     </div>
   `;
+
+  console.log("---------------------------------");
+  return result;
 };
 
 const normalizeContent = (content) => {
@@ -173,18 +174,17 @@ const MessageContents = ({ message, toolMessages }) => {
         }}></i>
         <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
         <div>
-          ${
-            toolMessage
-              ? html`
-              <div style=${{ marginLeft: "1.5em" }}>
-              <${ToolInput} type=${inputType} contents=${input}/>
+            <div style=${{ marginLeft: "1.5em" }}>
+            <${ToolInput} type=${inputType} contents=${input}/>
+            ${
+              resolvedToolOutput
+                ? html`
               <${ExpandablePanel} collapse=${true} border=${true} lines=10>
               <${MessageContent} contents=${resolvedToolOutput} />
-              </${ExpandablePanel}>
-              </div>
-              `
-              : ""
-          }
+              </${ExpandablePanel}>`
+                : ""
+            }
+            </div>
         </div>
         </p>`;
     });
