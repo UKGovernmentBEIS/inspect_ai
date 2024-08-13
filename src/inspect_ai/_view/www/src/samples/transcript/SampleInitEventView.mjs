@@ -23,7 +23,6 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
   //@ts-ignore
   const stateObj = event.state;
 
-
   // Rememember the state (so other event viewers can use
   // it as a baseline when applying their state updates)
   stateManager.setState(stateObj);
@@ -44,8 +43,6 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
         })}
       </div>`,
     );
-  
-  
   }
 
   addtl_sample_data.push(

@@ -15440,18 +15440,19 @@ const InfoEventView = ({ id: id2, event }) => {
 const ScoreEventView = ({ id: id2, event }) => {
   return m$1`
   <${EventPanel} id=${id2} title="Score" icon=${ApplicationIcons.scorer}>
+  
     <div
       name="Explanation"
-      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em" }}
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0" }}
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-      <div>Answer</div>
+      <div style=${{ ...TextStyle.label }}>Answer</div>
       <div>${event.score.answer}</div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-      <div>Explanation</div>
+      <div style=${{ ...TextStyle.label }}>Explanation</div>
       <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-      <div>Score</div>  
+      <div style=${{ ...TextStyle.label }}>Score</div>  
       <div>${event.score.value}</div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
     </div>

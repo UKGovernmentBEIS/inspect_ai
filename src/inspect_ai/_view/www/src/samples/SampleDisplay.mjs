@@ -53,7 +53,7 @@ export const SampleDisplay = ({
   // Upon sample update
   useEffect(() => {
     // reset tabs when sample changes
-    setSelectedTab(msgTabId);
+    setSelectedTab(transcriptTabId);
   }, [sample]);
 
   // Tab selection
@@ -77,10 +77,10 @@ export const SampleDisplay = ({
   ];
 
   if (sample.transcript && sample.transcript.events.length > 0) {
-    tabs.push(html`
+    tabs.unshift(html`
       <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
         selectedTab === transcriptTabId
-      }>
+      } scrollable=${false}>
         <${SampleTranscript} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
