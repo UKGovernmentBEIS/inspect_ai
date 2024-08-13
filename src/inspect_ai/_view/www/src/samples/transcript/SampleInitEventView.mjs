@@ -23,11 +23,30 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
   //@ts-ignore
   const stateObj = event.state;
 
+
   // Rememember the state (so other event viewers can use
   // it as a baseline when applying their state updates)
   stateManager.setState(stateObj);
 
   const addtl_sample_data = [];
+
+  if (event.sample.choices && event.sample.choices.length > 0) {
+    addtl_sample_data.push(
+      html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+        Choices
+      </div>`,
+    );
+
+    addtl_sample_data.push(
+      html`<div style=${{ fontSize: FontSize.small, marginBottom: "1em" }}>
+        ${event.sample.choices.map((choice, index) => {
+          return html`<div>${String.fromCharCode(65 + index)}) ${choice}</div>`;
+        })}
+      </div>`,
+    );
+  
+  
+  }
 
   addtl_sample_data.push(
     html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>

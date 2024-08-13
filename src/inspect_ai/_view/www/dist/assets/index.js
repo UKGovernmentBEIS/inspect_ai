@@ -14984,6 +14984,20 @@ const SampleInitEventView = ({ id: id2, event, stateManager }) => {
   const stateObj = event.state;
   stateManager.setState(stateObj);
   const addtl_sample_data = [];
+  if (event.sample.choices && event.sample.choices.length > 0) {
+    addtl_sample_data.push(
+      m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+        Choices
+      </div>`
+    );
+    addtl_sample_data.push(
+      m$1`<div style=${{ fontSize: FontSize.small, marginBottom: "1em" }}>
+        ${event.sample.choices.map((choice, index) => {
+        return m$1`<div>${String.fromCharCode(65 + index)}) ${choice}</div>`;
+      })}
+      </div>`
+    );
+  }
   addtl_sample_data.push(
     m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
       Target
@@ -15266,7 +15280,6 @@ const summarizeChanges = (changes) => {
       }
     });
   }
-  console.log({ changeList });
   return changeList.join(", ");
 };
 const StepEventView = ({ event }) => {

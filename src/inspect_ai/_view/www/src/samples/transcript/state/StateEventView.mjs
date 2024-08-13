@@ -105,7 +105,5 @@ const summarizeChanges = (changes) => {
       }
     });
   }
-  console.log({ changeList });
-
   return changeList.join(", ");
 };
