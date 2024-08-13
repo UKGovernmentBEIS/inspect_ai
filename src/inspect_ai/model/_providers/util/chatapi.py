@@ -21,7 +21,7 @@ from ..._generate_config import GenerateConfig
 
 logger = getLogger(__name__)
 
-ChatApiMessage = dict[Literal["role", "content"], str]
+ChatAPIMessage = dict[Literal["role", "content"], str]
 
 
 class ChatAPIHandler:
@@ -35,10 +35,10 @@ class ChatAPIHandler:
     ) -> ChatMessageAssistant:
         return ChatMessageAssistant(content=response)
 
-    def assistant_message(self, message: ChatMessageAssistant) -> ChatApiMessage:
+    def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:
         return {"role": "assistant", "content": message.text}
 
-    def tool_message(self, message: ChatMessageTool) -> ChatApiMessage:
+    def tool_message(self, message: ChatMessageTool) -> ChatAPIMessage:
         return {
             "role": "tool",
             "content": f"Error: {message.error.message}"
@@ -51,7 +51,7 @@ def chat_api_input(
     input: list[ChatMessage],
     tools: list[ToolInfo],
     handler: ChatAPIHandler = ChatAPIHandler(),
-) -> list[ChatApiMessage]:
+) -> list[ChatAPIMessage]:
     # add tools to input
     if len(tools) > 0:
         input = handler.input_with_tools(input, tools)
@@ -60,7 +60,7 @@ def chat_api_input(
     return [chat_api_message(message, handler) for message in input]
 
 
-def chat_api_message(message: ChatMessage, handler: ChatAPIHandler) -> ChatApiMessage:
+def chat_api_message(message: ChatMessage, handler: ChatAPIHandler) -> ChatAPIMessage:
     if message.role == "assistant":
         return handler.assistant_message(message)
     elif message.role == "tool":
