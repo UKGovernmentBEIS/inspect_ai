@@ -72,7 +72,7 @@ export const SampleDisplay = ({
     }>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
         sample.messages
-      }/>
+      } style=${{ paddingLeft: ".8em" }}/>
     </${TabPanel}>`,
   ];
 
@@ -96,6 +96,7 @@ export const SampleDisplay = ({
           context=${context}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
+          style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
         />
       </${TabPanel}>`);
   } else {
@@ -110,6 +111,7 @@ export const SampleDisplay = ({
             context=${context}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
+            style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
         </${TabPanel}>`);
     }
@@ -125,7 +127,9 @@ export const SampleDisplay = ({
           icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
         ${sampleMetadatas}
+        </div>
       </${TabPanel}>`,
     );
   }
@@ -139,9 +143,7 @@ export const SampleDisplay = ({
     tabs: {
       fontSize: FontSize.base,
     },
-    tabBody: {
-      paddingLeft: ".4em",
-    },
+    tabBody: {},
   }}>
     ${tabs}
   </${TabSet}>`;
@@ -178,7 +180,7 @@ const metadataViewsForSample = (id, sample, context) => {
   return sampleMetadatas;
 };
 
-const SampleSummary = ({ id, sample, sampleDescriptor }) => {
+const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input =
     sampleDescriptor?.messageShape.input > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.input)
@@ -271,6 +273,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
         borderBottom: "solid var(--bs-border-color) 1px",
         marginBottom: "1em",
         padding: "0em 1em 1em 1em",
+        ...style,
       }}
     >
       ${columns.map((col) => {

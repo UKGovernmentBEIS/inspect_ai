@@ -15321,12 +15321,11 @@ const SubtaskEventView = ({ id: id2, event, stateManager }) => {
   return m$1`
     <${EventPanel} id=${id2} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
-      ${event.events.events.length > 0 ? m$1`
-      <${TranscriptView}
-        name="Transcript"
-        evalEvents=${event.events}
-        stateManager=${stateManager}
-      />` : ""}
+      ${event.events.events.length > 0 ? m$1` <${TranscriptView}
+              name="Transcript"
+              evalEvents=${event.events}
+              stateManager=${stateManager}
+            />` : ""}
     </${EventPanel}>`;
 };
 const SubtaskSummary = ({ input, result }) => {
@@ -16286,7 +16285,7 @@ const SampleDisplay = ({
   const tabs = [
     m$1`
     <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${selectedTab === msgTabId || selectedTab === void 0}>
-      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages}/>
+      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages} style=${{ paddingLeft: ".8em" }}/>
     </${TabPanel}>`
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {
@@ -16304,6 +16303,7 @@ const SampleDisplay = ({
           context=${context}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
+          style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
         />
       </${TabPanel}>`);
   } else {
@@ -16316,6 +16316,7 @@ const SampleDisplay = ({
             context=${context}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
+            style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
         </${TabPanel}>`);
     }
@@ -16330,7 +16331,9 @@ const SampleDisplay = ({
           icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
         ${sampleMetadatas}
+        </div>
       </${TabPanel}>`
     );
   }
@@ -16343,9 +16346,7 @@ const SampleDisplay = ({
     tabs: {
       fontSize: FontSize.base
     },
-    tabBody: {
-      paddingLeft: ".4em"
-    }
+    tabBody: {}
   }}>
     ${tabs}
   </${TabSet}>`;
@@ -16377,7 +16378,7 @@ const metadataViewsForSample = (id2, sample, context) => {
   }
   return sampleMetadatas;
 };
-const SampleSummary = ({ id: id2, sample, sampleDescriptor }) => {
+const SampleSummary = ({ id: id2, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
@@ -16445,31 +16446,32 @@ const SampleSummary = ({ id: id2, sample, sampleDescriptor }) => {
     fontSize: FontSize.base,
     borderBottom: "solid var(--bs-border-color) 1px",
     marginBottom: "1em",
-    padding: "0em 1em 1em 1em"
+    padding: "0em 1em 1em 1em",
+    ...style
   }}
     >
       ${columns.map((col) => {
-    const style = {
+    const style2 = {
       ...TextStyle.label,
       ...TextStyle.secondary,
       fontSize: FontSize.base
     };
     if (col.center) {
-      style.display = "flex";
-      style.justifyContent = "center";
+      style2.display = "flex";
+      style2.justifyContent = "center";
     }
-    return m$1`<div style=${{ ...style }}>${col.label}</div>`;
+    return m$1`<div style=${{ ...style2 }}>${col.label}</div>`;
   })}
       ${columns.map((col) => {
-    const style = {
+    const style2 = {
       ...col.clamp ? ApplicationStyles.threeLineClamp : {}
     };
     if (col.center) {
-      style.display = "flex";
-      style.justifyContent = "center";
+      style2.display = "flex";
+      style2.justifyContent = "center";
     }
-    style.wordWrap = "anywhere";
-    return m$1`<div style=${{ ...style }}>${col.value}</div>`;
+    style2.wordWrap = "anywhere";
+    return m$1`<div style=${{ ...style2 }}>${col.value}</div>`;
   })}
     </div>
   `;
