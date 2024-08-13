@@ -404,7 +404,6 @@ body {
 }
 
 .nav-link.active {
-  /* background-color: unset !important; */
   border-bottom-width: 0 !important;
 }
 
