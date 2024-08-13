@@ -13140,7 +13140,6 @@ const ChatView = ({ id: id2, messages, style }) => {
   })}
     </div>
   `;
-  console.log("---------------------------------");
   return result;
 };
 const normalizeContent = (content) => {
@@ -14759,9 +14758,17 @@ const SampleScoreView = ({
     </div>
   `;
 };
-const EventPanel = ({ id: id2, title, icon, collapse, style, children }) => {
-  var _a;
-  const arrChildren = (_a = children === void 0 ? children : Array.isArray(children) ? children : [children]) == null ? void 0 : _a.filter((child) => !!child);
+const EventPanel = ({
+  id: id2,
+  title,
+  text,
+  icon,
+  collapse,
+  style,
+  children
+}) => {
+  const arrChildren = Array.isArray(children) ? children : [children];
+  const filteredArrChilden = arrChildren.filter((child) => !!child);
   const hasCollapse = collapse !== void 0;
   const [collapsed, setCollapsed] = p(!!collapse);
   const pillId = (index) => {
@@ -14771,7 +14778,7 @@ const EventPanel = ({ id: id2, title, icon, collapse, style, children }) => {
         style=${{
     paddingLeft: "0.5em",
     display: "grid",
-    gridTemplateColumns: "max-content max-content auto minmax(0, max-content)",
+    gridTemplateColumns: "max-content max-content auto minmax(0, max-content) minmax(0, max-content)",
     columnGap: "0.5em",
     fontSize: FontSize.small,
     cursor: hasCollapse ? "pointer" : void 0
@@ -14798,17 +14805,25 @@ const EventPanel = ({ id: id2, title, icon, collapse, style, children }) => {
   }}
         ></div>
         <div
+          style=${{ justifySelf: "end", ...TextStyle.secondary }}
+          onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+        >
+          ${text}
+        </div>
+        <div
           style=${{
     justifySelf: "end",
     display: "flex",
     flexDirection: "columns"
   }}
         >
-          ${(!hasCollapse || !collapsed) && arrChildren && arrChildren.length > 1 ? m$1` <${EventNavs}
-                navs=${arrChildren.map((child, index) => {
-    var _a2;
+          ${(!hasCollapse || !collapsed) && filteredArrChilden && filteredArrChilden.length > 1 ? m$1` <${EventNavs}
+                navs=${filteredArrChilden.map((child, index) => {
+    var _a;
     const defaultTitle = `Tab ${index}`;
-    const title2 = child && typeof child === "object" ? ((_a2 = child["props"]) == null ? void 0 : _a2.name) || defaultTitle : defaultTitle;
+    const title2 = child && typeof child === "object" ? ((_a = child["props"]) == null ? void 0 : _a.name) || defaultTitle : defaultTitle;
     return {
       id: `eventpanel-${id2}-${index}`,
       title: title2,
@@ -14837,7 +14852,7 @@ const EventPanel = ({ id: id2, title, icon, collapse, style, children }) => {
           class="card-body tab-content"
           style=${{ padding: 0, marginLeft: "2em" }}
         >
-          ${arrChildren == null ? void 0 : arrChildren.map((child, index) => {
+          ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
     return m$1`<div
               id=${pillId(index)}
               class="tab-pane show ${index === 0 ? "active" : ""}"
@@ -14888,7 +14903,14 @@ const EventNav = ({ target, title, active }) => {
     </button>
   </li>`;
 };
-const MetaDataGrid = ({ id: id2, entries, classes, context, style, expanded }) => {
+const MetaDataGrid = ({
+  id: id2,
+  entries,
+  classes,
+  context,
+  style,
+  expanded
+}) => {
   const baseId = "metadata-grid";
   const cellKeyStyle = {
     fontWeight: "400",
@@ -15184,6 +15206,7 @@ const renderValue = (change) => {
 };
 const StateEventView = ({ id: id2, event, stateManager }) => {
   const resolvedState = stateManager.applyChanges(event.changes);
+  const summary = summarizeChanges(event.changes);
   const tabs = [
     m$1`<${StateDiffView} changes=${event.changes} name="Diffs" />`
   ];
@@ -15193,7 +15216,7 @@ const StateEventView = ({ id: id2, event, stateManager }) => {
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
-  <${EventPanel} id=${id2} title=${title} collapse=${changePreview === void 0 ? true : void 0}>
+  <${EventPanel} id=${id2} title="${title}" text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -15212,7 +15235,41 @@ const generatePreview = (changes, resolvedState) => {
   }
   return void 0;
 };
-const StepEventView = ({ id: id2, event, stateManager }) => {
+const summarizeChanges = (changes) => {
+  const changeMap = {
+    add: [],
+    copy: [],
+    move: [],
+    replace: [],
+    remove: [],
+    test: []
+  };
+  for (const change of changes) {
+    changeMap[change.op].push(change.path);
+  }
+  const changeList = [];
+  const totalOpCount = Object.keys(changeMap).reduce((prev, current) => {
+    return prev + changeMap[current].length;
+  }, 0);
+  if (totalOpCount > 2) {
+    Object.keys(changeMap).forEach((key2) => {
+      const opChanges = changeMap[key2];
+      if (opChanges.length > 0) {
+        changeList.push(`${key2} ${opChanges.length}`);
+      }
+    });
+  } else {
+    Object.keys(changeMap).forEach((key2) => {
+      const opChanges = changeMap[key2];
+      if (opChanges.length > 0) {
+        changeList.push(`${key2} ${opChanges.join(", ")}`);
+      }
+    });
+  }
+  console.log({ changeList });
+  return changeList.join(", ");
+};
+const StepEventView = ({ event }) => {
   const icon = () => {
     if (event.type === "solver") {
       switch (event.name) {
@@ -15240,7 +15297,11 @@ const StepEventView = ({ id: id2, event, stateManager }) => {
   if (event.action === "end") {
     return m$1``;
   }
-  return m$1`<${EventPanel} title=${event.name} icon=${icon()} style=${{ background: "var(--bs-light" }}/>`;
+  return m$1`<${EventPanel}
+    title=${event.name}
+    icon=${icon()}
+    style=${{ background: "var(--bs-light" }}
+  />`;
 };
 const SubtaskEventView = ({ id: id2, event, stateManager }) => {
   return m$1`
@@ -15408,7 +15469,7 @@ const TranscriptView = ({ evalEvents, stateManager }) => {
     style=${{
     fontSize: FontSize.small,
     display: "grid",
-    marginTop: "1em",
+    margin: "1em 0",
     width: "100%"
   }}
   >
@@ -16213,7 +16274,7 @@ const SampleDisplay = ({
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(m$1`
-      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId}>
+      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId} scrollable=${false}>
         <${SampleTranscript} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }

@@ -17,6 +17,8 @@ import { StateDiffView } from "./StateDiffView.mjs";
 export const StateEventView = ({ id, event, stateManager }) => {
   const resolvedState = stateManager.applyChanges(event.changes);
 
+  const summary = summarizeChanges(event.changes);
+
   const tabs = [
     html`<${StateDiffView} changes=${event.changes} name="Diffs" />`,
   ];
@@ -27,8 +29,9 @@ export const StateEventView = ({ id, event, stateManager }) => {
 
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
+
   return html`
-  <${EventPanel} id=${id} title=${title} collapse=${changePreview === undefined ? true : undefined}>
+  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : undefined} collapse=${changePreview === undefined ? true : undefined}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -61,4 +64,48 @@ const generatePreview = (changes, resolvedState) => {
     }
   }
   return undefined;
+};
+
+/**
+ * Renders the value of a change based on its type.
+ *
+ * @param {import("../../../types/log").JsonChange[]} changes - The change object containing the value.
+ * @returns {string} - A string summarizing the changes
+ */
+const summarizeChanges = (changes) => {
+  const changeMap = {
+    add: [],
+    copy: [],
+    move: [],
+    replace: [],
+    remove: [],
+    test: [],
+  };
+  for (const change of changes) {
+    changeMap[change.op].push(change.path);
+  }
+
+  const changeList = [];
+  const totalOpCount = Object.keys(changeMap).reduce((prev, current) => {
+    return prev + changeMap[current].length;
+  }, 0);
+
+  if (totalOpCount > 2) {
+    Object.keys(changeMap).forEach((key) => {
+      const opChanges = changeMap[key];
+      if (opChanges.length > 0) {
+        changeList.push(`${key} ${opChanges.length}`);
+      }
+    });
+  } else {
+    Object.keys(changeMap).forEach((key) => {
+      const opChanges = changeMap[key];
+      if (opChanges.length > 0) {
+        changeList.push(`${key} ${opChanges.join(", ")}`);
+      }
+    });
+  }
+  console.log({ changeList });
+
+  return changeList.join(", ");
 };

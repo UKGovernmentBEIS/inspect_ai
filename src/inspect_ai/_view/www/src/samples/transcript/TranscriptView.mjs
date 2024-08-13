@@ -43,7 +43,7 @@ export const TranscriptView = ({ evalEvents, stateManager }) => {
     style=${{
       fontSize: FontSize.small,
       display: "grid",
-      marginTop: "1em",
+      margin: "1em 0",
       width: "100%",
     }}
   >

@@ -75,7 +75,6 @@ export const ChatView = ({ id, messages, style }) => {
     </div>
   `;
 
-  console.log("---------------------------------");
   return result;
 };
 

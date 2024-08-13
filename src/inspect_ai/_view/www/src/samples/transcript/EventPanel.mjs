@@ -10,23 +10,27 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param {string} props.id - The id of the event
  * @param {string | undefined} props.title - The name of the event
+ * @param {string | undefined} props.text - Secondary text for the event
  * @param {string | undefined} props.icon - The icon of the event
  * @param {boolean | undefined} props.collapse - Default collapse behavior for card. If omitted, not collapsible.
  * @param {Object} props.style - The style properties passed to the component.
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const EventPanel = ({ id, title, icon, collapse, style, children }) => {
+export const EventPanel = ({
+  id,
+  title,
+  text,
+  icon,
+  collapse,
+  style,
+  children,
+}) => {
   /**
    * @type {import("preact").ComponentChildren[] | undefined}
    */
-  const arrChildren = (
-    children === undefined
-      ? children
-      : Array.isArray(children)
-        ? children
-        : [children]
-  )?.filter((child) => !!child);
+  const arrChildren = Array.isArray(children) ? children : [children];
+  const filteredArrChilden = arrChildren.filter((child) => !!child);
 
   const hasCollapse = collapse !== undefined;
   const [collapsed, setCollapsed] = useState(!!collapse);
@@ -47,7 +51,7 @@ export const EventPanel = ({ id, title, icon, collapse, style, children }) => {
           paddingLeft: "0.5em",
           display: "grid",
           gridTemplateColumns:
-            "max-content max-content auto minmax(0, max-content)",
+            "max-content max-content auto minmax(0, max-content) minmax(0, max-content)",
           columnGap: "0.5em",
           fontSize: FontSize.small,
           cursor: hasCollapse ? "pointer" : undefined,
@@ -74,6 +78,14 @@ export const EventPanel = ({ id, title, icon, collapse, style, children }) => {
           }}
         ></div>
         <div
+          style=${{ justifySelf: "end", ...TextStyle.secondary }}
+          onclick=${() => {
+            setCollapsed(!collapsed);
+          }}
+        >
+          ${text}
+        </div>
+        <div
           style=${{
             justifySelf: "end",
             display: "flex",
@@ -81,10 +93,10 @@ export const EventPanel = ({ id, title, icon, collapse, style, children }) => {
           }}
         >
           ${(!hasCollapse || !collapsed) &&
-          arrChildren &&
-          arrChildren.length > 1
+          filteredArrChilden &&
+          filteredArrChilden.length > 1
             ? html` <${EventNavs}
-                navs=${arrChildren.map((child, index) => {
+                navs=${filteredArrChilden.map((child, index) => {
                   const defaultTitle = `Tab ${index}`;
                   const title =
                     child && typeof child === "object"
@@ -126,7 +138,7 @@ export const EventPanel = ({ id, title, icon, collapse, style, children }) => {
           class="card-body tab-content"
           style=${{ padding: 0, marginLeft: "2em" }}
         >
-          ${arrChildren?.map((child, index) => {
+          ${filteredArrChilden?.map((child, index) => {
             return html`<div
               id=${pillId(index)}
               class="tab-pane show ${index === 0 ? "active" : ""}"
