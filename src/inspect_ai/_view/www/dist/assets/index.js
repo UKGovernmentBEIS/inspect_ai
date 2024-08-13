@@ -15118,7 +15118,8 @@ const tools_choice = {
         style=${{
       display: "grid",
       gridTemplateColumns: "max-content max-content",
-      columnGap: "1rem"
+      columnGap: "1rem",
+      margin: "1em 0"
     }}
       >
         ${Object.keys(toolsInfo).map((key2) => {
@@ -15320,11 +15321,12 @@ const SubtaskEventView = ({ id: id2, event, stateManager }) => {
   return m$1`
     <${EventPanel} id=${id2} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
+      ${event.events.events.length > 0 ? m$1`
       <${TranscriptView}
         name="Transcript"
         evalEvents=${event.events}
         stateManager=${stateManager}
-      />
+      />` : ""}
     </${EventPanel}>`;
 };
 const SubtaskSummary = ({ input, result }) => {
@@ -15333,12 +15335,13 @@ const SubtaskSummary = ({ input, result }) => {
     style=${{
     display: "grid",
     gridTemplateColumns: "minmax(0,max-content) max-content minmax(0,max-content)",
-    columnGap: "1em"
+    columnGap: "1em",
+    margin: "1em 0"
   }}
   >
-    <div>Input</div>
+    <div style=${{ ...TextStyle.label }}>Input</div>
     <div></div>
-    <div>Output</div>
+    <div style=${{ ...TextStyle.label }}>Output</div>
     <${Rendered} values=${input} />
     <div><i class="${ApplicationIcons.arrows.right}" /></div>
     <${Rendered} values=${result} />

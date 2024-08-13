@@ -4,6 +4,7 @@ import { TranscriptView } from "./TranscriptView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { TextStyle } from "../../appearance/Fonts.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -18,11 +19,15 @@ export const SubtaskEventView = ({ id, event, stateManager }) => {
   return html`
     <${EventPanel} id=${id} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
-      <${TranscriptView}
-        name="Transcript"
-        evalEvents=${event.events}
-        stateManager=${stateManager}
-      />
+      ${
+        event.events.events.length > 0
+          ? html` <${TranscriptView}
+              name="Transcript"
+              evalEvents=${event.events}
+              stateManager=${stateManager}
+            />`
+          : ""
+      }
     </${EventPanel}>`;
 };
 
@@ -42,11 +47,12 @@ const SubtaskSummary = ({ input, result }) => {
       gridTemplateColumns:
         "minmax(0,max-content) max-content minmax(0,max-content)",
       columnGap: "1em",
+      margin: "1em 0",
     }}
   >
-    <div>Input</div>
+    <div style=${{ ...TextStyle.label }}>Input</div>
     <div></div>
-    <div>Output</div>
+    <div style=${{ ...TextStyle.label }}>Output</div>
     <${Rendered} values=${input} />
     <div><i class="${ApplicationIcons.arrows.right}" /></div>
     <${Rendered} values=${result} />

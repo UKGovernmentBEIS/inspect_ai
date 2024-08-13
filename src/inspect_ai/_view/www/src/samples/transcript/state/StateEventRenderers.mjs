@@ -59,6 +59,7 @@ const tools_choice = {
           display: "grid",
           gridTemplateColumns: "max-content max-content",
           columnGap: "1rem",
+          margin: "1em 0",
         }}
       >
         ${Object.keys(toolsInfo).map((key) => {
