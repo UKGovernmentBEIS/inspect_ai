@@ -62,8 +62,6 @@ def winogrande(
         fewshot_seed (int): Random seed for sampling few shot examples.
     """
     plan = [multiple_choice(template=USER_PROMPT_TEMPLATE, shuffle=False)]
-    scorer = choice()
-    gen_config = GenerateConfig(max_tokens=64)
 
     if fewshot:
         fewshot_samples = hf_dataset(
@@ -96,8 +94,8 @@ def winogrande(
             sample_fields=record_to_sample,
         ),
         plan=plan,
-        scorer=scorer,
-        config=gen_config,
+        scorer=choice(),
+        config=GenerateConfig(max_tokens=64),
     )
 
 
