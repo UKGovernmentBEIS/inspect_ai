@@ -16,11 +16,12 @@ const kContentProtocol = "tc://";
  * Renders the TranscriptView component.
  *
  * @param {Object} params - The parameters for the component.
+ * @param {string} params.id - The identifier for this view
  * @param {import("../../types/log").EvalEvents} params.evalEvents - The transcript events to display.
  * @param {import("./TranscriptState.mjs").StateManager} params.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export const TranscriptView = ({ evalEvents, stateManager }) => {
+export const TranscriptView = ({ id, evalEvents, stateManager }) => {
   // Resolve content Uris (content may be stored separately to avoid
   // repetition - it will be address with a uri)
   const resolvedEvents = resolveEventContent(evalEvents);
@@ -33,13 +34,14 @@ export const TranscriptView = ({ evalEvents, stateManager }) => {
           paddingBottom: 0,
         }}
       >
-        <div>${renderNode(`event${index}`, event, stateManager)}</div>
+        <div>${renderNode(`${id}-event${index}`, event, stateManager)}</div>
       </div>
     `;
     return row;
   });
 
   return html`<div
+    id=${id}
     style=${{
       fontSize: FontSize.small,
       display: "grid",

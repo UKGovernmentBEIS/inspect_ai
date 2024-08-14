@@ -15321,7 +15321,9 @@ const SubtaskEventView = ({ id: id2, event, stateManager }) => {
   return m$1`
     <${EventPanel} id=${id2} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
-      ${event.events.events.length > 0 ? m$1` <${TranscriptView}
+      ${event.events.events.length > 0 ? m$1`
+          <${TranscriptView}
+              id="${id2}-subtask"
               name="Transcript"
               evalEvents=${event.events}
               stateManager=${stateManager}
@@ -15364,18 +15366,27 @@ const ModelEventView = ({ id: id2, event }) => {
   const outputMessages = (_b = event.output.choices) == null ? void 0 : _b.map((choice) => {
     return choice.message;
   });
+  const entries = { ...event.config };
+  if (event.tools) {
+    entries["tools"] = event.tools;
+    entries["tool_choice"] = event.tool_choice;
+  }
   return m$1`
   <${EventPanel} id=${id2} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
+    <div name="Answer">
     <${ChatView}
       id="${id2}-model-output"
-      name="Answer"
       messages=${[...outputMessages || []]}
       />
+    </div>
+
+    <${MetaDataGrid} name="Config" entries=${entries}/>
+
 
     <${ChatView}
       id="${id2}-model-input-full"
-      name="Complete"
+      name="All Msgs"
       messages=${[...event.input, ...outputMessages || []]}
       />      
 
@@ -15466,7 +15477,7 @@ const ScoreEventView = ({ id: id2, event }) => {
   </${EventPanel}>`;
 };
 const kContentProtocol = "tc://";
-const TranscriptView = ({ evalEvents, stateManager }) => {
+const TranscriptView = ({ id: id2, evalEvents, stateManager }) => {
   const resolvedEvents = resolveEventContent(evalEvents);
   const rows = resolvedEvents.map((event, index) => {
     const row = m$1`
@@ -15476,12 +15487,13 @@ const TranscriptView = ({ evalEvents, stateManager }) => {
       paddingBottom: 0
     }}
       >
-        <div>${renderNode(`event${index}`, event, stateManager)}</div>
+        <div>${renderNode(`${id2}-event${index}`, event, stateManager)}</div>
       </div>
     `;
     return row;
   });
   return m$1`<div
+    id=${id2}
     style=${{
     fontSize: FontSize.small,
     display: "grid",
@@ -16235,9 +16247,10 @@ const initStateManager = () => {
     }
   };
 };
-const SampleTranscript = ({ evalEvents }) => {
+const SampleTranscript = ({ id: id2, evalEvents }) => {
   const stateManager = initStateManager();
   return m$1`<${TranscriptView}
+    id=${id2}
     evalEvents=${evalEvents}
     stateManager=${stateManager}
   />`;
@@ -16291,7 +16304,7 @@ const SampleDisplay = ({
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(m$1`
       <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId} scrollable=${false}>
-        <${SampleTranscript} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);

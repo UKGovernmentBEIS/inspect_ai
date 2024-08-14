@@ -81,7 +81,7 @@ export const SampleDisplay = ({
       <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
         selectedTab === transcriptTabId
       } scrollable=${false}>
-        <${SampleTranscript} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
 

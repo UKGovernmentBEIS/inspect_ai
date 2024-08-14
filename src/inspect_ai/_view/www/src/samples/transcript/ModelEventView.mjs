@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 import { ChatView } from "../../components/ChatView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -23,18 +24,28 @@ export const ModelEventView = ({ id, event }) => {
     return choice.message;
   });
 
+  const entries = { ...event.config };
+  if (event.tools) {
+    entries["tools"] = event.tools;
+    entries["tool_choice"] = event.tool_choice;
+  }
+
   return html`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
+    <div name="Answer">
     <${ChatView}
       id="${id}-model-output"
-      name="Answer"
       messages=${[...(outputMessages || [])]}
       />
+    </div>
+
+    <${MetaDataGrid} name="Config" entries=${entries}/>
+
 
     <${ChatView}
       id="${id}-model-input-full"
-      name="Complete"
+      name="All Msgs"
       messages=${[...event.input, ...(outputMessages || [])]}
       />      
 

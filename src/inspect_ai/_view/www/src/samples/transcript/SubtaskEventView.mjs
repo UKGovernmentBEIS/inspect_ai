@@ -22,6 +22,7 @@ export const SubtaskEventView = ({ id, event, stateManager }) => {
       ${
         event.events.events.length > 0
           ? html` <${TranscriptView}
+              id="${id}-subtask"
               name="Transcript"
               evalEvents=${event.events}
               stateManager=${stateManager}
