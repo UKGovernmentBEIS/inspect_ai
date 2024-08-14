@@ -1,0 +1,4 @@
+{
+    "address": "http://spray_container:8080",
+    "container_name": "spray_container"
+}
