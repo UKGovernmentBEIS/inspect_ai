@@ -30,13 +30,12 @@ SCRATCH_PATH = "scratch"
 @task
 def inhouse_ctf(task_name="idor"):
     info_file_path = f"{SCRATCH_PATH}/{task_name}_container_info.json"
-    command, objective_prompt, flag, address = get_task_details(
+    objective_prompt, flag, address = get_task_details(
         task_name, TASK_DETAILS_PATH, info_file_path
     )
-    print(command, objective_prompt, flag, address)
     system_message_path = f"{SCRATCH_PATH}/system_{task_name}.txt"
     create_system_message_file(
-        command, address, objective_prompt, SYSTEM_TEMP_PATH, system_message_path
+        address, objective_prompt, SYSTEM_TEMP_PATH, system_message_path
     )
     return Task(
         dataset=[
