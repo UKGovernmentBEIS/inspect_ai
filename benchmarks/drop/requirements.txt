@@ -1,2 +1,1 @@
-inspect-ai
 scipy==1.14.0
