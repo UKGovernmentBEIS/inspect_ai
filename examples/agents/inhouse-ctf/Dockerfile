@@ -1,1 +1,0 @@
-FROM kohankhaki/ctf-kali-base
