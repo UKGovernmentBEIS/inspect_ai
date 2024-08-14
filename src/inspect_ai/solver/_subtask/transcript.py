@@ -99,6 +99,12 @@ class ModelEvent(BaseEvent):
     output: ModelOutput
     """Output from model."""
 
+    request: dict[str, JsonValue] | None = Field(default=None)
+    """Raw request send to model API."""
+
+    response: dict[str, JsonValue] | None = Field(default=None)
+    """Raw response received from model API."""
+
 
 class ToolEvent(BaseEvent):
     """Call to a tool."""
