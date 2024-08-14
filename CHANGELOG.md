@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Support for tool calling for Llama models on Azure AI and CloudFlare.
+- Support for tool calling for Llama 3.1 models on Azure AI and CloudFlare.
+- Support for Llama 3.1 models on Amazon Bedrock
 - Change default to not log base64 encoded versions of images, as this often resulted in extremely large log files (use `--log-images` to opt back in).
 - Update to new Mistral API (v1.0.1 of `mistralai` is now required).
 - Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
