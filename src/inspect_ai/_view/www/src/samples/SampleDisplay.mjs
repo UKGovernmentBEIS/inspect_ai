@@ -283,8 +283,8 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
           fontSize: FontSize.base,
         };
         if (col.center) {
-          style.display = "flex";
-          style.justifyContent = "center";
+          style["display"] = "flex";
+          style["justifyContent"] = "center";
         }
         return html`<div style=${{ ...style }}>${col.label}</div>`;
       })}

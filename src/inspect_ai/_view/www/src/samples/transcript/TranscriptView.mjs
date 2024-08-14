@@ -8,6 +8,7 @@ import { ModelEventView } from "./ModelEventView.mjs";
 import { LoggerEventView } from "./LoggerEventView.mjs";
 import { InfoEventView } from "./InfoEventView.mjs";
 import { ScoreEventView } from "./ScoreEventView.mjs";
+import { ToolEventView } from "./ToolEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 
 const kContentProtocol = "tc://";
@@ -57,7 +58,7 @@ export const TranscriptView = ({ id, evalEvents, stateManager }) => {
  * Renders the event based on its type.
  *
  * @param {string} id - The id for this event.
- * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent} event - This event.
+ * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent} event - This event.
  * @param {import("./TranscriptState.mjs").StateManager} stateManager State manager to track state as diffs are applied
  * @returns {import("preact").JSX.Element} The rendered event.
  */
@@ -109,6 +110,9 @@ export const renderNode = (id, event, stateManager) => {
         event=${event}
         stateManager=${stateManager}
       />`;
+
+    case "tool":
+      return html`<${ToolEventView} id=${id} event=${event} />`;
 
     default:
       return html``;
