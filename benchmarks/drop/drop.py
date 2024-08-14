@@ -67,34 +67,6 @@ def drop(
         fewshot (int): Number of few shot examples to use.
         fewshot_seed (int): Random seed for sampling few shot examples.
     """
-    # Add system message based on zero-shot or few-shot prompting
-    if fewshot:
-        fewshot_samples = hf_dataset(
-            "EleutherAI/drop",
-            split="train",
-            trust=True,
-            sample_fields=record_to_sample,
-            shuffle=True,
-            seed=fewshot_seed,
-            limit=fewshot,
-        )
-        sys_msg = system_message(
-            SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE.format(
-                examples="\n\n".join(
-                    [sample_to_fewshot(sample) for sample in fewshot_samples]
-                )
-            )
-        )
-    else:
-        sys_msg = system_message(SYSTEM_PROMPT_TEMPLATE)
-
-    plan = [
-        sys_msg,
-        prompt_template(USER_PROMPT_TEMPLATE),
-        generate(),
-        drop_output_parser(),
-    ]
-
     return Task(
         dataset=hf_dataset(
             "EleutherAI/drop",
@@ -102,7 +74,7 @@ def drop(
             trust=True,
             sample_fields=record_to_sample,
         ),
-        plan=plan,
+        plan=build_plan(fewshot=fewshot, fewshot_seed=fewshot_seed),
         scorer=drop_f1_scorer(),
     )
 
@@ -154,6 +126,47 @@ def drop_f1_scorer():
         )
 
     return score
+
+
+def build_plan(
+    fewshot: int,
+    fewshot_seed: int,
+) -> List:
+    """Builds plan using various solvers for the DROP task.
+
+    Arguments:
+        fewshot (int): Number of few shot examples to use.
+        fewshot_seed (int): Random seed for sampling few shot examples.
+    """
+    # Add system message based on zero-shot or few-shot prompting
+    if fewshot:
+        fewshot_samples = hf_dataset(
+            "EleutherAI/drop",
+            split="train",
+            trust=True,
+            sample_fields=record_to_sample,
+            shuffle=True,
+            seed=fewshot_seed,
+            limit=fewshot,
+        )
+        sys_msg = system_message(
+            SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE.format(
+                examples="\n\n".join(
+                    [sample_to_fewshot(sample) for sample in fewshot_samples]
+                )
+            )
+        )
+    else:
+        sys_msg = system_message(SYSTEM_PROMPT_TEMPLATE)
+
+    plan = [
+        sys_msg,
+        prompt_template(USER_PROMPT_TEMPLATE),
+        generate(),
+        drop_output_parser(),
+    ]
+
+    return plan
 
 
 def record_to_sample(record: Dict) -> Sample:
