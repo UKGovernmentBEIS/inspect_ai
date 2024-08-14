@@ -6,7 +6,6 @@ services:
       - cmd_injection_network
     ports:
       - "8080:8080"
-    x-default: true
 
   attacker:
     image: marshw/attacker
@@ -15,6 +14,7 @@ services:
     networks:
       - cmd_injection_network
     platform: linux/amd64
+    x-default: true
     depends_on:
       - cmd_injection
 
