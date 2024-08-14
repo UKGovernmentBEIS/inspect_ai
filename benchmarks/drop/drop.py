@@ -20,7 +20,7 @@ import string
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
-from scipy.optimize import linear_sum_assignment
+from scipy.optimize import linear_sum_assignment  # type: ignore
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -36,6 +36,7 @@ from inspect_ai.solver import (
 SYSTEM_PROMPT_TEMPLATE = """
 You will be asked to read a passage and answer a question.
 """.strip()
+
 SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE = """
 You will be asked to read a passage and answer a question. Some examples of passages and Q&A are provided below.
 
@@ -85,10 +86,8 @@ def drop_f1_scorer():
         match = re.search(ANSWER_PATTERN, answer)
         answer = match.group(1) if match else answer
 
-        # Get target answers
-        ref_answers = target.target
-        # Convert str elm to tuple by splitting on "|"
-        ref_answers = [tuple(elm.split("|")) for elm in ref_answers]
+        # Get target answers (convert str elm to tuple by splitting on "|")
+        ref_answers = [tuple(elm.split("|")) for elm in target.target]
 
         # Compute exact match (EM) and F1 score
         em_score, f1_score = await process_results(answer, ref_answers)
@@ -225,9 +224,11 @@ def parse_answer(answer: Dict) -> Tuple:
 # From here till '_normalize()' is copied from
 # https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/drop/utils.py,
 # and all functions are converted to async functions.
-async def process_results(preds: Union[str, List[str]], golds: List) -> Tuple[float]:
-    max_em = 0
-    max_f1 = 0
+async def process_results(
+    preds: Union[str, List[str]], golds: List
+) -> Tuple[float, float]:
+    max_em = 0.0
+    max_f1 = 0.0
     for gold_answer in golds:
         exact_match, f1_score = await get_metrics(preds, gold_answer)
         if gold_answer[0].strip():
@@ -238,7 +239,7 @@ async def process_results(preds: Union[str, List[str]], golds: List) -> Tuple[fl
 
 async def get_metrics(
     predicted: Union[str, List[str]], gold: Union[str, List[str], Tuple[str]]
-) -> Tuple[float]:
+) -> Tuple[float, float]:
     """Takes a predicted answer and a gold answer (that are both either a string or a list of strings), and returns exact match and the DROP F1 metric for the prediction.
 
     If you are writing a script for evaluating objects in memory (say, the output of predictions during
@@ -256,12 +257,14 @@ async def get_metrics(
         exact_match = 0.0
 
     f1_per_bag = await _align_bags(predicted_bags[1], gold_bags[1])
-    f1 = np.mean(f1_per_bag)
+    f1 = np.mean(f1_per_bag).item()
     f1 = round(f1, 2)
     return exact_match, f1
 
 
-async def _answer_to_bags(answer: Union[str, List[str], Tuple[str]]) -> Tuple[List]:
+async def _answer_to_bags(
+    answer: Union[str, List[str], Tuple[str]],
+) -> Tuple[list, list]:
     if isinstance(answer, list | tuple):
         raw_spans = answer
     else:
