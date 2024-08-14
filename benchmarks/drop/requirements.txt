@@ -1,2 +1,2 @@
-inspect-ai==0.3.18
+inspect-ai
 scipy==1.14.0
