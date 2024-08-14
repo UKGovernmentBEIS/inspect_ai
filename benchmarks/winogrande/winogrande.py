@@ -61,6 +61,27 @@ def winogrande(
         fewshot (int): Number of few shot examples to use.
         fewshot_seed (int): Random seed for sampling few shot examples.
     """
+    return Task(
+        dataset=hf_dataset(
+            "allenai/winogrande",
+            name=dataset_name,
+            split="validation",
+            trust=True,
+            sample_fields=record_to_sample,
+        ),
+        plan=build_plan(
+            dataset_name=dataset_name, fewshot=fewshot, fewshot_seed=fewshot_seed
+        ),
+        scorer=choice(),
+        config=GenerateConfig(max_tokens=64),
+    )
+
+
+def build_plan(
+    dataset_name: str,
+    fewshot: int,
+    fewshot_seed: int,
+) -> list:
     plan = [multiple_choice(template=USER_PROMPT_TEMPLATE, shuffle=False)]
 
     if fewshot:
@@ -85,18 +106,7 @@ def winogrande(
             ),
         )
 
-    return Task(
-        dataset=hf_dataset(
-            "allenai/winogrande",
-            name=dataset_name,
-            split="validation",
-            trust=True,
-            sample_fields=record_to_sample,
-        ),
-        plan=plan,
-        scorer=choice(),
-        config=GenerateConfig(max_tokens=64),
-    )
+    return plan
 
 
 def record_to_sample(record: Dict) -> Sample:
