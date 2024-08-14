@@ -26,7 +26,7 @@ from anthropic.types import (
 )
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
+from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data_uri
@@ -78,11 +78,18 @@ class AnthropicAPI(ModelAPI):
                 base_url, ["ANTHROPIC_BEDROCK_BASE_URL", "BEDROCK_ANTHROPIC_BASE_URL"]
             )
 
+            # resolve the default region
+            aws_region = None
+            base_region = os.environ.get("AWS_REGION", None)
+            if base_region is None:
+                aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
+
             self.client: AsyncAnthropic | AsyncAnthropicBedrock = AsyncAnthropicBedrock(
                 base_url=base_url,
                 max_retries=(
                     config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
                 ),
+                aws_region=aws_region,
                 **model_args,
             )
         else:
@@ -153,7 +160,8 @@ class AnthropicAPI(ModelAPI):
     def max_tokens(self) -> int | None:
         # anthropic requires you to explicitly specify max_tokens (most others
         # set it to the maximum allowable output tokens for the model).
-        return DEFAULT_MAX_TOKENS
+        # set to 4096 which is the lowest documented max_tokens for claude models
+        return 4096
 
     @override
     def connection_key(self) -> str:

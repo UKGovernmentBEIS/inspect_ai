@@ -119,8 +119,8 @@ def reducer_log_names(
 def reducer_log_name(reducer: ScoreReducer) -> str:
     name = registry_log_name(reducer)
     params = registry_params(reducer)
-    if "n" in params:
-        name = f"{name}_{params.get('n')}"
+    if "k" in params:
+        name = f"{name}_{params.get('k')}"
     return name
 
 
@@ -144,7 +144,7 @@ def create_reducers(reducers: ScoreReducers | None) -> list[ScoreReducer] | None
         match = re.match(r"^(.*?)_(\d+)$", name)
         if match:
             name = match.group(1)
-            params["n"] = int(match.group(2))
+            params["k"] = int(match.group(2))
 
         return cast(
             Callable[..., ScoreReducer], registry_create("score_reducer", name)

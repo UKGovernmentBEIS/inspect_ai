@@ -4,11 +4,11 @@ from logging import getLogger
 from typing import Any
 
 import yaml
-import yaml.parser
 
-from inspect_ai.tool import ToolCall, ToolInfo
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_info import ToolInfo
 
-from .._model_output import StopReason
+from ..._model_output import StopReason
 
 logger = getLogger(__name__)
 
@@ -43,6 +43,10 @@ def model_base_url(base_url: str | None, env_vars: str | list[str]) -> str | Non
     return os.getenv("INSPECT_EVAL_MODEL_BASE_URL", None)
 
 
+def tool_parse_error_message(arguments: str, ex: Exception) -> str:
+    return f"Error parsing the following tool call arguments:\n\n{arguments}\n\nError details: {ex}"
+
+
 def parse_tool_call(
     id: str, function: str, arguments: str, tools: list[ToolInfo]
 ) -> ToolCall:
@@ -51,7 +55,7 @@ def parse_tool_call(
 
     def report_parse_error(ex: Exception) -> None:
         nonlocal error
-        error = f"Error parsing the following tool call arguments:\n\n{arguments}\n\nError details: {ex}"
+        error = tool_parse_error_message(arguments, ex)
         logger.info(error)
 
     # if the arguments is a dict, then handle it with a plain json.loads

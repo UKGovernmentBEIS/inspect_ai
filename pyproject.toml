@@ -13,13 +13,13 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = [
-    "E", # pycodestyle errors
-    "W", # pycodestyle warnings
-    "F", # flake8
-    "D", # pydocstyle
-    "I", # isort
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # flake8
+    "D",      # pydocstyle
+    "I",      # isort
     "SIM101", # duplicate isinstance
-    "UP038", # non-pep604-isinstance
+    "UP038",  # non-pep604-isinstance
     # "RET", # flake8-return
     # "RUF", # ruff rules
 ]
@@ -139,7 +139,7 @@ dev = [
     "types-python-dateutil",
     "wikipedia",
     "groq",
-    "wikipedia"
+    "wikipedia",
 ]
 doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]

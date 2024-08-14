@@ -1,4 +1,5 @@
-from typing import Any
+from logging import getLogger
+from typing import Any, Literal
 
 import httpx
 from tenacity import (
@@ -12,9 +13,60 @@ from tenacity import (
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.tool._tool_info import ToolInfo
 
-from ._chat_message import ChatMessage
-from ._generate_config import GenerateConfig
+from ..._chat_message import ChatMessage
+from ..._generate_config import GenerateConfig
+
+logger = getLogger(__name__)
+
+ChatAPIMessage = dict[Literal["role", "content"], str]
+
+
+class ChatAPIHandler:
+    def input_with_tools(
+        self, input: list[ChatMessage], tools: list[ToolInfo]
+    ) -> list[ChatMessage]:
+        return input
+
+    def parse_assistent_response(
+        self, response: str, tools: list[ToolInfo]
+    ) -> ChatMessageAssistant:
+        return ChatMessageAssistant(content=response)
+
+    def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:
+        return {"role": "assistant", "content": message.text}
+
+    def tool_message(self, message: ChatMessageTool) -> ChatAPIMessage:
+        return {
+            "role": "tool",
+            "content": f"Error: {message.error.message}"
+            if message.error
+            else message.text,
+        }
+
+
+def chat_api_input(
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    handler: ChatAPIHandler = ChatAPIHandler(),
+) -> list[ChatAPIMessage]:
+    # add tools to input
+    if len(tools) > 0:
+        input = handler.input_with_tools(input, tools)
+
+    # resolve other messages
+    return [chat_api_message(message, handler) for message in input]
+
+
+def chat_api_message(message: ChatMessage, handler: ChatAPIHandler) -> ChatAPIMessage:
+    if message.role == "assistant":
+        return handler.assistant_message(message)
+    elif message.role == "tool":
+        return handler.tool_message(message)
+    else:
+        return dict(role=message.role, content=message.text)
 
 
 async def chat_api_request(
@@ -46,23 +98,6 @@ async def chat_api_request(
 
     # make the call
     return await call_api()
-
-
-def chat_api_input(input: list[ChatMessage]) -> list[dict[str, str]]:
-    """Prepare chat prompt data for sending in an HTTP POST request.
-
-    Many chat APIs (e.g. Mistral and Cloudflare) take the OpenAI
-    role/content data structure. This is a convenience function that
-    takes the `input` to `generate()` and converts it into a JSON
-    serializable object that conforms to this structure.
-
-    Args:
-        input (list[ChatMessage]): Input to generate from
-
-    Returns:
-       Dict that conforms to OpenAI role/content data structure.
-    """
-    return [dict(role=message.role, content=message.text) for message in input]
 
 
 # When calling chat_api_request() we use tenacity as the retry wrapper, so
