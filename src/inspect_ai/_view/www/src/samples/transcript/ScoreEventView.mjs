@@ -36,7 +36,11 @@ export const ScoreEventView = ({ id, event }) => {
     ${
       event.score.metadata
         ? html`<div name="Metadata">
-            <${MetaDataGrid} entries=${event.score.metadata} compact=${true} />
+            <${MetaDataGrid}
+              entries=${event.score.metadata}
+              compact=${true}
+              style=${{ margin: "1em 0" }}
+            />
           </div>`
         : undefined
     }

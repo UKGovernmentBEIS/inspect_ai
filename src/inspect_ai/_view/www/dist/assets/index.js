@@ -15469,7 +15469,7 @@ const ScoreEventView = ({ id: id2, event }) => {
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
     </div>
     ${event.score.metadata ? m$1`<div name="Metadata">
-            <${MetaDataGrid} entries=${event.score.metadata} compact=${true} />
+            <${MetaDataGrid} entries=${event.score.metadata} compact=${true} style=${{ margin: "1em 0" }} />
           </div>` : void 0}
 
 
