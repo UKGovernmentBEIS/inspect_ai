@@ -40,7 +40,7 @@ export const ModelEventView = ({ id, event }) => {
       />
     </div>
 
-    <${MetaDataGrid} name="Config" entries=${entries}/>
+    <${MetaDataGrid} name="Config" entries=${entries} style=${{ margin: "1em 0" }}/>
 
 
     <${ChatView}

@@ -15321,8 +15321,7 @@ const SubtaskEventView = ({ id: id2, event, stateManager }) => {
   return m$1`
     <${EventPanel} id=${id2} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
-      ${event.events.events.length > 0 ? m$1`
-          <${TranscriptView}
+      ${event.events.events.length > 0 ? m$1` <${TranscriptView}
               id="${id2}-subtask"
               name="Transcript"
               evalEvents=${event.events}
@@ -15381,7 +15380,7 @@ const ModelEventView = ({ id: id2, event }) => {
       />
     </div>
 
-    <${MetaDataGrid} name="Config" entries=${entries}/>
+    <${MetaDataGrid} name="Config" entries=${entries} style=${{ margin: "1em 0" }}/>
 
 
     <${ChatView}
