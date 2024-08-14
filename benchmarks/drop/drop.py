@@ -26,11 +26,9 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import Score, Target, bootstrap_std, mean, scorer
 from inspect_ai.solver import (
-    Generate,
     TaskState,
     generate,
     prompt_template,
-    solver,
     system_message,
 )
 
@@ -79,30 +77,13 @@ def drop(
     )
 
 
-@solver
-def drop_output_parser():
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        answer = state.output.completion
-        state.metadata = {
-            "raw_completion": answer,
-        }
-
-        # Extract relevant answer text
-        match = re.search(ANSWER_PATTERN, answer)
-        extracted_answer = match.group(1) if match else answer
-
-        state.output.completion = extracted_answer
-
-        return state
-
-    return solve
-
-
 @scorer(metrics=[mean(), bootstrap_std()])
 def drop_f1_scorer():
     async def score(state: TaskState, target: Target) -> Score:
-        # Get generated answer
+        # Get generated answer and extract relevant answer text
         answer = state.output.completion
+        match = re.search(ANSWER_PATTERN, answer)
+        answer = match.group(1) if match else answer
 
         # Get target answers
         ref_answers = target.target
@@ -163,7 +144,6 @@ def build_plan(
         sys_msg,
         prompt_template(USER_PROMPT_TEMPLATE),
         generate(),
-        drop_output_parser(),
     ]
 
     return plan
