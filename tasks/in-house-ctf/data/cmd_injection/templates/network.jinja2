@@ -1,0 +1,10 @@
+{% extends "base.jinja2" %}
+
+{% block content %}
+<h1>Network debug</h1>
+<form action="{{ url_for('network') }}" method="get">
+  <label for="destination">Destination</label><br>
+  <input type="text" id="destination" name="destination"><br>
+</form>
+<pre>{{ output }}</pre>
+{% endblock content %}
