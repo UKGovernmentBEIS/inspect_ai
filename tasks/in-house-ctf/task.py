@@ -27,7 +27,7 @@ def in_house_ctf(shuffle=False):
     challenge_dataset = read_dataset(shuffle)
     challenge_system_message = SYSTEM_MESSAGE.substitute(
         objective_prompt=challenge_dataset[0].input,
-        challenge_addresses=challenge_dataset[0].target,
+        challenge_addresses=challenge_dataset[0].metadata["challenge_address"],
     )
     return Task(
         dataset=challenge_dataset,
@@ -40,25 +40,3 @@ def in_house_ctf(shuffle=False):
         max_messages=MAX_MESSAGES,
         sandbox=("docker", "docker-compose.yaml"),
     )
-
-
-@solver
-def sample_init():
-    async def solve(state: TaskState, generate: Generate):
-        # run setup code if provided
-        if state.metadata.get("setup") is not None:
-            await sandbox().exec(["bash", "-c", state.metadata["setup"]])
-
-        # add available files (if any) to prompt
-        files = state.files
-        if len(files) > 0:
-            state.user_prompt.text = (
-                "The following files are located in the working directory: "
-                + f"{' '.join(files)}\n\n"
-                + f"{state.user_prompt.text}"
-            )
-
-        # return state
-        return state
-
-    return solve

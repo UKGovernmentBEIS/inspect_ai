@@ -40,8 +40,9 @@ def read_dataset(shuffle=False, force_download=False):
             target=record["flag"],
             metadata={
                 "setup": record.get("setup", None),
-                "agent": record["env_job"],
-                "challenge": record["additional_jobs"],
+                "agent": record["attacker_job"],
+                "challenge": record["victim_jobs"],
+                "challenge_address": record["challenge_address"],
                 "solution": solution,
             },
             files=files,
