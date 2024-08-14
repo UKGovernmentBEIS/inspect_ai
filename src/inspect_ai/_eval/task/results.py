@@ -14,7 +14,7 @@ from inspect_ai.log import (
     EvalResults,
     EvalScore,
 )
-from inspect_ai.log._log import EvalReducedSamples
+from inspect_ai.log._log import EvalSampleReductions
 from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
@@ -35,7 +35,7 @@ def eval_results(
     results = EvalResults()
     if scorers:
         result_scores: list[EvalScore] = []
-        result_samples: list[EvalReducedSamples] = []
+        sample_reductions: list[EvalSampleReductions] = []
         for scorer in scorers:
             # extract non-metrics metadata
             metadata = deepcopy(registry_info(scorer).metadata)
@@ -61,12 +61,12 @@ def eval_results(
 
                 # record this scorer's intermediate results
                 if epochs > 1:
-                    reduced_samples = EvalReducedSamples(
+                    reduced_samples = EvalSampleReductions(
                         scorer=scorer_name,
                         reducer=reducer_display_nm,
                         samples=reduced_scores,
                     )
-                    result_samples.append(reduced_samples)
+                    sample_reductions.append(reduced_samples)
 
                 # Compute metrics for this scorer
                 simple_scores = cast(list[Score], reduced_scores)
@@ -103,8 +103,8 @@ def eval_results(
                     )
             # build results
         results.scores = result_scores
-        if len(result_samples) > 0:
-            results.samples = result_samples
+        if len(sample_reductions) > 0:
+            results.sample_reductions = sample_reductions
 
     return results
 

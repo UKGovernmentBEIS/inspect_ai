@@ -179,7 +179,7 @@ class EvalScore(BaseModel):
     """Additional scorer metadata."""
 
 
-class EvalReducedSamples(BaseModel):
+class EvalSampleReductions(BaseModel):
     scorer: str
     """Name the of scorer"""
 
@@ -213,7 +213,7 @@ class EvalResults(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional results metadata."""
 
-    samples: list[EvalReducedSamples] | None = Field(default=None)
+    sample_reductions: list[EvalSampleReductions] | None = Field(default=None)
     """List of per sample scores reduced across epochs"""
 
     @model_validator(mode="before")

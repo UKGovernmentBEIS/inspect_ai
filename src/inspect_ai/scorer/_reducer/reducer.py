@@ -130,8 +130,6 @@ def pass_at(
 @score_reducer(name="max")
 def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     def reduce(scores: list[Score]) -> Score:
-        explanation = "Computed the maximum score from the the epoch values"
-
         r"""A utility function for taking the maximum value from a list of scores
 
         Args:
@@ -146,7 +144,7 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
                     key=value_to_float,  # type: ignore
                 )
                 dict_result[key] = max_value
-            return _reduced_score(dict_result, scores, explanation)
+            return _reduced_score(dict_result)
         elif isinstance(scores[0].value, list):
             list_result: list[str | int | float | bool] = []
             list_size = len(scores[0].value)  # type: ignore
@@ -161,10 +159,10 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
                     )
                 else:
                     list_result.append(max_value)
-            return _reduced_score(list_result, scores, explanation)
+            return _reduced_score(list_result)
         else:
             max_score = max(scores, key=lambda score: value_to_float(score.value))
-            return _reduced_score(max_score.value, scores, explanation)
+            return _reduced_score(max_score.value)
 
     return reduce
 
@@ -180,11 +178,7 @@ def _count_scalar(
         counter_fn: a function which returns a scalar value based upon the counter
     """
     counts = Counter([score._as_scalar() for score in scores])
-    return _reduced_score(
-        counter_fn(counts),
-        scores,
-        f"Used the {counter_fn.__name__} function to reduce the score",
-    )
+    return _reduced_score(counter_fn(counts))
 
 
 def _count_dict(
@@ -209,8 +203,6 @@ def _count_dict(
         dict_result[key] = counter_fn(counts)
     return _reduced_score(
         cast(dict[str, str | int | float | bool | None], dict_result),
-        scores,
-        f"Used the {counter_fn.__name__} function to reduce the score",
     )
 
 
@@ -236,8 +228,6 @@ def _count_list(
         list_result.append(counter_fn(counts))
     return _reduced_score(
         list_result,
-        scores,
-        f"Used the {counter_fn.__name__} function to reduce the score",
     )
 
 
@@ -262,8 +252,6 @@ def _compute_dict_stat(
         dict_result[key] = statistic(values)
     return _reduced_score(
         dict_result,
-        scores,
-        f"Used the {statistic.__name__} statistic to reduce the score",
     )
 
 
@@ -289,8 +277,6 @@ def _compute_list_stat(
         list_result.append(statistic(values))
     return _reduced_score(
         list_result,
-        scores,
-        f"Used the {statistic.__name__} statistic to reduce the score",
     )
 
 
@@ -310,8 +296,6 @@ def _compute_scalar_stat(
     result = statistic(values)
     return _reduced_score(
         result,
-        scores,
-        f"Used the {statistic.__name__} statistic to reduce the score",
     )
 
 
@@ -339,7 +323,7 @@ def _check_value_list(scores: list[Score]) -> None:
             raise ValueError("Attempting to reduce a list score for a non-list value")
 
 
-def _reduced_score(value: Value, scores: list[Score], explanation: str | None) -> Score:
+def _reduced_score(value: Value) -> Score:
     r"""Create a Score based upon a single Value and list of Scores that produced it
 
     Args:
@@ -349,11 +333,4 @@ def _reduced_score(value: Value, scores: list[Score], explanation: str | None) -
     """
     return Score(
         value=value,
-        answer=scores[0].answer,
-        explanation=explanation,
-        metadata={
-            "individual_scores": [
-                {"answer": score.answer, "value": score.value} for score in scores
-            ]
-        },
     )

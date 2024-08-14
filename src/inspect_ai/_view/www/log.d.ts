@@ -68,6 +68,22 @@ export type Metadata1 = {} | null;
 export type Metadata2 = {} | null;
 export type Scores = EvalScore[];
 export type Metadata3 = {} | null;
+export type SampleReductions = EvalSampleReductions[] | null;
+export type Scorer1 = string;
+export type Reducer1 = string | null;
+export type Value1 =
+  | string
+  | number
+  | boolean
+  | (string | number | boolean)[]
+  | {
+      [k: string]: string | number | boolean | null;
+    };
+export type Answer = string | null;
+export type Explanation = string | null;
+export type Metadata4 = {} | null;
+export type SampleId = string | number | null;
+export type Samples1 = SampleScore[];
 export type StartedAt = string;
 export type CompletedAt = string;
 export type InputTokens = number;
@@ -76,17 +92,10 @@ export type TotalTokens = number;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
-export type Samples1 = EvalSample[] | null;
+export type Samples2 = EvalSample[] | null;
 export type Id = number | string;
 export type Epoch = number;
-export type Input =
-  | string
-  | (
-      | ChatMessageSystem
-      | ChatMessageUser
-      | ChatMessageAssistant
-      | ChatMessageTool
-    )[];
+export type Input = string | (ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool)[];
 export type Content = string | (ContentText | ContentImage)[];
 export type Type1 = "text";
 export type Text = string;
@@ -95,7 +104,6 @@ export type Image = string;
 export type Detail = "auto" | "low" | "high";
 export type Source = ("input" | "generate" | "cache") | null;
 export type Role = "system";
-export type Tool = string | null;
 export type Content1 = string | (ContentText | ContentImage)[];
 export type Source1 = ("input" | "generate" | "cache") | null;
 export type Role1 = "user";
@@ -111,29 +119,13 @@ export type Content3 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate" | "cache") | null;
 export type Role3 = "tool";
 export type ToolCallId = string | null;
-export type Type4 =
-  | "parsing"
-  | "timeout"
-  | "unicode_decode"
-  | "permission"
-  | "file_not_found"
-  | "unknown";
+export type Type4 = "parsing" | "timeout" | "unicode_decode" | "permission" | "file_not_found" | "unknown";
 export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];
-export type Messages = (
-  | ChatMessageSystem
-  | ChatMessageUser
-  | ChatMessageAssistant
-  | ChatMessageTool
-)[];
+export type Messages = (ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool)[];
 export type Model1 = string;
-export type StopReason =
-  | "stop"
-  | "length"
-  | "tool_calls"
-  | "content_filter"
-  | "unknown";
+export type StopReason = "stop" | "length" | "tool_calls" | "content_filter" | "unknown";
 export type Token = string;
 export type Logprob1 = number;
 export type Bytes = number[] | null;
@@ -147,7 +139,7 @@ export type Error = string | null;
 export type Scores1 = {
   [k: string]: Score;
 } | null;
-export type Value1 =
+export type Value2 =
   | string
   | number
   | boolean
@@ -155,18 +147,11 @@ export type Value1 =
   | {
       [k: string]: string | number | boolean | null;
     };
-export type Answer = string | null;
-export type Explanation = string | null;
-export type Metadata4 = {} | null;
+export type Answer1 = string | null;
+export type Explanation1 = string | null;
+export type Metadata5 = {} | null;
 export type Name4 = string | null;
-export type Level =
-  | "debug"
-  | "http"
-  | "sandbox"
-  | "info"
-  | "warning"
-  | "error"
-  | "critical";
+export type Level = "debug" | "http" | "sandbox" | "info" | "warning" | "error" | "critical";
 export type Message2 = string;
 export type Created1 = number;
 export type Filename = string;
@@ -182,7 +167,7 @@ export interface EvalLog {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
-  samples?: Samples1;
+  samples?: Samples2;
   logging?: Logging;
 }
 export interface EvalSpec {
@@ -272,6 +257,7 @@ export interface GenerateConfig {
 export interface EvalResults {
   scores: Scores;
   metadata: Metadata3;
+  sample_reductions: SampleReductions;
 }
 export interface EvalScore {
   name: Name2;
@@ -292,6 +278,24 @@ export interface EvalMetric {
   metadata: Metadata1;
 }
 export interface Options {}
+export interface EvalSampleReductions {
+  scorer: Scorer1;
+  reducer: Reducer1;
+  samples: Samples1;
+}
+/**
+ * Score for a Sample
+ *
+ * Args:
+ *    sample_id: (str | int | None) Unique id of a sample
+ */
+export interface SampleScore {
+  value: Value1;
+  answer: Answer;
+  explanation: Explanation;
+  metadata: Metadata4;
+  sample_id: SampleId;
+}
 export interface EvalStats {
   started_at: StartedAt;
   completed_at: CompletedAt;
@@ -319,13 +323,12 @@ export interface EvalSample {
   messages: Messages;
   output: ModelOutput;
   scores: Scores1;
-  metadata: Metadata5;
+  metadata: Metadata6;
 }
 export interface ChatMessageSystem {
   content: Content;
   source: Source;
   role: Role;
-  tool: Tool;
 }
 export interface ContentText {
   type: Type1;
@@ -410,12 +413,12 @@ export interface TopLogprob {
  *    metadata (dict[str,Any]): Additional metadata related to the score.
  */
 export interface Score {
-  value: Value1;
-  answer: Answer;
-  explanation: Explanation;
-  metadata: Metadata4;
+  value: Value2;
+  answer: Answer1;
+  explanation: Explanation1;
+  metadata: Metadata5;
 }
-export interface Metadata5 {}
+export interface Metadata6 {}
 export interface LoggingMessage {
   name: Name4;
   level: Level;
