@@ -32,16 +32,20 @@ from inspect_ai.solver import (
 ANSWER_TO_LETTER = {"1": "A", "2": "B"}
 BLANK_TAG = "[BLANK]"
 
-WINOGRANDE_PROMPT_TEMPLATE = {
-    # Based on the prompt provided here:
-    # https://huggingface.co/datasets/meta-llama/Meta-Llama-3.1-8B-evals/viewer/Meta-Llama-3.1-8B-evals__winogrande__details?row=0
-    "system_w_examples": f"""The following are multiple choice questions, with answers on the best logical completion to replace {BLANK_TAG} by {list(ANSWER_TO_LETTER.values())[0]} or {list(ANSWER_TO_LETTER.values())[1]}."""
-    + """\n\n{examples}\n\n""",
-    # Based on the SINGLE_ANSWER_TEMPLATE provided in the multiple choice solver:
-    # https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_multiple_choice.py#L14
-    "user": f"""Answer the following multiple choice question by choosing the best logical option to replace the {BLANK_TAG}."""
-    + """ The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.\n\n{question}\n{choices}\n""",
-}
+list(ANSWER_TO_LETTER.values())[0]
+
+# Based on the prompt provided here:
+# https://huggingface.co/datasets/meta-llama/Meta-Llama-3.1-8B-evals/viewer/Meta-Llama-3.1-8B-evals__winogrande__details?row=0
+SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE = (
+    f"""The following are multiple choice questions, with answers on the best logical completion to replace {BLANK_TAG} by {list(ANSWER_TO_LETTER.values())[0]} or {list(ANSWER_TO_LETTER.values())[1]}."""
+    + """\n\n{examples}\n"""
+)
+# Based on the SINGLE_ANSWER_TEMPLATE provided in the multiple choice solver:
+# https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_multiple_choice.py#L14
+USER_PROMPT_TEMPLATE = (
+    f"""Answer the following multiple choice question by choosing the best logical option to replace the {BLANK_TAG}."""
+    + """ The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.\n\n{question}\n{choices}\n"""
+)
 
 
 @task
@@ -57,12 +61,7 @@ def winogrande(
         fewshot (int): Number of few shot examples to use.
         fewshot_seed (int): Random seed for sampling few shot examples.
     """
-    # Get prompt
-    prompt_dict = WINOGRANDE_PROMPT_TEMPLATE
-    prompt_user = prompt_dict["user"]
-    prompt_sys_w_examples = prompt_dict["system_w_examples"]
-
-    plan = [multiple_choice(template=prompt_user, shuffle=False)]
+    plan = [multiple_choice(template=USER_PROMPT_TEMPLATE, shuffle=False)]
     scorer = choice()
     gen_config = GenerateConfig(max_tokens=64)
 
@@ -80,7 +79,7 @@ def winogrande(
         plan.insert(
             0,
             system_message(
-                prompt_sys_w_examples.format(
+                SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE.format(
                     examples="\n\n".join(
                         [sample_to_fewshot(sample=sample) for sample in fewshot_samples]
                     )
