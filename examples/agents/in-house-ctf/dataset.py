@@ -7,7 +7,6 @@ def get_task_details(task_name, challenges_path, task_info_path):
             tasks = json.load(file)
             task_info = tasks.get(task_name)
             if task_info:
-                command = task_info["command"]
                 objective_prompt = task_info["objective_prompt"]
                 flag = task_info["flag"]
             else:
@@ -22,11 +21,11 @@ def get_task_details(task_name, challenges_path, task_info_path):
     except Exception as e:
         print(f"Error: {e}")
 
-    return command, objective_prompt, flag, address
+    return objective_prompt, flag, address
 
 
 def create_system_message_file(
-    command, address, objective_prompt, template_file_path, output_file_path
+    address, objective_prompt, template_file_path, output_file_path
 ):
     try:
         with open(template_file_path, "r") as file:
@@ -34,7 +33,6 @@ def create_system_message_file(
         content = content.replace("{TARGET_ADDR}", address)
         content = content.replace("{OBJECTIVE_PROMPT}", objective_prompt)
         print(objective_prompt)
-        # content = content.replace("{COMMAND}", command)
         with open(output_file_path, "w") as file:
             file.write(content)
     except Exception as e:
