@@ -32,7 +32,6 @@ from inspect_ai.solver import (
 ANSWER_TO_LETTER = {"1": "A", "2": "B"}
 BLANK_TAG = "[BLANK]"
 
-list(ANSWER_TO_LETTER.values())[0]
 
 # Based on the prompt provided here:
 # https://huggingface.co/datasets/meta-llama/Meta-Llama-3.1-8B-evals/viewer/Meta-Llama-3.1-8B-evals__winogrande__details?row=0
