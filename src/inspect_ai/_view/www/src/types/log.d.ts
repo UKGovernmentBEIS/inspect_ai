@@ -216,9 +216,15 @@ export type Tools = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name5 = string;
 export type Timestamp4 = string;
-export type Event4 = "score";
+export type Event4 = "tool";
+export type Type7 = "function";
+export type Id3 = string;
+export type Function1 = string;
+export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Timestamp5 = string;
-export type Event5 = "logger";
+export type Event5 = "score";
+export type Timestamp6 = string;
+export type Event6 = "logger";
 export type Name6 = string | null;
 export type Level =
   | "debug"
@@ -233,21 +239,22 @@ export type Created1 = number;
 export type Filename = string;
 export type Module = string;
 export type Lineno = number;
-export type Timestamp6 = string;
-export type Event6 = "info";
 export type Timestamp7 = string;
-export type Event7 = "step";
-export type Action = "begin" | "end";
-export type Type7 = string | null;
-export type Name7 = string;
+export type Event7 = "info";
 export type Timestamp8 = string;
-export type Event8 = "subtask";
+export type Event8 = "step";
+export type Action = "begin" | "end";
+export type Type8 = string | null;
+export type Name7 = string;
+export type Timestamp9 = string;
+export type Event9 = "subtask";
 export type Name8 = string;
 export type Events = (
   | SampleInitEvent
   | StateEvent
   | StoreEvent
   | ModelEvent
+  | ToolEvent
   | ScoreEvent
   | LoggerEvent
   | InfoEvent
@@ -636,19 +643,34 @@ export interface ToolFunction {
   name: Name5;
 }
 /**
+ * Call to a tool.
+ */
+export interface ToolEvent {
+  timestamp: Timestamp4;
+  event: Event4;
+  type: Type7;
+  id: Id3;
+  function: Function1;
+  arguments: Arguments1;
+  result: Result;
+}
+export interface Arguments1 {
+  [k: string]: JsonValue;
+}
+/**
  * Event with sample score.
  */
 export interface ScoreEvent {
-  timestamp: Timestamp4;
-  event: Event4;
+  timestamp: Timestamp5;
+  event: Event5;
   score: Score;
 }
 /**
  * Log message recorded with Python logger.
  */
 export interface LoggerEvent {
-  timestamp: Timestamp5;
-  event: Event5;
+  timestamp: Timestamp6;
+  event: Event6;
   message: LoggingMessage;
 }
 export interface LoggingMessage {
@@ -665,33 +687,33 @@ export interface LoggingMessage {
  * Event with custom info/data.
  */
 export interface InfoEvent {
-  timestamp: Timestamp6;
-  event: Event6;
+  timestamp: Timestamp7;
+  event: Event7;
   data: JsonValue;
 }
 /**
  * Step within current sample or subtask.
  */
 export interface StepEvent {
-  timestamp: Timestamp7;
-  event: Event7;
+  timestamp: Timestamp8;
+  event: Event8;
   action: Action;
-  type: Type7;
+  type: Type8;
   name: Name7;
 }
 /**
  * Subtask spawned.
  */
 export interface SubtaskEvent {
-  timestamp: Timestamp8;
-  event: Event8;
+  timestamp: Timestamp9;
+  event: Event9;
   name: Name8;
   input: Input3;
-  result: Result;
+  result: Result1;
   events: EvalEvents;
 }
 export interface Input3 {}
-export interface Result {
+export interface Result1 {
   [k: string]: unknown;
 }
 export interface Content5 {

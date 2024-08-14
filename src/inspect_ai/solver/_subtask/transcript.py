@@ -23,6 +23,7 @@ from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
+from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -97,6 +98,28 @@ class ModelEvent(BaseEvent):
 
     output: ModelOutput
     """Output from model."""
+
+
+class ToolEvent(BaseEvent):
+    """Call to a tool."""
+
+    event: Literal["tool"] = Field(default="tool")
+    """Event type."""
+
+    type: Literal["function"] = Field(default="function")
+    """Type of tool call (currently only 'function')"""
+
+    id: str
+    """Unique identifier for tool call."""
+
+    function: str
+    """Function called."""
+
+    arguments: dict[str, JsonValue]
+    """Arguments to function."""
+
+    result: ToolResult
+    """Function return value."""
 
 
 class LoggerEvent(BaseEvent):
@@ -177,6 +200,7 @@ Event: TypeAlias = Union[
     | StateEvent
     | StoreEvent
     | ModelEvent
+    | ToolEvent
     | ScoreEvent
     | LoggerEvent
     | InfoEvent

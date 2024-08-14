@@ -134,7 +134,23 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
 
     # call the tool
     try:
-        return await tool_def.tool(**tool_params(call.arguments, tool_def.tool))
+        from inspect_ai.solver._subtask.transcript import ToolEvent, transcript
+
+        # get arguments (with validation)
+        arguments = tool_params(call.arguments, tool_def.tool)
+
+        # call the tool
+        result = await tool_def.tool(**arguments)
+
+        # report via ToolEvent
+        transcript()._event(
+            ToolEvent(
+                id=call.id, function=call.function, arguments=arguments, result=result
+            )
+        )
+
+        # return result
+        return result
     except TypeError as ex:
         raise ToolParsingError(exception_message(ex))
 
