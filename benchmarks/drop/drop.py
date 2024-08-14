@@ -34,14 +34,23 @@ from inspect_ai.solver import (
     system_message,
 )
 
-DROP_PROMPT_TEMPLATE = {
-    # Based on the prompt provided here: https://github.com/openai/simple-evals/blob/main/drop_eval.py#L261C13-L283C91
-    "system": """You will be asked to read a passage and answer a question.\n\n""",
-    "system_w_examples": """You will be asked to read a passage and answer a question. Some examples of passages and Q&A are provided below.\n\n"""
-    + """Examples\n{examples}\n\n""",
-    "user": """Your Task\n---\n{prompt}\n\n"""
-    + """Think step by step, then write a line of the form "Answer: $ANSWER" at the end of your response.\n""",
-}
+# Based on the prompt provided here: https://github.com/openai/simple-evals/blob/main/drop_eval.py#L261C13-L283C91
+SYSTEM_PROMPT_TEMPLATE = """
+You will be asked to read a passage and answer a question.
+""".strip()
+SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE = """
+You will be asked to read a passage and answer a question. Some examples of passages and Q&A are provided below.
+
+Examples
+{examples}
+""".strip()
+USER_PROMPT_TEMPLATE = """
+Your Task
+---
+{prompt}
+
+Think step by step, then write a line of the form "Answer: $ANSWER" at the end of your response.
+""".strip()
 
 # Borrowed from: https://github.com/openai/simple-evals/blob/main/common.py#L24
 ANSWER_PATTERN = r"(?i)Answer\s*:\s*([^\n]+)"
@@ -58,12 +67,6 @@ def drop(
         fewshot (int): Number of few shot examples to use.
         fewshot_seed (int): Random seed for sampling few shot examples.
     """
-    # Get prompt
-    prompt_dict = DROP_PROMPT_TEMPLATE
-    prompt_user = prompt_dict["user"]
-    prompt_sys = prompt_dict["system"]
-    prompt_sys_w_examples = prompt_dict["system_w_examples"]
-
     # Add system message based on zero-shot or few-shot prompting
     if fewshot:
         fewshot_samples = hf_dataset(
@@ -76,18 +79,18 @@ def drop(
             limit=fewshot,
         )
         sys_msg = system_message(
-            prompt_sys_w_examples.format(
+            SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE.format(
                 examples="\n\n".join(
                     [sample_to_fewshot(sample) for sample in fewshot_samples]
                 )
             )
         )
     else:
-        sys_msg = system_message(prompt_sys)
+        sys_msg = system_message(SYSTEM_PROMPT_TEMPLATE)
 
     plan = [
         sys_msg,
-        prompt_template(prompt_user),
+        prompt_template(USER_PROMPT_TEMPLATE),
         generate(),
         drop_output_parser(),
     ]
