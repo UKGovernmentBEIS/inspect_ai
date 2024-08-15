@@ -197,6 +197,12 @@ def mockllm() -> type[ModelAPI]:
 
     return MockLLM
 
+@modelapi(name="modal")
+def mockllm() -> type[ModelAPI]:
+    from .modal import ModalVllm
+
+    return ModalVllm
+
 
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
