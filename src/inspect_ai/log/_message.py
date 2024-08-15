@@ -2,8 +2,7 @@ import re
 from logging import LogRecord
 from typing import Any, Literal, Type, cast
 
-from pydantic import BaseModel, Field, JsonValue, model_validator
-from pydantic_core import to_jsonable_python
+from pydantic import BaseModel, Field, model_validator
 
 LoggingLevel = Literal[
     "debug", "http", "sandbox", "info", "warning", "error", "critical"
@@ -55,7 +54,7 @@ class LoggingMessage(BaseModel):
             created=record.created * 1000,
             filename=str(record.filename),
             module=str(record.module),
-            lineno=record.lineno or 0
+            lineno=record.lineno or 0,
         )
 
     @model_validator(mode="before")
