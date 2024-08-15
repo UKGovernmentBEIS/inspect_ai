@@ -145,7 +145,7 @@ class BedrockChatHandler(abc.ABC):
 
     async def generate(
         self, input: list[ChatMessage], config: GenerateConfig
-    ) -> ModelOutput:
+    ) -> tuple[ModelOutput, ModelCall]:
         # convert to compatible message list (no system, no consec user, etc.)
         input = simple_input_messages(input, self.fold_system_message)
 
@@ -169,13 +169,21 @@ class BedrockChatHandler(abc.ABC):
         response = await loop.run_in_executor(None, invoke_model)
         response_body = json.loads((await response).get("body").read())
 
+        # extract output
         choice = self.completion_choice(response_body)
-
-        return ModelOutput(
+        output = ModelOutput(
             model=self.model_name,
             choices=[choice],
             usage=self.model_usage(response_body),
         )
+
+        # record call
+        call = ModelCall.create(
+            request=dict(modelId=self.model_name, **body), response=response_body
+        )
+
+        # return
+        return output, call
 
     def is_rate_limit(self, ex: BaseException) -> bool:
         from boto3.exceptions import RetriesExceededError
