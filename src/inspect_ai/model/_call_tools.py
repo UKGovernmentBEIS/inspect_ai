@@ -136,7 +136,7 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     try:
         from inspect_ai.solver._subtask.transcript import ToolEvent, transcript
 
-        # get arguments (with validation)
+        # get arguments (with creation of dataclasses, pydantic objects, etc.)
         arguments = tool_params(call.arguments, tool_def.tool)
 
         # call the tool
@@ -145,7 +145,10 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
         # report via ToolEvent
         transcript()._event(
             ToolEvent(
-                id=call.id, function=call.function, arguments=arguments, result=result
+                id=call.id,
+                function=call.function,
+                arguments=call.arguments,
+                result=result,
             )
         )
 
