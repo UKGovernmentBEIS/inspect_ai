@@ -15295,39 +15295,90 @@ const summarizeChanges = (changes) => {
   return changeList.join(", ");
 };
 const StepEventView = ({ depth, event }) => {
-  const icon = () => {
-    if (event.type === "solver") {
-      switch (event.name) {
-        case "chain_of_thought":
-          return ApplicationIcons.solvers.chain_of_thought;
-        case "generate":
-          return ApplicationIcons.solvers.generate;
-        case "self_critique":
-          return ApplicationIcons.solvers.self_critique;
-        case "system_message":
-          return ApplicationIcons.solvers.system_message;
-        case "use_tools":
-          return ApplicationIcons.solvers.use_tools;
-        case "multiple_choice":
-          return ApplicationIcons["multiple-choice"];
-        default:
-          return ApplicationIcons.solvers.default;
-      }
-    } else if (event.type === "scorer") {
-      return ApplicationIcons.scorer;
-    } else {
-      return ApplicationIcons.step;
-    }
-  };
+  const descriptor = stepDescriptor(event);
   if (event.action === "end" || event.type === "generate_loop") {
-    return m$1``;
+    if (descriptor.endSpace) {
+      return m$1`<div style=${{ height: "1.5em" }}></div>`;
+    } else {
+      return m$1``;
+    }
   }
+  const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   return m$1`<${EventPanel}
-    title="${event.type ? event.type + ": " : "Step: "}${event.name}"
+    title="${title}"
     depth=${depth}
-    icon=${icon()}
-    style=${{ background: "var(--bs-light" }}
+    icon=${descriptor.icon}
+    style=${descriptor.style}
   />`;
+};
+const rootStepStyle = {
+  backgroundColor: "var(--bs-light)",
+  fontWeight: "600"
+};
+const stepDescriptor = (event) => {
+  const rootStepDescriptor = {
+    style: rootStepStyle,
+    endSpace: true
+  };
+  if (event.type === "solver") {
+    switch (event.name) {
+      case "chain_of_thought":
+        return {
+          icon: ApplicationIcons.solvers.chain_of_thought,
+          ...rootStepDescriptor
+        };
+      case "generate":
+        return {
+          icon: ApplicationIcons.solvers.generate,
+          ...rootStepDescriptor
+        };
+      case "self_critique":
+        return {
+          icon: ApplicationIcons.solvers.self_critique,
+          ...rootStepDescriptor
+        };
+      case "system_message":
+        return {
+          icon: ApplicationIcons.solvers.system_message,
+          ...rootStepDescriptor
+        };
+      case "use_tools":
+        return {
+          icon: ApplicationIcons.solvers.use_tools,
+          ...rootStepDescriptor
+        };
+      case "multiple_choice":
+        return {
+          icon: ApplicationIcons["multiple-choice"],
+          ...rootStepDescriptor
+        };
+      default:
+        return {
+          icon: ApplicationIcons.solvers.default,
+          ...rootStepDescriptor
+        };
+    }
+  } else if (event.type === "scorer") {
+    return {
+      icon: ApplicationIcons.scorer,
+      ...rootStepDescriptor
+    };
+  } else {
+    switch (event.name) {
+      case "sample_init":
+        return {
+          icon: ApplicationIcons.sample,
+          ...rootStepDescriptor,
+          name: "Initialize Sample"
+        };
+      default:
+        return {
+          icon: ApplicationIcons.step,
+          style: {},
+          endSpace: false
+        };
+    }
+  }
 };
 const SubtaskEventView = ({ id, depth, event, stateManager }) => {
   return m$1`
@@ -15574,16 +15625,10 @@ const ToolEventView = ({ id, depth, event }) => {
 };
 const kContentProtocol = "tc://";
 const TranscriptView = ({ id, evalEvents, stateManager }) => {
-  const resolvedEvents = resolveEventContent(evalEvents);
+  const denormalizedEvents = resolveEventContent(evalEvents);
+  const resolvedEvents = fixupEventStream(denormalizedEvents);
   let depth = 0;
   const rows = resolvedEvents.map((event, index) => {
-    if (event.event === "step" && event.type !== "generate_loop") {
-      if (event.action === "end") {
-        depth = depth - 1;
-      } else {
-        depth = depth + 1;
-      }
-    }
     const row = m$1`
       <div
         style=${{
@@ -15601,6 +15646,13 @@ const TranscriptView = ({ id, evalEvents, stateManager }) => {
         </div>
       </div>
     `;
+    if (event.event === "step" && event.type !== "generate_loop") {
+      if (event.action === "end") {
+        depth = depth - 1;
+      } else {
+        depth = depth + 1;
+      }
+    }
     return row;
   });
   return m$1`<div
@@ -15701,6 +15753,30 @@ const resolveValue = (value, evalEvents) => {
     }
   }
   return value;
+};
+const fixupEventStream = (events) => {
+  const initEventIndex = events.findIndex((e2) => {
+    return e2.event === "sample_init";
+  });
+  const initEvent = events[initEventIndex];
+  const fixedUp = [...events];
+  if (initEvent) {
+    fixedUp.splice(initEventIndex, 0, {
+      timestamp: initEvent.timestamp,
+      event: "step",
+      action: "begin",
+      type: null,
+      name: "sample_init"
+    });
+    fixedUp.splice(initEventIndex + 2, 0, {
+      timestamp: initEvent.timestamp,
+      event: "step",
+      action: "end",
+      type: null,
+      name: "sample_init"
+    });
+  }
+  return fixedUp;
 };
 /*!
  * https://github.com/Starcounter-Jack/JSON-Patch

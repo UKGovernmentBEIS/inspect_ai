@@ -25,18 +25,13 @@ const kContentProtocol = "tc://";
 export const TranscriptView = ({ id, evalEvents, stateManager }) => {
   // Resolve content Uris (content may be stored separately to avoid
   // repetition - it will be address with a uri)
-  const resolvedEvents = resolveEventContent(evalEvents);
+  const denormalizedEvents = resolveEventContent(evalEvents);
+
+  // Normalize Events themselves
+  const resolvedEvents = fixupEventStream(denormalizedEvents);
 
   let depth = 0;
   const rows = resolvedEvents.map((event, index) => {
-    if (event.event === "step" && event.type !== "generate_loop") {
-      if (event.action === "end") {
-        depth = depth - 1;
-      } else {
-        depth = depth + 1;
-      }
-    }
-
     const row = html`
       <div
         style=${{
@@ -54,6 +49,14 @@ export const TranscriptView = ({ id, evalEvents, stateManager }) => {
         </div>
       </div>
     `;
+
+    if (event.event === "step" && event.type !== "generate_loop") {
+      if (event.action === "end") {
+        depth = depth - 1;
+      } else {
+        depth = depth + 1;
+      }
+    }
 
     return row;
   });
@@ -196,4 +199,38 @@ const resolveValue = (value, evalEvents) => {
     }
   }
   return value;
+};
+
+/**
+ * Normalizes event content
+ *
+ * @param {import("../../types/log").Events} events - The transcript events to display.
+ * @returns {import("../../types/log").Events} Events with resolved content.
+ */
+const fixupEventStream = (events) => {
+  const initEventIndex = events.findIndex((e) => {
+    return e.event === "sample_init";
+  });
+  const initEvent = events[initEventIndex];
+
+  const fixedUp = [...events];
+  if (initEvent) {
+    fixedUp.splice(initEventIndex, 0, {
+      timestamp: initEvent.timestamp,
+      event: "step",
+      action: "begin",
+      type: null,
+      name: "sample_init",
+    });
+
+    fixedUp.splice(initEventIndex + 2, 0, {
+      timestamp: initEvent.timestamp,
+      event: "step",
+      action: "end",
+      type: null,
+      name: "sample_init",
+    });
+  }
+
+  return fixedUp;
 };
