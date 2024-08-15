@@ -53,7 +53,11 @@ export const SampleDisplay = ({
   // Upon sample update
   useEffect(() => {
     // reset tabs when sample changes
-    setSelectedTab(transcriptTabId);
+    if (sample.transcript && sample.transcript.events.length > 0) {
+      setSelectedTab(transcriptTabId);
+    } else {
+      setSelectedTab(msgTabId);
+    }
   }, [sample]);
 
   // Tab selection

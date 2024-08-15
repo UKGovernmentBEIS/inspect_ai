@@ -16381,7 +16381,11 @@ const SampleDisplay = ({
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   _(() => {
-    setSelectedTab(transcriptTabId);
+    if (sample.transcript && sample.transcript.events.length > 0) {
+      setSelectedTab(transcriptTabId);
+    } else {
+      setSelectedTab(msgTabId);
+    }
   }, [sample]);
   const [selectedTab, setSelectedTab] = p(void 0);
   const onSelectedTab = (e2) => {
