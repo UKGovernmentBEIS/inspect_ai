@@ -367,29 +367,6 @@ class Llama3ChatHandler(BaseLlamaChatHandler):
         return f"{content}"
 
 
-class Llama3ChatHandler(BaseLlamaChatHandler):
-    @override
-    def custom_remove_end_token(self, prompt: str) -> str:
-        return remove_end_token(prompt, end_token="<|end_of_text|>")
-
-    @override
-    def fold_system_message(self, user: str, system: str) -> str:
-        return f"<|start_header_id|>system<|end_header_id|>\n{system}\n<|eot_id|>\n<|start_header_id|>user<|end_header_id|>\n\n{user}<|eot_id|>"
-
-    def chat_message_str(self, message: ChatMessage) -> str:
-        if isinstance(message, ChatMessageUser):
-            return f"<|start_header_id|>user<|end_header_id|>{message.text}<|eot_id|>"
-        if isinstance(message, ChatMessageSystem):
-            return f"<|start_header_id|>system<|end_header_id|>{message.text}<|eot_id|>"
-        elif isinstance(message, ChatMessageAssistant):
-            return (
-                f"<|start_header_id|>assistant<|end_header_id|>{message.text}<|eot_id|>"
-            )
-
-        elif isinstance(message, ChatMessageTool):
-            return ""
-
-
 def is_anthropic(model_name: str) -> bool:
     return model_name.startswith("anthropic.")
 
