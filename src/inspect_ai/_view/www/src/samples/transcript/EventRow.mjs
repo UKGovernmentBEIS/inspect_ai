@@ -9,14 +9,17 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param {string | undefined} props.title - The name of the event
  * @param {string | undefined} props.icon - The name of the event
+ * @param {number} props.depth - The depth of the event
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const EventRow = ({ title, icon, children }) => {
+export const EventRow = ({ title, icon, depth, children }) => {
+  const paddingLeft = depth * 1.5 + 0.5;
+
   const contentEl = title
     ? html`<div
         style=${{
-          paddingLeft: "0.5em",
+          paddingLeft: `${paddingLeft}em`,
           display: "grid",
           gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
           columnGap: "0.5em",

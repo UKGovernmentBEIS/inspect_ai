@@ -29,6 +29,14 @@ export const TranscriptView = ({ id, evalEvents, stateManager }) => {
 
   let depth = 0;
   const rows = resolvedEvents.map((event, index) => {
+    if (event.event === "step" && event.type !== "generate_loop") {
+      if (event.action === "end") {
+        depth = depth - 1;
+      } else {
+        depth = depth + 1;
+      }
+    }
+
     const row = html`
       <div
         style=${{
@@ -37,18 +45,16 @@ export const TranscriptView = ({ id, evalEvents, stateManager }) => {
         }}
       >
         <div>
-          ${renderNode(`${id}-event${index}`, event, depth, stateManager)}
+          ${renderNode(
+            `${id}-event${index}`,
+            event,
+            Math.max(depth - 1, 0),
+            stateManager,
+          )}
         </div>
       </div>
     `;
 
-    if (event.event === "step" && event.type !== "generate_loop") {
-      if (event.action === "end") {
-        depth = depth - 1;
-      } else {
-        depth = depth + 1;
-      }
-    }
     return row;
   });
 

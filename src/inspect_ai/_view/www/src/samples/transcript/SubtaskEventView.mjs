@@ -38,7 +38,7 @@ export const SubtaskEventView = ({ id, depth, event, stateManager }) => {
  *
  * @param {Object} props - The properties passed to the component.
  * @param {import("../../types/log").Input2} props.input - The event object to display.
- * @param {import("../../types/log").Result} props.result - The event object to display.
+ * @param {import("../../types/log").Result1} props.result - The event object to display.
  * @returns {import("preact").JSX.Element} The component.
  */
 const SubtaskSummary = ({ input, result }) => {
