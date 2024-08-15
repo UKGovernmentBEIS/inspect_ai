@@ -68,6 +68,22 @@ export type Metadata1 = {} | null;
 export type Metadata2 = {} | null;
 export type Scores = EvalScore[];
 export type Metadata3 = {} | null;
+export type SampleReductions = EvalSampleReductions[] | null;
+export type Scorer1 = string;
+export type Reducer1 = string | null;
+export type Value1 =
+  | string
+  | number
+  | boolean
+  | (string | number | boolean)[]
+  | {
+      [k: string]: string | number | boolean | null;
+    };
+export type Answer = string | null;
+export type Explanation = string | null;
+export type Metadata4 = {} | null;
+export type SampleId = string | number | null;
+export type Samples1 = SampleScore[];
 export type StartedAt = string;
 export type CompletedAt = string;
 export type InputTokens = number;
@@ -76,7 +92,7 @@ export type TotalTokens = number;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
-export type Samples1 = EvalSample[] | null;
+export type Samples2 = EvalSample[] | null;
 export type Id = number | string;
 export type Epoch = number;
 export type Input =
@@ -146,7 +162,7 @@ export type Error = string | null;
 export type Scores1 = {
   [k: string]: Score;
 } | null;
-export type Value1 =
+export type Value2 =
   | string
   | number
   | boolean
@@ -154,9 +170,9 @@ export type Value1 =
   | {
       [k: string]: string | number | boolean | null;
     };
-export type Answer = string | null;
-export type Explanation = string | null;
-export type Metadata4 = {} | null;
+export type Answer1 = string | null;
+export type Explanation1 = string | null;
+export type Metadata5 = {} | null;
 export type Timestamp = string;
 export type Event = "sample_init";
 export type Input1 =
@@ -170,7 +186,7 @@ export type Input1 =
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id2 = number | string | null;
-export type Metadata6 = {} | null;
+export type Metadata7 = {} | null;
 export type Files = {
   [k: string]: string;
 } | null;
@@ -270,7 +286,7 @@ export interface EvalLog {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
-  samples?: Samples1;
+  samples?: Samples2;
 }
 export interface EvalSpec {
   task: Task;
@@ -359,6 +375,7 @@ export interface GenerateConfig {
 export interface EvalResults {
   scores: Scores;
   metadata: Metadata3;
+  sample_reductions: SampleReductions;
 }
 export interface EvalScore {
   name: Name2;
@@ -379,6 +396,24 @@ export interface EvalMetric {
   metadata: Metadata1;
 }
 export interface Options {}
+export interface EvalSampleReductions {
+  scorer: Scorer1;
+  reducer: Reducer1;
+  samples: Samples1;
+}
+/**
+ * Score for a Sample
+ *
+ * Args:
+ *    sample_id: (str | int | None) Unique id of a sample
+ */
+export interface SampleScore {
+  value: Value1;
+  answer: Answer;
+  explanation: Explanation;
+  metadata: Metadata4;
+  sample_id: SampleId;
+}
 export interface EvalStats {
   started_at: StartedAt;
   completed_at: CompletedAt;
@@ -406,7 +441,7 @@ export interface EvalSample {
   messages: Messages;
   output: ModelOutput;
   scores: Scores1;
-  metadata: Metadata5;
+  metadata: Metadata6;
   store: Store;
   transcript: EvalEvents;
 }
@@ -498,12 +533,12 @@ export interface TopLogprob {
  *    metadata (dict[str,Any]): Additional metadata related to the score.
  */
 export interface Score {
-  value: Value1;
-  answer: Answer;
-  explanation: Explanation;
-  metadata: Metadata4;
+  value: Value2;
+  answer: Answer1;
+  explanation: Explanation1;
+  metadata: Metadata5;
 }
-export interface Metadata5 {}
+export interface Metadata6 {}
 export interface Store {}
 export interface EvalEvents {
   events: Events;
@@ -539,7 +574,7 @@ export interface Sample {
   choices: Choices2;
   target: Target1;
   id: Id2;
-  metadata: Metadata6;
+  metadata: Metadata7;
   files: Files;
   setup: Setup;
 }

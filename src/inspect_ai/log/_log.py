@@ -22,6 +22,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.scorer import Score
+from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver._subtask.transcript import EvalEvents
 
 SCORER_PLACEHOLDER = "88F74D2C"
@@ -182,6 +183,17 @@ class EvalScore(BaseModel):
     """Additional scorer metadata."""
 
 
+class EvalSampleReductions(BaseModel):
+    scorer: str
+    """Name the of scorer"""
+
+    reducer: str | None = Field(default=None)
+    """Name the of reducer"""
+
+    samples: list[SampleScore]
+    """List of reduced scores"""
+
+
 class EvalResults(BaseModel):
     @property
     def scorer(self) -> EvalScore | None:
@@ -204,6 +216,9 @@ class EvalResults(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional results metadata."""
+
+    sample_reductions: list[EvalSampleReductions] | None = Field(default=None)
+    """List of per sample scores reduced across epochs"""
 
     @model_validator(mode="before")
     @classmethod

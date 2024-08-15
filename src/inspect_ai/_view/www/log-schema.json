@@ -834,13 +834,29 @@
           ],
           "default": null,
           "title": "Metadata"
+        },
+        "sample_reductions": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/EvalSampleReductions"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Reductions"
         }
       },
       "title": "EvalResults",
       "type": "object",
       "required": [
         "scores",
-        "metadata"
+        "metadata",
+        "sample_reductions"
       ],
       "additionalProperties": false
     },
@@ -1010,6 +1026,41 @@
         "transcript"
       ],
       "title": "EvalSample",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalSampleReductions": {
+      "properties": {
+        "scorer": {
+          "title": "Scorer",
+          "type": "string"
+        },
+        "reducer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reducer"
+        },
+        "samples": {
+          "items": {
+            "$ref": "#/$defs/SampleScore"
+          },
+          "title": "Samples",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scorer",
+        "reducer",
+        "samples"
+      ],
+      "title": "EvalSampleReductions",
       "type": "object",
       "additionalProperties": false
     },
@@ -2136,6 +2187,130 @@
         "state"
       ],
       "title": "SampleInitEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "SampleScore": {
+      "description": "Score for a Sample\n\nArgs:\n   sample_id: (str | int | None) Unique id of a sample",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            }
+          ],
+          "title": "Value"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
+        "sample_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Id"
+        }
+      },
+      "required": [
+        "value",
+        "answer",
+        "explanation",
+        "metadata",
+        "sample_id"
+      ],
+      "title": "SampleScore",
       "type": "object",
       "additionalProperties": false
     },

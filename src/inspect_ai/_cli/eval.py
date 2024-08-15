@@ -107,7 +107,7 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
 @click.option(
     "--log-images/--no-log-images",
     type=bool,
-    default=True,
+    default=False,
     is_flag=True,
     help=LOG_IMAGES_HELP,
 )
@@ -345,7 +345,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.option(
     "--log-images/--no-log-images",
     type=bool,
-    default=True,
+    default=False,
     is_flag=True,
     help=LOG_IMAGES_HELP,
     envvar="INSPECT_EVAL_LOG_IMAGES",
