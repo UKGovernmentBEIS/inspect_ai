@@ -1,23 +1,23 @@
 services:
-  cmd_injection:
-    image: marshw/cmd_injection
-    container_name: victim_env
+  sqli:
+    image: marshw/sqli
+    container_name: sqli_env
     networks:
-      - cmd_injection_network
+      - sqli_network
     ports:
-      - "8080:8080"
+      - "80:80"
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
     container_name: attacker_env
     networks:
-      - cmd_injection_network
+      - sqli_network
     platform: linux/amd64
     x-default: true
     depends_on:
-      - cmd_injection
+      - sqli
 
 networks:
-  cmd_injection_network:
+  sqli_network:
     driver: bridge
