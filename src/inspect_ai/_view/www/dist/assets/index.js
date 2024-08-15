@@ -15154,7 +15154,7 @@ const Tool = ({ toolName, toolArgs }) => {
     >${functionCall}</code
   >`;
 };
-const StateDiffView = ({ changes }) => {
+const StateDiffView = ({ changes, style }) => {
   const mutations = changes.map((change) => {
     const symbol = iconForOp(change.op);
     const color = colorForOp(change.op);
@@ -15173,7 +15173,8 @@ const StateDiffView = ({ changes }) => {
     display: "grid",
     gridTemplateColumns: "max-content max-content 1fr",
     columnGap: "1em",
-    rowGap: 0
+    rowGap: 0,
+    ...style
   }}
   >
     ${mutations}
@@ -15225,11 +15226,19 @@ const StateEventView = ({ id, event, depth, stateManager }) => {
   const resolvedState = stateManager.applyChanges(event.changes);
   const summary = summarizeChanges(event.changes);
   const tabs = [
-    m$1`<${StateDiffView} changes=${event.changes} name="Diffs" } />`
+    m$1`<${StateDiffView}
+      changes=${event.changes}
+      name="Diffs"
+      style=${{ margin: "1em 0" }}
+    />`
   ];
   const changePreview = generatePreview(event.changes, resolvedState);
   if (changePreview) {
-    tabs.unshift(m$1`<div name="Summary">${changePreview}</div>`);
+    tabs.unshift(
+      m$1`<div name="Summary" style=${{ margin: "1em 0" }}>
+        ${changePreview}
+      </div>`
+    );
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
@@ -15424,11 +15433,18 @@ const APICodeCell = ({ id, contents }) => {
     );
   }
   return m$1`<div>
-    <pre>
+    <pre
+      style=${{
+    background: "var(--bs-light)",
+    width: "100%",
+    padding: "0.5em",
+    borderRadius: "3px"
+  }}
+    >
       <code 
         id=${id} 
         ref=${codeRef}
-        class="sourceCode" 
+        class="sourceCode-js" 
         style=${{
     fontSize: FontSize.small,
     whiteSpace: "pre-wrap",

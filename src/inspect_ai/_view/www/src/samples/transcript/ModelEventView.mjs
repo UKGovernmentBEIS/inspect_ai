@@ -91,11 +91,18 @@ export const APICodeCell = ({ id, contents }) => {
   }
 
   return html`<div>
-    <pre>
+    <pre
+      style=${{
+        background: "var(--bs-light)",
+        width: "100%",
+        padding: "0.5em",
+        borderRadius: "3px",
+      }}
+    >
       <code 
         id=${id} 
         ref=${codeRef}
-        class="sourceCode" 
+        class="sourceCode-js" 
         style=${{
       fontSize: FontSize.small,
       whiteSpace: "pre-wrap",

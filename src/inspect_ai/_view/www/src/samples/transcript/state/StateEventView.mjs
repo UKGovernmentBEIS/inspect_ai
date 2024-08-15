@@ -21,11 +21,19 @@ export const StateEventView = ({ id, event, depth, stateManager }) => {
   const summary = summarizeChanges(event.changes);
 
   const tabs = [
-    html`<${StateDiffView} changes=${event.changes} name="Diffs" } />`,
+    html`<${StateDiffView}
+      changes=${event.changes}
+      name="Diffs"
+      style=${{ margin: "1em 0" }}
+    />`,
   ];
   const changePreview = generatePreview(event.changes, resolvedState);
   if (changePreview) {
-    tabs.unshift(html`<div name="Summary">${changePreview}</div>`);
+    tabs.unshift(
+      html`<div name="Summary" style=${{ margin: "1em 0" }}>
+        ${changePreview}
+      </div>`,
+    );
   }
 
   // Compute the title

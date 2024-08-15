@@ -1,8 +1,15 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../../appearance/Icons.mjs";
-
-export const StateDiffView = ({ changes }) => {
+/**
+ * Renders a view displaying a list of state changes.
+ *
+ * @param {Object} props - The properties for the component.
+ * @param {import("../../../types/log").Changes} props.changes - The list of changes to be displayed.
+ * @param {Record<string, string>} [props.style] - Optional custom styles for the view container.
+ * @returns {import("preact").JSX.Element | undefined} The component.
+ */
+export const StateDiffView = ({ changes, style }) => {
   const mutations = changes.map((change) => {
     // Compute the change rows
     const symbol = iconForOp(change.op);
@@ -24,6 +31,7 @@ export const StateDiffView = ({ changes }) => {
       gridTemplateColumns: "max-content max-content 1fr",
       columnGap: "1em",
       rowGap: 0,
+      ...style,
     }}
   >
     ${mutations}
