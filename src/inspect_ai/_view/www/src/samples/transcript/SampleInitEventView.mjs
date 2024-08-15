@@ -4,8 +4,8 @@ import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
 import { isBase64 } from "../../utils/Base64.mjs";
-import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { EventSection } from "./EventSection.mjs";
 
 /**
  * Renders the SampleInitEventView component.
@@ -28,111 +28,53 @@ export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   // it as a baseline when applying their state updates)
   stateManager.setState(stateObj);
 
-  const addtl_sample_data = [];
-
-  if (event.sample.choices && event.sample.choices.length > 0) {
-    addtl_sample_data.push(
-      html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-        Choices
-      </div>`,
-    );
-
-    addtl_sample_data.push(
-      html`<div style=${{ fontSize: FontSize.small, marginBottom: "1em" }}>
-        ${event.sample.choices.map((choice, index) => {
-          return html`<div>${String.fromCharCode(65 + index)}) ${choice}</div>`;
-        })}
-      </div>`,
-    );
-  }
-
-  addtl_sample_data.push(
-    html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-      Target
-    </div>`,
-  );
-  addtl_sample_data.push(
-    html`<div style=${{ fontSize: FontSize.small, marginBottom: "1em" }}>
-      ${event.sample.target}
-    </div>`,
-  );
+  const sections = [];
 
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
-    addtl_sample_data.push(
-      html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-        Files
-      </div>`,
-    );
-    addtl_sample_data.push(
-      html` <div
-        style=${{
-          display: "grid",
-          gridTemplateColumns: "max-content 1fr",
-          columnGap: "1em",
-          marginBottom: "1em",
-        }}
-      >
-        ${Object.keys(event.sample.files).map((key) => {
-          if (event.sample.files) {
-            const value = isBase64(event.sample.files[key])
-              ? `<Base64 string>`
-              : event.sample.files[key];
-            return html`
-              <div
-                style=${{
-                  fontSize: FontSize.small,
-                  ...TextStyle.label,
-                  ...TextStyle.secondary,
-                }}
-              >
-                ${key}
-              </div>
-              <div style=${{ fontSize: FontSize.small }}>
-                <code>${value}</code>
-              </div>
-            `;
-          } else {
-            return "";
-          }
-        })}
-      </div>`,
-    );
+    const filesTable = {};
+    Object.keys(event.sample.files).forEach((key) => {
+      filesTable[key] = isBase64(event.sample.files[key])
+        ? `<Base64 string>`
+        : event.sample.files[key];
+    });
+
+    sections.push(html`<${EventSection} title="Files">
+      <${MetaDataGrid} entries=${filesTable}/>
+      </${EventSection}>
+  `);
   }
 
   if (event.sample.setup) {
-    addtl_sample_data.push(
-      html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-        Setup
-      </div>`,
-    );
-    addtl_sample_data.push(html`<pre>${event.sample.setup}</pre>`);
-  }
-
-  if (event.sample.metadata) {
-    addtl_sample_data.push(
-      html`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-        Metadata
-      </div>`,
-    );
-    addtl_sample_data.push(
-      html`<${MetaDataGrid}
-        entries=${event.sample.metadata}
-        style=${{ marginBottom: "1em" }}
-      />`,
-    );
+    sections.push(html`<${EventSection} title="Setup">
+      <pre><code>${event.sample.setup}</code></pre>
+      </${EventSection}>
+  `);
   }
 
   return html`
   <${EventPanel} id=${id} depth=${depth} title="Sample Init" icon=${ApplicationIcons.sample}>
-
-    <div name="Summary">
+    
+    <div name="Sample">
       <${ChatView} messages=${stateObj["messages"]}/>
-      <div style=${{ marginLeft: "2.1em" }}>${addtl_sample_data}</div>
+      <div style=${{ marginLeft: "2.1em", marginBottom: "1em" }}>
+        ${
+          event.sample.choices
+            ? event.sample.choices.map((choice, index) => {
+                return html`<div>
+                  ${String.fromCharCode(65 + index)}) ${choice}
+                </div>`;
+              })
+            : ""
+        }
+        <div style=${{ display: "flex", flexWrap: "wrap", gap: "1em", overflowWrap: "break-word" }}>
+        ${sections}
+        </div>
+        <${EventSection} title="Target">
+          ${event.sample.target}
+        </${EventSection}>
+      </div>
     </div>
-
-    <div name="Complete">
-      <${MetaDataGrid} entries=${event.state} style=${{ margin: "1em 0" }}/>
-    </div>
+    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? html`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0" }} entries=${event.sample.metadata} />` : ""}
 
   </${EventPanel}>`;
 };

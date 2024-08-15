@@ -14842,6 +14842,7 @@ const EventPanel = ({
       </div>` : "";
   const left_padding = 0.5 + depth * 1.5;
   const card = m$1` <div
+    id=${id}
     class="card"
     style=${{
     padding: `0.5em 0.5em 0.5em ${left_padding}em`,
@@ -14982,105 +14983,64 @@ const isBase64 = (str) => {
   const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
   return base64Pattern.test(str);
 };
+const EventSection = ({ title, children }) => {
+  return m$1`<div
+    style=${{
+    margin: "1em 0 0 0"
+  }}
+  >
+    <div
+      style=${{
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    fontWeight: 600
+  }}
+    >
+      ${title}
+    </div>
+    ${children}
+  </div>`;
+};
 const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   const stateObj = event.state;
   stateManager.setState(stateObj);
-  const addtl_sample_data = [];
-  if (event.sample.choices && event.sample.choices.length > 0) {
-    addtl_sample_data.push(
-      m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-        Choices
-      </div>`
-    );
-    addtl_sample_data.push(
-      m$1`<div style=${{ fontSize: FontSize.small, marginBottom: "1em" }}>
-        ${event.sample.choices.map((choice, index) => {
-        return m$1`<div>${String.fromCharCode(65 + index)}) ${choice}</div>`;
-      })}
-      </div>`
-    );
-  }
-  addtl_sample_data.push(
-    m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-      Target
-    </div>`
-  );
-  addtl_sample_data.push(
-    m$1`<div style=${{ fontSize: FontSize.small, marginBottom: "1em" }}>
-      ${event.sample.target}
-    </div>`
-  );
+  const sections = [];
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
-    addtl_sample_data.push(
-      m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-        Files
-      </div>`
-    );
-    addtl_sample_data.push(
-      m$1` <div
-        style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content 1fr",
-        columnGap: "1em",
-        marginBottom: "1em"
-      }}
-      >
-        ${Object.keys(event.sample.files).map((key2) => {
-        if (event.sample.files) {
-          const value = isBase64(event.sample.files[key2]) ? `<Base64 string>` : event.sample.files[key2];
-          return m$1`
-              <div
-                style=${{
-            fontSize: FontSize.small,
-            ...TextStyle.label,
-            ...TextStyle.secondary
-          }}
-              >
-                ${key2}
-              </div>
-              <div style=${{ fontSize: FontSize.small }}>
-                <code>${value}</code>
-              </div>
-            `;
-        } else {
-          return "";
-        }
-      })}
-      </div>`
-    );
+    const filesTable = {};
+    Object.keys(event.sample.files).forEach((key2) => {
+      filesTable[key2] = isBase64(event.sample.files[key2]) ? `<Base64 string>` : event.sample.files[key2];
+    });
+    sections.push(m$1`<${EventSection} title="Files">
+      <${MetaDataGrid} entries=${filesTable}/>
+      </${EventSection}>
+  `);
   }
   if (event.sample.setup) {
-    addtl_sample_data.push(
-      m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-        Setup
-      </div>`
-    );
-    addtl_sample_data.push(m$1`<pre>${event.sample.setup}</pre>`);
-  }
-  if (event.sample.metadata) {
-    addtl_sample_data.push(
-      m$1`<div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-        Metadata
-      </div>`
-    );
-    addtl_sample_data.push(
-      m$1`<${MetaDataGrid}
-        entries=${event.sample.metadata}
-        style=${{ marginBottom: "1em" }}
-      />`
-    );
+    sections.push(m$1`<${EventSection} title="Setup">
+      <pre><code>${event.sample.setup}</code></pre>
+      </${EventSection}>
+  `);
   }
   return m$1`
   <${EventPanel} id=${id} depth=${depth} title="Sample Init" icon=${ApplicationIcons.sample}>
-
-    <div name="Summary">
+    
+    <div name="Sample">
       <${ChatView} messages=${stateObj["messages"]}/>
-      <div style=${{ marginLeft: "2.1em" }}>${addtl_sample_data}</div>
+      <div style=${{ marginLeft: "2.1em", marginBottom: "1em" }}>
+        ${event.sample.choices ? event.sample.choices.map((choice, index) => {
+    return m$1`<div>
+                  ${String.fromCharCode(65 + index)}) ${choice}
+                </div>`;
+  }) : ""}
+        <div style=${{ display: "flex", flexWrap: "wrap", gap: "1em", overflowWrap: "break-word" }}>
+        ${sections}
+        </div>
+        <${EventSection} title="Target">
+          ${event.sample.target}
+        </${EventSection}>
+      </div>
     </div>
-
-    <div name="Complete">
-      <${MetaDataGrid} entries=${event.state} style=${{ margin: "1em 0" }}/>
-    </div>
+    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0" }} entries=${event.sample.metadata} />` : ""}
 
   </${EventPanel}>`;
 };
@@ -15384,7 +15344,7 @@ const SubtaskEventView = ({ id, depth, event, stateManager }) => {
   return m$1`
     <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
-      ${event.events.events.length > 0 ? m$1` <${TranscriptView}
+      ${event.events.events.length > 0 ? m$1`<${TranscriptView}
               id="${id}-subtask"
               name="Transcript"
               evalEvents=${event.events}
@@ -15403,10 +15363,13 @@ const SubtaskSummary = ({ input, result }) => {
   }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>
-    <div></div>
+    <div style=${{ fontSize: FontSize.large, padding: "0 2em" }}>
+      <i class="${ApplicationIcons.arrows.right}" />
+    </div>
+
     <div style=${{ ...TextStyle.label }}>Output</div>
     <${Rendered} values=${input} />
-    <div><i class="${ApplicationIcons.arrows.right}" /></div>
+    <div></div>
     <${Rendered} values=${result} />
   </div>`;
 };
@@ -15420,19 +15383,6 @@ const Rendered = ({ values }) => {
   } else {
     return values;
   }
-};
-const EventSection = ({ title, children }) => {
-  return m$1`<div
-      style=${{
-    margin: "1em 0 0 0",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    fontWeight: 600
-  }}
-    >
-      ${title}
-    </div>
-    ${children}`;
 };
 const ModelEventView = ({ id, depth, event }) => {
   var _a, _b;
