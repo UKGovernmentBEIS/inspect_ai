@@ -7,7 +7,13 @@
         },
         "stop_reason": {
           "default": "unknown",
-          "enum": ["stop", "length", "tool_calls", "content_filter", "unknown"],
+          "enum": [
+            "stop",
+            "length",
+            "tool_calls",
+            "content_filter",
+            "unknown"
+          ],
           "title": "Stop Reason",
           "type": "string"
         },
@@ -23,7 +29,11 @@
           "default": null
         }
       },
-      "required": ["message", "stop_reason", "logprobs"],
+      "required": [
+        "message",
+        "stop_reason",
+        "logprobs"
+      ],
       "title": "ChatCompletionChoice",
       "type": "object",
       "additionalProperties": false
@@ -54,7 +64,11 @@
         "source": {
           "anyOf": [
             {
-              "enum": ["input", "generate", "cache"],
+              "enum": [
+                "input",
+                "generate",
+                "cache"
+              ],
               "type": "string"
             },
             {
@@ -67,7 +81,11 @@
         "role": {
           "const": "assistant",
           "default": "assistant",
-          "title": "Role"
+          "enum": [
+            "assistant"
+          ],
+          "title": "Role",
+          "type": "string"
         },
         "tool_calls": {
           "anyOf": [
@@ -85,7 +103,12 @@
           "title": "Tool Calls"
         }
       },
-      "required": ["content", "source", "role", "tool_calls"],
+      "required": [
+        "content",
+        "source",
+        "role",
+        "tool_calls"
+      ],
       "title": "ChatMessageAssistant",
       "type": "object",
       "additionalProperties": false
@@ -116,7 +139,11 @@
         "source": {
           "anyOf": [
             {
-              "enum": ["input", "generate", "cache"],
+              "enum": [
+                "input",
+                "generate",
+                "cache"
+              ],
               "type": "string"
             },
             {
@@ -129,22 +156,18 @@
         "role": {
           "const": "system",
           "default": "system",
-          "title": "Role"
-        },
-        "tool": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "enum": [
+            "system"
           ],
-          "default": null,
-          "title": "Tool"
+          "title": "Role",
+          "type": "string"
         }
       },
-      "required": ["content", "source", "role", "tool"],
+      "required": [
+        "content",
+        "source",
+        "role"
+      ],
       "title": "ChatMessageSystem",
       "type": "object",
       "additionalProperties": false
@@ -175,7 +198,11 @@
         "source": {
           "anyOf": [
             {
-              "enum": ["input", "generate", "cache"],
+              "enum": [
+                "input",
+                "generate",
+                "cache"
+              ],
               "type": "string"
             },
             {
@@ -188,7 +215,11 @@
         "role": {
           "const": "tool",
           "default": "tool",
-          "title": "Role"
+          "enum": [
+            "tool"
+          ],
+          "title": "Role",
+          "type": "string"
         },
         "tool_call_id": {
           "anyOf": [
@@ -214,7 +245,13 @@
           "default": null
         }
       },
-      "required": ["content", "source", "role", "tool_call_id", "error"],
+      "required": [
+        "content",
+        "source",
+        "role",
+        "tool_call_id",
+        "error"
+      ],
       "title": "ChatMessageTool",
       "type": "object",
       "additionalProperties": false
@@ -245,7 +282,11 @@
         "source": {
           "anyOf": [
             {
-              "enum": ["input", "generate", "cache"],
+              "enum": [
+                "input",
+                "generate",
+                "cache"
+              ],
               "type": "string"
             },
             {
@@ -258,10 +299,18 @@
         "role": {
           "const": "user",
           "default": "user",
-          "title": "Role"
+          "enum": [
+            "user"
+          ],
+          "title": "Role",
+          "type": "string"
         }
       },
-      "required": ["content", "source", "role"],
+      "required": [
+        "content",
+        "source",
+        "role"
+      ],
       "title": "ChatMessageUser",
       "type": "object",
       "additionalProperties": false
@@ -271,7 +320,11 @@
         "type": {
           "const": "image",
           "default": "image",
-          "title": "Type"
+          "enum": [
+            "image"
+          ],
+          "title": "Type",
+          "type": "string"
         },
         "image": {
           "title": "Image",
@@ -279,12 +332,20 @@
         },
         "detail": {
           "default": "auto",
-          "enum": ["auto", "low", "high"],
+          "enum": [
+            "auto",
+            "low",
+            "high"
+          ],
           "title": "Detail",
           "type": "string"
         }
       },
-      "required": ["type", "image", "detail"],
+      "required": [
+        "type",
+        "image",
+        "detail"
+      ],
       "title": "ContentImage",
       "type": "object",
       "additionalProperties": false
@@ -294,14 +355,21 @@
         "type": {
           "const": "text",
           "default": "text",
-          "title": "Type"
+          "enum": [
+            "text"
+          ],
+          "title": "Type",
+          "type": "string"
         },
         "text": {
           "title": "Text",
           "type": "string"
         }
       },
-      "required": ["type", "text"],
+      "required": [
+        "type",
+        "text"
+      ],
       "title": "ContentText",
       "type": "object",
       "additionalProperties": false
@@ -527,7 +595,12 @@
       },
       "title": "EvalDataset",
       "type": "object",
-      "required": ["name", "location", "samples", "shuffled"],
+      "required": [
+        "name",
+        "location",
+        "samples",
+        "shuffled"
+      ],
       "additionalProperties": false
     },
     "EvalError": {
@@ -545,7 +618,11 @@
           "type": "string"
         }
       },
-      "required": ["message", "traceback", "traceback_ansi"],
+      "required": [
+        "message",
+        "traceback",
+        "traceback_ansi"
+      ],
       "title": "EvalError",
       "type": "object",
       "additionalProperties": false
@@ -585,7 +662,12 @@
           "title": "Metadata"
         }
       },
-      "required": ["name", "value", "options", "metadata"],
+      "required": [
+        "name",
+        "value",
+        "options",
+        "metadata"
+      ],
       "title": "EvalMetric",
       "type": "object",
       "additionalProperties": false
@@ -647,7 +729,12 @@
       },
       "title": "EvalPlan",
       "type": "object",
-      "required": ["name", "steps", "finish", "config"],
+      "required": [
+        "name",
+        "steps",
+        "finish",
+        "config"
+      ],
       "additionalProperties": false
     },
     "EvalPlanStep": {
@@ -662,7 +749,10 @@
           "type": "object"
         }
       },
-      "required": ["solver", "params"],
+      "required": [
+        "solver",
+        "params"
+      ],
       "title": "EvalPlanStep",
       "type": "object",
       "additionalProperties": false
@@ -688,18 +778,41 @@
           ],
           "default": null,
           "title": "Metadata"
+        },
+        "sample_reductions": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/EvalSampleReductions"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Reductions"
         }
       },
       "title": "EvalResults",
       "type": "object",
-      "required": ["scores", "metadata"],
+      "required": [
+        "scores",
+        "metadata",
+        "sample_reductions"
+      ],
       "additionalProperties": false
     },
     "EvalRevision": {
       "properties": {
         "type": {
           "const": "git",
-          "title": "Type"
+          "enum": [
+            "git"
+          ],
+          "title": "Type",
+          "type": "string"
         },
         "origin": {
           "title": "Origin",
@@ -710,7 +823,11 @@
           "type": "string"
         }
       },
-      "required": ["type", "origin", "commit"],
+      "required": [
+        "type",
+        "origin",
+        "commit"
+      ],
       "title": "EvalRevision",
       "type": "object",
       "additionalProperties": false
@@ -843,6 +960,41 @@
         "metadata"
       ],
       "title": "EvalSample",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalSampleReductions": {
+      "properties": {
+        "scorer": {
+          "title": "Scorer",
+          "type": "string"
+        },
+        "reducer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reducer"
+        },
+        "samples": {
+          "items": {
+            "$ref": "#/$defs/SampleScore"
+          },
+          "title": "Samples",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scorer",
+        "reducer",
+        "samples"
+      ],
+      "title": "EvalSampleReductions",
       "type": "object",
       "additionalProperties": false
     },
@@ -1087,7 +1239,11 @@
       },
       "title": "EvalStats",
       "type": "object",
-      "required": ["started_at", "completed_at", "model_usage"],
+      "required": [
+        "started_at",
+        "completed_at",
+        "model_usage"
+      ],
       "additionalProperties": false
     },
     "GenerateConfig": {
@@ -1450,6 +1606,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Bytes"
         },
         "top_logprobs": {
@@ -1464,10 +1621,16 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Top Logprobs"
         }
       },
-      "required": ["token", "logprob", "bytes", "top_logprobs"],
+      "required": [
+        "token",
+        "logprob",
+        "bytes",
+        "top_logprobs"
+      ],
       "title": "Logprob",
       "type": "object",
       "additionalProperties": false
@@ -1483,7 +1646,9 @@
           "type": "array"
         }
       },
-      "required": ["content"],
+      "required": [
+        "content"
+      ],
       "title": "Logprobs",
       "type": "object",
       "additionalProperties": false
@@ -1529,7 +1694,12 @@
       },
       "title": "ModelOutput",
       "type": "object",
-      "required": ["model", "choices", "usage", "error"],
+      "required": [
+        "model",
+        "choices",
+        "usage",
+        "error"
+      ],
       "additionalProperties": false
     },
     "ModelUsage": {
@@ -1552,7 +1722,135 @@
       },
       "title": "ModelUsage",
       "type": "object",
-      "required": ["input_tokens", "output_tokens", "total_tokens"],
+      "required": [
+        "input_tokens",
+        "output_tokens",
+        "total_tokens"
+      ],
+      "additionalProperties": false
+    },
+    "SampleScore": {
+      "description": "Score for a Sample\n\nArgs:\n   sample_id: (str | int | None) Unique id of a sample",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            }
+          ],
+          "title": "Value"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
+        "sample_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Id"
+        }
+      },
+      "required": [
+        "value",
+        "answer",
+        "explanation",
+        "metadata",
+        "sample_id"
+      ],
+      "title": "SampleScore",
+      "type": "object",
       "additionalProperties": false
     },
     "Score": {
@@ -1653,7 +1951,12 @@
           "title": "Metadata"
         }
       },
-      "required": ["value", "answer", "explanation", "metadata"],
+      "required": [
+        "value",
+        "answer",
+        "explanation",
+        "metadata"
+      ],
       "title": "Score",
       "type": "object",
       "additionalProperties": false
@@ -1674,7 +1977,11 @@
         },
         "type": {
           "const": "function",
-          "title": "Type"
+          "enum": [
+            "function"
+          ],
+          "title": "Type",
+          "type": "string"
         },
         "parse_error": {
           "anyOf": [
@@ -1689,7 +1996,13 @@
           "title": "Parse Error"
         }
       },
-      "required": ["id", "function", "arguments", "type", "parse_error"],
+      "required": [
+        "id",
+        "function",
+        "arguments",
+        "type",
+        "parse_error"
+      ],
       "title": "ToolCall",
       "type": "object",
       "additionalProperties": false
@@ -1713,7 +2026,10 @@
           "type": "string"
         }
       },
-      "required": ["type", "message"],
+      "required": [
+        "type",
+        "message"
+      ],
       "title": "ToolCallError",
       "type": "object",
       "additionalProperties": false
@@ -1744,7 +2060,11 @@
           "title": "Bytes"
         }
       },
-      "required": ["token", "logprob", "bytes"],
+      "required": [
+        "token",
+        "logprob",
+        "bytes"
+      ],
       "title": "TopLogprob",
       "type": "object",
       "additionalProperties": false
@@ -1758,7 +2078,12 @@
     },
     "status": {
       "default": "started",
-      "enum": ["started", "success", "cancelled", "error"],
+      "enum": [
+        "started",
+        "success",
+        "cancelled",
+        "error"
+      ],
       "title": "Status",
       "type": "string"
     },
@@ -1856,7 +2181,9 @@
       "type": "array"
     }
   },
-  "required": ["eval"],
+  "required": [
+    "eval"
+  ],
   "title": "EvalLog",
   "type": "object"
 }
