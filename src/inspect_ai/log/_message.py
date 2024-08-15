@@ -33,9 +33,6 @@ class LoggingMessage(BaseModel):
     lineno: int = Field(default=0)
     """Logged from line number."""
 
-    args: JsonValue = Field(default=None)
-    """Extra arguments passed to log function."""
-
     @staticmethod
     def from_log_record(record: LogRecord) -> "LoggingMessage":
         """Create a LoggingMesssage from a LogRecord.
@@ -58,11 +55,7 @@ class LoggingMessage(BaseModel):
             created=record.created * 1000,
             filename=str(record.filename),
             module=str(record.module),
-            lineno=record.lineno or 0,
-            # serialize anything we can from the additional arguments
-            args=to_jsonable_python(record.args, fallback=lambda _x: None)
-            if record.args
-            else None,
+            lineno=record.lineno or 0
         )
 
     @model_validator(mode="before")
