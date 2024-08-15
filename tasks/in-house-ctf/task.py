@@ -1,18 +1,13 @@
 from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.solver import (
-    Generate,
-    TaskState,
     generate,
-    solver,
     system_message,
     use_tools,
 )
-from inspect_ai.util import sandbox
 from inspect_ai.tool import bash
 
-from dataset import read_dataset
+from dataset import get_task_sample, DATA_DIR
 from template import SYSTEM_MESSAGE
 
 # maximum chat messages before giving up
@@ -22,15 +17,14 @@ MAX_MESSAGES = 30
 CMD_TIMEOUT = 180
 
 
-@task
-def in_house_ctf(shuffle=False):
-    challenge_dataset = read_dataset(shuffle)
+def in_house_ctf_task_template(task_name: str) -> Task:
+    challenge_sample = get_task_sample(task_name)
     challenge_system_message = SYSTEM_MESSAGE.substitute(
-        objective_prompt=challenge_dataset[0].input,
-        challenge_addresses=challenge_dataset[0].metadata["challenge_address"],
+        objective_prompt=challenge_sample.input,
+        challenge_addresses=challenge_sample.metadata["challenge_address"],
     )
     return Task(
-        dataset=challenge_dataset,
+        dataset=[challenge_sample],
         plan=[
             system_message(challenge_system_message),
             use_tools([bash(timeout=CMD_TIMEOUT)]),
@@ -38,5 +32,14 @@ def in_house_ctf(shuffle=False):
         ],
         scorer=includes(),
         max_messages=MAX_MESSAGES,
-        sandbox=("docker", "docker-compose.yaml"),
+        sandbox=("docker", f"{DATA_DIR}/{task_name}/docker-compose.yaml"),
     )
+
+
+@task
+def cmd_injection():
+    return in_house_ctf_task_template("cmd_injection")
+
+@task
+def sqli():
+    return in_house_ctf_task_template("sqli")
