@@ -36,13 +36,13 @@ export const StepEventView = ({ event }) => {
     }
   };
 
-  if (event.action === "end") {
+  if (event.action === "end" || event.type === "generate_loop") {
     // end events have no special implicit UI
     return html``;
   }
 
   return html`<${EventPanel}
-    title=${event.name}
+    title="${event.type ? event.type + ": " : "Step: "}${event.name}"
     icon=${icon()}
     style=${{ background: "var(--bs-light" }}
   />`;

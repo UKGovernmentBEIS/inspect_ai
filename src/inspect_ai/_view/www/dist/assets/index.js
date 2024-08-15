@@ -47,7 +47,7 @@ function w$1(n2) {
   var l2 = n2.parentNode;
   l2 && l2.removeChild(n2);
 }
-function _(l2, u2, t2) {
+function _$1(l2, u2, t2) {
   var i2, o2, r2, f2 = {};
   for (r2 in u2) "key" == r2 ? i2 = u2[r2] : "ref" == r2 ? o2 = u2[r2] : f2[r2] = u2[r2];
   if (arguments.length > 2 && (f2.children = arguments.length > 3 ? n$2.call(arguments, 2) : t2), "function" == typeof l2 && null != l2.defaultProps) for (r2 in l2.defaultProps) void 0 === f2[r2] && (f2[r2] = l2.defaultProps[r2]);
@@ -66,10 +66,10 @@ function k$1(n2) {
 function b(n2, l2) {
   this.props = n2, this.context = l2;
 }
-function x(n2, l2) {
-  if (null == l2) return n2.__ ? x(n2.__, n2.__i + 1) : null;
+function x$1(n2, l2) {
+  if (null == l2) return n2.__ ? x$1(n2.__, n2.__i + 1) : null;
   for (var u2; l2 < n2.__k.length; l2++) if (null != (u2 = n2.__k[l2]) && null != u2.__e) return u2.__e;
-  return "function" == typeof n2.type ? x(n2) : null;
+  return "function" == typeof n2.type ? x$1(n2) : null;
 }
 function C$1(n2) {
   var l2, u2;
@@ -86,18 +86,18 @@ function M(n2) {
 }
 function P() {
   var n2, u2, t2, o2, r2, e2, c2, s2;
-  for (i$1.sort(f$1); n2 = i$1.shift(); ) n2.__d && (u2 = i$1.length, o2 = void 0, e2 = (r2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((o2 = d$1({}, r2)).__v = r2.__v + 1, l$1.vnode && l$1.vnode(o2), O(t2.__P, o2, r2, t2.__n, t2.__P.namespaceURI, 32 & r2.__u ? [e2] : null, c2, null == e2 ? x(r2) : e2, !!(32 & r2.__u), s2), o2.__v = r2.__v, o2.__.__k[o2.__i] = o2, j$1(c2, o2, s2), o2.__e != e2 && C$1(o2)), i$1.length > u2 && i$1.sort(f$1));
+  for (i$1.sort(f$1); n2 = i$1.shift(); ) n2.__d && (u2 = i$1.length, o2 = void 0, e2 = (r2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((o2 = d$1({}, r2)).__v = r2.__v + 1, l$1.vnode && l$1.vnode(o2), O(t2.__P, o2, r2, t2.__n, t2.__P.namespaceURI, 32 & r2.__u ? [e2] : null, c2, null == e2 ? x$1(r2) : e2, !!(32 & r2.__u), s2), o2.__v = r2.__v, o2.__.__k[o2.__i] = o2, j$1(c2, o2, s2), o2.__e != e2 && C$1(o2)), i$1.length > u2 && i$1.sort(f$1));
   P.__r = 0;
 }
 function S(n2, l2, u2, t2, i2, o2, r2, f2, e2, c2, s2) {
   var a2, v2, y2, d2, w2, _2 = t2 && t2.__k || p$1, g2 = l2.length;
-  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && "boolean" != typeof y2 && "function" != typeof y2 && (v2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, v2, i2, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && v2.ref != y2.ref && (v2.ref && N(v2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || v2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
+  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && "boolean" != typeof y2 && "function" != typeof y2 && (v2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, v2, i2, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && v2.ref != y2.ref && (v2.ref && N(v2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || v2.__k === y2.__k ? (e2 && !e2.isConnected && (e2 = x$1(v2)), e2 = I(y2, e2, n2)) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
   u2.__d = e2, u2.__e = w2;
 }
 function $(n2, l2, u2) {
   var t2, i2, o2, r2, f2, e2 = l2.length, c2 = u2.length, s2 = c2, a2 = 0;
-  for (n2.__k = [], t2 = 0; t2 < e2; t2++) r2 = t2 + a2, null != (i2 = n2.__k[t2] = null == (i2 = l2[t2]) || "boolean" == typeof i2 || "function" == typeof i2 ? null : "string" == typeof i2 || "number" == typeof i2 || "bigint" == typeof i2 || i2.constructor == String ? g(null, i2, null, null, null) : y$1(i2) ? g(k$1, { children: i2 }, null, null, null) : void 0 === i2.constructor && i2.__b > 0 ? g(i2.type, i2.props, i2.key, i2.ref ? i2.ref : null, i2.__v) : i2) ? (i2.__ = n2, i2.__b = n2.__b + 1, f2 = L(i2, u2, r2, s2), i2.__i = f2, o2 = null, -1 !== f2 && (s2--, (o2 = u2[f2]) && (o2.__u |= 131072)), null == o2 || null === o2.__v ? (-1 == f2 && a2--, "function" != typeof i2.type && (i2.__u |= 65536)) : f2 !== r2 && (f2 == r2 - 1 ? a2 = f2 - r2 : f2 == r2 + 1 ? a2++ : f2 > r2 ? s2 > e2 - r2 ? a2 += f2 - r2 : a2-- : f2 < r2 && a2++, f2 !== t2 + a2 && (i2.__u |= 65536))) : (o2 = u2[r2]) && null == o2.key && o2.__e && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x(o2)), V(o2, o2, false), u2[r2] = null, s2--);
-  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x(o2)), V(o2, o2));
+  for (n2.__k = [], t2 = 0; t2 < e2; t2++) r2 = t2 + a2, null != (i2 = n2.__k[t2] = null == (i2 = l2[t2]) || "boolean" == typeof i2 || "function" == typeof i2 ? null : "string" == typeof i2 || "number" == typeof i2 || "bigint" == typeof i2 || i2.constructor == String ? g(null, i2, null, null, null) : y$1(i2) ? g(k$1, { children: i2 }, null, null, null) : void 0 === i2.constructor && i2.__b > 0 ? g(i2.type, i2.props, i2.key, i2.ref ? i2.ref : null, i2.__v) : i2) ? (i2.__ = n2, i2.__b = n2.__b + 1, f2 = L(i2, u2, r2, s2), i2.__i = f2, o2 = null, -1 !== f2 && (s2--, (o2 = u2[f2]) && (o2.__u |= 131072)), null == o2 || null === o2.__v ? (-1 == f2 && a2--, "function" != typeof i2.type && (i2.__u |= 65536)) : f2 !== r2 && (f2 === r2 + 1 ? a2++ : f2 > r2 ? s2 > e2 - r2 ? a2 += f2 - r2 : a2-- : f2 < r2 ? f2 == r2 - 1 && (a2 = f2 - r2) : a2 = 0, f2 !== t2 + a2 && (i2.__u |= 65536))) : (o2 = u2[r2]) && null == o2.key && o2.__e && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x$1(o2)), V(o2, o2, false), u2[r2] = null, s2--);
+  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x$1(o2)), V(o2, o2));
 }
 function I(n2, l2, u2) {
   var t2, i2;
@@ -105,7 +105,7 @@ function I(n2, l2, u2) {
     for (t2 = n2.__k, i2 = 0; t2 && i2 < t2.length; i2++) t2[i2] && (t2[i2].__ = n2, l2 = I(t2[i2], l2, u2));
     return l2;
   }
-  n2.__e != l2 && (l2 && n2.type && !u2.contains(l2) && (l2 = x(n2)), u2.insertBefore(n2.__e, l2 || null), l2 = n2.__e);
+  n2.__e != l2 && (u2.insertBefore(n2.__e, l2 || null), l2 = n2.__e);
   do {
     l2 = l2 && l2.nextSibling;
   } while (null != l2 && 8 === l2.nodeType);
@@ -126,28 +126,28 @@ function L(n2, l2, u2, t2) {
   }
   return -1;
 }
-function T$1(n2, l2, u2) {
+function T(n2, l2, u2) {
   "-" === l2[0] ? n2.setProperty(l2, null == u2 ? "" : u2) : n2[l2] = null == u2 ? "" : "number" != typeof u2 || v$1.test(l2) ? u2 : u2 + "px";
 }
-function A$1(n2, l2, u2, t2, i2) {
+function A(n2, l2, u2, t2, i2) {
   var o2;
   n: if ("style" === l2) if ("string" == typeof u2) n2.style.cssText = u2;
   else {
-    if ("string" == typeof t2 && (n2.style.cssText = t2 = ""), t2) for (l2 in t2) u2 && l2 in u2 || T$1(n2.style, l2, "");
-    if (u2) for (l2 in u2) t2 && u2[l2] === t2[l2] || T$1(n2.style, l2, u2[l2]);
+    if ("string" == typeof t2 && (n2.style.cssText = t2 = ""), t2) for (l2 in t2) u2 && l2 in u2 || T(n2.style, l2, "");
+    if (u2) for (l2 in u2) t2 && u2[l2] === t2[l2] || T(n2.style, l2, u2[l2]);
   }
   else if ("o" === l2[0] && "n" === l2[1]) o2 = l2 !== (l2 = l2.replace(/(PointerCapture)$|Capture$/i, "$1")), l2 = l2.toLowerCase() in n2 || "onFocusOut" === l2 || "onFocusIn" === l2 ? l2.toLowerCase().slice(2) : l2.slice(2), n2.l || (n2.l = {}), n2.l[l2 + o2] = u2, u2 ? t2 ? u2.u = t2.u : (u2.u = e$3, n2.addEventListener(l2, o2 ? s$1 : c$2, o2)) : n2.removeEventListener(l2, o2 ? s$1 : c$2, o2);
   else {
     if ("http://www.w3.org/2000/svg" == i2) l2 = l2.replace(/xlink(H|:h)/, "h").replace(/sName$/, "s");
-    else if ("width" != l2 && "height" != l2 && "href" != l2 && "list" != l2 && "form" != l2 && "tabIndex" != l2 && "download" != l2 && "rowSpan" != l2 && "colSpan" != l2 && "role" != l2 && "popover" != l2 && l2 in n2) try {
+    else if ("width" != l2 && "height" != l2 && "href" != l2 && "list" != l2 && "form" != l2 && "tabIndex" != l2 && "download" != l2 && "rowSpan" != l2 && "colSpan" != l2 && "role" != l2 && l2 in n2) try {
       n2[l2] = null == u2 ? "" : u2;
       break n;
     } catch (n3) {
     }
-    "function" == typeof u2 || (null == u2 || false === u2 && "-" !== l2[4] ? n2.removeAttribute(l2) : n2.setAttribute(l2, "popover" == l2 && 1 == u2 ? "" : u2));
+    "function" == typeof u2 || (null == u2 || false === u2 && "-" !== l2[4] ? n2.removeAttribute(l2) : n2.setAttribute(l2, u2));
   }
 }
-function F(n2) {
+function F$1(n2) {
   return function(u2) {
     if (this.l) {
       var t2 = this.l[u2.type + n2];
@@ -158,36 +158,32 @@ function F(n2) {
   };
 }
 function O(n2, u2, t2, i2, o2, r2, f2, e2, c2, s2) {
-  var a2, h2, p2, v2, w2, _2, g2, m2, x2, C2, M2, P2, $2, I2, H, L2, T2 = u2.type;
+  var a2, h2, p2, v2, w2, _2, g2, m2, x2, C2, M2, P2, $2, I2, H, L2 = u2.type;
   if (void 0 !== u2.constructor) return null;
   128 & t2.__u && (c2 = !!(32 & t2.__u), r2 = [e2 = u2.__e = t2.__e]), (a2 = l$1.__b) && a2(u2);
-  n: if ("function" == typeof T2) try {
-    if (m2 = u2.props, x2 = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i2[a2.__c], M2 = a2 ? C2 ? C2.props.value : a2.__ : i2, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x2 ? u2.__c = h2 = new T2(m2, M2) : (u2.__c = h2 = new b(m2, M2), h2.constructor = T2, h2.render = q$1), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = M2, h2.__n = i2, p2 = h2.__d = true, h2.__h = [], h2._sb = []), x2 && null == h2.__s && (h2.__s = h2.state), x2 && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), v2 = h2.props, w2 = h2.state, h2.__v = u2, p2) x2 && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x2 && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
+  n: if ("function" == typeof L2) try {
+    if (m2 = u2.props, x2 = (a2 = L2.contextType) && i2[a2.__c], C2 = a2 ? x2 ? x2.props.value : a2.__ : i2, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : ("prototype" in L2 && L2.prototype.render ? u2.__c = h2 = new L2(m2, C2) : (u2.__c = h2 = new b(m2, C2), h2.constructor = L2, h2.render = q$1), x2 && x2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = C2, h2.__n = i2, p2 = h2.__d = true, h2.__h = [], h2._sb = []), null == h2.__s && (h2.__s = h2.state), null != L2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, L2.getDerivedStateFromProps(m2, h2.__s))), v2 = h2.props, w2 = h2.state, h2.__v = u2, p2) null == L2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
     else {
-      if (x2 && null == T2.getDerivedStateFromProps && m2 !== v2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, M2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, M2) || u2.__v === t2.__v)) {
+      if (null == L2.getDerivedStateFromProps && m2 !== v2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, C2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, C2) || u2.__v === t2.__v)) {
         for (u2.__v !== t2.__v && (h2.props = m2, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.forEach(function(n3) {
           n3 && (n3.__ = u2);
-        }), P2 = 0; P2 < h2._sb.length; P2++) h2.__h.push(h2._sb[P2]);
+        }), M2 = 0; M2 < h2._sb.length; M2++) h2.__h.push(h2._sb[M2]);
         h2._sb = [], h2.__h.length && f2.push(h2);
         break n;
       }
-      null != h2.componentWillUpdate && h2.componentWillUpdate(m2, h2.__s, M2), x2 && null != h2.componentDidUpdate && h2.__h.push(function() {
+      null != h2.componentWillUpdate && h2.componentWillUpdate(m2, h2.__s, C2), null != h2.componentDidUpdate && h2.__h.push(function() {
         h2.componentDidUpdate(v2, w2, _2);
       });
     }
-    if (h2.context = M2, h2.props = m2, h2.__P = n2, h2.__e = false, $2 = l$1.__r, I2 = 0, x2) {
-      for (h2.state = h2.__s, h2.__d = false, $2 && $2(u2), a2 = h2.render(h2.props, h2.state, h2.context), H = 0; H < h2._sb.length; H++) h2.__h.push(h2._sb[H]);
+    if (h2.context = C2, h2.props = m2, h2.__P = n2, h2.__e = false, P2 = l$1.__r, $2 = 0, "prototype" in L2 && L2.prototype.render) {
+      for (h2.state = h2.__s, h2.__d = false, P2 && P2(u2), a2 = h2.render(h2.props, h2.state, h2.context), I2 = 0; I2 < h2._sb.length; I2++) h2.__h.push(h2._sb[I2]);
       h2._sb = [];
     } else do {
-      h2.__d = false, $2 && $2(u2), a2 = h2.render(h2.props, h2.state, h2.context), h2.state = h2.__s;
-    } while (h2.__d && ++I2 < 25);
-    h2.state = h2.__s, null != h2.getChildContext && (i2 = d$1(d$1({}, i2), h2.getChildContext())), x2 && !p2 && null != h2.getSnapshotBeforeUpdate && (_2 = h2.getSnapshotBeforeUpdate(v2, w2)), S(n2, y$1(L2 = null != a2 && a2.type === k$1 && null == a2.key ? a2.props.children : a2) ? L2 : [L2], u2, t2, i2, o2, r2, f2, e2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && f2.push(h2), g2 && (h2.__E = h2.__ = null);
+      h2.__d = false, P2 && P2(u2), a2 = h2.render(h2.props, h2.state, h2.context), h2.state = h2.__s;
+    } while (h2.__d && ++$2 < 25);
+    h2.state = h2.__s, null != h2.getChildContext && (i2 = d$1(d$1({}, i2), h2.getChildContext())), p2 || null == h2.getSnapshotBeforeUpdate || (_2 = h2.getSnapshotBeforeUpdate(v2, w2)), S(n2, y$1(H = null != a2 && a2.type === k$1 && null == a2.key ? a2.props.children : a2) ? H : [H], u2, t2, i2, o2, r2, f2, e2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && f2.push(h2), g2 && (h2.__E = h2.__ = null);
   } catch (n3) {
-    if (u2.__v = null, c2 || null != r2) {
-      for (u2.__u |= c2 ? 160 : 32; e2 && 8 === e2.nodeType && e2.nextSibling; ) e2 = e2.nextSibling;
-      r2[r2.indexOf(e2)] = null, u2.__e = e2;
-    } else u2.__e = t2.__e, u2.__k = t2.__k;
-    l$1.__e(n3, u2, t2);
+    u2.__v = null, c2 || null != r2 ? (u2.__e = e2, u2.__u |= c2 ? 160 : 32, r2[r2.indexOf(e2)] = null) : (u2.__e = t2.__e, u2.__k = t2.__k), l$1.__e(n3, u2, t2);
   }
   else null == r2 && u2.__v === t2.__v ? (u2.__k = t2.__k, u2.__e = t2.__e) : u2.__e = z$1(t2.__e, u2, t2, i2, o2, r2, f2, c2, s2);
   (a2 = l$1.diffed) && a2(u2);
@@ -224,21 +220,18 @@ function z$1(l2, u2, t2, i2, o2, r2, f2, e2, c2) {
     else if ("dangerouslySetInnerHTML" == s2) p2 = d2;
     else if ("key" !== s2 && !(s2 in k2)) {
       if ("value" == s2 && "defaultValue" in k2 || "checked" == s2 && "defaultChecked" in k2) continue;
-      A$1(l2, s2, null, d2, o2);
+      A(l2, s2, null, d2, o2);
     }
-    for (s2 in k2) d2 = k2[s2], "children" == s2 ? v2 = d2 : "dangerouslySetInnerHTML" == s2 ? a2 = d2 : "value" == s2 ? _2 = d2 : "checked" == s2 ? g2 = d2 : "key" === s2 || e2 && "function" != typeof d2 || m2[s2] === d2 || A$1(l2, s2, d2, m2[s2], o2);
+    for (s2 in k2) d2 = k2[s2], "children" == s2 ? v2 = d2 : "dangerouslySetInnerHTML" == s2 ? a2 = d2 : "value" == s2 ? _2 = d2 : "checked" == s2 ? g2 = d2 : "key" === s2 || e2 && "function" != typeof d2 || m2[s2] === d2 || A(l2, s2, d2, m2[s2], o2);
     if (a2) e2 || p2 && (a2.__html === p2.__html || a2.__html === l2.innerHTML) || (l2.innerHTML = a2.__html), u2.__k = [];
-    else if (p2 && (l2.innerHTML = ""), S(l2, y$1(v2) ? v2 : [v2], u2, t2, i2, "foreignObject" === b2 ? "http://www.w3.org/1999/xhtml" : o2, r2, f2, r2 ? r2[0] : t2.__k && x(t2, 0), e2, c2), null != r2) for (s2 = r2.length; s2--; ) null != r2[s2] && w$1(r2[s2]);
-    e2 || (s2 = "value", void 0 !== _2 && (_2 !== l2[s2] || "progress" === b2 && !_2 || "option" === b2 && _2 !== m2[s2]) && A$1(l2, s2, _2, m2[s2], o2), s2 = "checked", void 0 !== g2 && g2 !== l2[s2] && A$1(l2, s2, g2, m2[s2], o2));
+    else if (p2 && (l2.innerHTML = ""), S(l2, y$1(v2) ? v2 : [v2], u2, t2, i2, "foreignObject" === b2 ? "http://www.w3.org/1999/xhtml" : o2, r2, f2, r2 ? r2[0] : t2.__k && x$1(t2, 0), e2, c2), null != r2) for (s2 = r2.length; s2--; ) null != r2[s2] && w$1(r2[s2]);
+    e2 || (s2 = "value", void 0 !== _2 && (_2 !== l2[s2] || "progress" === b2 && !_2 || "option" === b2 && _2 !== m2[s2]) && A(l2, s2, _2, m2[s2], o2), s2 = "checked", void 0 !== g2 && g2 !== l2[s2] && A(l2, s2, g2, m2[s2], o2));
   }
   return l2;
 }
 function N(n2, u2, t2) {
   try {
-    if ("function" == typeof n2) {
-      var i2 = "function" == typeof n2.__u;
-      i2 && n2.__u(), i2 && null == u2 || (n2.__u = n2(u2));
-    } else n2.current = u2;
+    "function" == typeof n2 ? n2(u2) : n2.current = u2;
   } catch (n3) {
     l$1.__e(n3, t2);
   }
@@ -261,7 +254,7 @@ function q$1(n2, l2, u2) {
 }
 function B$1(u2, t2, i2) {
   var o2, r2, f2, e2;
-  l$1.__ && l$1.__(u2, t2), r2 = (o2 = "function" == typeof i2) ? null : t2.__k, f2 = [], e2 = [], O(t2, u2 = (!o2 && i2 || t2).__k = _(k$1, null, [u2]), r2 || h$1, h$1, t2.namespaceURI, !o2 && i2 ? [i2] : r2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, f2, !o2 && i2 ? i2 : r2 ? r2.__e : t2.firstChild, o2, e2), j$1(f2, u2, e2);
+  l$1.__ && l$1.__(u2, t2), r2 = (o2 = "function" == typeof i2) ? null : t2.__k, f2 = [], e2 = [], O(t2, u2 = (!o2 && i2 || t2).__k = _$1(k$1, null, [u2]), r2 || h$1, h$1, t2.namespaceURI, !o2 && i2 ? [i2] : r2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, f2, !o2 && i2 ? i2 : r2 ? r2.__e : t2.firstChild, o2, e2), j$1(f2, u2, e2);
 }
 n$2 = p$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
   for (var i2, o2, r2; l2 = l2.__; ) if ((i2 = l2.__c) && !i2.__) try {
@@ -277,7 +270,7 @@ n$2 = p$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
   this.__v && (this.__e = true, n2 && this.__h.push(n2), M(this));
 }, b.prototype.render = k$1, i$1 = [], r$2 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, f$1 = function(n2, l2) {
   return n2.__v.__b - l2.__v.__b;
-}, P.__r = 0, e$3 = 0, c$2 = F(false), s$1 = F(true);
+}, P.__r = 0, e$3 = 0, c$2 = F$1(false), s$1 = F$1(true);
 var n$1 = function(t2, s2, r2, e2) {
   var u2;
   s2[0] = 0;
@@ -299,7 +292,7 @@ function e$2(s2) {
     return p2(), h2;
   }(s2)), r2), arguments, [])).length > 1 ? r2 : r2[0];
 }
-var m$1 = e$2.bind(_);
+var m$1 = e$2.bind(_$1);
 var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};
 function getDefaultExportFromCjs(x2) {
   return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
@@ -2381,7 +2374,7 @@ const MILLISECONDS_MULTIPLIER = 1e3;
 const TRANSITION_END = "transitionend";
 const parseSelector = (selector) => {
   if (selector && window.CSS && window.CSS.escape) {
-    selector = selector.replace(/#([^\s"#']+)/g, (match, id2) => `#${CSS.escape(id2)}`);
+    selector = selector.replace(/#([^\s"#']+)/g, (match, id) => `#${CSS.escape(id)}`);
   }
   return selector;
 };
@@ -5995,17 +5988,17 @@ class Toast extends BaseComponent {
 }
 enableDismissTrigger(Toast);
 defineJQueryPlugin(Toast);
-var t$1, r$1, u, i, o = 0, f = [], c$1 = l$1, e$1 = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
-function d(n2, t2) {
-  c$1.__h && c$1.__h(r$1, n2, o || t2), o = 0;
+var t$1, r$1, u, i, o = 0, f = [], c$1 = [], e$1 = l$1, a = e$1.__b, v = e$1.__r, l = e$1.diffed, m = e$1.__c, s = e$1.unmount, d = e$1.__;
+function h(n2, t2) {
+  e$1.__h && e$1.__h(r$1, n2, o || t2), o = 0;
   var u2 = r$1.__H || (r$1.__H = { __: [], __h: [] });
-  return n2 >= u2.__.length && u2.__.push({}), u2.__[n2];
+  return n2 >= u2.__.length && u2.__.push({ __V: c$1 }), u2.__[n2];
 }
-function h(n2) {
-  return o = 1, p(D, n2);
+function p(n2) {
+  return o = 1, y(D, n2);
 }
-function p(n2, u2, i2) {
-  var o2 = d(t$1++, 2);
+function y(n2, u2, i2) {
+  var o2 = h(t$1++, 2);
   if (o2.t = n2, !o2.__c && (o2.__ = [D(void 0, u2), function(n3) {
     var t2 = o2.__N ? o2.__N[0] : o2.__[0], r2 = o2.t(t2, n3);
     t2 !== r2 && (o2.__N = [r2, o2.__[1]], o2.__c.setState({}));
@@ -6038,21 +6031,21 @@ function p(n2, u2, i2) {
   }
   return o2.__N || o2.__;
 }
-function y(n2, u2) {
-  var i2 = d(t$1++, 3);
-  !c$1.__s && C(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__H.__h.push(i2));
+function _(n2, u2) {
+  var i2 = h(t$1++, 3);
+  !e$1.__s && C(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__H.__h.push(i2));
 }
-function A(n2) {
-  return o = 5, T(function() {
+function F(n2) {
+  return o = 5, q(function() {
     return { current: n2 };
   }, []);
 }
-function T(n2, r2) {
-  var u2 = d(t$1++, 7);
-  return C(u2.__H, r2) && (u2.__ = n2(), u2.__H = r2, u2.__h = n2), u2.__;
+function q(n2, r2) {
+  var u2 = h(t$1++, 7);
+  return C(u2.__H, r2) ? (u2.__V = n2(), u2.i = r2, u2.__h = n2, u2.__V) : u2.__;
 }
-function q(n2, t2) {
-  return o = 8, T(function() {
+function x(n2, t2) {
+  return o = 8, q(function() {
     return n2;
   }, t2);
 }
@@ -6060,26 +6053,26 @@ function j() {
   for (var n2; n2 = f.shift(); ) if (n2.__P && n2.__H) try {
     n2.__H.__h.forEach(z), n2.__H.__h.forEach(B), n2.__H.__h = [];
   } catch (t2) {
-    n2.__H.__h = [], c$1.__e(t2, n2.__v);
+    n2.__H.__h = [], e$1.__e(t2, n2.__v);
   }
 }
-c$1.__b = function(n2) {
-  r$1 = null, e$1 && e$1(n2);
-}, c$1.__ = function(n2, t2) {
-  n2 && t2.__k && t2.__k.__m && (n2.__m = t2.__k.__m), s && s(n2, t2);
-}, c$1.__r = function(n2) {
-  a && a(n2), t$1 = 0;
+e$1.__b = function(n2) {
+  r$1 = null, a && a(n2);
+}, e$1.__ = function(n2, t2) {
+  n2 && t2.__k && t2.__k.__m && (n2.__m = t2.__k.__m), d && d(n2, t2);
+}, e$1.__r = function(n2) {
+  v && v(n2), t$1 = 0;
   var i2 = (r$1 = n2.__c).__H;
   i2 && (u === r$1 ? (i2.__h = [], r$1.__h = [], i2.__.forEach(function(n3) {
-    n3.__N && (n3.__ = n3.__N), n3.i = n3.__N = void 0;
+    n3.__N && (n3.__ = n3.__N), n3.__V = c$1, n3.__N = n3.i = void 0;
   })) : (i2.__h.forEach(z), i2.__h.forEach(B), i2.__h = [], t$1 = 0)), u = r$1;
-}, c$1.diffed = function(n2) {
-  v && v(n2);
+}, e$1.diffed = function(n2) {
+  l && l(n2);
   var t2 = n2.__c;
-  t2 && t2.__H && (t2.__H.__h.length && (1 !== f.push(t2) && i === c$1.requestAnimationFrame || ((i = c$1.requestAnimationFrame) || w)(j)), t2.__H.__.forEach(function(n3) {
-    n3.i && (n3.__H = n3.i), n3.i = void 0;
+  t2 && t2.__H && (t2.__H.__h.length && (1 !== f.push(t2) && i === e$1.requestAnimationFrame || ((i = e$1.requestAnimationFrame) || w)(j)), t2.__H.__.forEach(function(n3) {
+    n3.i && (n3.__H = n3.i), n3.__V !== c$1 && (n3.__ = n3.__V), n3.i = void 0, n3.__V = c$1;
   })), u = r$1 = null;
-}, c$1.__c = function(n2, t2) {
+}, e$1.__c = function(n2, t2) {
   t2.some(function(n3) {
     try {
       n3.__h.forEach(z), n3.__h = n3.__h.filter(function(n4) {
@@ -6088,11 +6081,11 @@ c$1.__b = function(n2) {
     } catch (r2) {
       t2.some(function(n4) {
         n4.__h && (n4.__h = []);
-      }), t2 = [], c$1.__e(r2, n3.__v);
+      }), t2 = [], e$1.__e(r2, n3.__v);
     }
-  }), l && l(n2, t2);
-}, c$1.unmount = function(n2) {
-  m && m(n2);
+  }), m && m(n2, t2);
+}, e$1.unmount = function(n2) {
+  s && s(n2);
   var t2, r2 = n2.__c;
   r2 && r2.__H && (r2.__H.__.forEach(function(n3) {
     try {
@@ -6100,7 +6093,7 @@ c$1.__b = function(n2) {
     } catch (n4) {
       t2 = n4;
     }
-  }), r2.__H = void 0, t2 && c$1.__e(t2, r2.__v));
+  }), r2.__H = void 0, t2 && e$1.__e(t2, r2.__v));
 };
 var k = "function" == typeof requestAnimationFrame;
 function w(n2) {
@@ -6360,7 +6353,7 @@ const TextStyle = {
     color: "var(--bs-secondary)"
   }
 };
-const ErrorPanel = ({ id: id2, classes, title, error }) => {
+const ErrorPanel = ({ id, classes, title, error }) => {
   const emptyStyle = {
     display: "flex",
     flex: "0 0 content",
@@ -6371,7 +6364,7 @@ const ErrorPanel = ({ id: id2, classes, title, error }) => {
   const stack2 = error.stack;
   return m$1`
     <div
-      ...${{ id: id2 }}
+      ...${{ id }}
       class="${classes ? classes : ""}"
       style=${{
     ...emptyStyle,
@@ -6937,16 +6930,16 @@ var prism = { exports: {} };
         clone: function deepClone2(o2, visited) {
           visited = visited || {};
           var clone;
-          var id2;
+          var id;
           switch (_2.util.type(o2)) {
             case "Object":
-              id2 = _2.util.objId(o2);
-              if (visited[id2]) {
-                return visited[id2];
+              id = _2.util.objId(o2);
+              if (visited[id]) {
+                return visited[id];
               }
               clone = /** @type {Record<string, any>} */
               {};
-              visited[id2] = clone;
+              visited[id] = clone;
               for (var key2 in o2) {
                 if (o2.hasOwnProperty(key2)) {
                   clone[key2] = deepClone2(o2[key2], visited);
@@ -6957,12 +6950,12 @@ var prism = { exports: {} };
                 clone
               );
             case "Array":
-              id2 = _2.util.objId(o2);
-              if (visited[id2]) {
-                return visited[id2];
+              id = _2.util.objId(o2);
+              if (visited[id]) {
+                return visited[id];
               }
               clone = [];
-              visited[id2] = clone;
+              visited[id] = clone;
               /** @type {Array} */
               /** @type {any} */
               o2.forEach(function(v2, i2) {
@@ -7114,8 +7107,8 @@ var prism = { exports: {} };
          *     'color': /\b(?:red|green|blue)\b/
          * });
          */
-        extend: function(id2, redef) {
-          var lang2 = _2.util.clone(_2.languages[id2]);
+        extend: function(id, redef) {
+          var lang2 = _2.util.clone(_2.languages[id]);
           for (var key2 in redef) {
             lang2[key2] = redef[key2];
           }
@@ -8270,7 +8263,7 @@ var prism = { exports: {} };
 })(prism);
 var prismExports = prism.exports;
 const Prism = /* @__PURE__ */ getDefaultExportFromCjs(prismExports);
-const EmptyPanel = ({ id: id2, classes, height, style, children }) => {
+const EmptyPanel = ({ id, classes, height, style, children }) => {
   const emptyStyle = {
     display: "flex",
     textAlign: "center",
@@ -8281,7 +8274,7 @@ const EmptyPanel = ({ id: id2, classes, height, style, children }) => {
   };
   return m$1`
     <div
-      ...${{ id: id2 }}
+      ...${{ id }}
       class="${classes ? classes : ""}"
       style=${{ width: "100%" }}
     >
@@ -8291,8 +8284,8 @@ const EmptyPanel = ({ id: id2, classes, height, style, children }) => {
     </div>
   `;
 };
-const TabSet = ({ id: id2, type, classes, tools, styles, children }) => {
-  if (!id2) {
+const TabSet = ({ id, type, classes, tools, styles, children }) => {
+  if (!id) {
     throw new Error("Tabsets require an id to function properly");
   }
   const tabs = children;
@@ -8301,7 +8294,7 @@ const TabSet = ({ id: id2, type, classes, tools, styles, children }) => {
     alignItems: "space-between"
   };
   return m$1`<ul
-      ...${{ id: id2 }}
+      ...${{ id }}
       class="nav nav-${tabType} ${classes ? classes : ""}"
       role="tablist"
       aria-orientation="horizontal"
@@ -8310,17 +8303,17 @@ const TabSet = ({ id: id2, type, classes, tools, styles, children }) => {
       <${Tabs} tabs=${tabs} type=${tabType} style=${styles.tabs} />
       <${TabTools} tools=${tools} />
     </ul>
-    <${TabPanels} id=${id2} tabs=${tabs} style=${styles.tabBody} />`;
+    <${TabPanels} id=${id} tabs=${tabs} style=${styles.tabBody} />`;
 };
 const TabPanel = ({
-  id: id2,
+  id,
   index,
   selected,
   style,
   scrollable,
   children
 }) => {
-  const tabContentsId = computeTabContentsId(id2, index);
+  const tabContentsId = computeTabContentsId(id, index);
   return m$1`<div
     id="${tabContentsId}"
     class="tab-pane show ${selected ? "active" : ""}"
@@ -8344,7 +8337,7 @@ const Tabs = ({ tabs, type, style }) => {
   });
 };
 const Tab2 = ({ type, tab, index, style }) => {
-  const tabId = tab.props.id || computeTabId(id, index);
+  const tabId = tab.props.id || computeTabId("tabset", index);
   const tabContentsId = computeTabContentsId(tab.props.id, index);
   const isActive = tab.props.selected;
   const tabStyle = {
@@ -8399,19 +8392,19 @@ const TabTools = ({ tools }) => {
     ${tools}
   </div>`;
 };
-const TabPanels = ({ id: id2, tabs, style }) => {
-  return m$1`<div class="tab-content" id="${id2}-content" style=${{ ...style }}>
+const TabPanels = ({ id, tabs, style }) => {
+  return m$1`<div class="tab-content" id="${id}-content" style=${{ ...style }}>
     ${tabs.map((tab, index) => {
     tab.props.index = index;
     return tab;
   })}
   </div>`;
 };
-const computeTabId = (id2, index) => {
-  return `${id2}-${index}`;
+const computeTabId = (id, index) => {
+  return `${id}-${index}`;
 };
-const computeTabContentsId = (id2, index) => {
-  return `${id2}-contents-${index}`;
+const computeTabContentsId = (id, index) => {
+  return `${id}-contents-${index}`;
 };
 const ToolButton = ({ name, classes, icon, onclick, ...rest }) => {
   const attr = {
@@ -8421,14 +8414,14 @@ const ToolButton = ({ name, classes, icon, onclick, ...rest }) => {
     ...rest
   };
   const iconEl = icon ? m$1`<i class="${icon}" style=${{ marginRight: "0.5em" }}></i>` : "";
-  return _("button", attr, m$1`${iconEl}${name}`);
+  return _$1("button", attr, m$1`${iconEl}${name}`);
 };
 const ghCommitUrl = (origin, commit) => {
   const baseUrl = origin.replace(/\.git$/, "");
   return `${baseUrl}/commit/${commit}`;
 };
-const CardHeader = ({ id: id2, icon, label, classes, style, children }) => {
-  return m$1`<div class="card-header ${classes || ""}" ...${{ id: id2, style }}>
+const CardHeader = ({ id, icon, label, classes, style, children }) => {
+  return m$1`<div class="card-header ${classes || ""}" ...${{ id, style }}>
     ${icon ? m$1`<i
           class="${icon}"
           style=${{
@@ -8438,14 +8431,14 @@ const CardHeader = ({ id: id2, icon, label, classes, style, children }) => {
     ${label ? label : ""} ${children}
   </div> `;
 };
-const CardBody = ({ id: id2, classes, style, children }) => {
-  return m$1`<div class="card-body ${classes || ""}" ...${{ id: id2, style }}>
+const CardBody = ({ id, classes, style, children }) => {
+  return m$1`<div class="card-body ${classes || ""}" ...${{ id, style }}>
     ${children}
   </div>`;
 };
-const Card = ({ id: id2, classes, style, children }) => {
+const Card = ({ id, classes, style, children }) => {
   return m$1`
-    <div class="card ${classes || ""}" ...${{ id: id2, style }}>${children}</div>
+    <div class="card ${classes || ""}" ...${{ id, style }}>${children}</div>
   `;
 };
 var e, t, r = { exports: {} };
@@ -12312,13 +12305,13 @@ var showdown = { exports: {} };
         }
       }
       function parseHeaders(header, style) {
-        var id2 = "";
+        var id = "";
         header = header.trim();
         if (options.tablesHeaderId || options.tableHeaderId) {
-          id2 = ' id="' + header.replace(/ /g, "_").toLowerCase() + '"';
+          id = ' id="' + header.replace(/ /g, "_").toLowerCase() + '"';
         }
         header = showdown2.subParser("spanGamut")(header, options, globals);
-        return "<th" + id2 + style + ">" + header + "</th>\n";
+        return "<th" + id + style + ">" + header + "</th>\n";
       }
       function parseCells(cell, style) {
         var subText = showdown2.subParser("spanGamut")(cell, options, globals);
@@ -12955,14 +12948,14 @@ const ApplicationStyles = {
   }
 };
 const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
-  const [collapsed, setCollapsed] = h(collapse);
-  const [showToggle, setShowToggle] = h(false);
-  const contentsRef = A();
-  const observerRef = A();
-  y(() => {
+  const [collapsed, setCollapsed] = p(collapse);
+  const [showToggle, setShowToggle] = p(false);
+  const contentsRef = F();
+  const observerRef = F();
+  _(() => {
     setCollapsed(collapse);
   }, [children, collapse]);
-  y(() => {
+  _(() => {
     const checkScrollable = () => {
       if (collapse && contentsRef.current) {
         const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
@@ -13106,7 +13099,7 @@ const resolveToolInput = (tool_call) => {
     inputType
   };
 };
-const ChatView = ({ id: id2, messages, style }) => {
+const ChatView = ({ id, messages, style }) => {
   const toolMessages = {};
   const nonToolMessages = [];
   for (const message of messages) {
@@ -13140,7 +13133,7 @@ const ChatView = ({ id: id2, messages, style }) => {
     <div style=${{ paddingTop: "1em", ...style }}>
       ${collapsedMessages.map((msg) => {
     return m$1`<${ChatMessage}
-          id=${`${id2}-chat-messages`}
+          id=${`${id}-chat-messages`}
           message=${msg}
           toolMessages=${toolMessages}
         />`;
@@ -13159,7 +13152,7 @@ const normalizeContent = (content) => {
     return content;
   }
 };
-const ChatMessage = ({ id: id2, message, toolMessages }) => {
+const ChatMessage = ({ id, message, toolMessages }) => {
   const iconCls = iconForMsg(message);
   const icon = iconCls ? m$1`<i class="${iconCls}"></i>` : "";
   const collapse = message.role === "system";
@@ -13201,7 +13194,7 @@ const ChatMessage = ({ id: id2, message, toolMessages }) => {
           <div style=${{ fontWeight: "500", ...TextStyle.label }}>${message.role}</div>
           <${ExpandablePanel} collapse=${collapse}>
             <${MessageContents}
-              key=${`${id2}-contents`}
+              key=${`${id}-contents`}
               message=${message}
               toolMessages=${toolMessages}
             />
@@ -13254,14 +13247,14 @@ const ToolInput = ({ type, contents }) => {
   if (!contents) {
     return "";
   }
-  const toolInputRef = A(
+  const toolInputRef = F(
     /** @type {HTMLElement|null} */
     null
   );
   if (typeof contents === "object" || Array.isArray(contents)) {
     contents = JSON.stringify(contents);
   }
-  T(() => {
+  q(() => {
     const tokens = Prism.languages[type];
     if (toolInputRef.current && tokens) {
       const html = Prism.highlight(contents, tokens, type);
@@ -13325,7 +13318,7 @@ const resolveToolMessage = (toolMessage) => {
   }
 };
 const RenderedContent = ({
-  id: id2,
+  id,
   entry,
   context,
   defaultRendering,
@@ -13344,7 +13337,7 @@ const RenderedContent = ({
   let value = entry.value;
   if (renderer) {
     const { rendered, afterBody } = renderer.render(
-      id2,
+      id,
       entry,
       defaultRendering,
       options,
@@ -13370,7 +13363,7 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "string" && entry.value.indexOf("\x1B") > -1;
     },
-    render: (id2, entry) => {
+    render: (id, entry) => {
       return {
         rendered: m$1`<${ANSIDisplay} output=${entry.value} />`
       };
@@ -13392,9 +13385,9 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "boolean";
     },
-    render: (id2, entry) => {
+    render: (id, entry) => {
       entry.value = entry.value.toString();
-      return contentRenderers.String.render(id2, entry);
+      return contentRenderers.String.render(id, entry);
     }
   },
   Number: {
@@ -13402,9 +13395,9 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "number";
     },
-    render: (id2, entry) => {
+    render: (id, entry) => {
       entry.value = entry.value.toString();
-      return contentRenderers.String.render(id2, entry);
+      return contentRenderers.String.render(id, entry);
     }
   },
   String: {
@@ -13434,13 +13427,13 @@ const contentRenderers = {
         return false;
       }
     },
-    render: (id2, entry, _defaultRendering, _options, context) => {
+    render: (id, entry, _defaultRendering, _options, context) => {
       const arrayMap = {};
       entry.value.forEach((entry2, index) => {
         arrayMap[`[${index}]`] = entry2;
       });
       const arrayRendered = m$1`<${MetaDataView}
-        id=${id2}
+        id=${id}
         style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
@@ -13499,7 +13492,7 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "object" && entry.value._html;
     },
-    render: (id2, entry) => {
+    render: (id, entry) => {
       return {
         rendered: entry.value._html
       };
@@ -13510,7 +13503,7 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (id2, entry, _defaultRendering, _options, context) => {
+    render: (id, entry, _defaultRendering, _options, context) => {
       const summary = [];
       const keys = Object.keys(entry.value);
       if (keys.length > 4) {
@@ -13522,7 +13515,7 @@ const contentRenderers = {
       }
       return {
         rendered: m$1`<${MetaDataView}
-          id=${id2}
+          id=${id}
           style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
@@ -13534,7 +13527,7 @@ const contentRenderers = {
   }
 };
 const MetaDataView = ({
-  id: id2,
+  id,
   baseClass,
   classes,
   style,
@@ -13574,7 +13567,7 @@ const MetaDataView = ({
     });
   }
   const entryEls = (entries || []).map((entry, index) => {
-    const id3 = `${baseId}-value-${index}`;
+    const id2 = `${baseId}-value-${index}`;
     return m$1`<tr class="${baseId}-row">
       <td
         class="${baseId}-key"
@@ -13584,7 +13577,7 @@ const MetaDataView = ({
       </td>
       <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
         <${RenderedContent}
-          id=${id3}
+          id=${id2}
           entry=${entry}
           context=${context}
           options=${{ expanded }}
@@ -13593,7 +13586,7 @@ const MetaDataView = ({
     </tr>`;
   });
   return m$1`<table
-    ...${{ id: id2 }}
+    ...${{ id }}
     class="${classes || ""} table ${tblClz.join(" ")}"
     style=${{
     paddingLeft: "0",
@@ -14512,7 +14505,7 @@ const sort = (sort2, samples, sampleDescriptor) => {
   };
 };
 const LargeModal = (props) => {
-  const { id: id2, title, detail, detailTools, footer, onkeyup, children } = props;
+  const { id, title, detail, detailTools, footer, onkeyup, children } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
   const headerEls = [];
   headerEls.push(
@@ -14569,7 +14562,7 @@ const LargeModal = (props) => {
       <${HtmlEntity}>&times;</${HtmlEntity}>
     </button>`);
   return m$1`<div
-    id=${id2}
+    id=${id}
     class="modal"
     tabindex="0"
     role="dialog"
@@ -14766,7 +14759,7 @@ const SampleScoreView = ({
   `;
 };
 const EventPanel = ({
-  id: id2,
+  id,
   title,
   text,
   icon,
@@ -14777,9 +14770,9 @@ const EventPanel = ({
   const arrChildren = Array.isArray(children) ? children : [children];
   const filteredArrChilden = arrChildren.filter((child) => !!child);
   const hasCollapse = collapse !== void 0;
-  const [collapsed, setCollapsed] = h(!!collapse);
+  const [collapsed, setCollapsed] = p(!!collapse);
   const pillId = (index) => {
-    return `${id2}-nav-pill-${index}`;
+    return `${id}-nav-pill-${index}`;
   };
   const titleEl = title ? m$1`<div
         style=${{
@@ -14832,7 +14825,7 @@ const EventPanel = ({
     const defaultTitle = `Tab ${index}`;
     const title2 = child && typeof child === "object" ? ((_a = child["props"]) == null ? void 0 : _a.name) || defaultTitle : defaultTitle;
     return {
-      id: `eventpanel-${id2}-${index}`,
+      id: `eventpanel-${id}-${index}`,
       title: title2,
       target: pillId(index)
     };
@@ -14911,7 +14904,7 @@ const EventNav = ({ target, title, active }) => {
   </li>`;
 };
 const MetaDataGrid = ({
-  id: id2,
+  id,
   entries,
   classes,
   context,
@@ -14946,7 +14939,7 @@ const MetaDataGrid = ({
     }
   };
   const entryEls = entryRecords(entries).map((entry, index) => {
-    const id3 = `${baseId}-value-${index}`;
+    const id2 = `${baseId}-value-${index}`;
     return m$1`
       <div
         style=${{
@@ -14962,7 +14955,7 @@ const MetaDataGrid = ({
       </div>
       <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
         <${RenderedContent}
-          id=${id3}
+          id=${id2}
           entry=${entry}
           context=${context}
           options=${{ expanded }}
@@ -14971,7 +14964,7 @@ const MetaDataGrid = ({
     `;
   });
   return m$1`<div
-    ...${{ id: id2 }}
+    ...${{ id }}
     class="${classes || ""}"
     style=${{
     display: "grid",
@@ -14987,7 +14980,7 @@ const isBase64 = (str) => {
   const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
   return base64Pattern.test(str);
 };
-const SampleInitEventView = ({ id: id2, event, stateManager }) => {
+const SampleInitEventView = ({ id, event, stateManager }) => {
   const stateObj = event.state;
   stateManager.setState(stateObj);
   const addtl_sample_data = [];
@@ -15076,7 +15069,7 @@ const SampleInitEventView = ({ id: id2, event, stateManager }) => {
     );
   }
   return m$1`
-  <${EventPanel} id=${id2} title="Sample Init" icon=${ApplicationIcons.sample}>
+  <${EventPanel} id=${id} title="Sample Init" icon=${ApplicationIcons.sample}>
 
     <div name="Summary">
       <${ChatView} messages=${stateObj["messages"]}/>
@@ -15226,7 +15219,7 @@ const renderValue = (change) => {
   ${contents || ""}</pre
   >`;
 };
-const StateEventView = ({ id: id2, event, stateManager }) => {
+const StateEventView = ({ id, event, stateManager }) => {
   const resolvedState = stateManager.applyChanges(event.changes);
   const summary = summarizeChanges(event.changes);
   const tabs = [
@@ -15238,7 +15231,7 @@ const StateEventView = ({ id: id2, event, stateManager }) => {
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
-  <${EventPanel} id=${id2} title="${title}" text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0}>
+  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -15315,21 +15308,21 @@ const StepEventView = ({ event }) => {
       return ApplicationIcons.step;
     }
   };
-  if (event.action === "end") {
+  if (event.action === "end" || event.type === "generate_loop") {
     return m$1``;
   }
   return m$1`<${EventPanel}
-    title=${event.name}
+    title="${event.type ? event.type + ": " : "Step: "}${event.name}"
     icon=${icon()}
     style=${{ background: "var(--bs-light" }}
   />`;
 };
-const SubtaskEventView = ({ id: id2, event, stateManager }) => {
+const SubtaskEventView = ({ id, event, stateManager }) => {
   return m$1`
-    <${EventPanel} id=${id2} title="Subtask: ${event.name}">
+    <${EventPanel} id=${id} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
       ${event.events.events.length > 0 ? m$1` <${TranscriptView}
-              id="${id2}-subtask"
+              id="${id}-subtask"
               name="Transcript"
               evalEvents=${event.events}
               stateManager=${stateManager}
@@ -15365,7 +15358,7 @@ const Rendered = ({ values }) => {
     return values;
   }
 };
-const ModelEventView = ({ id: id2, event }) => {
+const ModelEventView = ({ id, event }) => {
   var _a, _b;
   const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
   const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
@@ -15378,11 +15371,11 @@ const ModelEventView = ({ id: id2, event }) => {
     entries["tool_choice"] = event.tool_choice;
   }
   return m$1`
-  <${EventPanel} id=${id2} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
     <div name="Answer">
     <${ChatView}
-      id="${id2}-model-output"
+      id="${id}-model-output"
       messages=${[...outputMessages || []]}
       />
     </div>
@@ -15391,7 +15384,7 @@ const ModelEventView = ({ id: id2, event }) => {
 
 
     <${ChatView}
-      id="${id2}-model-input-full"
+      id="${id}-model-input-full"
       name="All Msgs"
       messages=${[...event.input, ...outputMessages || []]}
       />      
@@ -15428,10 +15421,10 @@ const EventRow = ({ title, icon, children }) => {
   </div>`;
   return card;
 };
-const LoggerEventView = ({ id: id2, event }) => {
+const LoggerEventView = ({ id, event }) => {
   return m$1`
   <${EventRow} 
-    id=${id2}
+    id=${id}
     title=${event.message.level} 
     icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
     style="compact"
@@ -15444,9 +15437,9 @@ const LoggerEventView = ({ id: id2, event }) => {
   </div>
   </${EventRow}>`;
 };
-const InfoEventView = ({ id: id2, event }) => {
+const InfoEventView = ({ id, event }) => {
   return m$1`
-  <${EventPanel} id=${id2} title="Info">
+  <${EventPanel} id=${id} title="Info">
   <div
     style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
   >
@@ -15456,9 +15449,9 @@ const InfoEventView = ({ id: id2, event }) => {
   </div>
   </${EventPanel}>`;
 };
-const ScoreEventView = ({ id: id2, event }) => {
+const ScoreEventView = ({ id, event }) => {
   return m$1`
-  <${EventPanel} id=${id2} title="Score" icon=${ApplicationIcons.scorer}>
+  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer}>
   
     <div
       name="Explanation"
@@ -15486,8 +15479,14 @@ const ScoreEventView = ({ id: id2, event }) => {
 
   </${EventPanel}>`;
 };
+const ToolEventView = ({ id, event }) => {
+  return m$1`
+  <${EventPanel} id=${id} title="Tool" icon=${ApplicationIcons.solvers.use_tools}>
+  ${event.function}
+  </${EventPanel}>`;
+};
 const kContentProtocol = "tc://";
-const TranscriptView = ({ id: id2, evalEvents, stateManager }) => {
+const TranscriptView = ({ id, evalEvents, stateManager }) => {
   const resolvedEvents = resolveEventContent(evalEvents);
   const rows = resolvedEvents.map((event, index) => {
     const row = m$1`
@@ -15497,13 +15496,13 @@ const TranscriptView = ({ id: id2, evalEvents, stateManager }) => {
       paddingBottom: 0
     }}
       >
-        <div>${renderNode(`${id2}-event${index}`, event, stateManager)}</div>
+        <div>${renderNode(`${id}-event${index}`, event, stateManager)}</div>
       </div>
     `;
     return row;
   });
   return m$1`<div
-    id=${id2}
+    id=${id}
     style=${{
     fontSize: FontSize.small,
     display: "grid",
@@ -15514,45 +15513,50 @@ const TranscriptView = ({ id: id2, evalEvents, stateManager }) => {
     ${rows}
   </div>`;
 };
-const renderNode = (id2, event, stateManager) => {
+const renderNode = (id, event, stateManager) => {
   switch (event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
-        id=${id2}
+        id=${id}
         event=${event}
         stateManager=${stateManager}
       />`;
     case "info":
-      return m$1`<${InfoEventView} id=${id2} event=${event} />`;
+      return m$1`<${InfoEventView} id=${id} event=${event} />`;
     case "logger":
-      return m$1`<${LoggerEventView} id=${id2} event=${event} />`;
+      return m$1`<${LoggerEventView} id=${id} event=${event} />`;
     case "model":
-      return m$1`<${ModelEventView} id=${id2} event=${event} />`;
+      return m$1`<${ModelEventView} id=${id} event=${event} />`;
     case "score":
-      return m$1`<${ScoreEventView} id=${id2} event=${event} />`;
+      return m$1`<${ScoreEventView} id=${id} event=${event} />`;
     case "state":
       return m$1`<${StateEventView}
-        id=${id2}
+        id=${id}
         event=${event}
         stateManager=${stateManager}
       />`;
     case "step":
       return m$1`<${StepEventView}
-        id=${id2}
+        id=${id}
         event=${event}
         stateManager=${stateManager}
       />`;
     case "store":
       return m$1`<${StateEventView}
-        id=${id2}
+        id=${id}
         event=${event}
         stateManager=${stateManager}
       />`;
     case "subtask":
       return m$1`<${SubtaskEventView}
-        id=${id2}
+        id=${id}
         event=${event}
         stateManager=${stateManager}
+      />`;
+    case "tool":
+      return m$1`<${ToolEventView}
+        id=${id}
+        event=${event}
       />`;
     default:
       return m$1``;
@@ -16257,17 +16261,17 @@ const initStateManager = () => {
     }
   };
 };
-const SampleTranscript = ({ id: id2, evalEvents }) => {
+const SampleTranscript = ({ id, evalEvents }) => {
   const stateManager = initStateManager();
   return m$1`<${TranscriptView}
-    id=${id2}
+    id=${id}
     evalEvents=${evalEvents}
     stateManager=${stateManager}
   />`;
 };
 const InlineSampleDisplay = ({
   index,
-  id: id2,
+  id,
   sample,
   sampleDescriptor,
   context
@@ -16277,7 +16281,7 @@ const InlineSampleDisplay = ({
   >
     <${SampleDisplay}
       index=${index}
-      id=${id2}
+      id=${id}
       sample=${sample}
       sampleDescriptor=${sampleDescriptor}
       context=${context}
@@ -16286,7 +16290,7 @@ const InlineSampleDisplay = ({
 };
 const SampleDisplay = ({
   index,
-  id: id2,
+  id,
   sample,
   sampleDescriptor,
   context
@@ -16296,13 +16300,13 @@ const SampleDisplay = ({
   const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
-  y(() => {
+  _(() => {
     setSelectedTab(transcriptTabId);
   }, [sample]);
-  const [selectedTab, setSelectedTab] = h(void 0);
+  const [selectedTab, setSelectedTab] = p(void 0);
   const onSelectedTab = (e2) => {
-    const id3 = e2.currentTarget.id;
-    setSelectedTab(id3);
+    const id2 = e2.currentTarget.id;
+    setSelectedTab(id2);
     return false;
   };
   const tabs = [
@@ -16365,7 +16369,7 @@ const SampleDisplay = ({
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 
-  <${TabSet} id="task-sample-details-tab-${id2}" styles=${{
+  <${TabSet} id="task-sample-details-tab-${id}" styles=${{
     tabs: {
       fontSize: FontSize.base
     },
@@ -16374,13 +16378,13 @@ const SampleDisplay = ({
     ${tabs}
   </${TabSet}>`;
 };
-const metadataViewsForSample = (id2, sample, context) => {
+const metadataViewsForSample = (id, sample, context) => {
   var _a, _b, _c;
   const sampleMetadatas = [];
   if (Object.keys(sample == null ? void 0 : sample.metadata).length > 0) {
     sampleMetadatas.push(
       m$1` <${MetaDataView}
-        id="task-sample-metadata-${id2}"
+        id="task-sample-metadata-${id}"
         classes="tab-pane"
         entries="${sample == null ? void 0 : sample.metadata}"
         style=${{ marginTop: "1em" }}
@@ -16391,7 +16395,7 @@ const metadataViewsForSample = (id2, sample, context) => {
   if (((_a = sample == null ? void 0 : sample.score) == null ? void 0 : _a.metadata) && Object.keys((_b = sample == null ? void 0 : sample.score) == null ? void 0 : _b.metadata).length > 0) {
     sampleMetadatas.push(
       m$1`<${MetaDataView}
-        id="task-sample-metadata-${id2}"
+        id="task-sample-metadata-${id}"
         classes="tab-pane"
         entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
         style=${{ marginTop: "1em" }}
@@ -16401,7 +16405,7 @@ const metadataViewsForSample = (id2, sample, context) => {
   }
   return sampleMetadatas;
 };
-const SampleSummary = ({ id: id2, sample, style, sampleDescriptor }) => {
+const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
@@ -16417,7 +16421,7 @@ const SampleSummary = ({ id: id2, sample, style, sampleDescriptor }) => {
   const columns = [];
   columns.push({
     label: "Id",
-    value: id2,
+    value: id,
     size: "minmax(min-content, max-content)"
   });
   columns.push({
@@ -16459,7 +16463,7 @@ const SampleSummary = ({ id: id2, sample, style, sampleDescriptor }) => {
   });
   return m$1`
     <div
-      id=${`sample-${id2}`}
+      id=${`sample-${id}`}
       style=${{
     display: "grid",
     gridTemplateColumns: `${columns.map((col) => {
@@ -16480,8 +16484,8 @@ const SampleSummary = ({ id: id2, sample, style, sampleDescriptor }) => {
       fontSize: FontSize.base
     };
     if (col.center) {
-      style2.display = "flex";
-      style2.justifyContent = "center";
+      style2["display"] = "flex";
+      style2["justifyContent"] = "center";
     }
     return m$1`<div style=${{ ...style2 }}>${col.label}</div>`;
   })}
@@ -16501,7 +16505,7 @@ const SampleSummary = ({ id: id2, sample, style, sampleDescriptor }) => {
 };
 const SampleDialog = (props) => {
   const {
-    id: id2,
+    id,
     index,
     title,
     sample,
@@ -16511,9 +16515,9 @@ const SampleDialog = (props) => {
     context
   } = props;
   if (!sample) {
-    return m$1`<${LargeModal} id=${id2} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
+    return m$1`<${LargeModal} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
   }
-  const tools = T(() => {
+  const tools = q(() => {
     const nextTool = {
       label: "Next Sample",
       icon: ApplicationIcons.next,
@@ -16531,7 +16535,7 @@ const SampleDialog = (props) => {
       right: [nextTool]
     };
   }, [prevSample, nextSample]);
-  const handleKeyUp = q(
+  const handleKeyUp = x(
     (e2) => {
       switch (e2.key) {
         case "ArrowRight":
@@ -16550,14 +16554,14 @@ const SampleDialog = (props) => {
   );
   return m$1`
     <${LargeModal} 
-      id=${id2} 
+      id=${id} 
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
     >
     <${SampleDisplay}
       index=${index}
-      id=${id2}
+      id=${id}
       sample=${sample}
       sampleDescriptor=${sampleDescriptor}
       context=${context}/>
@@ -16654,7 +16658,7 @@ const SampleList = (props) => {
   const heightForType = (type) => {
     return type === "sample" ? kSampleHeight : kSeparatorHeight;
   };
-  const rowMap = T(() => {
+  const rowMap = q(() => {
     return items.reduce((values, current, index) => {
       const height = heightForType(current.type);
       const previous = values.length > 0 ? values[values.length - 1] : void 0;
@@ -16667,7 +16671,7 @@ const SampleList = (props) => {
       return values;
     }, []);
   }, [items]);
-  y(() => {
+  _(() => {
     const listEl = listRef.current;
     if (listEl) {
       const selected = rowMap[selectedIndex];
@@ -16770,9 +16774,9 @@ const SampleList = (props) => {
     />
   </div>`;
 };
-const SeparatorRow = ({ id: id2, title, height }) => {
+const SeparatorRow = ({ id, title, height }) => {
   return m$1`<div
-    id=${id2}
+    id=${id}
     style=${{
     padding: ".25em 1em .25em 1em",
     textTransform: "uppercase",
@@ -16787,7 +16791,7 @@ const SeparatorRow = ({ id: id2, title, height }) => {
   </div>`;
 };
 const SampleRow = ({
-  id: id2,
+  id,
   index,
   sample,
   sampleDescriptor,
@@ -16805,7 +16809,7 @@ const SampleRow = ({
   };
   return m$1`
     <div
-      id=${`sample-${id2}`}
+      id=${`sample-${id}`}
       onclick=${() => {
     if (setSelected) {
       setSelected(index);
@@ -16828,7 +16832,7 @@ const SampleRow = ({
     overflowY: "hidden"
   }}
     >
-      <div class="sample-index" style=${{ ...cellStyle }}>${id2}</div>
+      <div class="sample-index" style=${{ ...cellStyle }}>${id}</div>
       <div
         class="sample-input"
         style=${{
@@ -16910,12 +16914,12 @@ const SamplesTab = (props) => {
     selectedScore
     //setSelectedScore,
   } = props;
-  const [selectedIndex, setSelectedIndex] = h(0);
-  const [filteredSamples, setFilteredSamples] = h([]);
-  const [items, setItems] = h([]);
-  const sampleListRef = A();
-  const sampleDialogRef = A();
-  y(() => {
+  const [selectedIndex, setSelectedIndex] = p(0);
+  const [filteredSamples, setFilteredSamples] = p([]);
+  const [items, setItems] = p([]);
+  const sampleListRef = F();
+  const sampleDialogRef = F();
+  _(() => {
     setFilteredSamples(
       (samples || []).filter((sample) => {
         if (epoch && epoch !== "all") {
@@ -16931,14 +16935,14 @@ const SamplesTab = (props) => {
       })
     );
   }, [samples, filter, sort$1, epoch]);
-  const showSample = q(() => {
+  const showSample = x(() => {
     const dialogEl = sampleDialogRef.current;
     if (dialogEl) {
       const modal = new Modal(dialogEl.base);
       modal.show();
     }
   }, [sampleDialogRef]);
-  const hideSample = q(() => {
+  const hideSample = x(() => {
     const dialogEl = sampleDialogRef.current;
     if (dialogEl && dialogEl.base) {
       const modal = Modal.getInstance(dialogEl.base);
@@ -16947,7 +16951,7 @@ const SamplesTab = (props) => {
       }
     }
   }, [sampleDialogRef]);
-  y(() => {
+  _(() => {
     const dialogEl = sampleDialogRef.current;
     if (dialogEl) {
       dialogEl.base.addEventListener("hidden.bs.modal", () => {
@@ -16958,7 +16962,7 @@ const SamplesTab = (props) => {
       });
     }
   }, [sampleDialogRef, sampleListRef]);
-  y(() => {
+  _(() => {
     const { sorted, order: order2 } = sort(sort$1, filteredSamples, sampleDescriptor);
     const sampleProcessor = getSampleProcessor(
       filteredSamples,
@@ -16983,10 +16987,10 @@ const SamplesTab = (props) => {
     }
     return items2;
   }, [filteredSamples, sort$1, epoch, sampleDescriptor]);
-  y(() => {
+  _(() => {
     hideSample();
   }, [items]);
-  const nextSampleIndex = q(() => {
+  const nextSampleIndex = x(() => {
     for (let i2 = selectedIndex + 1; i2 < items.length; i2++) {
       if (items[i2].type === "sample") {
         return i2;
@@ -16994,7 +16998,7 @@ const SamplesTab = (props) => {
     }
     return -1;
   }, [selectedIndex, items]);
-  const previousSampleIndex = q(() => {
+  const previousSampleIndex = x(() => {
     for (let i2 = selectedIndex - 1; i2 >= 0; i2--) {
       if (items[i2].type === "sample") {
         return i2;
@@ -17002,13 +17006,13 @@ const SamplesTab = (props) => {
     }
     return -1;
   }, [selectedIndex, items]);
-  const nextSample = q(() => {
+  const nextSample = x(() => {
     const next = nextSampleIndex();
     if (next > -1) {
       setSelectedIndex(next);
     }
   }, [selectedIndex, filteredSamples, nextSampleIndex]);
-  const previousSample = q(() => {
+  const previousSample = x(() => {
     const prev = previousSampleIndex();
     if (prev > -1) {
       setSelectedIndex(prev);
@@ -19581,32 +19585,32 @@ const kPrismRenderMaxSize = 25e4;
 const kJsonMaxSize = 1e7;
 const WorkSpace = (props) => {
   var _a, _b;
-  const divRef = A();
-  const codeRef = A();
+  const divRef = F();
+  const codeRef = F();
   const workspaceLog = props.log;
-  const [currentTaskId, setCurrentTaskId] = h(
+  const [currentTaskId, setCurrentTaskId] = p(
     (_b = (_a = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.run_id
   );
-  const [selectedTab, setSelectedTab] = h(kEvalTabId);
-  const [scores, setScores] = h([]);
-  const [score, setScore] = h(void 0);
-  const [samplesDesc, setSamplesDesc] = h(void 0);
-  const [filter, setFilter] = h({});
-  const [epoch, setEpoch] = h("all");
-  const [sort2, setSort] = h(kDefaultSort);
-  const [renderedCode, setRenderedCode] = h(false);
+  const [selectedTab, setSelectedTab] = p(kEvalTabId);
+  const [scores, setScores] = p([]);
+  const [score, setScore] = p(void 0);
+  const [samplesDesc, setSamplesDesc] = p(void 0);
+  const [filter, setFilter] = p({});
+  const [epoch, setEpoch] = p("all");
+  const [sort2, setSort] = p(kDefaultSort);
+  const [renderedCode, setRenderedCode] = p(false);
   const afterBodyElements = [];
   const context = {
     afterBody: (el) => {
       afterBodyElements.push(el);
     }
   };
-  const clearSampleTools = q(() => {
+  const clearSampleTools = x(() => {
     setEpoch("all");
     setFilter({});
     setSort(kDefaultSort);
   }, [setEpoch, setFilter, setSort]);
-  y(() => {
+  _(() => {
     var _a2, _b2;
     if (workspaceLog.contents && ((_a2 = workspaceLog.contents.eval) == null ? void 0 : _a2.run_id) !== currentTaskId) {
       const defaultTab = ((_b2 = workspaceLog.contents) == null ? void 0 : _b2.status) !== "error" ? kEvalTabId : kInfoTabId;
@@ -19616,7 +19620,7 @@ const WorkSpace = (props) => {
       }
     }
   }, [workspaceLog, divRef, currentTaskId, setSelectedTab]);
-  y(() => {
+  _(() => {
     var _a2, _b2, _c, _d;
     const scorer = ((_b2 = (_a2 = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a2.results) == null ? void 0 : _b2.scores[0]) ? {
       name: workspaceLog.contents.results.scores[0].name,
@@ -19640,10 +19644,10 @@ const WorkSpace = (props) => {
     clearSampleTools();
     setRenderedCode(false);
   }, [workspaceLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
-  y(() => {
+  _(() => {
     clearSampleTools();
   }, [score]);
-  y(() => {
+  _(() => {
     var _a2, _b2, _c, _d;
     const sampleDescriptor = samplesDescriptor(
       score,
@@ -19654,11 +19658,11 @@ const WorkSpace = (props) => {
     );
     setSamplesDesc(sampleDescriptor);
   }, [workspaceLog, score, scores, setSamplesDesc]);
-  y(() => {
+  _(() => {
     var _a2, _b2;
     setCurrentTaskId((_b2 = (_a2 = workspaceLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.run_id);
   }, [workspaceLog]);
-  const tabs = T(() => {
+  const tabs = q(() => {
     var _a2, _b2, _c, _d, _e;
     const resolvedTabs = {};
     if (((_a2 = workspaceLog.contents) == null ? void 0 : _a2.status) !== "error") {
@@ -19814,7 +19818,7 @@ const WorkSpace = (props) => {
     renderedCode,
     setRenderedCode
   ]);
-  const copyFeedback = q(
+  const copyFeedback = x(
     (e2) => {
       const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
       const iconEl = e2.currentTarget.querySelector("i.bi");
@@ -19920,8 +19924,8 @@ const WorkspaceDisplay = ({
                 id=${tab.id}
                 title="${tab.label}"
                 onSelected=${(e2) => {
-        const id2 = e2.currentTarget.id;
-        setSelectedTab(id2);
+        const id = e2.currentTarget.id;
+        setSelectedTab(id);
       }}
                 selected=${selectedTab === tab.id}
                 scrollable=${!!tab.scrollable}>
@@ -19935,8 +19939,8 @@ const WorkspaceDisplay = ({
   }
 };
 const FindBand = ({ hideBand }) => {
-  const searchBoxRef = A();
-  y(() => {
+  const searchBoxRef = F();
+  _(() => {
     searchBoxRef.current.focus();
   }, []);
   const searchTerm = () => {
@@ -20076,28 +20080,28 @@ const FindBand = ({ hideBand }) => {
   </div>`;
 };
 function App({ api: api2, pollForLogs = true }) {
-  const [selected, setSelected] = h(-1);
-  const [pendingLog, setPendingLog] = h(void 0);
-  const [logs, setLogs] = h({ log_dir: "", files: [] });
-  const [logHeaders, setLogHeaders] = h({});
-  const [offcanvas, setOffcanvas] = h(false);
-  const [currentLog, setCurrentLog] = h({
+  const [selected, setSelected] = p(-1);
+  const [pendingLog, setPendingLog] = p(void 0);
+  const [logs, setLogs] = p({ log_dir: "", files: [] });
+  const [logHeaders, setLogHeaders] = p({});
+  const [offcanvas, setOffcanvas] = p(false);
+  const [currentLog, setCurrentLog] = p({
     contents: void 0,
     name: void 0,
     raw: void 0
   });
-  const [status, setStatus] = h({
+  const [status, setStatus] = p({
     loading: true,
     error: void 0
   });
-  const [headersLoading, setHeadersLoading] = h(false);
-  const [capabilities, setCapabilities] = h({
+  const [headersLoading, setHeadersLoading] = p(false);
+  const [capabilities, setCapabilities] = p({
     downloadFiles: true,
     webWorkers: true
   });
-  const [showFind, setShowFind] = h(false);
-  const mainAppRef = A();
-  y(async () => {
+  const [showFind, setShowFind] = p(false);
+  const mainAppRef = F();
+  _(async () => {
     setHeadersLoading(true);
     const chunkSize = 12;
     const fileLists = [];
@@ -20126,7 +20130,7 @@ function App({ api: api2, pollForLogs = true }) {
     }
     setHeadersLoading(false);
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-  const filteredLogs = T(() => {
+  const filteredLogs = q(() => {
     const notRunning = Object.keys(logHeaders).filter((key2) => {
       return logHeaders[key2].status !== "started";
     });
@@ -20138,7 +20142,7 @@ function App({ api: api2, pollForLogs = true }) {
       files
     };
   }, [logHeaders, logs]);
-  y(async () => {
+  _(async () => {
     const targetLog = filteredLogs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
@@ -20170,7 +20174,7 @@ function App({ api: api2, pollForLogs = true }) {
     setCurrentLog,
     setStatus
   ]);
-  const loadLogsImpl = q(async () => {
+  const loadLogsImpl = x(async () => {
     try {
       const result = await api2.eval_logs();
       if (result) {
@@ -20183,13 +20187,13 @@ function App({ api: api2, pollForLogs = true }) {
       setStatus({ loading: false, error: e2 });
     }
   }, []);
-  const loadLogs = q(
+  const loadLogs = x(
     throttle(() => {
       loadLogsImpl();
     }, 5e3),
     [loadLogsImpl]
   );
-  y(async () => {
+  _(async () => {
     if (pendingLog) {
       const index = filteredLogs.files.findIndex((val) => {
         return pendingLog.endsWith(val.name);
@@ -20206,7 +20210,7 @@ function App({ api: api2, pollForLogs = true }) {
       }
     }
   }, [pendingLog, filteredLogs, setSelected, setPendingLog, loadLogs]);
-  const onMessage = T(() => {
+  const onMessage = q(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
       switch (type) {
@@ -20219,13 +20223,13 @@ function App({ api: api2, pollForLogs = true }) {
       }
     };
   }, [setPendingLog]);
-  y(() => {
+  _(() => {
     window.addEventListener("message", onMessage);
     return () => {
       window.removeEventListener("message", onMessage);
     };
   }, [onMessage]);
-  y(async () => {
+  _(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const bodyEl = document.querySelector("body");
     const isVSCode = !!bodyEl.getAttributeNames().find((attr) => {
@@ -20291,7 +20295,7 @@ function App({ api: api2, pollForLogs = true }) {
   }}
           />
         ` : "";
-  const workspace = T(() => {
+  const workspace = q(() => {
     if (status.error) {
       return m$1`<${ErrorPanel}
         title="An error occurred while loading this task."
@@ -20312,7 +20316,7 @@ function App({ api: api2, pollForLogs = true }) {
   }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
   const fullScreenClz = fullScreen ? " full-screen" : "";
   const offcanvasClz = offcanvas ? " off-canvas" : "";
-  const hideFind = q(() => {
+  const hideFind = x(() => {
     clearDocumentSelection();
     if (showFind) {
       setShowFind(false);
