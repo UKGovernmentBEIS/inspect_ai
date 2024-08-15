@@ -7,10 +7,11 @@ import { EventPanel } from "./EventPanel.mjs";
  * Renders the StateEventView component.
  *
  * @param {Object} props - The properties passed to the component.
+ * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").StepEvent} props.event - The event object to display.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StepEventView = ({ event }) => {
+export const StepEventView = ({ depth, event }) => {
   const icon = () => {
     if (event.type === "solver") {
       switch (event.name) {
@@ -43,6 +44,7 @@ export const StepEventView = ({ event }) => {
 
   return html`<${EventPanel}
     title="${event.type ? event.type + ": " : "Step: "}${event.name}"
+    depth=${depth}
     icon=${icon()}
     style=${{ background: "var(--bs-light" }}
   />`;

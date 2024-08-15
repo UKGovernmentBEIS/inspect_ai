@@ -14763,6 +14763,7 @@ const EventPanel = ({
   title,
   text,
   icon,
+  depth = 0,
   collapse,
   style,
   children
@@ -14839,10 +14840,11 @@ const EventPanel = ({
               />` : ""}
         </div>
       </div>` : "";
+  const left_padding = 0.5 + depth * 1.5;
   const card = m$1` <div
     class="card"
     style=${{
-    padding: "0.5em",
+    padding: `0.5em 0.5em 0.5em ${left_padding}em`,
     marginBottom: "-1px",
     ...style
   }}
@@ -14980,7 +14982,7 @@ const isBase64 = (str) => {
   const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
   return base64Pattern.test(str);
 };
-const SampleInitEventView = ({ id, event, stateManager }) => {
+const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   const stateObj = event.state;
   stateManager.setState(stateObj);
   const addtl_sample_data = [];
@@ -15069,7 +15071,7 @@ const SampleInitEventView = ({ id, event, stateManager }) => {
     );
   }
   return m$1`
-  <${EventPanel} id=${id} title="Sample Init" icon=${ApplicationIcons.sample}>
+  <${EventPanel} id=${id} depth=${depth} title="Sample Init" icon=${ApplicationIcons.sample}>
 
     <div name="Summary">
       <${ChatView} messages=${stateObj["messages"]}/>
@@ -15219,11 +15221,11 @@ const renderValue = (change) => {
   ${contents || ""}</pre
   >`;
 };
-const StateEventView = ({ id, event, stateManager }) => {
+const StateEventView = ({ id, event, depth, stateManager }) => {
   const resolvedState = stateManager.applyChanges(event.changes);
   const summary = summarizeChanges(event.changes);
   const tabs = [
-    m$1`<${StateDiffView} changes=${event.changes} name="Diffs" />`
+    m$1`<${StateDiffView} changes=${event.changes} name="Diffs" } />`
   ];
   const changePreview = generatePreview(event.changes, resolvedState);
   if (changePreview) {
@@ -15231,7 +15233,7 @@ const StateEventView = ({ id, event, stateManager }) => {
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
-  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0}>
+  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : void 0} depth=${depth} collapse=${changePreview === void 0 ? true : void 0}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -15283,7 +15285,7 @@ const summarizeChanges = (changes) => {
   }
   return changeList.join(", ");
 };
-const StepEventView = ({ event }) => {
+const StepEventView = ({ depth, event }) => {
   const icon = () => {
     if (event.type === "solver") {
       switch (event.name) {
@@ -15313,13 +15315,14 @@ const StepEventView = ({ event }) => {
   }
   return m$1`<${EventPanel}
     title="${event.type ? event.type + ": " : "Step: "}${event.name}"
+    depth=${depth}
     icon=${icon()}
     style=${{ background: "var(--bs-light" }}
   />`;
 };
-const SubtaskEventView = ({ id, event, stateManager }) => {
+const SubtaskEventView = ({ id, depth, event, stateManager }) => {
   return m$1`
-    <${EventPanel} id=${id} title="Subtask: ${event.name}">
+    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
       ${event.events.events.length > 0 ? m$1` <${TranscriptView}
               id="${id}-subtask"
@@ -15358,7 +15361,7 @@ const Rendered = ({ values }) => {
     return values;
   }
 };
-const ModelEventView = ({ id, event }) => {
+const ModelEventView = ({ id, depth, event }) => {
   var _a, _b;
   const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
   const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
@@ -15371,7 +15374,7 @@ const ModelEventView = ({ id, event }) => {
     entries["tool_choice"] = event.tool_choice;
   }
   return m$1`
-  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
+  <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
     <div name="Answer">
     <${ChatView}
@@ -15421,10 +15424,11 @@ const EventRow = ({ title, icon, children }) => {
   </div>`;
   return card;
 };
-const LoggerEventView = ({ id, event }) => {
+const LoggerEventView = ({ id, depth, event }) => {
   return m$1`
   <${EventRow} 
     id=${id}
+    depth=${depth}
     title=${event.message.level} 
     icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
     style="compact"
@@ -15437,9 +15441,9 @@ const LoggerEventView = ({ id, event }) => {
   </div>
   </${EventRow}>`;
 };
-const InfoEventView = ({ id, event }) => {
+const InfoEventView = ({ id, depth, event }) => {
   return m$1`
-  <${EventPanel} id=${id} title="Info">
+  <${EventPanel} id=${id} depth=${depth} title="Info">
   <div
     style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
   >
@@ -15449,9 +15453,9 @@ const InfoEventView = ({ id, event }) => {
   </div>
   </${EventPanel}>`;
 };
-const ScoreEventView = ({ id, event }) => {
+const ScoreEventView = ({ id, depth, event }) => {
   return m$1`
-  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer}>
+  <${EventPanel} id=${id} depth=${depth} title="Score" icon=${ApplicationIcons.scorer}>
   
     <div
       name="Explanation"
@@ -15479,15 +15483,16 @@ const ScoreEventView = ({ id, event }) => {
 
   </${EventPanel}>`;
 };
-const ToolEventView = ({ id, event }) => {
+const ToolEventView = ({ id, depth, event }) => {
   return m$1`
-  <${EventPanel} id=${id} title="Tool" icon=${ApplicationIcons.solvers.use_tools}>
+  <${EventPanel} id=${id} depth=${depth} title="Tool" icon=${ApplicationIcons.solvers.use_tools}>
   ${event.function}
   </${EventPanel}>`;
 };
 const kContentProtocol = "tc://";
 const TranscriptView = ({ id, evalEvents, stateManager }) => {
   const resolvedEvents = resolveEventContent(evalEvents);
+  let depth = 0;
   const rows = resolvedEvents.map((event, index) => {
     const row = m$1`
       <div
@@ -15496,9 +15501,18 @@ const TranscriptView = ({ id, evalEvents, stateManager }) => {
       paddingBottom: 0
     }}
       >
-        <div>${renderNode(`${id}-event${index}`, event, stateManager)}</div>
+        <div>
+          ${renderNode(`${id}-event${index}`, event, depth, stateManager)}
+        </div>
       </div>
     `;
+    if (event.event === "step" && event.type !== "generate_loop") {
+      if (event.action === "end") {
+        depth = depth - 1;
+      } else {
+        depth = depth + 1;
+      }
+    }
     return row;
   });
   return m$1`<div
@@ -15513,51 +15527,57 @@ const TranscriptView = ({ id, evalEvents, stateManager }) => {
     ${rows}
   </div>`;
 };
-const renderNode = (id, event, stateManager) => {
+const renderNode = (id, event, depth, stateManager) => {
   switch (event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
     case "info":
-      return m$1`<${InfoEventView} id=${id} event=${event} />`;
+      return m$1`<${InfoEventView} id=${id} depth=${depth} event=${event} />`;
     case "logger":
-      return m$1`<${LoggerEventView} id=${id} event=${event} />`;
+      return m$1`<${LoggerEventView}
+        id=${id}
+        depth=${depth}
+        event=${event}
+      />`;
     case "model":
-      return m$1`<${ModelEventView} id=${id} event=${event} />`;
+      return m$1`<${ModelEventView} id=${id} depth=${depth} event=${event} />`;
     case "score":
-      return m$1`<${ScoreEventView} id=${id} event=${event} />`;
+      return m$1`<${ScoreEventView} id=${id} depth=${depth} event=${event} />`;
     case "state":
       return m$1`<${StateEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
     case "step":
       return m$1`<${StepEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
     case "store":
       return m$1`<${StateEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
     case "subtask":
       return m$1`<${SubtaskEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
     case "tool":
-      return m$1`<${ToolEventView}
-        id=${id}
-        event=${event}
-      />`;
+      return m$1`<${ToolEventView} depth=${depth} id=${id} event=${event} />`;
     default:
       return m$1``;
   }

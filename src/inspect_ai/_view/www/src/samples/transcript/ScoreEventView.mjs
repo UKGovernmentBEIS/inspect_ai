@@ -11,12 +11,13 @@ import { TextStyle } from "../../appearance/Fonts.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
+ * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").ScoreEvent} props.event - The event object to display.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ScoreEventView = ({ id, event }) => {
+export const ScoreEventView = ({ id, depth, event }) => {
   return html`
-  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer}>
+  <${EventPanel} id=${id} depth=${depth} title="Score" icon=${ApplicationIcons.scorer}>
   
     <div
       name="Explanation"

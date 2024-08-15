@@ -10,11 +10,12 @@ import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
+ * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").ModelEvent} props.event - The event object to display.
  * @param {string} props.baseId - The baseId of the event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ModelEventView = ({ id, event }) => {
+export const ModelEventView = ({ id, depth, event }) => {
   const totalUsage = event.output.usage?.total_tokens;
   const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
 
@@ -31,7 +32,7 @@ export const ModelEventView = ({ id, event }) => {
   }
 
   return html`
-  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
+  <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
     <div name="Answer">
     <${ChatView}

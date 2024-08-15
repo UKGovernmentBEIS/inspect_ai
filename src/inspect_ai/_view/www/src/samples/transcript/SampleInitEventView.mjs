@@ -12,11 +12,12 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
+ * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").SampleInitEvent} props.event - The event object to display.
  * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const SampleInitEventView = ({ id, event, stateManager }) => {
+export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   /**
    * @type {Record<string, unknown>}
    */
@@ -122,7 +123,7 @@ export const SampleInitEventView = ({ id, event, stateManager }) => {
   }
 
   return html`
-  <${EventPanel} id=${id} title="Sample Init" icon=${ApplicationIcons.sample}>
+  <${EventPanel} id=${id} depth=${depth} title="Sample Init" icon=${ApplicationIcons.sample}>
 
     <div name="Summary">
       <${ChatView} messages=${stateObj["messages"]}/>

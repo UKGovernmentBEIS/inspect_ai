@@ -27,6 +27,7 @@ export const TranscriptView = ({ id, evalEvents, stateManager }) => {
   // repetition - it will be address with a uri)
   const resolvedEvents = resolveEventContent(evalEvents);
 
+  let depth = 0;
   const rows = resolvedEvents.map((event, index) => {
     const row = html`
       <div
@@ -35,9 +36,19 @@ export const TranscriptView = ({ id, evalEvents, stateManager }) => {
           paddingBottom: 0,
         }}
       >
-        <div>${renderNode(`${id}-event${index}`, event, stateManager)}</div>
+        <div>
+          ${renderNode(`${id}-event${index}`, event, depth, stateManager)}
+        </div>
       </div>
     `;
+
+    if (event.event === "step" && event.type !== "generate_loop") {
+      if (event.action === "end") {
+        depth = depth - 1;
+      } else {
+        depth = depth + 1;
+      }
+    }
     return row;
   });
 
@@ -59,33 +70,40 @@ export const TranscriptView = ({ id, evalEvents, stateManager }) => {
  *
  * @param {string} id - The id for this event.
  * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent} event - This event.
+ * @param {number} depth - How deeply nested this node is
  * @param {import("./TranscriptState.mjs").StateManager} stateManager State manager to track state as diffs are applied
  * @returns {import("preact").JSX.Element} The rendered event.
  */
-export const renderNode = (id, event, stateManager) => {
+export const renderNode = (id, event, depth, stateManager) => {
   switch (event.event) {
     case "sample_init":
       return html`<${SampleInitEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
 
     case "info":
-      return html`<${InfoEventView} id=${id} event=${event} />`;
+      return html`<${InfoEventView} id=${id} depth=${depth} event=${event} />`;
 
     case "logger":
-      return html`<${LoggerEventView} id=${id} event=${event} />`;
+      return html`<${LoggerEventView}
+        id=${id}
+        depth=${depth}
+        event=${event}
+      />`;
 
     case "model":
-      return html`<${ModelEventView} id=${id} event=${event} />`;
+      return html`<${ModelEventView} id=${id} depth=${depth} event=${event} />`;
 
     case "score":
-      return html`<${ScoreEventView} id=${id} event=${event} />`;
+      return html`<${ScoreEventView} id=${id} depth=${depth} event=${event} />`;
 
     case "state":
       return html`<${StateEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
@@ -93,6 +111,7 @@ export const renderNode = (id, event, stateManager) => {
     case "step":
       return html`<${StepEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
@@ -100,6 +119,7 @@ export const renderNode = (id, event, stateManager) => {
     case "store":
       return html`<${StateEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
@@ -107,12 +127,13 @@ export const renderNode = (id, event, stateManager) => {
     case "subtask":
       return html`<${SubtaskEventView}
         id=${id}
+        depth=${depth}
         event=${event}
         stateManager=${stateManager}
       />`;
 
     case "tool":
-      return html`<${ToolEventView} id=${id} event=${event} />`;
+      return html`<${ToolEventView} depth=${depth} id=${id} event=${event} />`;
 
     default:
       return html``;

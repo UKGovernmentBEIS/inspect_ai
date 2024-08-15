@@ -11,13 +11,14 @@ import { TextStyle } from "../../appearance/Fonts.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
+ * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").SubtaskEvent} props.event - The event object to display.
  * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const SubtaskEventView = ({ id, event, stateManager }) => {
+export const SubtaskEventView = ({ id, depth, event, stateManager }) => {
   return html`
-    <${EventPanel} id=${id} title="Subtask: ${event.name}">
+    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}">
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
       ${
         event.events.events.length > 0

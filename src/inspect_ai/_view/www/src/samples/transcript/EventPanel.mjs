@@ -12,6 +12,7 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {string | undefined} props.title - The name of the event
  * @param {string | undefined} props.text - Secondary text for the event
  * @param {string | undefined} props.icon - The icon of the event
+ * @param {number | undefined} props.depth - The depth of this item
  * @param {boolean | undefined} props.collapse - Default collapse behavior for card. If omitted, not collapsible.
  * @param {Object} props.style - The style properties passed to the component.
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
@@ -22,6 +23,7 @@ export const EventPanel = ({
   title,
   text,
   icon,
+  depth = 0,
   collapse,
   style,
   children,
@@ -124,10 +126,11 @@ export const EventPanel = ({
       </div>`
     : "";
 
+  const left_padding = 0.5 + depth * 1.5;
   const card = html` <div
     class="card"
     style=${{
-      padding: "0.5em",
+      padding: `0.5em 0.5em 0.5em ${left_padding}em`,
       marginBottom: "-1px",
       ...style,
     }}
