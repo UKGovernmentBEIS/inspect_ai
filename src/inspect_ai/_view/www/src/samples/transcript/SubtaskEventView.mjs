@@ -4,7 +4,7 @@ import { TranscriptView } from "./TranscriptView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { TextStyle } from "../../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -22,7 +22,7 @@ export const SubtaskEventView = ({ id, depth, event, stateManager }) => {
       <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
       ${
         event.events.events.length > 0
-          ? html` <${TranscriptView}
+          ? html`<${TranscriptView}
               id="${id}-subtask"
               name="Transcript"
               evalEvents=${event.events}
@@ -53,10 +53,13 @@ const SubtaskSummary = ({ input, result }) => {
     }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>
-    <div></div>
+    <div style=${{ fontSize: FontSize.large, padding: "0 2em" }}>
+      <i class="${ApplicationIcons.arrows.right}" />
+    </div>
+
     <div style=${{ ...TextStyle.label }}>Output</div>
     <${Rendered} values=${input} />
-    <div><i class="${ApplicationIcons.arrows.right}" /></div>
+    <div></div>
     <${Rendered} values=${result} />
   </div>`;
 };

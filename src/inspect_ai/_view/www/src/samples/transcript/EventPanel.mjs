@@ -128,6 +128,7 @@ export const EventPanel = ({
 
   const left_padding = 0.5 + depth * 1.5;
   const card = html` <div
+    id=${id}
     class="card"
     style=${{
       padding: `0.5em 0.5em 0.5em ${left_padding}em`,

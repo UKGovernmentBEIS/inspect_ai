@@ -12,8 +12,12 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  */
 export const EventSection = ({ title, children }) => {
   return html`<div
+    style=${{
+      margin: "1em 0 0 0",
+    }}
+  >
+    <div
       style=${{
-        margin: "1em 0 0 0",
         fontSize: FontSize.smaller,
         ...TextStyle.label,
         fontWeight: 600,
@@ -21,5 +25,6 @@ export const EventSection = ({ title, children }) => {
     >
       ${title}
     </div>
-    ${children}`;
+    ${children}
+  </div>`;
 };
