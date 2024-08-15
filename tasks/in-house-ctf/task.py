@@ -36,10 +36,18 @@ def in_house_ctf_task_template(task_name: str) -> Task:
     )
 
 
-@task
-def cmd_injection():
-    return in_house_ctf_task_template("cmd_injection")
+# @task
+# def cmd_injection():
+#     return in_house_ctf_task_template("cmd_injection")
 
-@task
-def sqli():
-    return in_house_ctf_task_template("sqli")
+# @task
+# def sqli():
+#     return in_house_ctf_task_template("sqli")
+
+# @task
+# def db_3():
+#     return in_house_ctf_task_template("db_3")
+
+# @task
+# def grafana():
+#     return in_house_ctf_task_template("grafana")
