@@ -32,7 +32,7 @@ class TopLogprob(BaseModel):
     logprob: float
     """The log probability value of the model for the top-kth token."""
 
-    bytes: list[int] | None
+    bytes: list[int] | None = Field(default=None)
     """The top-kth token represented as a byte array (a list of integers)."""
 
 
