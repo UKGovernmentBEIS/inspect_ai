@@ -2,8 +2,7 @@ import re
 from logging import LogRecord
 from typing import Any, Literal, Type, cast
 
-from pydantic import BaseModel, Field, JsonValue, model_validator
-from pydantic_core import to_jsonable_python
+from pydantic import BaseModel, Field, model_validator
 
 LoggingLevel = Literal[
     "debug", "http", "sandbox", "info", "warning", "error", "critical"
@@ -33,9 +32,6 @@ class LoggingMessage(BaseModel):
     lineno: int = Field(default=0)
     """Logged from line number."""
 
-    args: JsonValue = Field(default=None)
-    """Extra arguments passed to log function."""
-
     @staticmethod
     def from_log_record(record: LogRecord) -> "LoggingMessage":
         """Create a LoggingMesssage from a LogRecord.
@@ -59,10 +55,6 @@ class LoggingMessage(BaseModel):
             filename=str(record.filename),
             module=str(record.module),
             lineno=record.lineno or 0,
-            # serialize anything we can from the additional arguments
-            args=to_jsonable_python(record.args, fallback=lambda _x: None)
-            if record.args
-            else None,
         )
 
     @model_validator(mode="before")
