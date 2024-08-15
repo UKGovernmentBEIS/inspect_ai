@@ -66,5 +66,6 @@ jobs:
           then
             echo "Log viewer dist files have not been updated, please run yarn build and check in the changes."
             git status
+            git diff dist/assets/index.js
             exit 1
           fi
