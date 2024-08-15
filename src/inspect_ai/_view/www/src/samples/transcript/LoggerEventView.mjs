@@ -26,9 +26,8 @@ export const LoggerEventView = ({ id, depth, event }) => {
   <div
     style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "0.5em", fontSize: FontSize.base }}
   >
-    <div style=${{fontSize: FontSize.smaller}}>${event.message.message}</div>
-    <div style=${{fontSize: FontSize.smaller, ...TextStyle.secondary}}>${event.message.filename}:${event.message.lineno}</div>
+    <div style=${{ fontSize: FontSize.smaller }}>${event.message.message}</div>
+    <div style=${{ fontSize: FontSize.smaller, ...TextStyle.secondary }}>${event.message.filename}:${event.message.lineno}</div>
   </div>
   </${EventRow}>`;
 };
-
