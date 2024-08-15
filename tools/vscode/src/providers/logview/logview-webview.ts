@@ -246,6 +246,10 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       // get base html
       let indexHtml = readFileSync(viewDir.child("index.html").path, "utf-8");
 
+      // Determine whether this is the old unbundled version of the html or the new
+      // bundled version
+      const isUnbundled = indexHtml.match(/"\.(\/App\.mjs)"/g);
+
       // Add a stylesheet to further customize the view appearance
       const overrideCssPath = this.extensionResourceUrl([
         "assets",
@@ -253,6 +257,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
         "view",
         "view-overrides.css",
       ]);
+      const overrideCssHtml = isUnbundled ? `<link rel="stylesheet" type ="text/css" href="${overrideCssPath.toString()}" >` : "";
 
       // If there is a log file selected in state, embed the startup message
       // within the view itself. This will allow the log to be set immediately
@@ -283,7 +288,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
         } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this._webviewPanel.webview.cspSource
         };">
     ${stateScript}
-    <link rel="stylesheet" type ="text/css" href="${overrideCssPath.toString()}" >
+    ${overrideCssHtml}
 
     `
       );
@@ -303,7 +308,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       // Determine whether this is the old index.html format (before bundling),
       // or the newer one. Fix up the html properly in each case
 
-      if (indexHtml.match(/"\.(\/App\.mjs)"/g)) {
+      if (isUnbundled) {
         // Old unbundle html
         // fixup css references
         indexHtml = indexHtml.replace(/href="\.([^"]+)"/g, (_, p1: string) => {
