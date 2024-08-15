@@ -14,6 +14,7 @@ from inspect_ai.log import (
     EvalResults,
     EvalScore,
 )
+from inspect_ai.log._log import EvalSampleReductions
 from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
@@ -34,6 +35,7 @@ def eval_results(
     results = EvalResults()
     if scorers:
         result_scores: list[EvalScore] = []
+        sample_reductions: list[EvalSampleReductions] = []
         for scorer in scorers:
             # extract non-metrics metadata
             metadata = deepcopy(registry_info(scorer).metadata)
@@ -52,10 +54,22 @@ def eval_results(
             # Group the scores by sample_id
             reducers, use_reducer_name = resolve_reducer(reducers)
             for reducer in reducers:
-                reducer_nm = reducer_log_name(reducer) if use_reducer_name else None
-                reduced_scores = reduce_scores(resolved_scores, reducer=reducer)
+                reducer_display_nm = (
+                    reducer_log_name(reducer) if use_reducer_name else None
+                )
+                reduced_scores, epochs = reduce_scores(resolved_scores, reducer=reducer)
+
+                # record this scorer's intermediate results
+                if epochs > 1:
+                    reduced_samples = EvalSampleReductions(
+                        scorer=scorer_name,
+                        reducer=reducer_display_nm,
+                        samples=reduced_scores,
+                    )
+                    sample_reductions.append(reduced_samples)
 
                 # Compute metrics for this scorer
+                simple_scores = cast(list[Score], reduced_scores)
                 targets = target_metrics(scorer, metrics)
                 if isinstance(targets, list):
                     # If there is a simple list of metrics
@@ -65,9 +79,9 @@ def eval_results(
                             scorer_name=scorer_name,
                             scorer=scorer,
                             metadata=metadata,
-                            scores=reduced_scores,
+                            scores=simple_scores,
                             metrics=targets,
-                            reducer_name=reducer_nm,
+                            reducer_name=reducer_display_nm,
                         )
                     )
                 else:
@@ -82,13 +96,15 @@ def eval_results(
                             scorer_name=scorer_name,
                             scorer=scorer,
                             metadata=metadata,
-                            scores=reduced_scores,
+                            scores=simple_scores,
                             metrics=targets,
-                            reducer_name=reducer_nm,
+                            reducer_name=reducer_display_nm,
                         )
                     )
             # build results
         results.scores = result_scores
+        if len(sample_reductions) > 0:
+            results.sample_reductions = sample_reductions
 
     return results
 
@@ -195,7 +211,9 @@ def scorers_from_metric_dict(
     return results
 
 
-def reduce_scores(scores: list[SampleScore], reducer: ScoreReducer) -> list[Score]:
+def reduce_scores(
+    scores: list[SampleScore], reducer: ScoreReducer
+) -> tuple[list[SampleScore], int]:
     # Group the scores by sample_id
     grouped_scores: dict[str, list[SampleScore]] = defaultdict(list)
     for sample_score in scores:
@@ -203,10 +221,21 @@ def reduce_scores(scores: list[SampleScore], reducer: ScoreReducer) -> list[Scor
             grouped_scores[str(sample_score.sample_id)].append(sample_score)
 
     # reduce the scores
-    reduced_scores: list[Score] = []
+    reduced_scores: list[SampleScore] = []
     for scores in grouped_scores.values():
-        reduced_scores.append(reducer(cast(list[Score], scores)))
-    return reduced_scores
+        reduced = reducer(cast(list[Score], scores))
+        reduced_scores.append(
+            SampleScore(
+                sample_id=scores[0].sample_id,
+                value=reduced.value,
+                explanation=reduced.explanation,
+                metadata=reduced.metadata,
+            )
+        )
+
+    # count epochs reduced
+    epochs = len(next(iter(grouped_scores.values()), []))
+    return reduced_scores, epochs
 
 
 def metrics_unique_key(key: str, existing: list[str]) -> str:

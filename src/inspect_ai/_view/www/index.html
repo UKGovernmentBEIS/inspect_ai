@@ -15,15 +15,6 @@
     />
 
     <link href="./App.css" rel="stylesheet" />
-    <script type="importmap">
-      {
-        "imports": {
-          "preact": "./preact/preact.mjs",
-          "preact/hooks": "./preact/preact-hooks.mjs",
-          "htm/preact": "./preact/htm/preact.mjs?external=preact"
-        }
-      }
-    </script>
     <script>
       // Forward the theme (dark or light) onto the root html element
       // this parameter will tend to appear when the view is hosted within
@@ -37,24 +28,8 @@
     </script>
   </head>
 
-  <body>
+  <body style="min-width: 450px;">
     <div id="app"></div>
-    <script type="module">
-      import { render } from "preact";
-      import { html } from "htm/preact";
-      import { App } from "./App.mjs";
-      render(html`<${App} />`, document.getElementById("app"));
-    </script>
-    <script src="./libs/bootstrap/js/bootstrap.bundle.min.js"></script>
-    <script src="./libs/prism/prism.min.js"></script>
-    <script src="./libs/clipboard.min.js"></script>
-    <script src="./libs/json5.min.js"></script>
-    <script src="./libs/purify.min.js"></script>
-    <script src="./libs/showdown.min.js"></script>
-    <script>
-      window.document.addEventListener("DOMContentLoaded", function (_event) {
-        new ClipboardJS(".clipboard-button,.copy-button");
-      });
-    </script>
+    <script type="module" src="./src/index.js"></script>
   </body>
 </html>

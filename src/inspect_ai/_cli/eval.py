@@ -25,7 +25,9 @@ MAX_SUBPROCESSES_HELP = (
 )
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
-NO_LOG_IMAGES_HELP = "Do not include base64 encoded versions of filename or URL based images in the log file."
+LOG_IMAGES_HELP = (
+    "Include base64 encoded versions of filename or URL based images in the log file."
+)
 LOG_BUFFER_HELP = f"Number of samples to buffer before writing log file (defaults to {DEFAULT_LOG_BUFFER_LOCAL} for local filesystems, and {DEFAULT_LOG_BUFFER_REMOTE} for remote filesystems)."
 NO_SCORE_HELP = (
     "Do not score model output (use the inspect score command to score output later)"
@@ -102,7 +104,13 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     help="Maximum number of messages to allow in a task conversation.",
 )
 @click.option("--no-log-samples", type=bool, is_flag=True, help=NO_LOG_SAMPLES_HELP)
-@click.option("--no-log-images", type=bool, is_flag=True, help=NO_LOG_IMAGES_HELP)
+@click.option(
+    "--log-images/--no-log-images",
+    type=bool,
+    default=False,
+    is_flag=True,
+    help=LOG_IMAGES_HELP,
+)
 @click.option("--log-buffer", type=int, help=LOG_BUFFER_HELP)
 @click.option(
     "--no-score",
@@ -223,7 +231,7 @@ def eval_command(
     max_tasks: int | None,
     max_subprocesses: int | None,
     no_log_samples: bool | None,
-    no_log_images: bool | None,
+    log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
     **kwargs: Unpack[CommonOptions],
@@ -262,7 +270,7 @@ def eval_command(
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
-    log_images = False if no_log_images else None
+    log_images = True if log_images else None
     score = False if no_score else True
 
     # evaluate
@@ -335,10 +343,11 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_LOG_SAMPLES",
 )
 @click.option(
-    "--no-log-images",
+    "--log-images/--no-log-images",
     type=bool,
+    default=False,
     is_flag=True,
-    help=NO_LOG_IMAGES_HELP,
+    help=LOG_IMAGES_HELP,
     envvar="INSPECT_EVAL_LOG_IMAGES",
 )
 @click.option(
@@ -369,7 +378,7 @@ def eval_retry_command(
     max_subprocesses: int | None,
     no_sandbox_cleanup: bool | None,
     no_log_samples: bool | None,
-    no_log_images: bool | None,
+    log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
     max_connections: int | None,
@@ -384,7 +393,7 @@ def eval_retry_command(
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
-    log_images = False if no_log_images else None
+    log_images = True if log_images else None
     score = False if no_score else True
 
     # resolve log file

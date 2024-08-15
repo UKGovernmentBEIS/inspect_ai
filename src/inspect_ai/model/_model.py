@@ -389,7 +389,7 @@ class ModelName:
             # registry names have a package prefix, strip it off
             name = registry_info(model.api).name
             parts = name.split("/")
-            self.api = "/".join(parts[1:]) if len(parts) else name
+            self.api = "/".join(parts[1:]) if len(parts) > 1 else name
             self.name = model.name
 
     def __eq__(self, pattern: object) -> bool:

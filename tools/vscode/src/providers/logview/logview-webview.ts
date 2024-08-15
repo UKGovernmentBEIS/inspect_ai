@@ -246,6 +246,10 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       // get base html
       let indexHtml = readFileSync(viewDir.child("index.html").path, "utf-8");
 
+      // Determine whether this is the old unbundled version of the html or the new
+      // bundled version
+      const isUnbundled = indexHtml.match(/"\.(\/App\.mjs)"/g);
+
       // Add a stylesheet to further customize the view appearance
       const overrideCssPath = this.extensionResourceUrl([
         "assets",
@@ -253,6 +257,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
         "view",
         "view-overrides.css",
       ]);
+      const overrideCssHtml = isUnbundled ? `<link rel="stylesheet" type ="text/css" href="${overrideCssPath.toString()}" >` : "";
 
       // If there is a log file selected in state, embed the startup message
       // within the view itself. This will allow the log to be set immediately
@@ -278,12 +283,12 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
         `<head>
           <meta name="inspect-extension:version" content="${this.getExtensionVersion()}">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._webviewPanel.webview.cspSource
-        } data:; font-src ${this._webviewPanel.webview.cspSource}; style-src ${this._webviewPanel.webview.cspSource
+        } data:; font-src ${this._webviewPanel.webview.cspSource} data:; style-src ${this._webviewPanel.webview.cspSource
         } 'unsafe-inline'; worker-src 'self' ${this._webviewPanel.webview.cspSource
         } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this._webviewPanel.webview.cspSource
         };">
     ${stateScript}
-    <link rel="stylesheet" type ="text/css" href="${overrideCssPath.toString()}" >
+    ${overrideCssHtml}
 
     `
       );
@@ -294,34 +299,54 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
           .asWebviewUri(Uri.joinPath(viewDirUri, path))
           .toString();
 
-      // fixup css references
-      indexHtml = indexHtml.replace(/href="\.([^"]+)"/g, (_, p1: string) => {
-        return `href="${resourceUri(p1)}"`;
-      });
-
-      // fixup js references
-      indexHtml = indexHtml.replace(/src="\.([^"]+)"/g, (_, p1: string) => {
-        return `src="${resourceUri(p1)}"`;
-      });
-
       // nonces for scripts
       indexHtml = indexHtml.replace(
         /<script([ >])/g,
         `<script nonce="${nonce}"$1`
       );
 
-      // fixup import maps
-      indexHtml = indexHtml.replace(
-        /": "\.([^?"]+)(["?])/g,
-        (_, p1: string, p2: string) => {
-          return `": "${resourceUri(p1)}${p2}`;
-        }
-      );
+      // Determine whether this is the old index.html format (before bundling),
+      // or the newer one. Fix up the html properly in each case
 
-      // fixup App.mjs
-      indexHtml = indexHtml.replace(/"\.(\/App\.mjs)"/g, (_, p1: string) => {
-        return `"${resourceUri(p1)}"`;
-      });
+      if (isUnbundled) {
+        // Old unbundle html
+        // fixup css references
+        indexHtml = indexHtml.replace(/href="\.([^"]+)"/g, (_, p1: string) => {
+          return `href="${resourceUri(p1)}"`;
+        });
+
+        // fixup js references
+        indexHtml = indexHtml.replace(/src="\.([^"]+)"/g, (_, p1: string) => {
+          return `src="${resourceUri(p1)}"`;
+        });
+
+        // fixup import maps
+        indexHtml = indexHtml.replace(
+          /": "\.([^?"]+)(["?])/g,
+          (_, p1: string, p2: string) => {
+            return `": "${resourceUri(p1)}${p2}`;
+          }
+        );
+
+        // fixup App.mjs
+        indexHtml = indexHtml.replace(/"\.(\/App\.mjs)"/g, (_, p1: string) => {
+          return `"${resourceUri(p1)}"`;
+        });
+
+      } else {
+        // New bundled html
+        // fixup css references
+        indexHtml = indexHtml.replace(/href="([^"]+)"/g, (_, p1: string) => {
+          return `href="${resourceUri(p1)}"`;
+        });
+
+        // fixup js references
+        indexHtml = indexHtml.replace(/src="([^"]+)"/g, (_, p1: string) => {
+          return `src="${resourceUri(p1)}"`;
+        });
+
+
+      }
 
       return indexHtml;
     } else {

@@ -24,7 +24,7 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
-from .._util import chat_api_input
+from .util import chat_api_input
 
 DEFAULT_START_TOKEN = "<|im_start|>"
 DEFAULT_END_TOKEN = "<|im_end|>"
@@ -131,11 +131,13 @@ class VLLMAPI(ModelAPI):
         # we get the tokenizer so we can use it to apply the model's chat template later
         self.tokenizer = self.model.get_tokenizer()
 
-    def apply_chat_template(self, messages: list[ChatMessage]) -> str:
+    def apply_chat_template(
+        self, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> str:
         # handle system message and consecutive user messages
         messages = simple_input_messages(messages)
         # convert to chat template input format
-        chat_messages = chat_api_input(messages)
+        chat_messages = chat_api_input(messages, tools)
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
             chat_messages,
@@ -214,7 +216,7 @@ class VLLMAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
-        chat = self.apply_chat_template(input)
+        chat = self.apply_chat_template(input, tools)
 
         # prepare generator
         sampling_params = self.get_sampling_params(config, chat)
@@ -232,14 +234,15 @@ class VLLMAPI(ModelAPI):
             )
         )
 
-        return self.process_responses(responses)
+        return self.process_responses(responses, tools)
 
-    def process_responses(self, responses: list[GenerateOutput]) -> ModelOutput:
+    def process_responses(
+        self, responses: list[GenerateOutput], tools: list[ToolInfo]
+    ) -> ModelOutput:
         choices = [
             ChatCompletionChoice(
                 message=ChatMessageAssistant(
-                    content=response.output,
-                    source="generate",
+                    content=response.output, source="generate"
                 ),
                 stop_reason=response.stop_reason,
                 logprobs=response.logprobs,

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.28
+
+- Fix incorrect environment variable when setting model base url (thx @hanbyul-kim)
+- Fix extraneous error that might appear in console output
+
+## 0.3.27
+
+- Minor fix to view rendering across differing versions of Inspect.
+
 ## 0.3.26
 
 - Properly preserve focus When showing the log viewer upon task completion.

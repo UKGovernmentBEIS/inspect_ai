@@ -82,7 +82,7 @@ const Tab = ({ type, tab, index, style }) => {
     ...style,
   };
   return html`
-    <li class="nav-item" role="presentation">
+    <li class="nav-item" role="presentation" style=${{ alignSelf: "end" }}>
       <button
         id="${tabId}"
         style=${type === "tabs" ? tabStyle : pillStyle}
