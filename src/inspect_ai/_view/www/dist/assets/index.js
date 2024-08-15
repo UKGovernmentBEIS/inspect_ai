@@ -15370,6 +15370,19 @@ const Rendered = ({ values }) => {
     return values;
   }
 };
+const EventSection = ({ title, children }) => {
+  return m$1`<div
+      style=${{
+    margin: "1em 0 0 0",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    fontWeight: 600
+  }}
+    >
+      ${title}
+    </div>
+    ${children}`;
+};
 const ModelEventView = ({ id, depth, event }) => {
   var _a, _b;
   const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
@@ -15392,18 +15405,25 @@ const ModelEventView = ({ id, depth, event }) => {
       />
     </div>
 
-    <div name="All">
-      <${MetaDataGrid} entries=${entries} style=${{ margin: "1em 0" }}/>
+    <div name="All" style=${{ margin: "1em 0" }}>
 
-      <${ChatView}
-        id="${id}-model-input-full"
-        messages=${[...event.input, ...outputMessages || []]}
-        />      
+      <${EventSection} title="Configuration">
+        <${MetaDataGrid} entries=${entries}/>
+      </${EventSection}>
+      <${EventSection} title="Messages">
+        <${ChatView}
+          id="${id}-model-input-full"
+          messages=${[...event.input, ...outputMessages || []]}
+          />      
+      </${EventSection}>
+      <${EventSection} title="Usage">
+        <${MetaDataGrid} entries=${event.output.usage}/>
+      </${EventSection}>
+
     </div>
 
-    <${APIView} name="API" call=${event.call} style=${{ margin: "1em 0" }} />
+    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0", width: "100%" }} />` : ""}
    
-
   </${EventPanel}>`;
 };
 const APIView = ({ call, style }) => {
@@ -15411,13 +15431,15 @@ const APIView = ({ call, style }) => {
     return "";
   }
   return m$1`<div style=${style}>
-    <div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>Request</div>
-    <${APICodeCell} contents=${call.request} />
-    <div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
-      Response
-    </div>
-    <${APICodeCell} contents=${call.response} />
-  </div>`;
+
+    <${EventSection} title="Request">
+      <${APICodeCell} contents=${call.request} />
+    </${EventSection}>
+    <${EventSection} title="Response">
+      <${APICodeCell} contents=${call.response} />
+    </${EventSection}>
+
+    </div>`;
 };
 const APICodeCell = ({ id, contents }) => {
   if (!contents) {
@@ -15454,10 +15476,11 @@ const APICodeCell = ({ id, contents }) => {
       </pre>
   </div>`;
 };
-const EventRow = ({ title, icon, children }) => {
+const EventRow = ({ title, icon, depth, children }) => {
+  const paddingLeft = depth * 1.5 + 0.5;
   const contentEl = title ? m$1`<div
         style=${{
-    paddingLeft: "0.5em",
+    paddingLeft: `${paddingLeft}em`,
     display: "grid",
     gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
     columnGap: "0.5em",
@@ -15554,6 +15577,13 @@ const TranscriptView = ({ id, evalEvents, stateManager }) => {
   const resolvedEvents = resolveEventContent(evalEvents);
   let depth = 0;
   const rows = resolvedEvents.map((event, index) => {
+    if (event.event === "step" && event.type !== "generate_loop") {
+      if (event.action === "end") {
+        depth = depth - 1;
+      } else {
+        depth = depth + 1;
+      }
+    }
     const row = m$1`
       <div
         style=${{
@@ -15562,17 +15592,15 @@ const TranscriptView = ({ id, evalEvents, stateManager }) => {
     }}
       >
         <div>
-          ${renderNode(`${id}-event${index}`, event, depth, stateManager)}
+          ${renderNode(
+      `${id}-event${index}`,
+      event,
+      Math.max(depth - 1, 0),
+      stateManager
+    )}
         </div>
       </div>
     `;
-    if (event.event === "step" && event.type !== "generate_loop") {
-      if (event.action === "end") {
-        depth = depth - 1;
-      } else {
-        depth = depth + 1;
-      }
-    }
     return row;
   });
   return m$1`<div
@@ -16381,7 +16409,11 @@ const SampleDisplay = ({
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   _(() => {
-    setSelectedTab(transcriptTabId);
+    if (sample.transcript && sample.transcript.events.length > 0) {
+      setSelectedTab(transcriptTabId);
+    } else {
+      setSelectedTab(msgTabId);
+    }
   }, [sample]);
   const [selectedTab, setSelectedTab] = p(void 0);
   const onSelectedTab = (e2) => {
