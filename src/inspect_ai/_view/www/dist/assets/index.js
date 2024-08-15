@@ -15383,16 +15383,60 @@ const ModelEventView = ({ id, depth, event }) => {
       />
     </div>
 
-    <${MetaDataGrid} name="Config" entries=${entries} style=${{ margin: "1em 0" }}/>
+    <div name="All">
+      <${MetaDataGrid} entries=${entries} style=${{ margin: "1em 0" }}/>
 
+      <${ChatView}
+        id="${id}-model-input-full"
+        messages=${[...event.input, ...outputMessages || []]}
+        />      
+    </div>
 
-    <${ChatView}
-      id="${id}-model-input-full"
-      name="All Msgs"
-      messages=${[...event.input, ...outputMessages || []]}
-      />      
+    <${APIView} name="API" call=${event.call} style=${{ margin: "1em 0" }} />
+   
 
   </${EventPanel}>`;
+};
+const APIView = ({ call, style }) => {
+  if (!call) {
+    return "";
+  }
+  return m$1`<div style=${style}>
+    <div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>Request</div>
+    <${APICodeCell} contents=${call.request} />
+    <div style=${{ fontSize: FontSize.small, ...TextStyle.label }}>
+      Response
+    </div>
+    <${APICodeCell} contents=${call.response} />
+  </div>`;
+};
+const APICodeCell = ({ id, contents }) => {
+  if (!contents) {
+    return "";
+  }
+  const sourceCode = JSON.stringify(contents, void 0, 2);
+  const codeRef = F();
+  if (codeRef.current) {
+    codeRef.current.innerHTML = Prism.highlight(
+      sourceCode,
+      Prism.languages.javascript,
+      "javacript"
+    );
+  }
+  return m$1`<div>
+    <pre>
+      <code 
+        id=${id} 
+        ref=${codeRef}
+        class="sourceCode" 
+        style=${{
+    fontSize: FontSize.small,
+    whiteSpace: "pre-wrap",
+    wordWrap: "anywhere"
+  }}>
+      </code>
+      </pre>
+  </div>`;
 };
 const EventRow = ({ title, icon, children }) => {
   const contentEl = title ? m$1`<div
