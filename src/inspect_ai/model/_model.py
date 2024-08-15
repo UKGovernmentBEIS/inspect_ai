@@ -41,7 +41,7 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._generate_config import GenerateConfig
-from ._model_output import ModelOutput, ModelUsage
+from ._model_output import ModelCall, ModelOutput, ModelUsage
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,7 @@ class ModelAPI(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         """Generate output from the model.
 
         Args:
@@ -121,7 +121,9 @@ class ModelAPI(abc.ABC):
           config (GenerateConfig): Model configuration.
 
         Returns:
-           ModelOutput
+           ModelOutput or tuple[ModelOutput,ModelCall], the latter being
+           useful if you want the underlying model API call logged as
+           part of the ModelEvent.
         """
         ...
 
@@ -325,12 +327,17 @@ class Model:
                 if isinstance(existing, ModelOutput):
                     return existing
 
-            output = await self.api.generate(
+            result = await self.api.generate(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
             )
+            if isinstance(result, tuple):
+                output, call = result
+            else:
+                output = result
+                call = None
 
             # write to transcript
             await self._model_transcript(
@@ -339,6 +346,7 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 output=output,
+                call=call,
             )
 
             # record usage
@@ -392,6 +400,7 @@ class Model:
         tool_choice: ToolChoice,
         config: GenerateConfig,
         output: ModelOutput,
+        call: ModelCall | None,
     ) -> None:
         from inspect_ai.solver._subtask.transcript import ModelEvent, transcript
 
@@ -404,6 +413,7 @@ class Model:
                     tool_choice=tool_choice,
                     config=config,
                     output=output,
+                    call=call,
                 )
             )
 

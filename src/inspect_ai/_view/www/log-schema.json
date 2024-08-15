@@ -1731,6 +1731,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Bytes"
         },
         "top_logprobs": {
@@ -1745,6 +1746,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Top Logprobs"
         }
       },
@@ -1773,6 +1775,32 @@
         "content"
       ],
       "title": "Logprobs",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ModelCall": {
+      "description": "Model call (raw request/response data).",
+      "properties": {
+        "request": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Request",
+          "type": "object"
+        },
+        "response": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Response",
+          "type": "object"
+        }
+      },
+      "required": [
+        "request",
+        "response"
+      ],
+      "title": "ModelCall",
       "type": "object",
       "additionalProperties": false
     },
@@ -1845,6 +1873,17 @@
         },
         "output": {
           "$ref": "#/$defs/ModelOutput"
+        },
+        "call": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelCall"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1855,7 +1894,8 @@
         "tools",
         "tool_choice",
         "config",
-        "output"
+        "output",
+        "call"
       ],
       "title": "ModelEvent",
       "type": "object",

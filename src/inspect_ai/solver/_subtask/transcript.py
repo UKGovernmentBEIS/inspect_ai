@@ -21,7 +21,7 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_output import ModelCall, ModelOutput
 from inspect_ai.scorer._metric import Score
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_choice import ToolChoice
@@ -99,11 +99,8 @@ class ModelEvent(BaseEvent):
     output: ModelOutput
     """Output from model."""
 
-    request: dict[str, JsonValue] | None = Field(default=None)
-    """Raw request send to model API."""
-
-    response: dict[str, JsonValue] | None = Field(default=None)
-    """Raw response received from model API."""
+    call: ModelCall | None = Field(default=None)
+    """Raw call made to model API."""
 
 
 class ToolEvent(BaseEvent):
@@ -370,6 +367,7 @@ def walk_model_event(event: ModelEvent, content_fn: Callable[[str], str]) -> Mod
         update=dict(
             input=[walk_chat_message(message, content_fn) for message in event.input],
             output=walk_model_output(event.output, content_fn),
+            call=walk_model_call(event.call, content_fn),
         ),
     )
 
@@ -387,6 +385,18 @@ def walk_model_output(
             ]
         )
     )
+
+
+def walk_model_call(
+    call: ModelCall | None, content_fn: Callable[[str], str]
+) -> ModelCall | None:
+    if call:
+        return ModelCall(
+            request=walk_json_dict(call.request, content_fn),
+            response=walk_json_dict(call.response, content_fn),
+        )
+    else:
+        return None
 
 
 def walk_state_event(event: StateEvent, content_fn: Callable[[str], str]) -> StateEvent:
@@ -417,16 +427,21 @@ def walk_json_value(value: JsonValue, content_fn: Callable[[str], str]) -> JsonV
     elif isinstance(value, list):
         return [walk_json_value(v, content_fn) for v in value]
     elif isinstance(value, dict):
-        updates: dict[str, JsonValue] = {}
-        for k, v in value.items():
-            if k in ["content", "message", "messages", "text", "image", "value"]:
-                updates[k] = walk_json_value(v, content_fn)
-        if updates:
-            value = value.copy()
-            value.update(updates)
-        return value
+        return walk_json_dict(value, content_fn)
     else:
         return value
+
+
+def walk_json_dict(
+    value: dict[str, JsonValue], content_fn: Callable[[str], str]
+) -> dict[str, JsonValue]:
+    updates: dict[str, JsonValue] = {}
+    for k, v in value.items():
+        updates[k] = walk_json_value(v, content_fn)
+    if updates:
+        value = value.copy()
+        value.update(updates)
+    return value
 
 
 def walk_chat_message(

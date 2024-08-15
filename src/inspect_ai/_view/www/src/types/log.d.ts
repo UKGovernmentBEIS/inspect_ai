@@ -580,6 +580,7 @@ export interface ModelEvent {
   tool_choice: ToolChoice;
   config: GenerateConfig;
   output: ModelOutput;
+  call: ModelCall | null;
 }
 /**
  * Specification of a tool (JSON Schema compatible)
@@ -641,6 +642,19 @@ export interface Default {
 }
 export interface ToolFunction {
   name: Name5;
+}
+/**
+ * Model call (raw request/response data).
+ */
+export interface ModelCall {
+  request: Request;
+  response: Response;
+}
+export interface Request {
+  [k: string]: JsonValue;
+}
+export interface Response {
+  [k: string]: JsonValue;
 }
 /**
  * Call to a tool.

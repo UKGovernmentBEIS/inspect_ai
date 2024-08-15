@@ -119,7 +119,9 @@ def _model_graded_qa_single(
     instructions = (
         instructions if instructions else default_instructions(partial_credit)
     )
-    grade_pattern = grade_pattern if grade_pattern else DEFAULT_GRADE_PATTERN
+    grade_pattern = (
+        grade_pattern if grade_pattern is not None else DEFAULT_GRADE_PATTERN
+    )
 
     async def score(state: TaskState, target: Target) -> Score:
         # metadata without grading template variables
