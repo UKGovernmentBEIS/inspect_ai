@@ -305,13 +305,17 @@ def chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
 
 
 def chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    return [
-        ChatCompletionToolParam(
-            type="function",
-            function=cast(FunctionDefinition, tool.model_dump(exclude_none=True)),
-        )
-        for tool in tools
-    ]
+    return [chat_tool_param(tool) for tool in tools]
+
+
+def chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
+    function = FunctionDefinition(
+        name=tool.name,
+        description=tool.description,
+        parameters=tool.parameters.model_dump(exclude_none=True),
+        strict=True,
+    )
+    return ChatCompletionToolParam(type="function", function=function)
 
 
 def chat_tool_choice(tool_choice: ToolChoice) -> ChatCompletionToolChoiceOptionParam:
