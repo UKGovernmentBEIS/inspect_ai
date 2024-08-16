@@ -1,4 +1,5 @@
 // @ts-check
+/// <reference path="../../types/prism.d.ts" />
 import { html } from "htm/preact";
 import { useRef } from "preact/hooks";
 import { ChatView } from "../../components/ChatView.mjs";

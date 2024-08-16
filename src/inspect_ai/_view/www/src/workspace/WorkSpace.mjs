@@ -1,3 +1,4 @@
+/// <reference path="../types/prism.d.ts" />
 import Prism from "prismjs";
 import { html } from "htm/preact";
 import {

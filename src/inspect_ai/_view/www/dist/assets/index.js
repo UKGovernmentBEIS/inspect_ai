@@ -13040,63 +13040,126 @@ const MoreToggle = ({ collapsed, border, setCollapsed }) => {
     </div>
   `;
 };
-const resolveToolInput = (tool_call) => {
-  const toolName = tool_call.function;
-  const extractInputMetadata = () => {
-    if (toolName === "bash") {
-      return ["cmd", "bash"];
-    } else if (toolName === "python") {
-      return ["code", "python"];
-    } else if (toolName === "web_search") {
-      return ["query", "text"];
-    } else {
-      return [void 0, void 0];
-    }
-  };
-  const [inputKey, inputType] = extractInputMetadata();
-  const extractInput = (inputKey2, tool_call2) => {
-    const formatArg = (key2, value) => {
-      const quotedValue = typeof value === "string" ? `"${value}"` : value;
-      return `${key2}: ${quotedValue}`;
-    };
-    if (tool_call2.arguments) {
-      if (Object.keys(tool_call2.arguments).length === 1) {
-        return {
-          input: tool_call2.arguments[Object.keys(tool_call2.arguments)[0]],
-          args: []
-        };
-      } else if (tool_call2.arguments[inputKey2]) {
-        const input2 = tool_call2.arguments[inputKey2];
-        const args2 = Object.keys(tool_call2.arguments).filter((key2) => {
-          return key2 !== inputKey2;
-        }).map((key2) => {
-          return formatArg(key2, tool_call2.arguments[key2]);
-        });
-        return {
-          input: input2,
-          args: args2
-        };
-      } else {
-        const args2 = Object.keys(tool_call2.arguments).map((key2) => {
-          return formatArg(key2, tool_call2.arguments[key2]);
-        });
-        return {
-          input: void 0,
-          args: args2
-        };
-      }
-    }
-    return {
-      input: void 0,
-      args: []
-    };
-  };
-  const { input, args } = extractInput(inputKey, tool_call);
+const resolveToolInput = (fn2, toolArgs) => {
+  const toolName = fn2;
+  const [inputKey, inputType] = extractInputMetadata(toolName);
+  const { input, args } = extractInput(inputKey, toolArgs);
   const functionCall = args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
   return {
     functionCall,
     input,
     inputType
+  };
+};
+const ToolCallView = ({
+  functionCall,
+  input,
+  inputType,
+  output,
+  mode
+}) => {
+  const icon = mode === "compact" ? "" : m$1`<i
+          class="bi bi-tools"
+          style=${{
+    marginRight: "0.2rem",
+    opacity: "0.4"
+  }}
+        ></i>`;
+  const codeIndent = mode === "compact" ? "" : "1.5em";
+  return m$1`<p>
+        ${icon}
+        <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
+        <div>
+            <div style=${{ marginLeft: `${codeIndent}` }}>
+            <${ToolInput} type=${inputType} contents=${input}/>
+            ${output ? m$1`
+              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+              <${MessageContent} contents=${output} />
+              </${ExpandablePanel}>` : ""}
+            </div>
+        </div>
+        </p>`;
+};
+const ToolInput = ({ type, contents }) => {
+  if (!contents) {
+    return "";
+  }
+  const toolInputRef = F(
+    /** @type {HTMLElement|null} */
+    null
+  );
+  if (typeof contents === "object" || Array.isArray(contents)) {
+    contents = JSON.stringify(contents);
+  }
+  q(() => {
+    const tokens = Prism.languages[type];
+    if (toolInputRef.current && tokens) {
+      const html = Prism.highlight(contents, tokens, type);
+      toolInputRef.current.innerHTML = html;
+    }
+  }, [toolInputRef.current, type, contents]);
+  return m$1`<pre
+    class="tool-output"
+    style=${{
+    padding: "0.5em",
+    marginTop: "0.25em",
+    marginBottom: "1rem"
+  }}
+  >
+      <code ref=${toolInputRef} class="sourceCode${type ? ` language-${type}` : ""}" style=${{
+    overflowWrap: "anywhere",
+    whiteSpace: "pre-wrap"
+  }}>
+        ${contents}
+        </code>
+    </pre>`;
+};
+const extractInputMetadata = (toolName) => {
+  if (toolName === "bash") {
+    return ["cmd", "bash"];
+  } else if (toolName === "python") {
+    return ["code", "python"];
+  } else if (toolName === "web_search") {
+    return ["query", "text"];
+  } else {
+    return [void 0, void 0];
+  }
+};
+const extractInput = (inputKey, args) => {
+  const formatArg = (key2, value) => {
+    const quotedValue = typeof value === "string" ? `"${value}"` : value;
+    return `${key2}: ${quotedValue}`;
+  };
+  if (args) {
+    if (Object.keys(args).length === 1) {
+      return {
+        input: args[Object.keys(args)[0]],
+        args: []
+      };
+    } else if (args[inputKey]) {
+      const input = args[inputKey];
+      const filteredArgs = Object.keys(args).filter((key2) => {
+        return key2 !== inputKey;
+      }).map((key2) => {
+        return formatArg(key2, args[key2]);
+      });
+      return {
+        input,
+        args: filteredArgs
+      };
+    } else {
+      const formattedArgs = Object.keys(args).map((key2) => {
+        return formatArg(key2, args[key2]);
+      });
+      return {
+        input: void 0,
+        args: formattedArgs
+      };
+    }
+  }
+  return {
+    input: void 0,
+    args: []
   };
 };
 const ChatView = ({ id, messages, style }) => {
@@ -13216,24 +13279,17 @@ const MessageContents = ({ message, toolMessages }) => {
     }
     const toolCalls = message.tool_calls.map((tool_call) => {
       const toolMessage = toolMessages[tool_call.id];
-      const { input, functionCall, inputType } = resolveToolInput(tool_call);
+      const { input, functionCall, inputType } = resolveToolInput(
+        tool_call.function,
+        tool_call.arguments
+      );
       const resolvedToolOutput = resolveToolMessage(toolMessage);
-      return m$1`<p>
-        <i class="bi bi-tools" style=${{
-        marginRight: "0.2rem",
-        opacity: "0.4"
-      }}></i>
-        <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
-        <div>
-            <div style=${{ marginLeft: "1.5em" }}>
-            <${ToolInput} type=${inputType} contents=${input}/>
-            ${resolvedToolOutput ? m$1`
-              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
-              <${MessageContent} contents=${resolvedToolOutput} />
-              </${ExpandablePanel}>` : ""}
-            </div>
-        </div>
-        </p>`;
+      return m$1`<${ToolCallView}
+        functionCall=${functionCall}
+        input=${input}
+        inputType=${inputType}
+        output=${resolvedToolOutput}
+      />`;
     });
     if (toolCalls) {
       result.push(...toolCalls);
@@ -13242,40 +13298,6 @@ const MessageContents = ({ message, toolMessages }) => {
   } else {
     return m$1`<${MessageContent} contents=${message.content} />`;
   }
-};
-const ToolInput = ({ type, contents }) => {
-  if (!contents) {
-    return "";
-  }
-  const toolInputRef = F(
-    /** @type {HTMLElement|null} */
-    null
-  );
-  if (typeof contents === "object" || Array.isArray(contents)) {
-    contents = JSON.stringify(contents);
-  }
-  q(() => {
-    const tokens = Prism.languages[type];
-    if (toolInputRef.current && tokens) {
-      const html = Prism.highlight(contents, tokens, type);
-      toolInputRef.current.innerHTML = html;
-    }
-  }, [toolInputRef.current, type, contents]);
-  return m$1` <pre
-    class="tool-output"
-    style=${{
-    padding: "0.5em",
-    marginTop: "0.25em",
-    marginBottom: "1rem"
-  }}
-  >
-      <code ref=${toolInputRef} class="sourceCode${type ? ` language-${type}` : ""}" style=${{
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap"
-  }}>
-        ${contents}
-        </code>
-    </pre>`;
 };
 const iconForMsg = (msg) => {
   let iconCls = ApplicationIcons.role.assistant;
@@ -15017,7 +15039,7 @@ const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   }
   if (event.sample.setup) {
     sections.push(m$1`<${EventSection} title="Setup">
-      <pre><code>${event.sample.setup}</code></pre>
+      <pre style=${{ background: "var(--bs-light)", borderRadius: "3px" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
       </${EventSection}>
   `);
   }
@@ -15568,9 +15590,27 @@ const ScoreEventView = ({ id, depth, event }) => {
   </${EventPanel}>`;
 };
 const ToolEventView = ({ id, depth, event }) => {
+  const { input, functionCall, inputType } = resolveToolInput(
+    event.function,
+    event.arguments
+  );
+  const title = `Tool: ${event.function}`;
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Tool" icon=${ApplicationIcons.solvers.use_tools}>
-  ${event.function}
+  <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
+  <div name="Result">
+    <${ExpandablePanel}>
+    ${event.result}
+    </${ExpandablePanel}>
+  </div>
+  <div name="Complete">
+    <${ToolCallView}
+      functionCall=${functionCall}
+      input=${input}
+      inputType=${inputType}
+      output=${event.result}
+      mode="compact"
+      />
+  </div>
   </${EventPanel}>`;
 };
 const kContentProtocol = "tc://";
