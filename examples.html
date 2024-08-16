@@ -434,7 +434,7 @@ window.Quarto = {
 <section id="setup" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="setup">Setup</h3>
 <p>We’ll start by importing the functions we need from Inspect and defining a system message that orients the model to its role as a computer security expert.</p>
-<div id="b8f9f44d" class="cell">
+<div id="1214abfd" class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> example_dataset</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
@@ -451,7 +451,7 @@ window.Quarto = {
 <section id="eval" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval">Eval</h3>
 <p>Discerning whether the correct security guidance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.</p>
-<div id="209d6276" class="cell">
+<div id="42666217" class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> security_guide():</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -481,7 +481,7 @@ window.Quarto = {
 <section id="setup-1" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="setup-1">Setup</h3>
 <p>We’ll start by importing the functions we need from Inspect, defining a system message, and writing a function to convert dataset records to samples (we need to do this to convert the index-based label in the dataset to a letter).</p>
-<div id="73fd5034" class="cell">
+<div id="583d5169" class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample, hf_dataset</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> answer</span>
@@ -506,7 +506,7 @@ window.Quarto = {
 <section id="eval-1" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval-1">Eval</h3>
 <p>We’ll load the dataset from <a href="https://huggingface.co/datasets/Rowan/hellaswag">HuggingFace</a> using the <code>hf_dataset()</code> function. We’ll draw data from the validation split, and use the <code>record_to_sample()</code> function to parse the records (we’ll also pass <code>trust=True</code> to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):</p>
-<div id="788b41cd" class="cell">
+<div id="d4dcde25" class="cell">
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hellaswag():</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>   </span>
@@ -562,7 +562,7 @@ window.Quarto = {
 <section id="eval-2" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval-2">Eval</h3>
 <p>This example demonstrates adding parameters to a <code>@task</code> function to create dynamic variants of an evaluation. Here we use a <code>critique</code> parameter to determine whether a <code>self_critique()</code> solver is able to improve on the model’s baseline answer.</p>
-<div id="a0e84949" class="cell">
+<div id="5b6426c6" class="cell">
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> example_dataset</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
@@ -616,7 +616,7 @@ window.Quarto = {
 <section id="setup-2" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="setup-2">Setup</h3>
 <p>We’ll start by importing the functions we need from Inspect and defining a prompt that asks the model to reason step by step and respond with its answer on a line at the end. It also nudges the model not to enclose its answer in <code>\boxed</code>, a LaTeX command for displaying equations that models often use in math output.</p>
-<div id="28aaf7ad" class="cell">
+<div id="6e370c93" class="cell">
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> re</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
@@ -650,7 +650,7 @@ window.Quarto = {
 <section id="eval-3" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval-3">Eval</h3>
 <p>Here is the basic setup for our eval. We <code>shuffle</code> the dataset so that when we use <code>--limit</code> to develop on smaller slices we get some variety of inputs and results:</p>
-<div id="4fadab8a" class="cell">
+<div id="7c06e14b" class="cell">
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> math(shuffle<span class="op">=</span><span class="va">True</span>):</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -671,7 +671,7 @@ window.Quarto = {
 <span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>The heart of this eval isn’t in the task definition though, rather it’s in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we’ll use a model to assess whether the output and the target are logically equivalent. the <code>expression_equivalence()</code> custom scorer implements this:</p>
-<div id="291ca1aa" class="cell">
+<div id="e6908714" class="cell">
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> expression_equivalence():</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):</span>
@@ -769,7 +769,7 @@ window.Quarto = {
 <section id="eval-4" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval-4">Eval</h3>
 <p>Note that in the sample records above the dataset columns are not <strong>input</strong> and <strong>target</strong> so we’ll use a custom <code>FieldSpec</code> in our call to <code>example_dataset</code>. We also call the <code>use_tools()</code> function, passing <code>web_search()</code> as a tool—this gives the model access to a Google Search API that can be used to fill in background knowledge or specific facts. We use a <code>model_graded_qa()</code> scorer to more reliably score longer form model output.</p>
-<div id="2eb1152e" class="cell">
+<div id="ff4108c8" class="cell">
 <div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> FieldSpec, example_dataset</span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_qa</span>
@@ -834,7 +834,7 @@ window.Quarto = {
 <section id="setup-3" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="setup-3">Setup</h3>
 <p>We’ll start by importing what we need from Inspect and writing a <code>record_to_sample()</code> function to convert raw records to samples (note that the choices and labels are encoded in JSON within the <strong>choices</strong> field so need some special pre-processing).</p>
-<div id="c14f2442" class="cell">
+<div id="f8016f6d" class="cell">
 <div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample, hf_dataset</span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> answer</span>
@@ -862,7 +862,7 @@ window.Quarto = {
 <section id="eval-5" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval-5">Eval</h3>
 <p>The ARC dataset has two subsets (ARC-Easy and ARC-Challenge). We’ll create a shared task function that can be used to run either, and then export two <code>@task</code> decorated functions so that they can be run all together or in isolation.</p>
-<div id="ba5b2ca5" class="cell">
+<div id="62228f60" class="cell">
 <div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> arc_task(dataset_name):</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>   <span class="cf">return</span> Task(</span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>     dataset<span class="op">=</span>hf_dataset(</span>
@@ -902,7 +902,7 @@ window.Quarto = {
 <section id="addition" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="addition">Addition</h3>
 <p>We’ll demonstrate with a simple tool that adds two numbers, using the <code>@tool</code> decorator to register it with the system:</p>
-<div id="bc7d6dcb" class="cell">
+<div id="d6b48e85" class="cell">
 <div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes, match</span>
@@ -937,7 +937,7 @@ window.Quarto = {
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    y: Second number to add.</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Type annotations and descriptions are <em>required</em> for tool declarations so that the model can be informed which types to pass back to the tool function and what the purpose of each parameter is.</p>
 <p>Now that we’ve defined the tool, we can use it in an evaluation by passing it to the <code>use_tools()</code> function.</p>
-<div id="5af5e1be" class="cell">
+<div id="2257b226" class="cell">
 <div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> addition_problem():</span>
 <span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -986,7 +986,7 @@ window.Quarto = {
 <li><code>record_to_sample()</code> to convert raw records to samples. Note that we need a function rather than just mapping field names with a <code>FieldSpec</code> because the <strong>answer</strong> field in the dataset needs to be divided into reasoning and the actual answer (which appears at the very end after <code>####</code>).</li>
 <li><code>sample_to_fewshot()</code> to generate fewshot examples from samples.</li>
 </ol>
-<div id="dd095ee2" class="cell">
+<div id="e284fe67" class="cell">
 <div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample, hf_dataset</span>
 <span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> match</span>
@@ -1035,7 +1035,7 @@ window.Quarto = {
 <section id="eval-6" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval-6">Eval</h3>
 <p>We’ll load the dataset from <a href="https://huggingface.co/datasets/gsm8k">HuggingFace</a> using the <code>hf_dataset()</code> function. By default we use 10 fewshot examples, but the <code>fewshot</code> task arg can be used to turn this up, down, or off. The <code>fewshot_seed</code> is provided for stability of fewshot examples across runs.</p>
-<div id="1818bfcb" class="cell">
+<div id="755b5b6c" class="cell">
 <div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gsm8k(fewshot<span class="op">=</span><span class="dv">10</span>, fewshot_seed<span class="op">=</span><span class="dv">42</span>):</span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># build plan dynamically (may or may not be doing fewshot)</span></span>
