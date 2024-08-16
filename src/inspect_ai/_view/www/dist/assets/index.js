@@ -14805,7 +14805,7 @@ const EventPanel = ({
     return `${id}-nav-pill-${index}`;
   };
   const titleEl = title || icon || filteredArrChilden.length > 1 ? m$1`<div
-        style=${{
+          style=${{
     paddingLeft: "0.5em",
     display: "grid",
     gridTemplateColumns: "max-content max-content auto minmax(0, max-content) minmax(0, max-content)",
@@ -14813,44 +14813,44 @@ const EventPanel = ({
     fontSize: FontSize.small,
     cursor: hasCollapse ? "pointer" : void 0
   }}
-      >
-        ${icon ? m$1`<i
-          class=${icon || ApplicationIcons.metadata}
-          style=${{ ...TextStyle.secondary }}
-          onclick=${() => {
-    setCollapsed(!collapsed);
-  }}
-        />` : ""}
-        <div
-          style=${{ ...TextStyle.label, ...TextStyle.secondary }}
-          onclick=${() => {
-    setCollapsed(!collapsed);
-  }}
         >
-          ${title}
-        </div>
-        <div
-          onclick=${() => {
+          ${icon ? m$1`<i
+                class=${icon || ApplicationIcons.metadata}
+                style=${{ ...TextStyle.secondary }}
+                onclick=${() => {
     setCollapsed(!collapsed);
   }}
-        ></div>
-        <div
-          style=${{ justifySelf: "end", ...TextStyle.secondary }}
-          onclick=${() => {
+              />` : ""}
+          <div
+            style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+            onclick=${() => {
     setCollapsed(!collapsed);
   }}
-        >
-          ${text}
-        </div>
-        <div
-          style=${{
+          >
+            ${title}
+          </div>
+          <div
+            onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+          ></div>
+          <div
+            style=${{ justifySelf: "end", ...TextStyle.secondary }}
+            onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+          >
+            ${text}
+          </div>
+          <div
+            style=${{
     justifySelf: "end",
     display: "flex",
     flexDirection: "columns"
   }}
-        >
-          ${(!hasCollapse || !collapsed) && filteredArrChilden && filteredArrChilden.length > 1 ? m$1` <${EventNavs}
-                navs=${filteredArrChilden.map((child, index) => {
+          >
+            ${(!hasCollapse || !collapsed) && filteredArrChilden && filteredArrChilden.length > 1 ? m$1` <${EventNavs}
+                  navs=${filteredArrChilden.map((child, index) => {
     var _a;
     const defaultTitle = `Tab ${index}`;
     const title2 = child && typeof child === "object" ? ((_a = child["props"]) == null ? void 0 : _a.name) || defaultTitle : defaultTitle;
@@ -14860,15 +14860,15 @@ const EventPanel = ({
       target: pillId(index)
     };
   })}
-              />` : ""}
-          ${hasCollapse ? m$1`<i
-                onclick=${() => {
+                />` : ""}
+            ${hasCollapse ? m$1`<i
+                  onclick=${() => {
     setCollapsed(!collapsed);
   }}
-                class=${collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down}
-              />` : ""}
-        </div>
-      </div>` : "";
+                  class=${collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down}
+                />` : ""}
+          </div>
+        </div>` : "";
   const left_padding = 0.5 + depth * 1.5;
   const card = m$1` <div
     id=${id}
@@ -15510,7 +15510,7 @@ const EventRow = ({ title, icon, depth, children }) => {
   const paddingLeft = depth * 1.5 + 0.5;
   const contentEl = title ? m$1`<div
         style=${{
-    paddingLeft: `${paddingLeft}em`,
+    padding: `0.5em 0.5em 0.5em ${paddingLeft}em`,
     display: "grid",
     gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
     columnGap: "0.5em",
@@ -15544,10 +15544,9 @@ const LoggerEventView = ({ id, depth, event }) => {
     depth=${depth}
     title=${event.message.level} 
     icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
-    style="compact"
   >
   <div
-    style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "0.5em", fontSize: FontSize.base }}
+    style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "1em", fontSize: FontSize.base }}
   >
     <div style=${{ fontSize: FontSize.smaller }}>${event.message.message}</div>
     <div style=${{ fontSize: FontSize.smaller, ...TextStyle.secondary }}>${event.message.filename}:${event.message.lineno}</div>
