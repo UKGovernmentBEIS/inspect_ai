@@ -7,7 +7,7 @@ format: html
 The Agents API described in this article is currently available only on the [feature/subtasks](https://github.com/UKGovernmentBEIS/inspect_ai/tree/feature/subtasks) branch of the development version of Inspect. You can install this branch with:
 
 ``` {.bash .code-overflow-wrap}
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai@feature/subtasks
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai@feature/subtasks
 ```
 :::
 
