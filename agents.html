@@ -255,6 +255,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./agent-api.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Agents API</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
@@ -281,7 +286,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#tool-use-loop" id="toc-tool-use-loop" class="nav-link" data-scroll-target="#tool-use-loop">Tool Use Loop</a>
+  <li><a href="#sec-tool-use-loop" id="toc-sec-tool-use-loop" class="nav-link" data-scroll-target="#sec-tool-use-loop">Tool Use Loop</a>
   <ul class="collapse">
   <li><a href="#example-intercode-ctf" id="toc-example-intercode-ctf" class="nav-link" data-scroll-target="#example-intercode-ctf">Example: InterCode CTF</a></li>
   </ul></li>
@@ -290,7 +295,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sec-tool-calls" id="toc-sec-tool-calls" class="nav-link" data-scroll-target="#sec-tool-calls">Tool Calls</a></li>
   <li><a href="#tool-filtering" id="toc-tool-filtering" class="nav-link" data-scroll-target="#tool-filtering">Tool Filtering</a></li>
   </ul></li>
-  <li><a href="#agent-libraries" id="toc-agent-libraries" class="nav-link" data-scroll-target="#agent-libraries">Agent Libraries</a>
+  <li><a href="#sec-agent-libraries" id="toc-sec-agent-libraries" class="nav-link" data-scroll-target="#sec-agent-libraries">Agent Libraries</a>
   <ul class="collapse">
   <li><a href="#sec-langchain" id="toc-sec-langchain" class="nav-link" data-scroll-target="#sec-langchain">Example: LangChain</a></li>
   </ul></li>
@@ -342,8 +347,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>We’ll cover the basics of all of these approaches below.</p>
 <p>An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The <a href="#sec-sandbox-environments">Sandbox Environments</a> section goes into more depth on this.</p>
 </section>
-<section id="tool-use-loop" class="level2">
-<h2 class="anchored" data-anchor-id="tool-use-loop">Tool Use Loop</h2>
+<section id="sec-tool-use-loop" class="level2">
+<h2 class="anchored" data-anchor-id="sec-tool-use-loop">Tool Use Loop</h2>
 <p>A basic agent can be implemented by providing tools to the model with <code>use_tools()</code> and then calling <code>generate()</code>. Every time the model calls a tool, the appropriate Python function is called and then the model is re-prompted to generate based on the output of the function. This is typically combined with a ReAct prompt that urges the model to reason about each action it takes. For example:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>system_message(<span class="st">"""</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="st">    Each message may perform one function call. You will</span></span>
@@ -518,8 +523,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>In this example we rely on the default <code>generate()</code> tool calling behaviour (<code>"loop"</code>). However, you can also imaging combining tool filtering with the more tailored tool calling logic described in <a href="#sec-tool-calls">Tool Calls</a>.</p>
 </section>
 </section>
-<section id="agent-libraries" class="level2">
-<h2 class="anchored" data-anchor-id="agent-libraries">Agent Libraries</h2>
+<section id="sec-agent-libraries" class="level2">
+<h2 class="anchored" data-anchor-id="sec-agent-libraries">Agent Libraries</h2>
 <p>You can also adapt code from a research paper or 3rd party agent library to run within an Inspect solver. Below we’ll provide an example of doing this for a <a href="https://python.langchain.com/v0.2/docs/tutorials/agents/">LangChain Agent</a>.</p>
 <p>When adapting 3rd party agent code, it’s important that the agent scaffolding use Inspect’s model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). If the agent is executing arbitrary code, it’s also beneficial to use Inspect <a href="#sec-sandbox-environments">Sandbox Environments</a> for sandboxing.</p>
 <section id="sec-langchain" class="level3">

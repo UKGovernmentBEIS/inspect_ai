@@ -254,6 +254,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./agent-api.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Agents API</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
@@ -371,9 +376,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>The layer of indirection (creating a function that returns a ModelAPI class) is done so that you can separate the registration of models from the importing of libraries they require (important for limiting dependencies). You can see this used within Inspect to make all model package dependencies optional <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_providers/providers.py">here</a>. With this scheme, pacakges required to interace with models (e.g.&nbsp;<code>openai</code>, <code>anthropic</code>, <code>vllm</code>, etc.) are only imported when their model API type is actually used.</p>
 <p>The <code>__init__()</code> method <em>must</em> call the <code>super().__init__()</code> method, and typically instantiates the model client library.</p>
-<p>The <code>__init__()</code> method receive a <code>**model_args</code> parameter that will carry any custom <code>model_args</code> (or <code>-M</code> arguments from the CLI) specified by the user. You can then pass these on to the approriate place in your model initialisation code (for example, here is what many of the built-in providers do with <code>model_args</code> passed to them: <a href="https://inspect.ai-safety-institute.org.uk/models.html#model-args" class="uri">https://inspect.ai-safety-institute.org.uk/models.html#model-args</a>).</p>
-<p>The <code>generate()</code> method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. In addition, there are some optional properties you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, whether to collapse consecutive user and/or assistant messages, etc.).</p>
-<p>See the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_model.py">ModelAPI</a> source code for further documentation on these properties. See the implementation of the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_providers">built-in model providers</a> for additional insight on building a custom provider.</p>
+<p>The <code>__init__()</code> method receive a <code>**model_args</code> parameter that will carry any custom <code>model_args</code> (or <code>-M</code> arguments from the CLI) specified by the user. You can then pass these on to the appropriate place in your model initialisation code (for example, here is what many of the built-in providers do with <code>model_args</code> passed to them: <a href="https://inspect.ai-safety-institute.org.uk/models.html#model-args" class="uri">https://inspect.ai-safety-institute.org.uk/models.html#model-args</a>).</p>
+<p>The <code>generate()</code> method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. Note that the generate method may optionally return a <code>tuple[ModelOutput,ModelCall]</code> in order to record the raw request and response to the model within the sample transcript.</p>
+<p>In addition, there are some optional properties you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, whether to collapse consecutive user and/or assistant messages, etc.). See the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_model.py">ModelAPI</a> source code for further documentation on these properties.</p>
+<p>See the implementation of the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_providers">built-in model providers</a> for additional insight on building a custom provider.</p>
 <section id="model-registration" class="level3">
 <h3 class="anchored" data-anchor-id="model-registration">Model Registration</h3>
 <p>If you are publishing a custom model API within a Python package, you should register an <code>inspect_ai</code> <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect loads your extension before it attempts to resolve a model name that uses your provider.</p>
