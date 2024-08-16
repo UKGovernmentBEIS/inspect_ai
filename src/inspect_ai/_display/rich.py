@@ -249,7 +249,6 @@ def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> Renderable
         profile=tasks[0].profile,
         show_model=len(tasks) == 1,
         body=Group(*body),
-        config=None,
         footer=live_task_footer(),
         log_location=None,
     )
@@ -297,7 +296,6 @@ def task_result_cancelled(
         profile=profile,
         show_model=True,
         body=task_stats(profile, cancelled.stats),
-        config=None,
         footer=task_interrupted(profile, cancelled.samples_logged),
         log_location=profile.log_location,
     )
@@ -308,7 +306,6 @@ def task_result_summary(profile: TaskProfile, success: TaskSuccess) -> Renderabl
         profile=profile,
         show_model=True,
         body=task_stats(profile, success.stats),
-        config=None,
         footer=task_results(success.results),
         log_location=profile.log_location,
     )
@@ -319,7 +316,6 @@ def task_result_error(profile: TaskProfile, error: TaskError) -> RenderableType:
         profile=profile,
         show_model=True,
         body=rich_traceback(error.exc_type, error.exc_value, error.traceback),
-        config=None,
         footer=task_interrupted(profile, error.samples_logged),
         log_location=profile.log_location,
     )
@@ -329,7 +325,6 @@ def task_panel(
     profile: TaskProfile,
     show_model: bool,
     body: RenderableType,
-    config: str | None,
     footer: tuple[RenderableType, RenderableType] | None,
     log_location: str | None,
 ) -> Panel:
@@ -349,10 +344,6 @@ def task_panel(
         body,
         Text(task_targets(profile), style=theme.meta),
     )
-
-    # config
-    if config:
-        table.add_row(config)
 
     # footer if specified
     if footer:
@@ -417,7 +408,7 @@ def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
         config = config | dict(profile.generate_config.model_dump(exclude_none=True))
     config_print: list[str] = []
     for name, value in config.items():
-        if name not in ["limit", "epochs"]:
+        if name not in ["limit", "epochs", "model"]:
             config_print.append(f"{name}: {value}")
     values = ", ".join(config_print)
     if values:
