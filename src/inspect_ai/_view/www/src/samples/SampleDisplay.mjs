@@ -72,7 +72,7 @@ export const SampleDisplay = ({
   const tabs = [
     html`
     <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${
-      selectedTab === msgTabId || selectedTab === undefined
+      selectedTab === msgTabId
     }>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
         sample.messages
@@ -83,7 +83,7 @@ export const SampleDisplay = ({
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(html`
       <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
-        selectedTab === transcriptTabId
+        selectedTab === transcriptTabId || selectedTab === undefined
       } scrollable=${false}>
         <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);

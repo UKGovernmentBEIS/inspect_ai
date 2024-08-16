@@ -16497,13 +16497,13 @@ const SampleDisplay = ({
   };
   const tabs = [
     m$1`
-    <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${selectedTab === msgTabId || selectedTab === void 0}>
+    <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages} style=${{ paddingLeft: ".8em" }}/>
     </${TabPanel}>`
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(m$1`
-      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId} scrollable=${false}>
+      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
         <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
