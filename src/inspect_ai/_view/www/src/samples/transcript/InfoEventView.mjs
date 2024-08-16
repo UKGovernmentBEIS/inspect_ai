@@ -14,7 +14,7 @@ import { EventPanel } from "./EventPanel.mjs";
  */
 export const InfoEventView = ({ id, depth, event }) => {
   return html`
-  <${EventPanel} id=${id} depth=${depth} title="Info">
+  <${EventPanel} id=${id} depth=${depth} title="Info" icon=${ApplicationIcons.info}>
   <div
     style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
   >

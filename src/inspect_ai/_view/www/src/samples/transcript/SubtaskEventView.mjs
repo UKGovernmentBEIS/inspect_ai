@@ -18,8 +18,8 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  */
 export const SubtaskEventView = ({ id, depth, event, stateManager }) => {
   return html`
-    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}">
-      <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
+    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask}>
+      <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
       ${
         event.events.events.length > 0
           ? html`<${TranscriptView}

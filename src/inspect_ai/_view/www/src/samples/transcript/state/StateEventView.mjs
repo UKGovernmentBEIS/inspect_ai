@@ -4,6 +4,7 @@ import { html } from "htm/preact";
 import { EventPanel } from "../EventPanel.mjs";
 import { RenderableChangeTypes } from "./StateEventRenderers.mjs";
 import { StateDiffView } from "./StateDiffView.mjs";
+import { ApplicationIcons } from "../../../appearance/Icons.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -40,7 +41,7 @@ export const StateEventView = ({ id, event, depth, stateManager }) => {
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 
   return html`
-  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : undefined} depth=${depth} collapse=${changePreview === undefined ? true : undefined}>
+  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.metadata} text=${tabs.length === 1 ? summary : undefined} depth=${depth} collapse=${changePreview === undefined ? true : undefined}>
     ${tabs}
   </${EventPanel}>`;
 };

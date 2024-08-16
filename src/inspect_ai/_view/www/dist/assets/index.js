@@ -6296,6 +6296,7 @@ const ApplicationIcons = {
   error: "bi bi-exclamation-circle",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
+  info: "bi bi-info-circle",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
   logging: {
@@ -15231,7 +15232,7 @@ const StateEventView = ({ id, event, depth, stateManager }) => {
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
-  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : void 0} depth=${depth} collapse=${changePreview === void 0 ? true : void 0}>
+  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.metadata} text=${tabs.length === 1 ? summary : void 0} depth=${depth} collapse=${changePreview === void 0 ? true : void 0}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -15371,8 +15372,8 @@ const stepDescriptor = (event) => {
 };
 const SubtaskEventView = ({ id, depth, event, stateManager }) => {
   return m$1`
-    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}">
-      <${SubtaskSummary} name="Summary" input=${event.input} result=${event.result}/>
+    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask}>
+      <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
       ${event.events.events.length > 0 ? m$1`<${TranscriptView}
               id="${id}-subtask"
               name="Transcript"
@@ -15555,7 +15556,7 @@ const LoggerEventView = ({ id, depth, event }) => {
 };
 const InfoEventView = ({ id, depth, event }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Info">
+  <${EventPanel} id=${id} depth=${depth} title="Info" icon=${ApplicationIcons.info}>
   <div
     style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
   >

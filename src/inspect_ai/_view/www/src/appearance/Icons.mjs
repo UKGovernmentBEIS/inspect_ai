@@ -85,6 +85,7 @@
  * @property {string} error
  * @property {string} expand-all
  * @property {string} expand-down
+ * @property {string} info
  * @property {string} inspect
  * @property {string} json
  * @property {LoggingIcons} logging
@@ -143,6 +144,7 @@ export const ApplicationIcons = {
   error: "bi bi-exclamation-circle",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
+  info: "bi bi-info-circle",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
   logging: {
