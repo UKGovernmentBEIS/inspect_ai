@@ -3,24 +3,24 @@ title: "Agents API"
 format: html
 ---
 
-::: {.callout-note}
+::: callout-note
 The Agents API described in this article is currently available only on the [feature/subtasks](https://github.com/UKGovernmentBEIS/inspect_ai/tree/feature/subtasks) branch of the development version of Inspect. You can install this branch with:
 
-```{.bash .code-overflow-wrap}
+``` {.bash .code-overflow-wrap}
 $ pip install git+https://github.com/ukgovernmentbeis/inspect_ai@feature/subtasks
 ```
 :::
-
 
 ## Overview
 
 This article describes advanced Inspect APIs available for creating evaluations with agents. You can also build agents evals using Inspect's default ReAct tool use loop or by bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
 
-1.  Sharing state across solvers and tools.
-2.  Sandboxing arbitrary code execution.
-3.  Creating a custom tool use loop.
+1.  Sharing state across solvers and tools
+2.  Creating a custom tool use loop
+3.  Dynamically customising tool descriptions
 4.  Observability with sample transcripts.
 5.  Delegating work to sub-tasks
+6.  Sandboxing arbitrary code execution
 
 We'll assume that you already understand Inspect [Solvers](solvers.qmd) and [Tools](tools.qmd) (please review those articles as required before proceeding).
 
@@ -28,12 +28,11 @@ We'll assume that you already understand Inspect [Solvers](solvers.qmd) and [Too
 
 Before proceeding, it's important to point that some of the features described below were previously approximated by using the `metadata` field of `TaskState`, specifically `metadata` was often used as a catch-all storage location for:
 
-- Carrying state between solvers and sometimes tools.
-- Providing a place to log additional structured data.
-- Recording calls to "helper" models used for elicitation or scoring.
+-   Carrying state between solvers and sometimes tools.
+-   Providing a place to log additional structured data.
+-   Recording calls to "helper" models used for elicitation or scoring.
 
 The `metadata` field no longer need be used for these scenarios (and in fact should now be treated as a read-only part of the `TaskState`). Below we'll describe how the `Store` can be used for state, how structured data can be logged to the sample `Transcript`, and how all model calls are now automatically recorded and included in the transcript.
-
 
 ## Sharing State
 
@@ -77,54 +76,9 @@ You should generally try to use JSON serialisable Python types in the `Store` (e
 
 While the default `Store` for a sample is shared globally between solvers and tools, a more narrowly scoped `Store` is created automatically for [Subtasks](#sec-subtasks).
 
-## Sandboxing
+## Tool Use
 
-Many agents provide models with the ability to execute arbitrary code. It's important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the `SandboxEnvironment` (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the `sandbox` parameter. For example:
-
-``` python
-@task
-def file_probe()
-    return Task(
-        dataset=dataset,
-        plan=[
-            use_tools([list_files()]), 
-            generate()
-        ],
-        sandbox="docker",
-        scorer=includes(),
-    )
-)
-```
-
-Use the `SandboxEnvironment` within a tool via the `sandbox()` function. For example, here's an implementation of the `list_files()` tool referenced above:
-
-``` python
-from inspect_ai.tool import ToolError, tool
-from inspect_ai.util import sandbox
-
-@tool
-def list_files():
-    async def execute(dir: str):
-        """List the files in a directory.
-
-        Args:
-            dir (str): Directory
-
-        Returns:
-            File listing of the directory
-        """
-        result = await sandbox().exec(["ls", dir])
-        if result.success:
-            return result.stdout
-        else:
-            raise ToolError(result.stderr)
-
-    return execute
-```
-
-See the section on [Sandbox Environments](agents.qmd##sec-sandbox-environments) for further details on using sandboxes with Inspect.
-
-## Tool Use Loop
+### Custom Loop
 
 The higher level `generate()` function passed to solvers includes a built-in tool use loop—when the model calls a tool, Inspect calls the underlying Python function and reports the result to the model, proceeding until the model stops calling tools. However, for more advanced agents you may want to intervene in the tool use loop in a variety of ways:
 
@@ -176,6 +130,34 @@ state = await tool_use_loop(state)
 ```
 
 Taken together these APIs enable you to build a custom version of `generate()` with whatever structure and logic you need.
+
+### Tool Descriptions
+
+In some cases you may want to change the default descriptions created by a tool author—for example you might want to provide better disambiguation between multiple similar tools that are used together. You also might have need to do this during development of tools (to explore what descriptions are most useful to models).
+
+The `tool_with()` function enables you to take any tool and adapt its name and/or descriptions. For example:
+
+``` python
+from inspect_ai.tool import tool_with
+
+my_add = tool_with(
+  tool=add(), 
+  name="my_add",
+  description="a tool to add numbers", 
+  parameters={
+    "x": "the x argument",
+    "y": "the y argument"
+  })
+```
+
+You need not provide all of the parameters shown above, for example here are some examples where we modify just the main tool description or only a single parameter:
+
+``` python
+my_add = tool_with(add(), description="a tool to add numbers")
+my_add = tool_with(add(), parameters={"x": "the x argument"})
+```
+
+Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions)..
 
 ## Transcripts
 
@@ -286,3 +268,50 @@ def web_search(model: str | None = None):
 ```
 
 Note that we've added the `name="web_search"` argument to `@subtask`—this is because we've declared our function using the generic name `execute()` and want to provide an alternative that is more readily understandable.
+
+## Sandboxing
+
+Many agents provide models with the ability to execute arbitrary code. It's important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the `SandboxEnvironment` (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the `sandbox` parameter. For example:
+
+``` python
+@task
+def file_probe()
+    return Task(
+        dataset=dataset,
+        plan=[
+            use_tools([list_files()]), 
+            generate()
+        ],
+        sandbox="docker",
+        scorer=includes(),
+    )
+)
+```
+
+Use the `SandboxEnvironment` within a tool via the `sandbox()` function. For example, here's an implementation of the `list_files()` tool referenced above:
+
+``` python
+from inspect_ai.tool import ToolError, tool
+from inspect_ai.util import sandbox
+
+@tool
+def list_files():
+    async def execute(dir: str):
+        """List the files in a directory.
+
+        Args:
+            dir (str): Directory
+
+        Returns:
+            File listing of the directory
+        """
+        result = await sandbox().exec(["ls", dir])
+        if result.success:
+            return result.stdout
+        else:
+            raise ToolError(result.stderr)
+
+    return execute
+```
+
+See the section on [Sandbox Environments](agents.qmd##sec-sandbox-environments) for further details on using sandboxes with Inspect.
