@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.23 (16 August 2024)
 
 - Support for tool calling for Llama 3.1 models on Azure AI and CloudFlare.
 - Incrase default `max_tokens` from 1024 to 2048.
