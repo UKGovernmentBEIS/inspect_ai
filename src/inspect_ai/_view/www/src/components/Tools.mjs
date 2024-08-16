@@ -1,4 +1,12 @@
 // @ts-check
+/// <reference path="../types/prism.d.ts" />
+import Prism from "prismjs";
+import { useMemo, useRef } from "preact/hooks";
+import { html } from "htm/preact";
+
+import { MessageContent } from "./MessageContent.mjs";
+import { ExpandablePanel } from "./ExpandablePanel.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 /**
  * @typedef {Object} ToolCallResult
@@ -9,75 +17,179 @@
 
 /**
  * Resolves the input and metadata for a given tool call.
- *
- * @param {import("../types/log").ToolCall} tool_call - The tool call object containing the function name and arguments.
+ * @param { string } fn - The tool call function name
+ * @param { Record<string, unknown> } toolArgs - The tool call arguments
  *
  * @returns {ToolCallResult}  An object containing the following properties:
  */
-export const resolveToolInput = (tool_call) => {
-  const toolName = tool_call.function;
+export const resolveToolInput = (fn, toolArgs) => {
+  const toolName = fn;
 
-  const extractInputMetadata = () => {
-    if (toolName === "bash") {
-      return ["cmd", "bash"];
-    } else if (toolName === "python") {
-      return ["code", "python"];
-    } else if (toolName === "web_search") {
-      return ["query", "text"];
-    } else {
-      return [undefined, undefined];
-    }
-  };
-  const [inputKey, inputType] = extractInputMetadata();
-
-  const extractInput = (inputKey, tool_call) => {
-    const formatArg = (key, value) => {
-      const quotedValue = typeof value === "string" ? `"${value}"` : value;
-      return `${key}: ${quotedValue}`;
-    };
-
-    if (tool_call.arguments) {
-      if (Object.keys(tool_call.arguments).length === 1) {
-        return {
-          input: tool_call.arguments[Object.keys(tool_call.arguments)[0]],
-          args: [],
-        };
-      } else if (tool_call.arguments[inputKey]) {
-        const input = tool_call.arguments[inputKey];
-        const args = Object.keys(tool_call.arguments)
-          .filter((key) => {
-            return key !== inputKey;
-          })
-          .map((key) => {
-            return formatArg(key, tool_call.arguments[key]);
-          });
-        return {
-          input,
-          args,
-        };
-      } else {
-        const args = Object.keys(tool_call.arguments).map((key) => {
-          return formatArg(key, tool_call.arguments[key]);
-        });
-
-        return {
-          input: undefined,
-          args: args,
-        };
-      }
-    }
-    return {
-      input: undefined,
-      args: [],
-    };
-  };
-  const { input, args } = extractInput(inputKey, tool_call);
-
+  const [inputKey, inputType] = extractInputMetadata(toolName);
+  const { input, args } = extractInput(inputKey, toolArgs);
   const functionCall =
     args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
   return {
     functionCall,
     input,
     inputType,
+  };
+};
+
+/**
+ * Renders the ToolCallView component.
+ *
+ * @param {Object} params - The parameters for the component.
+ * @param {string} params.functionCall - The function call
+ * @param {string | undefined } params.input - The main input for this call
+ * @param {string | undefined } params.inputType - The input type for this call
+ * @param {string | undefined } params.output - The result of the tool call
+ * @param { "compact" | undefined } params.mode - The display mode for this call
+ * @returns {import("preact").JSX.Element} The SampleTranscript component.
+ */
+export const ToolCallView = ({
+  functionCall,
+  input,
+  inputType,
+  output,
+  mode,
+}) => {
+  const icon =
+    mode === "compact"
+      ? ""
+      : html`<i
+          class="bi bi-tools"
+          style=${{
+            marginRight: "0.2rem",
+            opacity: "0.4",
+          }}
+        ></i>`;
+  const codeIndent = mode === "compact" ? "" : "1.5em";
+
+  return html`<p>
+        ${icon}
+        <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
+        <div>
+            <div style=${{ marginLeft: `${codeIndent}` }}>
+            <${ToolInput} type=${inputType} contents=${input}/>
+            ${
+              output
+                ? html`
+              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+              <${MessageContent} contents=${output} />
+              </${ExpandablePanel}>`
+                : ""
+            }
+            </div>
+        </div>
+        </p>`;
+};
+
+/**
+ * Renders the ToolInput component.
+ *
+ * @param {Object} params - The parameters for the component.
+ * @param {string} params.type - The function call
+ * @param {string | undefined } params.contents - The main input for this call
+ * @returns {import("preact").JSX.Element | string} The SampleTranscript component.
+ */
+export const ToolInput = ({ type, contents }) => {
+  if (!contents) {
+    return "";
+  }
+
+  const toolInputRef = useRef(/** @type {HTMLElement|null} */ (null));
+
+  if (typeof contents === "object" || Array.isArray(contents)) {
+    contents = JSON.stringify(contents);
+  }
+
+  useMemo(() => {
+    const tokens = Prism.languages[type];
+    if (toolInputRef.current && tokens) {
+      const html = Prism.highlight(contents, tokens, type);
+      toolInputRef.current.innerHTML = html;
+    }
+  }, [toolInputRef.current, type, contents]);
+
+  return html`<pre
+    class="tool-output"
+    style=${{
+      padding: "0.5em",
+      marginTop: "0.25em",
+      marginBottom: "1rem",
+    }}
+  >
+      <code ref=${toolInputRef} class="sourceCode${type
+    ? ` language-${type}`
+    : ""}" style=${{
+    overflowWrap: "anywhere",
+    whiteSpace: "pre-wrap",
+  }}>
+        ${contents}
+        </code>
+    </pre>`;
+};
+
+/**
+ * @param {string} toolName
+ * @returns {[string | undefined, string | undefined]}
+ */
+const extractInputMetadata = (toolName) => {
+  if (toolName === "bash") {
+    return ["cmd", "bash"];
+  } else if (toolName === "python") {
+    return ["code", "python"];
+  } else if (toolName === "web_search") {
+    return ["query", "text"];
+  } else {
+    return [undefined, undefined];
+  }
+};
+
+/**
+ * @param {string} inputKey
+ * @param {Object<string, any>} args
+ * @returns {{ input: any, args: string[] }}
+ */
+const extractInput = (inputKey, args) => {
+  const formatArg = (key, value) => {
+    const quotedValue = typeof value === "string" ? `"${value}"` : value;
+    return `${key}: ${quotedValue}`;
+  };
+
+  if (args) {
+    if (Object.keys(args).length === 1) {
+      return {
+        input: args[Object.keys(args)[0]],
+        args: [],
+      };
+    } else if (args[inputKey]) {
+      const input = args[inputKey];
+      const filteredArgs = Object.keys(args)
+        .filter((key) => {
+          return key !== inputKey;
+        })
+        .map((key) => {
+          return formatArg(key, args[key]);
+        });
+      return {
+        input,
+        args: filteredArgs,
+      };
+    } else {
+      const formattedArgs = Object.keys(args).map((key) => {
+        return formatArg(key, args[key]);
+      });
+
+      return {
+        input: undefined,
+        args: formattedArgs,
+      };
+    }
+  }
+  return {
+    input: undefined,
+    args: [],
   };
 };

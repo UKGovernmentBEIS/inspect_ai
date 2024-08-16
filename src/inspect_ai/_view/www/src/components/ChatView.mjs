@@ -1,15 +1,12 @@
 // @ts-check
-/// <reference path="../types/prism.d.ts" />
-import Prism from "prismjs";
 import { html } from "htm/preact";
-import { useMemo, useRef } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { resolveToolInput } from "./Tools.mjs";
+import { resolveToolInput, ToolCallView } from "./Tools.mjs";
 
 /**
  * Renders the ChatView component.
@@ -161,31 +158,19 @@ const MessageContents = ({ message, toolMessages }) => {
       const toolMessage = toolMessages[tool_call.id];
 
       // Extract tool input
-      const { input, functionCall, inputType } = resolveToolInput(tool_call);
+      const { input, functionCall, inputType } = resolveToolInput(
+        tool_call.function,
+        tool_call.arguments,
+      );
 
       // Resolve the tool output
       const resolvedToolOutput = resolveToolMessage(toolMessage);
-
-      return html`<p>
-        <i class="bi bi-tools" style=${{
-          marginRight: "0.2rem",
-          opacity: "0.4",
-        }}></i>
-        <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
-        <div>
-            <div style=${{ marginLeft: "1.5em" }}>
-            <${ToolInput} type=${inputType} contents=${input}/>
-            ${
-              resolvedToolOutput
-                ? html`
-              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
-              <${MessageContent} contents=${resolvedToolOutput} />
-              </${ExpandablePanel}>`
-                : ""
-            }
-            </div>
-        </div>
-        </p>`;
+      return html`<${ToolCallView}
+        functionCall=${functionCall}
+        input=${input}
+        inputType=${inputType}
+        output=${resolvedToolOutput}
+      />`;
     });
 
     if (toolCalls) {
@@ -195,44 +180,6 @@ const MessageContents = ({ message, toolMessages }) => {
   } else {
     return html`<${MessageContent} contents=${message.content} />`;
   }
-};
-
-export const ToolInput = ({ type, contents }) => {
-  if (!contents) {
-    return "";
-  }
-
-  const toolInputRef = useRef(/** @type {HTMLElement|null} */ (null));
-
-  if (typeof contents === "object" || Array.isArray(contents)) {
-    contents = JSON.stringify(contents);
-  }
-
-  useMemo(() => {
-    const tokens = Prism.languages[type];
-    if (toolInputRef.current && tokens) {
-      const html = Prism.highlight(contents, tokens, type);
-      toolInputRef.current.innerHTML = html;
-    }
-  }, [toolInputRef.current, type, contents]);
-
-  return html` <pre
-    class="tool-output"
-    style=${{
-      padding: "0.5em",
-      marginTop: "0.25em",
-      marginBottom: "1rem",
-    }}
-  >
-      <code ref=${toolInputRef} class="sourceCode${type
-    ? ` language-${type}`
-    : ""}" style=${{
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap",
-  }}>
-        ${contents}
-        </code>
-    </pre>`;
 };
 
 export const iconForMsg = (msg) => {
