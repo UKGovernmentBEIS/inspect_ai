@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Support for tool calling for Llama 3.1 models on Bedrock
+
 ## v0.3.23 (16 August 2024)
 
 - Support for tool calling for Llama 3.1 models on Azure AI and CloudFlare.
