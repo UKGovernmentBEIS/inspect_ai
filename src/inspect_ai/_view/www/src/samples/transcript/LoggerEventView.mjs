@@ -21,10 +21,9 @@ export const LoggerEventView = ({ id, depth, event }) => {
     depth=${depth}
     title=${event.message.level} 
     icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
-    style="compact"
   >
   <div
-    style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "0.5em", fontSize: FontSize.base }}
+    style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "1em", fontSize: FontSize.base }}
   >
     <div style=${{ fontSize: FontSize.smaller }}>${event.message.message}</div>
     <div style=${{ fontSize: FontSize.smaller, ...TextStyle.secondary }}>${event.message.filename}:${event.message.lineno}</div>

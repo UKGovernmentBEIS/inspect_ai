@@ -19,7 +19,7 @@ export const EventRow = ({ title, icon, depth, children }) => {
   const contentEl = title
     ? html`<div
         style=${{
-          paddingLeft: `${paddingLeft}em`,
+          padding: `0.5em 0.5em 0.5em ${paddingLeft}em`,
           display: "grid",
           gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
           columnGap: "0.5em",

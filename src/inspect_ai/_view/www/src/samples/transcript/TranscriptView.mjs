@@ -161,6 +161,8 @@ const resolveEventContent = (evalEvents) => {
       //@ts-ignore
       e.input = resolveValue(e.input, evalEvents);
       //@ts-ignore
+      e.call = resolveValue(e.call, evalEvents);
+      //@ts-ignore
       e.output = resolveValue(e.output, evalEvents);
     } else if (e.event === "state") {
       e.changes = e.changes.map((change) => {

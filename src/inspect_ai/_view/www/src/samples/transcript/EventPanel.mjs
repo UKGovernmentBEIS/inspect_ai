@@ -47,84 +47,87 @@ export const EventPanel = ({
     return `${id}-nav-pill-${index}`;
   };
 
-  const titleEl = title
-    ? html`<div
-        style=${{
-          paddingLeft: "0.5em",
-          display: "grid",
-          gridTemplateColumns:
-            "max-content max-content auto minmax(0, max-content) minmax(0, max-content)",
-          columnGap: "0.5em",
-          fontSize: FontSize.small,
-          cursor: hasCollapse ? "pointer" : undefined,
-        }}
-      >
-        <i
-          class=${icon || ApplicationIcons.metadata}
-          style=${{ ...TextStyle.secondary }}
-          onclick=${() => {
-            setCollapsed(!collapsed);
-          }}
-        />
-        <div
-          style=${{ ...TextStyle.label, ...TextStyle.secondary }}
-          onclick=${() => {
-            setCollapsed(!collapsed);
-          }}
-        >
-          ${title}
-        </div>
-        <div
-          onclick=${() => {
-            setCollapsed(!collapsed);
-          }}
-        ></div>
-        <div
-          style=${{ justifySelf: "end", ...TextStyle.secondary }}
-          onclick=${() => {
-            setCollapsed(!collapsed);
-          }}
-        >
-          ${text}
-        </div>
-        <div
+  const titleEl =
+    title || icon || filteredArrChilden.length > 1
+      ? html`<div
           style=${{
-            justifySelf: "end",
-            display: "flex",
-            flexDirection: "columns",
+            paddingLeft: "0.5em",
+            display: "grid",
+            gridTemplateColumns:
+              "max-content max-content auto minmax(0, max-content) minmax(0, max-content)",
+            columnGap: "0.5em",
+            fontSize: FontSize.small,
+            cursor: hasCollapse ? "pointer" : undefined,
           }}
         >
-          ${(!hasCollapse || !collapsed) &&
-          filteredArrChilden &&
-          filteredArrChilden.length > 1
-            ? html` <${EventNavs}
-                navs=${filteredArrChilden.map((child, index) => {
-                  const defaultTitle = `Tab ${index}`;
-                  const title =
-                    child && typeof child === "object"
-                      ? child["props"]?.name || defaultTitle
-                      : defaultTitle;
-                  return {
-                    id: `eventpanel-${id}-${index}`,
-                    title: title,
-                    target: pillId(index),
-                  };
-                })}
-              />`
-            : ""}
-          ${hasCollapse
+          ${icon
             ? html`<i
+                class=${icon || ApplicationIcons.metadata}
+                style=${{ ...TextStyle.secondary }}
                 onclick=${() => {
                   setCollapsed(!collapsed);
                 }}
-                class=${collapsed
-                  ? ApplicationIcons.chevron.right
-                  : ApplicationIcons.chevron.down}
               />`
             : ""}
-        </div>
-      </div>`
-    : "";
+          <div
+            style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+            onclick=${() => {
+              setCollapsed(!collapsed);
+            }}
+          >
+            ${title}
+          </div>
+          <div
+            onclick=${() => {
+              setCollapsed(!collapsed);
+            }}
+          ></div>
+          <div
+            style=${{ justifySelf: "end", ...TextStyle.secondary }}
+            onclick=${() => {
+              setCollapsed(!collapsed);
+            }}
+          >
+            ${text}
+          </div>
+          <div
+            style=${{
+              justifySelf: "end",
+              display: "flex",
+              flexDirection: "columns",
+            }}
+          >
+            ${(!hasCollapse || !collapsed) &&
+            filteredArrChilden &&
+            filteredArrChilden.length > 1
+              ? html` <${EventNavs}
+                  navs=${filteredArrChilden.map((child, index) => {
+                    const defaultTitle = `Tab ${index}`;
+                    const title =
+                      child && typeof child === "object"
+                        ? child["props"]?.name || defaultTitle
+                        : defaultTitle;
+                    return {
+                      id: `eventpanel-${id}-${index}`,
+                      title: title,
+                      target: pillId(index),
+                    };
+                  })}
+                />`
+              : ""}
+            ${hasCollapse
+              ? html`<i
+                  onclick=${() => {
+                    setCollapsed(!collapsed);
+                  }}
+                  class=${collapsed
+                    ? ApplicationIcons.chevron.right
+                    : ApplicationIcons.chevron.down}
+                />`
+              : ""}
+          </div>
+        </div>`
+      : "";
 
   const left_padding = 0.5 + depth * 1.5;
   const card = html` <div
