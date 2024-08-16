@@ -198,7 +198,7 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 @modelapi(name="modal")
-def mockllm() -> type[ModelAPI]:
+def modal() -> type[ModelAPI]:
     from .modal import ModalVllm
 
     return ModalVllm
