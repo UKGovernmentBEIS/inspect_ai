@@ -56,7 +56,7 @@ AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
 class OpenAIAPI(ModelAPI):
     def __init__(
         self,
-        model_name: str | None = None,
+        model_name: str,
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
@@ -141,7 +141,7 @@ class OpenAIAPI(ModelAPI):
         # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
         OPENAI_IMAGE_DEFAULT_TOKENS = 4096
         
-        if self.model_name and "vision" in self.model_name:
+        if "vision" in self.model_name:
             if isinstance(config.max_tokens, int):
                 config.max_tokens = max(config.max_tokens, OPENAI_IMAGE_DEFAULT_TOKENS)
             else:
@@ -149,15 +149,16 @@ class OpenAIAPI(ModelAPI):
 
         # normalize to openai messages
         messages = await as_openai_chat_messages(input)
-        print(messages[0])
         try:
             # generate completion
             response: ChatCompletion = await self.client.chat.completions.create(
                 messages=messages,
-                model="meta-llama/Meta-Llama-3.1-8B-Instruct"
+                tools=chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
+                tool_choice=(
+                    chat_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN
+                ),
+                **self.completion_params(config, len(tools) > 0)
             )
-            print('-dawdaw-')
-            print(response)
 
             choices = self._chat_choices_from_response(response, tools)
             return ModelOutput(

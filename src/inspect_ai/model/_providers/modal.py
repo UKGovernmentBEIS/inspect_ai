@@ -1,3 +1,4 @@
+import os
 from .openai import (
     OpenAIAPI,
     chat_message_assistant,
@@ -17,7 +18,7 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-import os
+
 
 MODAL_API_KEY = "MODAL_API_KEY"
 WORKSPACE ="WORKSPACE"
@@ -30,30 +31,23 @@ class ModalVllm(OpenAIAPI):
         model_name: str,
         base_url: str | None = None,
         api_key: str | None = None,
+        workspace: str | None = None,
+        app_name: str | None = None,
+        function_name: str | None = None,
         config: GenerateConfig = GenerateConfig(),
     ) -> None:
-        if not api_key:
-            api_key = os.environ.get(MODAL_API_KEY, None)
-            if not api_key:
-                raise RuntimeError(f"{MODAL_API_KEY} environment variable not set")
 
-        workspace = os.environ.get(WORKSPACE, None)
-        app_name = os.environ.get(APP_NAME, None)
-        function_name = os.environ.get(FUNCTION_NAME, None)
-        #https://johanwork--example-vllm-openai-compatible-serve.modal.run
+        api_key= get_env(MODAL_API_KEY,api_key)
+        app_name= get_env(APP_NAME,app_name)
+        workspace= get_env(WORKSPACE,workspace)
+        function_name= get_env(FUNCTION_NAME,function_name)
 
-        #client.base_url = f"https://{workspace}--{app_name}-{function_name}.modal.run/v1"
-        # TODO REMOVE this
-        base_url = "https://johanwork--example-vllm-openai-compatible-serve.modal.run/v1"
+        base_url = f"https://{workspace}--{app_name}-{function_name}.modal.run/v1"
+        super().__init__(model_name=model_name,base_url=base_url, api_key=api_key, config=config)
 
-        print(base_url)
 
-        super().__init__(base_url=base_url, api_key=api_key, config=config)
-
-    # Together uses a default of 512 so we bump it up
-    @override
-    def max_tokens(self) -> int:
-        return DEFAULT_MAX_TOKENS
-
-    #TODO what should we change here? 
-    # Together has a slightly different logprobs structure to OpenAI, so we need to remap it.
+def get_env(env_variable:str,variable: str | None = None)->str:
+    variable = os.environ.get(env_variable, None)
+    if not variable:
+        raise RuntimeError(f"{WORKSPACE} environment variable not set")
+    return variable
