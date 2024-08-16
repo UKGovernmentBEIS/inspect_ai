@@ -1,6 +1,7 @@
 import os
-from .openai import OpenAIAPI
+
 from .._generate_config import GenerateConfig
+from .openai import OpenAIAPI
 
 MODAL_API_KEY = "MODAL_API_KEY"
 WORKSPACE ="WORKSPACE"
