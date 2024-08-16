@@ -71,7 +71,7 @@ book:
         chapters:
            - caching.qmd
            - parallelism.qmd
-           - agent-api.qmd
+           - agents-api.qmd
            - eval-logs.qmd
            - eval-suites.qmd
            - extensions.qmd
