@@ -30,7 +30,6 @@ DEFAULT_START_TOKEN = "<|im_start|>"
 DEFAULT_END_TOKEN = "<|im_end|>"
 
 HF_TOKEN = "HF_TOKEN"
-AUTH_TOKEN = None
 
 @dataclass
 class GenerateInput:
