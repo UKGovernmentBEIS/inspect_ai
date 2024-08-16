@@ -3,17 +3,18 @@ title: "Agents API"
 format: html
 ---
 
-::: {.callout-note appearance="simple"}
-The Agents API described in this article is currently available only in the development version of Inspect. You can install the development version with:
+::: {.callout-note}
+The Agents API described in this article is currently available only on the [feature/subtasks](https://github.com/UKGovernmentBEIS/inspect_ai/tree/feature/subtasks) branch of the development version of Inspect. You can install this branch with:
 
-``` bash
-$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```{.bash .code-overflow-wrap}
+$ pip install git+https://github.com/ukgovernmentbeis/inspect_ai@feature/subtasks
 ```
 :::
 
+
 ## Overview
 
-This article describes some more advanced Inspect APIs available for creating evaluations with agents. Note that you can also build agents evals using Inspect's default ReAct tool use loop or bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
+This article describes advanced Inspect APIs available for creating evaluations with agents. You can also build agents evals using Inspect's default ReAct tool use loop or by bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
 
 1.  Sharing state across solvers and tools.
 2.  Sandboxing arbitrary code execution.
@@ -22,6 +23,17 @@ This article describes some more advanced Inspect APIs available for creating ev
 5.  Delegating work to sub-tasks
 
 We'll assume that you already understand Inspect [Solvers](solvers.qmd) and [Tools](tools.qmd) (please review those articles as required before proceeding).
+
+## Use of `metadata`
+
+Before proceeding, it's important to point that some of the features described below were previously approximated by using the `metadata` field of `TaskState`, specifically `metadata` was often used as a catch-all storage location for:
+
+- Carrying state between solvers and sometimes tools.
+- Providing a place to log additional structured data.
+- Recording calls to "helper" models used for elicitation or scoring.
+
+The `metadata` field no longer need be used for these scenarios (and in fact should now be treated as a read-only part of the `TaskState`). Below we'll describe how the `Store` can be used for state, how structured data can be logged to the sample `Transcript`, and how all model calls are now automatically recorded and included in the transcript.
+
 
 ## Sharing State
 
@@ -67,7 +79,7 @@ While the default `Store` for a sample is shared globally between solvers and to
 
 ## Sandboxing
 
-Many agents provide models with the ability to execute arbitrary code (typically Bash or Python code). It's important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the `SandboxEnvironment` (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the `sandbox` parameter. For example:
+Many agents provide models with the ability to execute arbitrary code. It's important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the `SandboxEnvironment` (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the `sandbox` parameter. For example:
 
 ``` python
 @task
@@ -210,9 +222,7 @@ There are two reasons that you might want to create steps:
 Subtasks provide a mechanism for creating isolated, re-usable units of execution. You might implement a complex tool using a subtask or might use them in a multi-agent evaluation. The main characteristics of sub-tasks are:
 
 1.  They run in their own async coroutine.
-
 2.  They have their own isolated `Store` (no access to the sample `Store`).
-
 3.  They have their own isolated `Transcript`
 
 To create a subtask, declare an async function with the `@subtask` decorator. The function can take any arguments and return a value of any type. For example:
