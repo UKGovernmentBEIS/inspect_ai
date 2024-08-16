@@ -78,7 +78,7 @@ $ inspect eval arc.py --model vllm/meta-llama/Llama-2-7b-chat-hf
 ``` bash
 $ pip install openai
 $ export TOGETHER_API_KEY=your-together-api-key
-$ inspect eval ctf.py --model together/Qwen/Qwen1.5-72B-Chat
+$ inspect eval arc.py --model together/Qwen/Qwen1.5-72B-Chat
 ```
 :::
 

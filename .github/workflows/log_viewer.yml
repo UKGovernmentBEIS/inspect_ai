@@ -65,5 +65,6 @@ jobs:
           if [[ $(git status --porcelain) != "" ]]
           then
             echo "Log viewer dist files have not been updated, please run yarn build and check in the changes."
+            git status
             exit 1
           fi

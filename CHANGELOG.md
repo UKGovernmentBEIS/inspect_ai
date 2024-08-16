@@ -2,10 +2,25 @@
 
 ## Unreleased
 
+- Support for tool calling for Llama 3.1 models on Bedrock.
 - Support for `strict` mode in OpenAI tool calls (update to v1.40.0 of `openai` package required).
-- Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
+
+## v0.3.23 (16 August 2024)
+
+- Support for tool calling for Llama 3.1 models on Azure AI and CloudFlare.
+- Incrase default `max_tokens` from 1024 to 2048.
+- Record individual sample reductions along with results for multi-epoch evals.
+- Change default to not log base64 encoded versions of images, as this often resulted in extremely large log files (use `--log-images` to opt back in).
+- Update to new Mistral API (v1.0.1 of `mistralai` is now required).
+- Support for Llama 3.1 models on Amazon Bedrock
 - Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).
 - Improved resolution of AWS region for Bedrock (respecting already defined AWS_REGION and AWS_DEFAULT_REGION)
+- Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
+- Added [HumanEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/humaneval), [WinoGrande](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/winogrande) and [Drop](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/drop) benchmarks.
+
+## v0.3.22 (07 August 2024)
+
+- Fix issue affecting results of `pass_at_{k}` score reducer.
 
 ## v0.3.21 (07 August 2024)
 
