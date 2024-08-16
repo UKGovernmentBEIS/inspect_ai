@@ -25,6 +25,8 @@ export const MessageContent = (props) => {
   }
 };
 
+// TODO: We should setting overflow scrolling here
+// don't break-all
 const messageRenderers = {
   text: {
     render: (content, isLast) => {

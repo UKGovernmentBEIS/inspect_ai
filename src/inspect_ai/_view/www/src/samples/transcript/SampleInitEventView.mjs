@@ -4,7 +4,6 @@ import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
 import { isBase64 } from "../../utils/Base64.mjs";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { EventSection } from "./EventSection.mjs";
 
 /**
@@ -52,7 +51,7 @@ export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   }
 
   return html`
-  <${EventPanel} id=${id} depth=${depth} title="Sample Init" icon=${ApplicationIcons.sample}>
+  <${EventPanel} id=${id} depth=${depth}>
     
     <div name="Sample">
       <${ChatView} messages=${stateObj["messages"]}/>

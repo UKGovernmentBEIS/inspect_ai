@@ -101,7 +101,7 @@ const stepDescriptor = (event) => {
         return {
           icon: ApplicationIcons.sample,
           ...rootStepDescriptor,
-          name: "Init",
+          name: "Sample Init",
         };
       default:
         return {
