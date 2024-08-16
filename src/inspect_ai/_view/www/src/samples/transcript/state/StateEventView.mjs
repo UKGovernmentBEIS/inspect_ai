@@ -23,7 +23,7 @@ export const StateEventView = ({ id, event, depth, stateManager }) => {
   const tabs = [
     html`<${StateDiffView}
       changes=${event.changes}
-      name="Diffs"
+      name="Diff"
       style=${{ margin: "1em 0" }}
     />`,
   ];

@@ -15210,7 +15210,7 @@ const StateEventView = ({ id, event, depth, stateManager }) => {
   const tabs = [
     m$1`<${StateDiffView}
       changes=${event.changes}
-      name="Diffs"
+      name="Diff"
       style=${{ margin: "1em 0" }}
     />`
   ];
@@ -15351,7 +15351,7 @@ const stepDescriptor = (event) => {
         return {
           icon: ApplicationIcons.sample,
           ...rootStepDescriptor,
-          name: "Initialize Sample"
+          name: "Init"
         };
       default:
         return {
@@ -15421,7 +15421,7 @@ const ModelEventView = ({ id, depth, event }) => {
   return m$1`
   <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
-    <div name="Answer">
+    <div name="Completion">
     <${ChatView}
       id="${id}-model-output"
       messages=${[...outputMessages || []]}

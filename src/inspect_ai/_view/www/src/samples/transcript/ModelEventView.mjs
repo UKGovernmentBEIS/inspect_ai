@@ -39,7 +39,7 @@ export const ModelEventView = ({ id, depth, event }) => {
   return html`
   <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
-    <div name="Answer">
+    <div name="Completion">
     <${ChatView}
       id="${id}-model-output"
       messages=${[...(outputMessages || [])]}
