@@ -15017,7 +15017,7 @@ const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   }
   if (event.sample.setup) {
     sections.push(m$1`<${EventSection} title="Setup">
-      <pre><code>${event.sample.setup}</code></pre>
+      <pre style=${{ background: "var(--bs-light)", borderRadius: "3px" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
       </${EventSection}>
   `);
   }
