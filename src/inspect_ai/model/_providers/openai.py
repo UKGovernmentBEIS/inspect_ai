@@ -140,7 +140,6 @@ class OpenAIAPI(ModelAPI):
         # unlike text models, vision models require a max_tokens (and set it to a very low
         # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
         OPENAI_IMAGE_DEFAULT_TOKENS = 4096
-        
         if "vision" in self.model_name:
             if isinstance(config.max_tokens, int):
                 config.max_tokens = max(config.max_tokens, OPENAI_IMAGE_DEFAULT_TOKENS)
@@ -157,9 +156,8 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=(
                     chat_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN
                 ),
-                **self.completion_params(config, len(tools) > 0)
+                **self.completion_params(config, len(tools) > 0),
             )
-
             choices = self._chat_choices_from_response(response, tools)
             return ModelOutput(
                 model=response.model,

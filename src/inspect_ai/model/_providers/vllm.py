@@ -31,6 +31,7 @@ DEFAULT_END_TOKEN = "<|im_end|>"
 
 HF_TOKEN = "HF_TOKEN"
 
+
 @dataclass
 class GenerateInput:
     input: str

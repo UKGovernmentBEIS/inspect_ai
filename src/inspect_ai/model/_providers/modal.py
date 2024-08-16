@@ -1,24 +1,6 @@
 import os
-from .openai import (
-    OpenAIAPI,
-    chat_message_assistant,
-)
+from .openai import OpenAIAPI
 from .._generate_config import GenerateConfig
-from typing_extensions import override
-from openai.types.chat import (
-    ChatCompletion,
-)
-from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from .._model_output import (
-    ChatCompletionChoice,
-    Logprob,
-    Logprobs,
-    ModelOutput,
-    ModelUsage,
-    StopReason,
-)
-
 
 MODAL_API_KEY = "MODAL_API_KEY"
 WORKSPACE ="WORKSPACE"
@@ -26,6 +8,7 @@ APP_NAME = "APP_NAME"
 FUNCTION_NAME = "FUNCTION_NAME"
 
 class ModalVllm(OpenAIAPI):
+    # This integration is based on deploying a vllm endpoint on modal, for reference  https://github.com/modal-labs/modal-examples/blob/main/06_gpu_and_ml/llm-serving/vllm_inference.py
     def __init__(
         self,
         model_name: str,
