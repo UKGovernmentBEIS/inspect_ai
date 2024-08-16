@@ -30,7 +30,7 @@ class ToolParam(BaseModel):
     default: Any = Field(default=None)
     items: Optional["ToolParam"] = Field(default=None)
     properties: dict[str, "ToolParam"] | None = Field(default=None)
-    additionalProperties: Optional["ToolParam"] = Field(default=None)
+    additionalProperties: Optional["ToolParam"] | bool | None = Field(default=None)
     anyOf: list["ToolParam"] | None = Field(default=None)
     required: list[str] | None = Field(default=None)
 
@@ -41,6 +41,7 @@ class ToolParams(BaseModel):
     type: Literal["object"] = Field(default="object")
     properties: dict[str, ToolParam] = Field(default_factory=dict)
     required: list[str] = Field(default_factory=list)
+    additionalProperties: bool = Field(default=False)
 
 
 class ToolInfo(BaseModel):
@@ -196,7 +197,10 @@ def parse_object(cls: Type[Any]) -> ToolParam:
                 required.append(name)
 
     return ToolParam(
-        type="object", properties=properties, required=required if required else None
+        type="object",
+        properties=properties,
+        required=required if required else None,
+        additionalProperties=False,
     )
 
 
