@@ -38,6 +38,15 @@ class EvalConfig(BaseModel):
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
 
+    fail_on_error: bool | float | None = Field(default=None)
+    """Fail eval when sample errors occur.
+
+    `True` to fail on first sample error (default); `False` to never
+    fail on sample errors; Value between 0 and 1 to fail if a proportion
+    of total samples fails. Value greater than 1 to fail eval if a count
+    of samples fails.
+    """
+
     max_messages: int | None = Field(default=None)
     """Maximum messages to allow in a chat conversation."""
 
@@ -61,6 +70,17 @@ class EvalConfig(BaseModel):
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
+
+
+class EvalError(BaseModel):
+    message: str
+    """Error message."""
+
+    traceback: str
+    """Error traceback."""
+
+    traceback_ansi: str
+    """Error traceback with ANSI color codes."""
 
 
 class EvalSample(BaseModel):
@@ -104,6 +124,9 @@ class EvalSample(BaseModel):
 
     transcript: EvalEvents = Field(default_factory=EvalEvents)
     """Transcript of sample events."""
+
+    error: EvalError | None = Field(default=None)
+    """Error that halted sample."""
 
     @model_validator(mode="before")
     @classmethod
@@ -328,17 +351,6 @@ class EvalSpec(BaseModel):
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
-
-
-class EvalError(BaseModel):
-    message: str
-    """Error message."""
-
-    traceback: str
-    """Error traceback."""
-
-    traceback_ansi: str
-    """Error traceback with ANSI color codes."""
 
 
 def eval_error(

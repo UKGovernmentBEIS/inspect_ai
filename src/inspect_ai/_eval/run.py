@@ -88,6 +88,11 @@ async def eval_run(
                         task.epochs_reducer
                     )
 
+                # tasks can provide a fail_on_error policy, but don't let it override
+                # an eval level fail_on_error policy
+                if task_eval_config.fail_on_error is None:
+                    task_eval_config.fail_on_error = task.fail_on_error
+
                 # create and track the logger
                 logger = TaskLogger(
                     task_name=task.name,

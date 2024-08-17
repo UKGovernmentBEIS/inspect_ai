@@ -17,7 +17,6 @@ from inspect_ai._display._display import (
     TaskProfile,
     TaskSuccess,
 )
-from inspect_ai._eval.task.util import sample_messages
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -71,11 +70,13 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from ..context import init_task_context
 from ..task import Task
+from .error import SampleErrorHandler
 from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
 from .transcript import solver_transcript
+from .util import sample_messages
 
 py_logger = getLogger(__name__)
 
@@ -122,6 +123,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     stats = EvalStats(started_at=iso_now())
     error: EvalError | None = None
     cancelled = False
+
+    # handle sample errors (raise as required)
+    sample_error_handler = SampleErrorHandler(config.fail_on_error, len(task.dataset))
 
     # resolve some config
     model_name = ModelName(model)
@@ -229,17 +233,20 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         logger=logger if log_samples else None,
                         log_images=log_images,
                         sample_source=sample_source,
+                        sample_error=sample_error_handler,
                         semaphore=sample_semaphore,
                     )
                     for (sample, state) in zip(samples, states)
                 ]
 
                 # run them in parallel (subject to config.max_samples)
-                scores = await asyncio.gather(*sample_coroutines)
+                sample_results = await asyncio.gather(*sample_coroutines)
 
             # compute and record metrics if we have scores
             completed_scores = [
-                score_dict for score_dict in scores if isinstance(score_dict, dict)
+                score_dict
+                for score_dict in sample_results
+                if isinstance(score_dict, dict)
             ]
 
             if len(completed_scores) > 0:
@@ -257,7 +264,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             collect_eval_data(stats, logger)
 
             # display task summary
-            td.complete(TaskSuccess(stats, results))
+            td.complete(TaskSuccess(logger.samples_completed, stats, results))
 
         except asyncio.CancelledError:
             # flag as cancelled
@@ -267,7 +274,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             collect_eval_data(stats, logger)
 
             # display task cancelled
-            td.complete(TaskCancelled(logger.samples_logged, stats))
+            td.complete(TaskCancelled(logger.samples_completed, stats))
 
         except BaseException as ex:
             # get exception info
@@ -282,7 +289,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             collect_eval_data(stats, logger)
 
             # display it
-            td.complete(TaskError(logger.samples_logged, type, value, traceback))
+            td.complete(TaskError(logger.samples_completed, type, value, traceback))
 
     # log as appropriate
     if cancelled:
@@ -318,6 +325,7 @@ async def task_run_sample(
     logger: TaskLogger | None,
     log_images: bool,
     sample_source: EvalSampleSource | None,
+    sample_error: Callable[[BaseException], EvalError],
     semaphore: asyncio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
@@ -360,6 +368,7 @@ async def task_run_sample(
 
     # solver loop
     async with semaphore_cm, sandboxenv_cm:
+        error: EvalError | None = None
         try:
             # sample init event
             transcript()._event(
@@ -387,6 +396,14 @@ async def task_run_sample(
                     st.complete(state)
                 progress()
             state.completed = True
+
+        except asyncio.CancelledError:
+            # allow cancelled error to propagate
+            raise
+
+        except BaseException as ex:
+            # handle error (this will throw if we've exceeded the limit)
+            error = sample_error(ex)
 
         finally:
             # safely run cleanup function if there is one
@@ -427,10 +444,13 @@ async def task_run_sample(
                 state = (await states_with_base64_images([state]))[0]
 
             # log the sample
-            logger.log_sample(state.epoch, sample, state, results, True)
+            logger.log_sample(state.epoch, sample, state, results, error, True)
 
         # return
-        return results
+        if error is None:
+            return results
+        else:
+            return None
 
 
 async def resolve_dataset(
@@ -529,7 +549,9 @@ def eval_log_sample_source(
                 (
                     sample
                     for sample in (eval_log.samples or [])
-                    if sample.id == id and sample.epoch == epoch
+                    if sample.id == id
+                    and sample.epoch == epoch
+                    and sample.error is None
                 ),
                 None,
             )

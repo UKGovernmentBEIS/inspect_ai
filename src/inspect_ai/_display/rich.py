@@ -22,7 +22,7 @@ from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.throttle import throttle
-from inspect_ai.log import EvalResults, EvalStats
+from inspect_ai.log import EvalStats
 from inspect_ai.log._log import rich_traceback
 from inspect_ai.util._concurrency import concurrency_status
 
@@ -46,6 +46,7 @@ class Theme:
     link: str = "blue"
     success: str = "green"
     error: str = "red"
+    warning: str = "orange3"
 
 
 @dataclass
@@ -296,7 +297,7 @@ def task_result_cancelled(
         profile=profile,
         show_model=True,
         body=task_stats(profile, cancelled.stats),
-        footer=task_interrupted(profile, cancelled.samples_logged),
+        footer=task_interrupted(profile, cancelled.samples_completed),
         log_location=profile.log_location,
     )
 
@@ -306,7 +307,7 @@ def task_result_summary(profile: TaskProfile, success: TaskSuccess) -> Renderabl
         profile=profile,
         show_model=True,
         body=task_stats(profile, success.stats),
-        footer=task_results(success.results),
+        footer=task_results(profile, success),
         log_location=profile.log_location,
     )
 
@@ -316,7 +317,7 @@ def task_result_error(profile: TaskProfile, error: TaskError) -> RenderableType:
         profile=profile,
         show_model=True,
         body=rich_traceback(error.exc_type, error.exc_value, error.traceback),
-        footer=task_interrupted(profile, error.samples_logged),
+        footer=task_interrupted(profile, error.samples_completed),
         log_location=profile.log_location,
     )
 
@@ -325,7 +326,7 @@ def task_panel(
     profile: TaskProfile,
     show_model: bool,
     body: RenderableType,
-    footer: tuple[RenderableType, RenderableType] | None,
+    footer: RenderableType | tuple[RenderableType, RenderableType] | None,
     log_location: str | None,
 ) -> Panel:
     # rendering context
@@ -348,7 +349,10 @@ def task_panel(
     # footer if specified
     if footer:
         table.add_row()
-        table.add_row(footer[0], footer[1])
+        if isinstance(footer, tuple):
+            table.add_row(footer[0], footer[1])
+        else:
+            table.add_row(footer)
 
     # enclose in outer table for log link footer
     root = table
@@ -433,16 +437,12 @@ def live_task_footer() -> tuple[RenderableType, RenderableType]:
     )
 
 
-def task_interrupted(
-    profile: TaskProfile, samples_logged: int
-) -> tuple[RenderableType, RenderableType]:
+def task_interrupted(profile: TaskProfile, samples_completed: int) -> RenderableType:
     log_location = profile.log_location
     theme = rich_theme()
     message = f"[bold][{theme.error}]Task interrupted ("
-    if samples_logged > 0:
-        message = (
-            f"{message}{samples_logged} completed samples logged before interruption)."
-        )
+    if samples_completed > 0:
+        message = f"{message}{samples_completed} completed samples logged before interruption)."
         if task_can_retry_from_filesystem(profile):
             message = (
                 f"{message} Resume task with:[/{theme.error}][/bold]\n\n"
@@ -455,16 +455,18 @@ def task_interrupted(
             f"{message}no samples completed before interruption)[/{theme.error}][/bold]"
         )
 
-    return message, ""
+    return message
 
 
 def task_can_retry_from_filesystem(profile: TaskProfile) -> bool:
     return profile.file is not None
 
 
-def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
+def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
     theme = rich_theme()
+
     # do we have more than one scorer name?
+    results = success.results
     scorer_names: Set[str] = {score.name for score in results.scores}
     reducer_names: Set[str] = {
         score.reducer for score in results.scores if score.reducer is not None
@@ -490,9 +492,20 @@ def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
             key = f"{score.name}/{name}" if (len(scorer_names) > 1) else name
             output[key] = value
 
-    metrics = f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
+    if output:
+        message = f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
+    else:
+        message = ""
 
-    return (metrics, "")
+    # note if some of our samples had errors
+    if success.samples_completed < profile.samples:
+        sample_errors = profile.samples - success.samples_completed
+        sample_error_pct = int(float(sample_errors) / float(profile.samples) * 100)
+        if message:
+            message = f"{message}\n\n"
+        message = f"{message}[{theme.warning}]WARNING: {sample_errors} of {profile.samples} samples ({sample_error_pct}%) had errors and were not scored.[/{theme.warning}]"
+
+    return message
 
 
 def task_stats(profile: TaskProfile, stats: EvalStats) -> RenderableType:
