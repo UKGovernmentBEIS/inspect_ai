@@ -7,7 +7,7 @@ import { EventPanel } from "./EventPanel.mjs";
 import { EventSection } from "./EventSection.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
-import { FontSize } from "../../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 import Prism from "prismjs";
 
 /**
@@ -31,10 +31,14 @@ export const ModelEventView = ({ id, depth, event }) => {
   });
 
   const entries = { ...event.config };
-  if (event.tools) {
-    entries["tools"] = event.tools;
-    entries["tool_choice"] = event.tool_choice;
-  }
+  entries["tool_choice"] = event.tool_choice;
+  delete entries["max_connections"];
+
+  const tableSectionStyle = {
+    width: "fit-content",
+    alignSelf: "start",
+    justifySelf: "start",
+  };
 
   return html`
   <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
@@ -43,22 +47,33 @@ export const ModelEventView = ({ id, depth, event }) => {
     <${ChatView}
       id="${id}-model-output"
       messages=${[...(outputMessages || [])]}
+      style=${{ paddingTop: "1em" }}
       />
     </div>
 
     <div name="All" style=${{ margin: "1em 0" }}>
 
-      <${EventSection} title="Configuration">
-        <${MetaDataGrid} entries=${entries}/>
+      <div style=${{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr)", columnGap: "1em" }}>
+      <div>
+      <${EventSection} title="Configuration" style=${tableSectionStyle}>
+        <${MetaDataGrid} entries=${entries} plain=${true}/>
       </${EventSection}>
+
+      <${EventSection} title="Tools" style=${tableSectionStyle}>
+        <${ToolsConfig} tools=${event.tools}/>
+      </${EventSection}>
+
+      </div>
+      <${EventSection} title="Usage" style=${tableSectionStyle}>
+        <${MetaDataGrid} entries=${event.output.usage} plain=${true}/>
+      </${EventSection}>
+      </div>
+
       <${EventSection} title="Messages">
         <${ChatView}
           id="${id}-model-input-full"
           messages=${[...event.input, ...(outputMessages || [])]}
           />      
-      </${EventSection}>
-      <${EventSection} title="Usage">
-        <${MetaDataGrid} entries=${event.output.usage}/>
       </${EventSection}>
 
     </div>
@@ -122,5 +137,24 @@ export const APICodeCell = ({ id, contents }) => {
     }}>
       </code>
       </pre>
+  </div>`;
+};
+
+const ToolsConfig = ({ tools }) => {
+  const toolEls = tools.map((tool) => {
+    return html`<div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+        ${tool.name}
+      </div>
+      <div>${tool.description}</div>`;
+  });
+
+  return html`<div
+    style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content max-content",
+      columnGap: "1em",
+    }}
+  >
+    ${toolEls}
   </div>`;
 };
