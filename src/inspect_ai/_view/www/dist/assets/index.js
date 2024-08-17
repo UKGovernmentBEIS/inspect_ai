@@ -13582,10 +13582,10 @@ const MetaDataView = ({
     fontWeight: "300",
     whiteSpace: "pre-wrap",
     wordWrap: "anywhere",
-    fontSize: FontSize.base
+    fontSize: FontSize.small
   };
   const cellKeyTextStyle = {
-    fontSize: FontSize.base
+    fontSize: FontSize.small
   };
   tableOptions = tableOptions || "sm";
   const tblClz = (tableOptions || "").split(",").map((option) => {
