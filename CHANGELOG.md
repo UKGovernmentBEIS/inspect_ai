@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.24 (18 August 2024)
 
 - Support for tool calling for Llama 3.1 models on Bedrock.
 - Report JSON schema validation errors to model in tool response.
