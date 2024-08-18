@@ -32,11 +32,6 @@ from inspect_ai.tool._tool_with import tool_description
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 
-# TODO: do we need eval_events to do content per task/tool anymore?
-# TODO: should we put simple type coersion in front of full json validation
-# TODO: test json schema validation reporting (raise vs. return)
-# TODO: should tool calls also capture store change events as subtasks do?
-
 
 async def call_tools(
     message: ChatMessageAssistant, tools: list[Tool]
@@ -54,8 +49,8 @@ async def call_tools(
         from inspect_ai.solver._subtask.transcript import (
             ToolEvent,
             Transcript,
-            eval_events,
             init_transcript,
+            track_store_changes,
             transcript,
         )
 
@@ -68,7 +63,8 @@ async def call_tools(
             result: Any = ""
             tool_error: ToolCallError | None = None
             try:
-                result = await call_tool(tdefs, call)
+                with track_store_changes():
+                    result = await call_tool(tdefs, call)
             except TimeoutError:
                 tool_error = ToolCallError(
                     "timeout", "Command timed out before completing."
@@ -109,7 +105,7 @@ async def call_tools(
                 arguments=call.arguments,
                 result=content,
                 error=tool_error,
-                events=eval_events(transcript().events),
+                events=transcript().events,
             )
 
             # return message and event
