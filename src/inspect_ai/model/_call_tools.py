@@ -127,7 +127,7 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
-        return ToolParsingError(validation_errors)
+        raise ToolParsingError(validation_errors)
 
     # call the tool
     try:
