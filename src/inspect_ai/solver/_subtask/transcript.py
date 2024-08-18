@@ -24,6 +24,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelCall, ModelOutput
 from inspect_ai.scorer._metric import Score
 from inspect_ai.tool._tool import ToolResult
+from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -40,6 +41,14 @@ class BaseEvent(BaseModel):
     @field_serializer("timestamp")
     def serialize_timestamp(self, dt: datetime) -> str:
         return dt.astimezone().isoformat()
+
+
+class EvalEvents(BaseModel):
+    events: list["Event"] = Field(default_factory=list)
+    """List of events."""
+
+    content: dict[str, str] = Field(default_factory=dict)
+    """Content references."""
 
 
 class SampleInitEvent(BaseEvent):
@@ -124,6 +133,12 @@ class ToolEvent(BaseEvent):
     result: ToolResult
     """Function return value."""
 
+    error: ToolCallError | None = Field(default=None)
+    """Error that occurred during tool call."""
+
+    events: EvalEvents
+    """Transcript of events for tool."""
+
 
 class LoggerEvent(BaseEvent):
     """Log message recorded with Python logger."""
@@ -169,14 +184,6 @@ class StepEvent(BaseEvent):
 
     name: str
     """Event name."""
-
-
-class EvalEvents(BaseModel):
-    events: list["Event"] = Field(default_factory=list)
-    """List of events."""
-
-    content: dict[str, str] = Field(default_factory=dict)
-    """Content references."""
 
 
 class SubtaskEvent(BaseEvent):
