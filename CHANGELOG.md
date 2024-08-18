@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Support for tool calling for Llama 3.1 models on Bedrock.
+- Report JSON schema validation errors to model in tool response.
 - Support for `strict` mode in OpenAI tool calls (update to v1.40.0 of `openai` package required).
 
 ## v0.3.23 (16 August 2024)
