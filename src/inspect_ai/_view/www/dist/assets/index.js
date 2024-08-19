@@ -12874,7 +12874,6 @@ const messageRenderers = {
     render: (content, isLast) => {
       return m$1`<${MarkdownDiv}
         markdown=${content.text}
-        style=${{ wordBreak: "break-all" }}
         class=${isLast ? "no-last-para-padding" : ""}
       />`;
     }
