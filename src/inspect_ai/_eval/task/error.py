@@ -1,12 +1,8 @@
 from inspect_ai.log._log import EvalError, eval_error
 
-# TODO: Need to mark eval status as partially successful (sample_errors: x)
-# TODO: retryable_evals needs to check for this status
-
 # TODO: Unit tests for all scenarios
-# TODO: Reducers need to not reduce when samples have errors. Do we need
-#       to report failed samples w/ epochs in mind?
-# TODO: Log viewer needs to denote samples with errors and have an error tab
+
+# TODO: Log viewer needs to summarise samle errors, denote samples with errors, and have an error tab in samples with errors
 
 
 class SampleErrorHandler:

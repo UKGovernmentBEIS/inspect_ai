@@ -251,6 +251,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
             if len(completed_scores) > 0:
                 results = eval_results(
+                    samples=profile.samples,
                     scores=completed_scores,
                     reducers=task.epochs_reducer,
                     scorers=scorers,

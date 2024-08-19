@@ -218,6 +218,15 @@ class EvalSampleReductions(BaseModel):
 
 
 class EvalResults(BaseModel):
+    total_samples: int = Field(default=0)
+    """Total samples in eval (dataset samples * epochs)"""
+
+    completed_samples: int = Field(default=0)
+    """Samples completed without error.
+
+    Will be equal to total_samples except when --fail-on-error is enabled.
+    """
+
     @property
     def scorer(self) -> EvalScore | None:
         """Scorer used to compute results (deprecated)."""
