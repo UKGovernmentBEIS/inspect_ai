@@ -13,7 +13,7 @@ import { EventPanel } from "./EventPanel.mjs";
  */
 export const StepEventView = ({ depth, event }) => {
   const descriptor = stepDescriptor(event);
-  if (event.action === "end" || event.type === "generate_loop") {
+  if (event.action === "end") {
     // end events have no special implicit UI
     if (descriptor.endSpace) {
       return html`<div style=${{ height: "1.5em" }}></div>`;

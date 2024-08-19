@@ -1735,14 +1735,6 @@
           "default": 0,
           "title": "Lineno",
           "type": "integer"
-        },
-        "args": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            }
-          ],
-          "default": null
         }
       },
       "required": [
@@ -1752,8 +1744,7 @@
         "created",
         "filename",
         "module",
-        "lineno",
-        "args"
+        "lineno"
       ],
       "title": "LoggingMessage",
       "type": "object",
@@ -2602,7 +2593,42 @@
           "title": "Result"
         },
         "events": {
-          "$ref": "#/$defs/EvalEvents"
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SampleInitEvent"
+              },
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
         }
       },
       "required": [
@@ -2760,6 +2786,55 @@
             }
           ],
           "title": "Result"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "events": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SampleInitEvent"
+              },
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
         }
       },
       "required": [
@@ -2769,7 +2844,9 @@
         "id",
         "function",
         "arguments",
-        "result"
+        "result",
+        "error",
+        "events"
       ],
       "title": "ToolEvent",
       "type": "object",
@@ -2987,6 +3064,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Bytes"
         }
       },

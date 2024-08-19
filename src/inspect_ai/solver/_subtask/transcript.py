@@ -24,6 +24,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelCall, ModelOutput
 from inspect_ai.scorer._metric import Score
 from inspect_ai.tool._tool import ToolResult
+from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -124,6 +125,12 @@ class ToolEvent(BaseEvent):
     result: ToolResult
     """Function return value."""
 
+    error: ToolCallError | None = Field(default=None)
+    """Error that occurred during tool call."""
+
+    events: list["Event"]
+    """Transcript of events for tool."""
+
 
 class LoggerEvent(BaseEvent):
     """Log message recorded with Python logger."""
@@ -171,14 +178,6 @@ class StepEvent(BaseEvent):
     """Event name."""
 
 
-class EvalEvents(BaseModel):
-    events: list["Event"] = Field(default_factory=list)
-    """List of events."""
-
-    content: dict[str, str] = Field(default_factory=dict)
-    """Content references."""
-
-
 class SubtaskEvent(BaseEvent):
     """Subtask spawned."""
 
@@ -194,7 +193,7 @@ class SubtaskEvent(BaseEvent):
     result: Any
     """Subtask function result."""
 
-    events: EvalEvents
+    events: list["Event"]
     """Transcript of events for subtask."""
 
 
@@ -295,6 +294,14 @@ _transcript: ContextVar[Transcript] = ContextVar(
 CONTENT_PROTOCOL = "tc://"
 
 
+class EvalEvents(BaseModel):
+    events: list[Event] = Field(default_factory=list)
+    """List of events."""
+
+    content: dict[str, str] = Field(default_factory=dict)
+    """Content references."""
+
+
 def eval_events(events: list[Event]) -> EvalEvents:
     content: dict[str, str] = {}
 
@@ -328,12 +335,28 @@ def walk_events(events: list[Event], content_fn: Callable[[str], str]) -> list[E
 def walk_event(event: Event, content_fn: Callable[[str], str]) -> Event:
     if isinstance(event, SampleInitEvent):
         return walk_sample_init_event(event, content_fn)
-    if isinstance(event, ModelEvent):
+    elif isinstance(event, ModelEvent):
         return walk_model_event(event, content_fn)
     elif isinstance(event, StateEvent):
         return walk_state_event(event, content_fn)
+    elif isinstance(event, StoreEvent):
+        return walk_store_event(event, content_fn)
+    elif isinstance(event, SubtaskEvent):
+        return walk_subtask_event(event, content_fn)
+    elif isinstance(event, ToolEvent):
+        return walk_tool_event(event, content_fn)
     else:
         return event
+
+
+def walk_subtask_event(
+    event: SubtaskEvent, content_fn: Callable[[str], str]
+) -> SubtaskEvent:
+    return event.model_copy(update=dict(events=walk_events(event.events, content_fn)))
+
+
+def walk_tool_event(event: ToolEvent, content_fn: Callable[[str], str]) -> ToolEvent:
+    return event.model_copy(update=dict(events=walk_events(event.events, content_fn)))
 
 
 def walk_sample_init_event(
@@ -410,15 +433,23 @@ def walk_state_event(event: StateEvent, content_fn: Callable[[str], str]) -> Sta
     return event
 
 
+def walk_store_event(event: StoreEvent, content_fn: Callable[[str], str]) -> StoreEvent:
+    event = event.model_copy(
+        update=dict(
+            changes=[
+                walk_state_json_change(change, content_fn) for change in event.changes
+            ]
+        )
+    )
+    return event
+
+
 def walk_state_json_change(
     change: JsonChange, content_fn: Callable[[str], str]
 ) -> JsonChange:
-    if change.path.startswith("/messages") or change.path.startswith("/output"):
-        return change.model_copy(
-            update=dict(value=walk_json_value(change.value, content_fn))
-        )
-    else:
-        return change
+    return change.model_copy(
+        update=dict(value=walk_json_value(change.value, content_fn))
+    )
 
 
 def walk_json_value(value: JsonValue, content_fn: Callable[[str], str]) -> JsonValue:

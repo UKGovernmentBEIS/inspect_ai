@@ -18,7 +18,6 @@ from .store import Store, dict_jsonable, init_subtask_store
 from .transcript import (
     SubtaskEvent,
     Transcript,
-    eval_events,
     init_transcript,
     track_store_changes,
     transcript,
@@ -106,7 +105,7 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
                     name=subtask_name,
                     input=input,
                     result=result,
-                    events=eval_events(transcript().events),
+                    events=transcript().events,
                 )
 
                 # return result and event

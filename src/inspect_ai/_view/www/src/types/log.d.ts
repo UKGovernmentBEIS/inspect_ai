@@ -265,6 +265,30 @@ export type Name7 = string;
 export type Timestamp9 = string;
 export type Event9 = "subtask";
 export type Name8 = string;
+export type Events2 = (
+  | SampleInitEvent
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | ToolEvent
+  | ScoreEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent
+)[];
+export type Events1 = (
+  | SampleInitEvent
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | ToolEvent
+  | ScoreEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent
+)[];
 export type Events = (
   | SampleInitEvent
   | StateEvent
@@ -702,6 +726,8 @@ export interface ToolEvent {
   function: Function1;
   arguments: Arguments1;
   result: Result;
+  error: ToolCallError | null;
+  events: Events1;
 }
 export interface Arguments1 {
   [k: string]: JsonValue;
@@ -730,7 +756,6 @@ export interface LoggingMessage {
   filename: Filename;
   module: Module;
   lineno: Lineno;
-  args: unknown;
 }
 /**
  * Event with custom info/data.
@@ -759,7 +784,7 @@ export interface SubtaskEvent {
   name: Name8;
   input: Input3;
   result: Result1;
-  events: EvalEvents;
+  events: Events2;
 }
 export interface Input3 {}
 export interface Result1 {
