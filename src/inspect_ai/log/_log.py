@@ -14,7 +14,7 @@ from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
@@ -70,17 +70,6 @@ class EvalConfig(BaseModel):
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
-
-
-class EvalError(BaseModel):
-    message: str
-    """Error message."""
-
-    traceback: str
-    """Error traceback."""
-
-    traceback_ansi: str
-    """Error traceback with ANSI color codes."""
 
 
 class EvalSample(BaseModel):

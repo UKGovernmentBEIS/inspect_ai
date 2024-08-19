@@ -23,6 +23,7 @@ export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
+export type FailOnError = boolean | number | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
@@ -59,6 +60,8 @@ export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
+export type TotalSamples = number;
+export type CompletedSamples = number;
 export type Name2 = string;
 export type Scorer = string;
 export type Reducer = string | null;
@@ -225,9 +228,11 @@ export type Description1 = string | null;
 export type Properties1 = {
   [k: string]: ToolParam;
 } | null;
+export type Additionalproperties = ToolParam | boolean | null;
 export type Anyof = ToolParam[] | null;
 export type Required = string[] | null;
 export type Required1 = string[];
+export type Additionalproperties1 = boolean;
 export type Tools = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name5 = string;
@@ -240,7 +245,9 @@ export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Timestamp5 = string;
 export type Event5 = "score";
 export type Timestamp6 = string;
-export type Event6 = "logger";
+export type Event6 = "error";
+export type Timestamp7 = string;
+export type Event7 = "logger";
 export type Name6 = string | null;
 export type Level =
   | "debug"
@@ -255,15 +262,15 @@ export type Created1 = number;
 export type Filename = string;
 export type Module = string;
 export type Lineno = number;
-export type Timestamp7 = string;
-export type Event7 = "info";
 export type Timestamp8 = string;
-export type Event8 = "step";
+export type Event8 = "info";
+export type Timestamp9 = string;
+export type Event9 = "step";
 export type Action = "begin" | "end";
 export type Type8 = string | null;
 export type Name7 = string;
-export type Timestamp9 = string;
-export type Event9 = "subtask";
+export type Timestamp10 = string;
+export type Event10 = "subtask";
 export type Name8 = string;
 export type Events2 = (
   | SampleInitEvent
@@ -272,6 +279,7 @@ export type Events2 = (
   | ModelEvent
   | ToolEvent
   | ScoreEvent
+  | ErrorEvent
   | LoggerEvent
   | InfoEvent
   | StepEvent
@@ -284,6 +292,7 @@ export type Events1 = (
   | ModelEvent
   | ToolEvent
   | ScoreEvent
+  | ErrorEvent
   | LoggerEvent
   | InfoEvent
   | StepEvent
@@ -296,6 +305,7 @@ export type Events = (
   | ModelEvent
   | ToolEvent
   | ScoreEvent
+  | ErrorEvent
   | LoggerEvent
   | InfoEvent
   | StepEvent
@@ -344,6 +354,7 @@ export interface EvalConfig {
   limit: Limit;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
+  fail_on_error: FailOnError;
   max_messages: MaxMessages;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
@@ -397,6 +408,8 @@ export interface GenerateConfig {
   parallel_tool_calls: ParallelToolCalls;
 }
 export interface EvalResults {
+  total_samples: TotalSamples;
+  completed_samples: CompletedSamples;
   scores: Scores;
   metadata: Metadata3;
   sample_reductions: SampleReductions;
@@ -468,6 +481,7 @@ export interface EvalSample {
   metadata: Metadata6;
   store: Store;
   transcript: EvalEvents;
+  error: EvalError | null;
 }
 export interface ChatMessageSystem {
   content: Content;
@@ -679,6 +693,7 @@ export interface ToolParams {
   type: Type5;
   properties: Properties;
   required: Required1;
+  additionalProperties: Additionalproperties1;
 }
 export interface Properties {
   [k: string]: ToolParam;
@@ -692,7 +707,7 @@ export interface ToolParam {
   default: Default;
   items: ToolParam | null;
   properties: Properties1;
-  additionalProperties: ToolParam | null;
+  additionalProperties: Additionalproperties;
   anyOf: Anyof;
   required: Required;
 }
@@ -741,11 +756,19 @@ export interface ScoreEvent {
   score: Score;
 }
 /**
+ * Event with sample error.
+ */
+export interface ErrorEvent {
+  timestamp: Timestamp6;
+  event: Event6;
+  error: EvalError;
+}
+/**
  * Log message recorded with Python logger.
  */
 export interface LoggerEvent {
-  timestamp: Timestamp6;
-  event: Event6;
+  timestamp: Timestamp7;
+  event: Event7;
   message: LoggingMessage;
 }
 export interface LoggingMessage {
@@ -761,16 +784,16 @@ export interface LoggingMessage {
  * Event with custom info/data.
  */
 export interface InfoEvent {
-  timestamp: Timestamp7;
-  event: Event7;
+  timestamp: Timestamp8;
+  event: Event8;
   data: JsonValue;
 }
 /**
  * Step within current sample or subtask.
  */
 export interface StepEvent {
-  timestamp: Timestamp8;
-  event: Event8;
+  timestamp: Timestamp9;
+  event: Event9;
   action: Action;
   type: Type8;
   name: Name7;
@@ -779,8 +802,8 @@ export interface StepEvent {
  * Subtask spawned.
  */
 export interface SubtaskEvent {
-  timestamp: Timestamp9;
-  event: Event9;
+  timestamp: Timestamp10;
+  event: Event10;
   name: Name8;
   input: Input3;
   result: Result1;

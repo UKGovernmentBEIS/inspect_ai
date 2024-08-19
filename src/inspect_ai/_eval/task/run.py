@@ -57,6 +57,7 @@ from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.solver._subtask.subtask import init_subtask
 from inspect_ai.solver._subtask.transcript import (
+    ErrorEvent,
     SampleInitEvent,
     ScoreEvent,
     transcript,
@@ -405,6 +406,9 @@ async def task_run_sample(
         except BaseException as ex:
             # handle error (this will throw if we've exceeded the limit)
             error = sample_error(ex)
+
+            # fire error event
+            transcript()._event(ErrorEvent(error=error))
 
         finally:
             # safely run cleanup function if there is one
