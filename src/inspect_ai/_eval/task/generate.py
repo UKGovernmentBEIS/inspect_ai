@@ -1,4 +1,3 @@
-import contextlib
 from typing import Literal
 
 from inspect_ai.model import (
@@ -9,7 +8,6 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._cache import epoch
 from inspect_ai.solver import TaskState
-from inspect_ai.solver._subtask.transcript import transcript
 from inspect_ai.tool import ToolFunction
 
 
