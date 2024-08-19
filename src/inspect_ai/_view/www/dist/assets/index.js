@@ -15289,7 +15289,7 @@ const summarizeChanges = (changes) => {
 };
 const StepEventView = ({ depth, event }) => {
   const descriptor = stepDescriptor(event);
-  if (event.action === "end" || event.type === "generate_loop") {
+  if (event.action === "end") {
     if (descriptor.endSpace) {
       return m$1`<div style=${{ height: "1.5em" }}></div>`;
     } else {
@@ -15681,7 +15681,7 @@ const TranscriptView = ({ id, events, stateManager }) => {
         </div>
       </div>
     `;
-    if (event.event === "step" && event.type !== "generate_loop") {
+    if (event.event === "step") {
       if (event.action === "end") {
         depth = depth - 1;
       } else {

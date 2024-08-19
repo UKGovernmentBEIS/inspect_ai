@@ -44,7 +44,7 @@ export const TranscriptView = ({ id, events, stateManager }) => {
       </div>
     `;
 
-    if (event.event === "step" && event.type !== "generate_loop") {
+    if (event.event === "step") {
       if (event.action === "end") {
         depth = depth - 1;
       } else {
