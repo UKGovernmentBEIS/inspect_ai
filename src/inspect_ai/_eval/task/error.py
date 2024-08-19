@@ -2,6 +2,8 @@ from inspect_ai.log._log import EvalError, eval_error
 
 # TODO: Unit tests for all scenarios
 
+# TODO: ErrorEvent (for samples)
+
 # TODO: Log viewer needs to summarise samle errors, denote samples with errors, and have an error tab in samples with errors
 
 
