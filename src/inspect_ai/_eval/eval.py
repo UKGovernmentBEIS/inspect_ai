@@ -91,7 +91,7 @@ def eval(
            run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
-            even if specified as a filename or URL (defaults to True)
+            even if specified as a filename or URL (defaults to False)
         log_buffer: (int | None): Number of samples to buffer before writing log file
             (defaults to 10 for local filesystems and 100 for remote filesystems)
         score (bool): Score output (defaults to True)
@@ -189,7 +189,7 @@ async def eval_async(
             run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
-            even if specified as a filename or URL (defaults to True)
+            even if specified as a filename or URL (defaults to False)
         log_buffer: (int | None): Number of samples to buffer before writing log file
             (defaults to 10 for local filesystems and 100 for remote filesystems)
         score (bool): Score output (defaults to True)
@@ -199,12 +199,11 @@ async def eval_async(
         List of EvalLog (one for each task)
     """
     # only a single call to eval_async can be active at a time, this is
-    # because when running a task a chdir to the task's directory (and a
+    # because when running a task a chdir to the task's directory (and
     # similar mutation of the Python sys.path) occurs. since this is a
     # change to global process state it cannot occur in parallel. for
-    # task parallelism, use eval_gather, which enforces the appropriate
-    # constraints on task parallelism and schedules multiple tasks for
-    # optimal concurrency
+    # task parallelism, pass multiple tasks to eval or eval_async (which
+    # will enforce the appropriate constraints on task parallelism)
     global _eval_async_running
     if _eval_async_running:
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
@@ -357,7 +356,7 @@ def eval_retry(
            (defaults to True)
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
-           even if specified as a filename or URL (defaults to True)
+           even if specified as a filename or URL (defaults to False)
         log_buffer: (int | None): Number of samples to buffer before writing log file
             (defaults to 10 for local filesystems and 100 for remote filesystems)
         score (bool): Score output (defaults to True)
@@ -428,7 +427,7 @@ async def eval_retry_async(
            (defaults to True)
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
-           even if specified as a filename or URL (defaults to True)
+           even if specified as a filename or URL (defaults to False)
         log_buffer: (int | None): Number of samples to buffer before writing log file
             (defaults to 10 for local filesystems and 100 for remote filesystems)
         score (bool): Score output (defaults to True)

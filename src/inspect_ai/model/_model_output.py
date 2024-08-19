@@ -32,7 +32,7 @@ class TopLogprob(BaseModel):
     logprob: float
     """The log probability value of the model for the top-kth token."""
 
-    bytes: list[int] | None
+    bytes: list[int] | None = Field(default=None)
     """The top-kth token represented as a byte array (a list of integers)."""
 
 
@@ -45,10 +45,10 @@ class Logprob(BaseModel):
     logprob: float
     """The log probability value of the model for the predicted token."""
 
-    bytes: list[int] | None
+    bytes: list[int] | None = Field(default=None)
     """The predicted token represented as a byte array (a list of integers)."""
 
-    top_logprobs: list[TopLogprob] | None
+    top_logprobs: list[TopLogprob] | None = Field(default=None)
     """If the `top_logprobs` argument is greater than 0, this will contain an ordered list of the top K most likely tokens and their log probabilities."""
 
 

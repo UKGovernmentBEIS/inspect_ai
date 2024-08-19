@@ -138,7 +138,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "0.1.3"
+    MIN_VERSION = "1.0.1"
 
     # verify we have the package
     try:
@@ -201,7 +201,7 @@ def mockllm() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "1.24.0"
+    MIN_VERSION = "1.40.0"
 
     # verify we have the package
     try:

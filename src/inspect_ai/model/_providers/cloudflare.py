@@ -5,17 +5,19 @@ import httpx
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai.model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._util import (
+from ...model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
+from .._model_output import ChatCompletionChoice
+from .util import (
+    ChatAPIHandler,
+    Llama31Handler,
     chat_api_input,
     chat_api_request,
     is_chat_api_rate_limit,
+    model_base_url,
 )
-from .util import model_base_url
 
-# Cloudflare supported models:
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
 
 
@@ -68,7 +70,7 @@ class CloudFlareAPI(ModelAPI):
         json: dict[str, Any] = dict(**self.model_args)
         if config.max_tokens is not None:
             json["max_tokens"] = config.max_tokens
-        json["messages"] = chat_api_input(input)
+        json["messages"] = chat_api_input(input, tools, self.chat_api_handler())
 
         # make the call
         response = await chat_api_request(
@@ -82,8 +84,17 @@ class CloudFlareAPI(ModelAPI):
 
         # handle response
         if response["success"]:
-            return ModelOutput.from_content(
-                model=self.model_name, content=response["result"]["response"]
+            content = response["result"]["response"]
+            return ModelOutput(
+                model=self.model_name,
+                choices=[
+                    ChatCompletionChoice(
+                        message=self.chat_api_handler().parse_assistent_response(
+                            content, tools
+                        ),
+                        stop_reason="stop",
+                    )
+                ],
             )
         else:
             error = str(response.get("errors", "Unknown"))
@@ -102,3 +113,9 @@ class CloudFlareAPI(ModelAPI):
     @override
     def max_tokens(self) -> int:
         return DEFAULT_MAX_TOKENS
+
+    def chat_api_handler(self) -> ChatAPIHandler:
+        if "llama" in self.model_name.lower():
+            return Llama31Handler()
+        else:
+            return ChatAPIHandler()

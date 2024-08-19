@@ -14,20 +14,20 @@ For each of these, you can create an extension within a Python package, and then
 
 ## Model APIs {#sec-model-api-extensions}
 
-You can add a model provider by deriving a new class from `ModelAPI` and adding the `@modelapi` decorator to it. For example:
+You can add a model provider by deriving a new class from `ModelAPI` and then creating a function decorated by `@modelapi` that returns the class. These are typically implemented in separate files (for reasons described below):
 
-``` python
-@modelapi(name="custom")
+```{.python filename="custom.py"}
 class CustomModelAPI(ModelAPI):
     def __init__(
         self, 
         model_name: str,
         base_url: str | None = None,
         api_key: str | None = None,
+        api_key_vars: list[str] = [],
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any
     ) -> None:
-        super().__init__(model_name, base_url, api_key, config)
+        super().__init__(model_name, base_url, api_key, api_key_vars, config)
   
     async def generate(
         self,
@@ -38,6 +38,17 @@ class CustomModelAPI(ModelAPI):
     ) -> ModelOutput:
         ...
 ```
+
+```{.python filename="providers.py"}
+@modelapi(name="custom")
+def custom():
+    from .custom import CustomModelAPI
+
+    return CustomModelAPI
+```
+
+
+The layer of indirection (creating a function that returns a ModelAPI class) is done so that you can separate the registration of models from the importing of libraries they require (important for limiting dependencies). You can see this used within Inspect to make all model package dependencies optional [here](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_providers/providers.py). With this scheme, pacakges required to interace with models (e.g. `openai`, `anthropic`, `vllm`, etc.) are only imported when their model API type is actually used.
 
 The `__init__()` method *must* call the `super().__init__()` method, and typically instantiates the model client library.
 

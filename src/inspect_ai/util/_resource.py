@@ -84,6 +84,10 @@ def resource(
             except (ValueError, OSError):
                 return resource
 
+            # check if there is a path (otherwise return the str)
+            if len(path) == 0:
+                return resource
+
             # return it if it exists (otherwise return the str)
             try:
                 fs = filesystem(path)

@@ -244,6 +244,7 @@ const VerticalMetric = ({ metric, isFirst }) => {
 
   return html`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
     <div
+      class="vertical-metric-label"
       style=${{
         fontSize: "0.8rem",
         fontWeight: "200",
@@ -258,8 +259,9 @@ const VerticalMetric = ({ metric, isFirst }) => {
     </div>
     ${reducer_component}
     <div
+      class="vertical-metric-value"
       style=${{
-        fontSize: "1.5rem",
+        fontSize: "1.1rem",
         fontWeight: "500",
         textAlign: "center",
       }}

@@ -118,7 +118,7 @@ def tool(
     """
     if prompt:
         print(prompt)
-        logger.warn(
+        logger.warning(
             "WARNING: The prompt parameter is deprecated (please relocate "
             + "to the tool function's description doc comment)"
         )

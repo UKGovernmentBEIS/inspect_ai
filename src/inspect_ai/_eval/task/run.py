@@ -112,7 +112,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     model_name = ModelName(model)
     epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
     sandbox_cleanup = config.sandbox_cleanup is not False
-    log_images = config.log_images is not False
+    log_images = config.log_images is True
     log_samples = config.log_samples is not False
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
@@ -386,6 +386,7 @@ async def task_run_sample(
                 if score_result is not None:
                     sample_score = SampleScore(
                         value=score_result.value,
+                        answer=score_result.answer,
                         explanation=score_result.explanation,
                         metadata=score_result.metadata,
                         sample_id=sample.id,

@@ -4,6 +4,7 @@ export const icons = {
   arrows: {
     right: "bi bi-arrow-right",
     down: "bi bi-arrow-down",
+    up: "bi bi-arrow-up",
   },
   "collapse-all": "bi bi-arrows-collapse",
   "collapse-up": "bi bi-chevron-up",
