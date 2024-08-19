@@ -11,7 +11,7 @@ Based on: https://github.com/openai/simple-evals/blob/main/mmlu_eval.py
 inspect eval mmlu.py --limit 500
 
 # add chain of thought
-inspect eval mmlu.p --limit 500 -T cot=true
+inspect eval mmlu.py --limit 500 -T cot=true
 
 # eval selected subjects
 inspect eval mmlu.py -T subjects=anatomy
