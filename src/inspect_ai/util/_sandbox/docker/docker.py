@@ -302,7 +302,6 @@ async def container_working_dir(
     if result.success:
         return result.stdout.strip()
     else:
-        logger.warning(
             f"Failed to get working directory for docker container '{service}': "
             + f"{result.stderr}"
         )
