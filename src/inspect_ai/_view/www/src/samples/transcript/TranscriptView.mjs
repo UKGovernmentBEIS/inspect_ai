@@ -11,24 +11,18 @@ import { ScoreEventView } from "./ScoreEventView.mjs";
 import { ToolEventView } from "./ToolEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 
-const kContentProtocol = "tc://";
-
 /**
  * Renders the TranscriptView component.
  *
  * @param {Object} params - The parameters for the component.
  * @param {string} params.id - The identifier for this view
- * @param {import("../../types/log").EvalEvents} params.evalEvents - The transcript events to display.
+ * @param {import("../../types/log").Events} params.events - The transcript events to display.
  * @param {import("./TranscriptState.mjs").StateManager} params.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export const TranscriptView = ({ id, evalEvents, stateManager }) => {
-  // Resolve content Uris (content may be stored separately to avoid
-  // repetition - it will be address with a uri)
-  const denormalizedEvents = resolveEventContent(evalEvents);
-
+export const TranscriptView = ({ id, events, stateManager }) => {
   // Normalize Events themselves
-  const resolvedEvents = fixupEventStream(denormalizedEvents);
+  const resolvedEvents = fixupEventStream(events);
 
   let depth = 0;
   const rows = resolvedEvents.map((event, index) => {
@@ -142,65 +136,16 @@ export const renderNode = (id, event, depth, stateManager) => {
       />`;
 
     case "tool":
-      return html`<${ToolEventView} depth=${depth} id=${id} event=${event} />`;
+      return html`<${ToolEventView}
+        depth=${depth}
+        id=${id}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
 
     default:
       return html``;
   }
-};
-
-/**
- * Resolves event content
- *
- * @param {import("../../types/log").EvalEvents} evalEvents - The transcript events to display.
- * @returns {import("../../types/log").Events} Events with resolved content.
- */
-const resolveEventContent = (evalEvents) => {
-  return evalEvents.events.map((e) => {
-    if (e.event === "model") {
-      //@ts-ignore
-      e.input = resolveValue(e.input, evalEvents);
-      //@ts-ignore
-      e.call = resolveValue(e.call, evalEvents);
-      //@ts-ignore
-      e.output = resolveValue(e.output, evalEvents);
-    } else if (e.event === "state") {
-      e.changes = e.changes.map((change) => {
-        change.value = resolveValue(change.value, evalEvents);
-        return change;
-      });
-    } else if (e.event === "sample_init") {
-      //@ts-ignore
-      e.state["messages"] = resolveValue(e.state["messages"], evalEvents);
-    }
-    return e;
-  });
-};
-
-/**
- * Resolves individual value
- *
- * @param {unknown} value - The value to resolve.
- * @param {import("../../types/log").EvalEvents} evalEvents - The transcript events to display.
- * @returns {unknown} Value with resolved content.
- */
-const resolveValue = (value, evalEvents) => {
-  if (Array.isArray(value)) {
-    return value.map((v) => resolveValue(v, evalEvents));
-  } else if (value && typeof value === "object") {
-    /** @type {Record<string, unknown>} */
-    const resolvedObject = {};
-    for (const key of Object.keys(value)) {
-      //@ts-ignore
-      resolvedObject[key] = resolveValue(value[key], evalEvents);
-    }
-    return resolvedObject;
-  } else if (typeof value === "string") {
-    if (value.startsWith(kContentProtocol)) {
-      return evalEvents.content[value.replace(kContentProtocol, "")];
-    }
-  }
-  return value;
 };
 
 /**

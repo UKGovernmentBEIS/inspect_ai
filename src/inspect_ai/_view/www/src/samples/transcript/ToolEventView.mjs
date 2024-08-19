@@ -4,6 +4,7 @@ import { EventPanel } from "./EventPanel.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { ExpandablePanel } from "../../components/ExpandablePanel.mjs";
 import { resolveToolInput, ToolCallView } from "../../components/Tools.mjs";
+import { TranscriptView } from "./TranscriptView.mjs";
 
 /**
  * Renders the InfoEventView component.
@@ -12,9 +13,10 @@ import { resolveToolInput, ToolCallView } from "../../components/Tools.mjs";
  * @param { string  } props.id - The id of this event.
  * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").ToolEvent} props.event - The event object to display.
+ * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ToolEventView = ({ id, depth, event }) => {
+export const ToolEventView = ({ id, depth, stateManager, event }) => {
   // Extract tool input
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
@@ -38,5 +40,15 @@ export const ToolEventView = ({ id, depth, event }) => {
       mode="compact"
       />
   </div>
+  ${
+    event.events.length > 0
+      ? html`<${TranscriptView}
+          id="${id}-subtask"
+          name="Transcript"
+          events=${event.events}
+          stateManager=${stateManager}
+        />`
+      : ""
+  }
   </${EventPanel}>`;
 };

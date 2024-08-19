@@ -21,11 +21,11 @@ export const SubtaskEventView = ({ id, depth, event, stateManager }) => {
     <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
       ${
-        event.events.events.length > 0
+        event.events.length > 0
           ? html`<${TranscriptView}
               id="${id}-subtask"
               name="Transcript"
-              evalEvents=${event.events}
+              events=${event.events}
               stateManager=${stateManager}
             />`
           : ""
