@@ -15653,11 +15653,11 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
       />
   </div>
   ${event.events.length > 0 ? m$1`<${TranscriptView}
-        id="${id}-subtask"
-        name="Transcript"
-        events=${event.events}
-        stateManager=${stateManager}
-      />` : ""}
+          id="${id}-subtask"
+          name="Transcript"
+          events=${event.events}
+          stateManager=${stateManager}
+        />` : ""}
   </${EventPanel}>`;
 };
 const TranscriptView = ({ id, events, stateManager }) => {
@@ -15752,7 +15752,12 @@ const renderNode = (id, event, depth, stateManager) => {
         stateManager=${stateManager}
       />`;
     case "tool":
-      return m$1`<${ToolEventView} depth=${depth} id=${id} event=${event} stateManager=${stateManager} />`;
+      return m$1`<${ToolEventView}
+        depth=${depth}
+        id=${id}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
     default:
       return m$1``;
   }
@@ -16459,21 +16464,12 @@ const SampleTranscript = ({ id, evalEvents }) => {
   />`;
 };
 const resolveEventContent = (evalEvents) => {
-  return evalEvents.events.map((e2) => {
-    if (e2.event === "model") {
-      e2.input = resolveValue(e2.input, evalEvents);
-      e2.call = resolveValue(e2.call, evalEvents);
-      e2.output = resolveValue(e2.output, evalEvents);
-    } else if (e2.event === "state") {
-      e2.changes = e2.changes.map((change) => {
-        change.value = resolveValue(change.value, evalEvents);
-        return change;
-      });
-    } else if (e2.event === "sample_init") {
-      e2.state["messages"] = resolveValue(e2.state["messages"], evalEvents);
-    }
-    return e2;
-  });
+  return (
+    /** @type {import("../types/log").Events} */
+    evalEvents.events.map((e2) => {
+      return resolveValue(e2, evalEvents);
+    })
+  );
 };
 const resolveValue = (value, evalEvents) => {
   if (Array.isArray(value)) {
