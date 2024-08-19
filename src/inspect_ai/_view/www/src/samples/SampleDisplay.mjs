@@ -76,7 +76,7 @@ export const SampleDisplay = ({
     }>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
         sample.messages
-      } style=${{ paddingLeft: ".8em" }}/>
+      } style=${{ paddingLeft: ".8em", paddingTop: "1em" }}/>
     </${TabPanel}>`,
   ];
 

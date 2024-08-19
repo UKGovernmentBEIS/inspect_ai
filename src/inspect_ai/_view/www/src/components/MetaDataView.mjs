@@ -49,10 +49,10 @@ export const MetaDataView = ({
     fontWeight: "300",
     whiteSpace: "pre-wrap",
     wordWrap: "anywhere",
-    fontSize: FontSize.base,
+    fontSize: FontSize.small,
   };
   const cellKeyTextStyle = {
-    fontSize: FontSize.base,
+    fontSize: FontSize.small,
   };
 
   // Configure options for

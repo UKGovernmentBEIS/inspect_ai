@@ -13201,7 +13201,7 @@ const ChatView = ({ id, messages, style }) => {
     collapsedMessages.unshift(systemMessage);
   }
   const result = m$1`
-    <div style=${{ paddingTop: "1em", ...style }}>
+    <div style=${style}>
       ${collapsedMessages.map((msg) => {
     return m$1`<${ChatMessage}
           id=${`${id}-chat-messages`}
@@ -13582,10 +13582,10 @@ const MetaDataView = ({
     fontWeight: "300",
     whiteSpace: "pre-wrap",
     wordWrap: "anywhere",
-    fontSize: FontSize.base
+    fontSize: FontSize.small
   };
   const cellKeyTextStyle = {
-    fontSize: FontSize.base
+    fontSize: FontSize.small
   };
   tableOptions = tableOptions || "sm";
   const tblClz = (tableOptions || "").split(",").map((option) => {
@@ -14942,7 +14942,8 @@ const MetaDataGrid = ({
   classes,
   context,
   style,
-  expanded
+  expanded,
+  plain
 }) => {
   const baseId = "metadata-grid";
   const cellKeyStyle = {
@@ -14977,7 +14978,7 @@ const MetaDataGrid = ({
       <div
         style=${{
       gridColumn: "1 / -1",
-      borderBottom: "solid 1px var(--bs-light-border-subtle"
+      borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
     }}
       ></div>
       <div
@@ -15013,17 +15014,19 @@ const isBase64 = (str) => {
   const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
   return base64Pattern.test(str);
 };
-const EventSection = ({ title, children }) => {
+const EventSection = ({ title, style, children }) => {
   return m$1`<div
     style=${{
-    margin: "1em 0 0 0"
+    margin: "1em 0 0 0",
+    ...style
   }}
   >
     <div
       style=${{
     fontSize: FontSize.smaller,
     ...TextStyle.label,
-    fontWeight: 600
+    fontWeight: 600,
+    paddingBottom: "0.3em"
   }}
     >
       ${title}
@@ -15422,10 +15425,13 @@ const ModelEventView = ({ id, depth, event }) => {
     return choice.message;
   });
   const entries = { ...event.config };
-  if (event.tools) {
-    entries["tools"] = event.tools;
-    entries["tool_choice"] = event.tool_choice;
-  }
+  entries["tool_choice"] = event.tool_choice;
+  delete entries["max_connections"];
+  const tableSectionStyle = {
+    width: "fit-content",
+    alignSelf: "start",
+    justifySelf: "start"
+  };
   return m$1`
   <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
   
@@ -15433,22 +15439,33 @@ const ModelEventView = ({ id, depth, event }) => {
     <${ChatView}
       id="${id}-model-output"
       messages=${[...outputMessages || []]}
+      style=${{ paddingTop: "1em" }}
       />
     </div>
 
     <div name="All" style=${{ margin: "1em 0" }}>
 
-      <${EventSection} title="Configuration">
-        <${MetaDataGrid} entries=${entries}/>
+      <div style=${{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr)", columnGap: "1em" }}>
+      <div>
+      <${EventSection} title="Configuration" style=${tableSectionStyle}>
+        <${MetaDataGrid} entries=${entries} plain=${true}/>
       </${EventSection}>
+
+      <${EventSection} title="Tools" style=${tableSectionStyle}>
+        <${ToolsConfig} tools=${event.tools}/>
+      </${EventSection}>
+
+      </div>
+      <${EventSection} title="Usage" style=${tableSectionStyle}>
+        <${MetaDataGrid} entries=${event.output.usage} plain=${true}/>
+      </${EventSection}>
+      </div>
+
       <${EventSection} title="Messages">
         <${ChatView}
           id="${id}-model-input-full"
           messages=${[...event.input, ...outputMessages || []]}
           />      
-      </${EventSection}>
-      <${EventSection} title="Usage">
-        <${MetaDataGrid} entries=${event.output.usage}/>
       </${EventSection}>
 
     </div>
@@ -15505,6 +15522,23 @@ const APICodeCell = ({ id, contents }) => {
   }}>
       </code>
       </pre>
+  </div>`;
+};
+const ToolsConfig = ({ tools }) => {
+  const toolEls = tools.map((tool) => {
+    return m$1`<div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+        ${tool.name}
+      </div>
+      <div>${tool.description}</div>`;
+  });
+  return m$1`<div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "1em"
+  }}
+  >
+    ${toolEls}
   </div>`;
 };
 const EventRow = ({ title, icon, depth, children }) => {
@@ -16498,7 +16532,7 @@ const SampleDisplay = ({
   const tabs = [
     m$1`
     <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
-      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages} style=${{ paddingLeft: ".8em" }}/>
+      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages} style=${{ paddingLeft: ".8em", paddingTop: "1em" }}/>
     </${TabPanel}>`
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {

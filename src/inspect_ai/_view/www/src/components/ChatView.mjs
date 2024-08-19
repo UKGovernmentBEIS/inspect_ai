@@ -61,7 +61,7 @@ export const ChatView = ({ id, messages, style }) => {
   }
 
   const result = html`
-    <div style=${{ paddingTop: "1em", ...style }}>
+    <div style=${style}>
       ${collapsedMessages.map((msg) => {
         return html`<${ChatMessage}
           id=${`${id}-chat-messages`}

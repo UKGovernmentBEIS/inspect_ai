@@ -13,6 +13,7 @@ import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
  * @param {Object[]|Record<string, string>} props.entries - The metadata entries to display.
  * @param {Object} [props.context] - Context for rendering the entries.
  * @param {boolean} [props.expanded] - Whether to render the entries in expanded mode.
+ * @param {boolean} [props.plain] - Whether to render the entries in plain mode.
  * @param {boolean} [props.compact] - Whether to render the table in compact mode.
  * @returns {import("preact").JSX.Element} The component.
  */
@@ -23,6 +24,7 @@ export const MetaDataGrid = ({
   context,
   style,
   expanded,
+  plain,
 }) => {
   const baseId = "metadata-grid";
 
@@ -70,7 +72,7 @@ export const MetaDataGrid = ({
       <div
         style=${{
           gridColumn: "1 / -1",
-          borderBottom: "solid 1px var(--bs-light-border-subtle",
+          borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`,
         }}
       ></div>
       <div
