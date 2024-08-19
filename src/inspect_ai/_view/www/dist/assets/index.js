@@ -15142,9 +15142,9 @@ const Tools = ({ toolDefinitions }) => {
 };
 const Tool = ({ toolName, toolArgs }) => {
   const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
-  return m$1`<code style=${{ fontSize: FontSize.small }}
+  return m$1`<div><code style=${{ fontSize: FontSize.small, padding: "0" }}
     >${functionCall}</code
-  >`;
+  ></div>`;
 };
 const StateDiffView = ({ changes, style }) => {
   const mutations = changes.map((change) => {

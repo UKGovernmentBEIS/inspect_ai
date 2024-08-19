@@ -134,7 +134,9 @@ export const Tool = ({ toolName, toolArgs }) => {
     toolArgs && toolArgs.length > 0
       ? `${toolName}(${toolArgs.join(", ")})`
       : toolName;
-  return html`<code style=${{ fontSize: FontSize.small }}
-    >${functionCall}</code
-  >`;
+  return html`<div>
+    <code style=${{ fontSize: FontSize.small, padding: "0" }}
+      >${functionCall}</code
+    >
+  </div>`;
 };
