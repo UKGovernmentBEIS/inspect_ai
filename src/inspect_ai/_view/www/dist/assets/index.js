@@ -15289,7 +15289,7 @@ const summarizeChanges = (changes) => {
 };
 const StepEventView = ({ depth, event }) => {
   const descriptor = stepDescriptor(event);
-  if (event.action === "end" || event.type === "generate_loop") {
+  if (event.action === "end") {
     if (descriptor.endSpace) {
       return m$1`<div style=${{ height: "1.5em" }}></div>`;
     } else {
@@ -15377,10 +15377,10 @@ const SubtaskEventView = ({ id, depth, event, stateManager }) => {
   return m$1`
     <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
-      ${event.events.events.length > 0 ? m$1`<${TranscriptView}
+      ${event.events.length > 0 ? m$1`<${TranscriptView}
               id="${id}-subtask"
               name="Transcript"
-              evalEvents=${event.events}
+              events=${event.events}
               stateManager=${stateManager}
             />` : ""}
     </${EventPanel}>`;
@@ -15630,7 +15630,7 @@ const ScoreEventView = ({ id, depth, event }) => {
 
   </${EventPanel}>`;
 };
-const ToolEventView = ({ id, depth, event }) => {
+const ToolEventView = ({ id, depth, stateManager, event }) => {
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
@@ -15652,12 +15652,16 @@ const ToolEventView = ({ id, depth, event }) => {
       mode="compact"
       />
   </div>
+  ${event.events.length > 0 ? m$1`<${TranscriptView}
+          id="${id}-subtask"
+          name="Transcript"
+          events=${event.events}
+          stateManager=${stateManager}
+        />` : ""}
   </${EventPanel}>`;
 };
-const kContentProtocol = "tc://";
-const TranscriptView = ({ id, evalEvents, stateManager }) => {
-  const denormalizedEvents = resolveEventContent(evalEvents);
-  const resolvedEvents = fixupEventStream(denormalizedEvents);
+const TranscriptView = ({ id, events, stateManager }) => {
+  const resolvedEvents = fixupEventStream(events);
   let depth = 0;
   const rows = resolvedEvents.map((event, index) => {
     const row = m$1`
@@ -15677,7 +15681,7 @@ const TranscriptView = ({ id, evalEvents, stateManager }) => {
         </div>
       </div>
     `;
-    if (event.event === "step" && event.type !== "generate_loop") {
+    if (event.event === "step") {
       if (event.action === "end") {
         depth = depth - 1;
       } else {
@@ -15748,43 +15752,15 @@ const renderNode = (id, event, depth, stateManager) => {
         stateManager=${stateManager}
       />`;
     case "tool":
-      return m$1`<${ToolEventView} depth=${depth} id=${id} event=${event} />`;
+      return m$1`<${ToolEventView}
+        depth=${depth}
+        id=${id}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
     default:
       return m$1``;
   }
-};
-const resolveEventContent = (evalEvents) => {
-  return evalEvents.events.map((e2) => {
-    if (e2.event === "model") {
-      e2.input = resolveValue(e2.input, evalEvents);
-      e2.call = resolveValue(e2.call, evalEvents);
-      e2.output = resolveValue(e2.output, evalEvents);
-    } else if (e2.event === "state") {
-      e2.changes = e2.changes.map((change) => {
-        change.value = resolveValue(change.value, evalEvents);
-        return change;
-      });
-    } else if (e2.event === "sample_init") {
-      e2.state["messages"] = resolveValue(e2.state["messages"], evalEvents);
-    }
-    return e2;
-  });
-};
-const resolveValue = (value, evalEvents) => {
-  if (Array.isArray(value)) {
-    return value.map((v2) => resolveValue(v2, evalEvents));
-  } else if (value && typeof value === "object") {
-    const resolvedObject = {};
-    for (const key2 of Object.keys(value)) {
-      resolvedObject[key2] = resolveValue(value[key2], evalEvents);
-    }
-    return resolvedObject;
-  } else if (typeof value === "string") {
-    if (value.startsWith(kContentProtocol)) {
-      return evalEvents.content[value.replace(kContentProtocol, "")];
-    }
-  }
-  return value;
 };
 const fixupEventStream = (events) => {
   const initEventIndex = events.findIndex((e2) => {
@@ -16477,13 +16453,39 @@ const initStateManager = () => {
     }
   };
 };
+const kContentProtocol = "tc://";
 const SampleTranscript = ({ id, evalEvents }) => {
   const stateManager = initStateManager();
+  const denormalizedEvents = resolveEventContent(evalEvents);
   return m$1`<${TranscriptView}
     id=${id}
-    evalEvents=${evalEvents}
+    events=${denormalizedEvents}
     stateManager=${stateManager}
   />`;
+};
+const resolveEventContent = (evalEvents) => {
+  return (
+    /** @type {import("../types/log").Events} */
+    evalEvents.events.map((e2) => {
+      return resolveValue(e2, evalEvents);
+    })
+  );
+};
+const resolveValue = (value, evalEvents) => {
+  if (Array.isArray(value)) {
+    return value.map((v2) => resolveValue(v2, evalEvents));
+  } else if (value && typeof value === "object") {
+    const resolvedObject = {};
+    for (const key2 of Object.keys(value)) {
+      resolvedObject[key2] = resolveValue(value[key2], evalEvents);
+    }
+    return resolvedObject;
+  } else if (typeof value === "string") {
+    if (value.startsWith(kContentProtocol)) {
+      return evalEvents.content[value.replace(kContentProtocol, "")];
+    }
+  }
+  return value;
 };
 const InlineSampleDisplay = ({
   index,
