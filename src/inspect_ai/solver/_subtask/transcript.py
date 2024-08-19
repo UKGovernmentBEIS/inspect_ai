@@ -16,9 +16,9 @@ from pydantic import BaseModel, Field, JsonValue, field_serializer
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
 from inspect_ai.dataset._dataset import Sample
-from inspect_ai.log._log import EvalError
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig

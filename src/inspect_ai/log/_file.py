@@ -12,10 +12,10 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_BUFFER_LOCAL,
     DEFAULT_LOG_BUFFER_REMOTE,
 )
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileInfo, absolute_file_path, file, filesystem
 
 from ._log import (
-    EvalError,
     EvalLog,
     EvalPlan,
     EvalResults,
