@@ -139,10 +139,11 @@ export const ToolInput = ({ type, contents }) => {
  * Renders the ToolOutput component.
  *
  * @param {Object} props - The parameters for the component.
- * @param {string | object | Array} props.output - The tool output
+ * @param {string | Object | Array} props.output - The tool output
+ * @param {Object} props.style - The style for the element
  * @returns {import("preact").JSX.Element | string} The ToolOutput component.
  */
-export const ToolOutput = ({ output }) => {
+export const ToolOutput = ({ output, style }) => {
   if (!output) {
     return "";
   }
@@ -157,6 +158,7 @@ export const ToolOutput = ({ output }) => {
       padding: "0.5em 0.5em 0.5em 0.5em",
       whiteSpace: "pre-wrap",
       marginBottom: "0",
+      ...style,
     }}
   ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
       ${output}

@@ -9,6 +9,7 @@ import {
   ToolOutput,
 } from "../../components/Tools.mjs";
 import { TranscriptView } from "./TranscriptView.mjs";
+import { FontSize } from "../../appearance/Fonts.mjs";
 
 /**
  * Renders the ToolEventView component.
@@ -32,7 +33,7 @@ export const ToolEventView = ({ id, depth, stateManager, event }) => {
   <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
   <div name="Summary">
     <${ExpandablePanel}>
-      <${ToolOutput} output=${event.result} type=${event.function}/>
+      ${event.result ? html`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : html`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
     </${ExpandablePanel}>
   </div>
   <div name="Transcript">

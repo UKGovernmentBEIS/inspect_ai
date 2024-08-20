@@ -13374,7 +13374,7 @@ const ToolInput = ({ type, contents }) => {
         </code>
     </pre>`;
 };
-const ToolOutput = ({ output }) => {
+const ToolOutput = ({ output, style }) => {
   if (!output) {
     return "";
   }
@@ -13386,7 +13386,8 @@ const ToolOutput = ({ output }) => {
     marginLeft: "2px",
     padding: "0.5em 0.5em 0.5em 0.5em",
     whiteSpace: "pre-wrap",
-    marginBottom: "0"
+    marginBottom: "0",
+    ...style
   }}
   ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
       ${output}
@@ -17328,7 +17329,7 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
   <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
   <div name="Summary">
     <${ExpandablePanel}>
-      <${ToolOutput} output=${event.result} type=${event.function}/>
+      ${event.result ? m$1`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
     </${ExpandablePanel}>
   </div>
   <div name="Transcript">
