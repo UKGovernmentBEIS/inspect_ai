@@ -423,7 +423,7 @@ async def task_run_sample(
 
         # score it
         results: dict[str, SampleScore] = {}
-        if scorers:
+        if scorers and error is None:
             for scorer in scorers:
                 scorer_name = unique_scorer_name(scorer, list(results.keys()))
                 with transcript().step(name=scorer_name, type="scorer"):
