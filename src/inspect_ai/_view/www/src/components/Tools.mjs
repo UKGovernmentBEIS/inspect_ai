@@ -64,7 +64,7 @@ export const ToolCallView = ({
             opacity: "0.4",
           }}
         ></i>`;
-  const codeIndent = mode === "compact" ? "" : "1.5em";
+  const codeIndent = mode === "compact" ? "" : "";
 
   return html`<p>
         ${icon}
