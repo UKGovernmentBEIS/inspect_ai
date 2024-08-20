@@ -13927,12 +13927,17 @@ const MetaDataView = ({
   const tblClz = (tableOptions || "").split(",").map((option) => {
     return `table-${option}`;
   });
-  if (entries && !Array.isArray(entries)) {
-    entries = Object.entries(entries || {}).map(([key2, value]) => {
-      return { name: key2, value };
-    });
+  let coercedEntries;
+  if (entries) {
+    if (Array.isArray(entries)) {
+      coercedEntries = entries;
+    } else {
+      coercedEntries = Object.entries(entries || {}).map(([key2, value]) => {
+        return { name: key2, value };
+      });
+    }
   }
-  const entryEls = (entries || []).map((entry, index) => {
+  const entryEls = (coercedEntries || []).map((entry, index) => {
     const id2 = `${baseId}-value-${index}`;
     return m$1`<tr class="${baseId}-row">
       <td
@@ -14189,7 +14194,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
     config,
     metadata
   );
-  const configColumnStyle = cols.length === 1 ? oneColumnStyle : twoColumnStyle;
+  const configColumnStyle = cols === 1 ? oneColumnStyle : twoColumnStyle;
   metadataColumns.push({
     title: "Task Information",
     style: configColumnStyle,
@@ -18976,8 +18981,14 @@ const SamplesTab = (props) => {
   const [selectedIndex, setSelectedIndex] = h(0);
   const [filteredSamples, setFilteredSamples] = h([]);
   const [items, setItems] = h([]);
-  const sampleListRef = A();
-  const sampleDialogRef = A();
+  const sampleListRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
+  const sampleDialogRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
   y(() => {
     setFilteredSamples(
       (samples || []).filter((sample) => {
@@ -21645,8 +21656,14 @@ const kPrismRenderMaxSize = 25e4;
 const kJsonMaxSize = 1e7;
 const WorkSpace = (props) => {
   var _a, _b;
-  const divRef = A();
-  const codeRef = A();
+  const divRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
+  const codeRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
   const workspaceLog = props.log;
   const [currentTaskId, setCurrentTaskId] = h(
     (_b = (_a = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.run_id

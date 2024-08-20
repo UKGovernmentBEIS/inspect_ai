@@ -34,8 +34,8 @@ const kPrismRenderMaxSize = 250000;
 const kJsonMaxSize = 10000000;
 
 export const WorkSpace = (props) => {
-  const divRef = useRef();
-  const codeRef = useRef();
+  const divRef = useRef(/** @type {HTMLElement|null} */ (null));
+  const codeRef = useRef(/** @type {HTMLElement|null} */ (null));
 
   // alias the log for the workspace
   const workspaceLog = props.log;
