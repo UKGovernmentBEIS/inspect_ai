@@ -17,13 +17,15 @@ import { ApplicationIcons } from "../../../appearance/Icons.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const StateEventView = ({ id, event, depth, stateManager }) => {
+  const startingState = stateManager.getState();
   const resolvedState = stateManager.applyChanges(event.changes);
 
   const summary = summarizeChanges(event.changes);
 
   const tabs = [
     html`<${StateDiffView}
-      changes=${event.changes}
+      starting=${startingState}
+      ending=${resolvedState}
       name="Diff"
       style=${{ margin: "1em 0" }}
     />`,

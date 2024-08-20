@@ -1,5 +1,6 @@
 import { html } from "htm/preact";
 import { MarkdownDiv } from "./MarkdownDiv.mjs";
+import { ToolOutput } from "./Tools.mjs";
 
 export const MessageContent = (props) => {
   const { contents } = props;
@@ -53,16 +54,7 @@ const messageRenderers = {
   },
   tool: {
     render: (content) => {
-      return html`<pre
-        style=${{
-          marginLeft: "2px",
-          padding: "0.5em 0.5em 0.5em 0.5em",
-          whiteSpace: "pre-wrap",
-          marginBottom: "0",
-        }}
-      ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${content.text}
-      </code></pre>`;
+      return html`<${ToolOutput} output=${content.text} />`;
     },
   },
 };

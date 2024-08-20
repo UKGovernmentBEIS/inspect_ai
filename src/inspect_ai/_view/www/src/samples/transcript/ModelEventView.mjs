@@ -1,5 +1,10 @@
 // @ts-check
 /// <reference path="../../types/prism.d.ts" />
+import Prism from "prismjs";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-json";
+
 import { html } from "htm/preact";
 import { useRef } from "preact/hooks";
 import { ChatView } from "../../components/ChatView.mjs";
@@ -8,7 +13,6 @@ import { EventSection } from "./EventSection.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-import Prism from "prismjs";
 
 /**
  * Renders the StateEventView component.
@@ -53,20 +57,19 @@ export const ModelEventView = ({ id, depth, event }) => {
 
     <div name="All" style=${{ margin: "1em 0" }}>
 
-      <div style=${{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr)", columnGap: "1em" }}>
-      <div>
+      <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
       <${EventSection} title="Configuration" style=${tableSectionStyle}>
         <${MetaDataGrid} entries=${entries} plain=${true}/>
       </${EventSection}>
 
-      <${EventSection} title="Tools" style=${tableSectionStyle}>
-        <${ToolsConfig} tools=${event.tools}/>
-      </${EventSection}>
-
-      </div>
       <${EventSection} title="Usage" style=${tableSectionStyle}>
         <${MetaDataGrid} entries=${event.output.usage} plain=${true}/>
       </${EventSection}>
+
+      <${EventSection} title="Tools" style=${{ gridColumn: "-1/1", ...tableSectionStyle }}>
+        <${ToolsConfig} tools=${event.tools}/>
+      </${EventSection}>
+
       </div>
 
       <${EventSection} title="Messages">

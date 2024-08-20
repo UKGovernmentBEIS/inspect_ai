@@ -1,6 +1,10 @@
 // @ts-check
 /// <reference path="../types/prism.d.ts" />
 import Prism from "prismjs";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-json";
+
 import { useMemo, useRef } from "preact/hooks";
 import { html } from "htm/preact";
 
@@ -64,7 +68,7 @@ export const ToolCallView = ({
             opacity: "0.4",
           }}
         ></i>`;
-  const codeIndent = mode === "compact" ? "" : "1.5em";
+  const codeIndent = mode === "compact" ? "" : "";
 
   return html`<p>
         ${icon}
@@ -129,6 +133,36 @@ export const ToolInput = ({ type, contents }) => {
         ${contents}
         </code>
     </pre>`;
+};
+
+/**
+ * Renders the ToolOutput component.
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string | Object | Array} props.output - The tool output
+ * @param {Object} props.style - The style for the element
+ * @returns {import("preact").JSX.Element | string} The ToolOutput component.
+ */
+export const ToolOutput = ({ output, style }) => {
+  if (!output) {
+    return "";
+  }
+
+  if (typeof output === "object" || Array.isArray(output)) {
+    output = JSON.stringify(output);
+  }
+
+  return html`<pre
+    style=${{
+      marginLeft: "2px",
+      padding: "0.5em 0.5em 0.5em 0.5em",
+      whiteSpace: "pre-wrap",
+      marginBottom: "0",
+      ...style,
+    }}
+  ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
+      ${output}
+      </code></pre>`;
 };
 
 /**

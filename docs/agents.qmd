@@ -165,6 +165,10 @@ def generate_ctf():
 
 In this example we rely on the default `generate()` tool calling behaviour (`"loop"`). However, you can also imaging combining tool filtering with the more tailored tool calling logic described in [Tool Calls](#sec-tool-calls).
 
+### Agents API
+
+For more sophisticated agents, Inspect offers several additional advanced APIs for state management, sub-agents, and fine granined logging. See the [Agents API](agents-api.qmd) article for additional details.
+
 ## Agent Libraries {#sec-agent-libraries}
 
 You can also adapt code from a research paper or 3rd party agent library to run within an Inspect solver. Below we'll provide an example of doing this for a [LangChain Agent](https://python.langchain.com/v0.2/docs/tutorials/agents/).
