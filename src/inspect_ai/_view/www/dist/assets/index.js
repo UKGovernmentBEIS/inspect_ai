@@ -15212,7 +15212,7 @@ const EventPanel = ({
     ${titleEl}
     ${!hasCollapse || !collapsed ? m$1` <div
           class="card-body tab-content"
-          style=${{ padding: 0, marginLeft: "2em" }}
+          style=${{ padding: 0, marginLeft: "0.5em" }}
         >
           ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
     return m$1`<div
