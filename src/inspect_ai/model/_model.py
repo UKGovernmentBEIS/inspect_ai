@@ -654,6 +654,8 @@ def record_model_usage(model: str, usage: ModelUsage) -> None:
         total_usage.input_tokens += usage.input_tokens
         total_usage.output_tokens += usage.output_tokens
         total_usage.total_tokens += usage.total_tokens
+        # if usage.input_tokens_cache_write is not None:
+
         model_usage[model] = total_usage
 
 

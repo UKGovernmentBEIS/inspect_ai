@@ -117,14 +117,14 @@ class AnthropicAPI(ModelAPI):
     ) -> ModelOutput:
         # generate
         try:
-            (system_message, tools_param, messages) = await resolve_chat_input(
+            (system_param, tools_param, messages) = await resolve_chat_input(
                 input, tools, config
             )
 
             message = await self.client.messages.create(
                 stream=False,
                 messages=messages,
-                system=system_message if system_message is not None else NOT_GIVEN,
+                system=system_param if system_param is not None else NOT_GIVEN,
                 stop_sequences=(
                     config.stop_seqs if config.stop_seqs is not None else NOT_GIVEN
                 ),
@@ -213,15 +213,19 @@ async def resolve_chat_input(
     input: list[ChatMessage],
     tools: list[ToolInfo],
     config: GenerateConfig,
-) -> Tuple[str | None, list[ToolParam], list[MessageParam]]:
+) -> Tuple[list[TextBlockParam] | None, list[ToolParam], list[MessageParam]]:
     # extract system message
-    system_message, messages = split_system_message(input, config)
+    system_messages, messages = split_system_messages(input, config)
 
     # some special handling for tools
     if len(tools) > 0:
         # encourage claude to show its thinking, see
         # https://docs.anthropic.com/claude/docs/tool-use#chain-of-thought-tool-use
-        system_message = f"{system_message}\n\nBefore answering, explain your reasoning step-by-step in tags."
+        system_messages.append(
+            ChatMessageSystem(
+                content="Before answering, explain your reasoning step-by-step in tags."
+            )
+        )
 
     # messages
     message_params = [(await message_param(message)) for message in messages]
@@ -232,7 +236,7 @@ async def resolve_chat_input(
     )
 
     # tools
-    tools_param = [
+    tools_params = [
         ToolParam(
             name=tool.name,
             description=tool.description,
@@ -241,7 +245,16 @@ async def resolve_chat_input(
         for tool in tools
     ]
 
-    return system_message, tools_param, message_params
+    # system messages
+    if len(system_messages) > 0:
+        system_param: list[TextBlockParam] | None = [
+            TextBlockParam(type="text", text=message.text)
+            for message in system_messages
+        ]
+    else:
+        system_param = None
+
+    return system_param, tools_params, message_params
 
 
 def consecutive_user_message_reducer(
@@ -441,26 +454,21 @@ def message_stop_reason(message: Message) -> StopReason:
             return "unknown"
 
 
-def split_system_message(
+def split_system_messages(
     input: list[ChatMessage], config: GenerateConfig
-) -> Tuple[str | None, list[ChatMessage]]:
+) -> Tuple[list[ChatMessageSystem], list[ChatMessage]]:
     # split messages
     system_messages = [m for m in input if isinstance(m, ChatMessageSystem)]
     messages = [m for m in input if not isinstance(m, ChatMessageSystem)]
 
-    # build system message
-    system_message = (
-        "\n\n".join([message.text for message in system_messages])
-        if len(system_messages) > 0
-        else None
-    )
-
     # prepend any config based system message
     if config.system_message:
-        system_message = f"{config.system_message}\n\n{system_message}"
+        system_messages = [
+            ChatMessageSystem(content=config.system_message)
+        ] + system_messages
 
     # return
-    return system_message, cast(list[ChatMessage], messages)
+    return system_messages, cast(list[ChatMessage], messages)
 
 
 async def message_param_content(
