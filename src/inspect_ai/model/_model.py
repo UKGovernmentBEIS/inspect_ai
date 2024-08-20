@@ -41,7 +41,7 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._generate_config import GenerateConfig
-from ._model_output import ModelOutput, ModelUsage
+from ._model_output import ModelCall, ModelOutput, ModelUsage
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,7 @@ class ModelAPI(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         """Generate output from the model.
 
         Args:
@@ -121,7 +121,9 @@ class ModelAPI(abc.ABC):
           config (GenerateConfig): Model configuration.
 
         Returns:
-           ModelOutput
+           ModelOutput or tuple[ModelOutput,ModelCall], the latter being
+           useful if you want the underlying model API call logged as
+           part of the ModelEvent.
         """
         ...
 
@@ -151,6 +153,16 @@ class ModelAPI(abc.ABC):
 
     def tools_required(self) -> bool:
         """Any tool use in a message stream means that tools must be passed."""
+        return False
+
+    def provides_event(self) -> bool:
+        """Indicates that this model provider yields a ModelEvent.
+
+        This is done so the code that wraps ModelAPI calls knows that it
+        doesn't need to record a ModelEvent. A model provider would provide
+        its own model events if it wanted to populate the raw request
+        and response fields of the ModelEvent (which only it knows about)
+        """
         return False
 
 
@@ -204,8 +216,15 @@ class Model:
         Returns:
            ModelOutput
         """
-        # merge with config from init
-        config = self.config.merge(config)
+        # base config for this model
+        base_config = self.config
+
+        # if we are the active_model then merge active generate config
+        if self == active_model():
+            base_config = base_config.merge(active_generate_config())
+
+        # merge passed config
+        config = base_config.merge(config)
 
         # provide max_tokens from the model api if required
         config.max_tokens = (
@@ -308,11 +327,26 @@ class Model:
                 if isinstance(existing, ModelOutput):
                     return existing
 
-            output = await self.api.generate(
+            result = await self.api.generate(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
+            )
+            if isinstance(result, tuple):
+                output, call = result
+            else:
+                output = result
+                call = None
+
+            # write to transcript
+            await self._model_transcript(
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                output=output,
+                call=call,
             )
 
             # record usage
@@ -358,6 +392,30 @@ class Model:
             concurrency=max_connections,
             key=f"Model{self.api.connection_key()}",
         )
+
+    async def _model_transcript(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+        output: ModelOutput,
+        call: ModelCall | None,
+    ) -> None:
+        from inspect_ai.solver._subtask.transcript import ModelEvent, transcript
+
+        if not self.api.provides_event():
+            transcript()._event(
+                ModelEvent(
+                    model=str(self),
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                    output=output,
+                    call=call,
+                )
+            )
 
 
 class ModelName:
@@ -624,8 +682,9 @@ def combine_messages(
         return message_type(content=content)
 
 
-def init_active_model(model: Model) -> None:
+def init_active_model(model: Model, config: GenerateConfig) -> None:
     active_model_context_var.set(model)
+    active_generate_config_context_var.set(config)
 
 
 def active_model() -> Model | None:
@@ -637,8 +696,15 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
+def active_generate_config() -> GenerateConfig:
+    return active_generate_config_context_var.get()
+
+
 # shared contexts for asyncio tasks
 active_model_context_var: ContextVar[Model] = ContextVar("active_model")
+active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
+    "generate_config", default=GenerateConfig()
+)
 
 
 def init_model_usage() -> None:

@@ -627,6 +627,62 @@
       "type": "object",
       "additionalProperties": false
     },
+    "EvalEvents": {
+      "properties": {
+        "events": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SampleInitEvent"
+              },
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "content": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Content",
+          "type": "object"
+        }
+      },
+      "title": "EvalEvents",
+      "type": "object",
+      "required": [
+        "events",
+        "content"
+      ],
+      "additionalProperties": false
+    },
     "EvalMetric": {
       "properties": {
         "name": {
@@ -946,6 +1002,14 @@
         "metadata": {
           "title": "Metadata",
           "type": "object"
+        },
+        "store": {
+          "default": {},
+          "title": "Store",
+          "type": "object"
+        },
+        "transcript": {
+          "$ref": "#/$defs/EvalEvents"
         }
       },
       "required": [
@@ -957,7 +1021,9 @@
         "messages",
         "output",
         "scores",
-        "metadata"
+        "metadata",
+        "store",
+        "transcript"
       ],
       "title": "EvalSample",
       "type": "object",
@@ -1509,7 +1575,117 @@
       ],
       "additionalProperties": false
     },
+    "InfoEvent": {
+      "description": "Event with custom info/data.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "info",
+          "default": "info",
+          "enum": [
+            "info"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "data"
+      ],
+      "title": "InfoEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "JsonChange": {
+      "description": "Describes a change to data using JSON Patch format.",
+      "properties": {
+        "op": {
+          "enum": [
+            "remove",
+            "add",
+            "replace",
+            "move",
+            "test",
+            "copy"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
+        },
+        "value": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "op",
+        "path",
+        "from",
+        "value"
+      ],
+      "title": "JsonChange",
+      "type": "object",
+      "additionalProperties": false
+    },
     "JsonValue": {},
+    "LoggerEvent": {
+      "description": "Log message recorded with Python logger.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "logger",
+          "default": "logger",
+          "enum": [
+            "logger"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "message": {
+          "$ref": "#/$defs/LoggingMessage"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "message"
+      ],
+      "title": "LoggerEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "LoggingMessage": {
       "properties": {
         "name": {
@@ -1559,14 +1735,6 @@
           "default": 0,
           "title": "Lineno",
           "type": "integer"
-        },
-        "args": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            }
-          ],
-          "default": null
         }
       },
       "required": [
@@ -1576,8 +1744,7 @@
         "created",
         "filename",
         "module",
-        "lineno",
-        "args"
+        "lineno"
       ],
       "title": "LoggingMessage",
       "type": "object",
@@ -1650,6 +1817,129 @@
         "content"
       ],
       "title": "Logprobs",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ModelCall": {
+      "description": "Model call (raw request/response data).",
+      "properties": {
+        "request": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Request",
+          "type": "object"
+        },
+        "response": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Response",
+          "type": "object"
+        }
+      },
+      "required": [
+        "request",
+        "response"
+      ],
+      "title": "ModelCall",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ModelEvent": {
+      "description": "Call to a language model.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "model",
+          "default": "model",
+          "enum": [
+            "model"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "input": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ChatMessageSystem"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageUser"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageAssistant"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageTool"
+              }
+            ]
+          },
+          "title": "Input",
+          "type": "array"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolInfo"
+          },
+          "title": "Tools",
+          "type": "array"
+        },
+        "tool_choice": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "any",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/ToolFunction"
+            }
+          ],
+          "title": "Tool Choice"
+        },
+        "config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
+        "output": {
+          "$ref": "#/$defs/ModelOutput"
+        },
+        "call": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelCall"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "model",
+        "input",
+        "tools",
+        "tool_choice",
+        "config",
+        "output",
+        "call"
+      ],
+      "title": "ModelEvent",
       "type": "object",
       "additionalProperties": false
     },
@@ -1727,6 +2017,168 @@
         "output_tokens",
         "total_tokens"
       ],
+      "additionalProperties": false
+    },
+    "Sample": {
+      "description": "Sample to be used in an evaluation task.\n\nArgs:\n    input (str | list[ChatMessage]): The input to be submitted to the model.\n    choices (list[str] | None): Optional. List of available answer choices\n       (used only for multiple-choice evals).\n    target (str | list[str]): Optional. Ideal target output. May be a literal value\n        or narrative text to be used by a model grader.\n    id (int | str | None): Optional. Unique identifier for sample.\n    metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.\n    files (dict[str, str] | None): Optional. Files that go along with the sample (copied to\n      SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).\n    setup: (str | None): Optional. Setup script to run for sample (run\n      within default SandboxEnvironment).",
+      "properties": {
+        "input": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ChatMessageSystem"
+                  },
+                  {
+                    "$ref": "#/$defs/ChatMessageUser"
+                  },
+                  {
+                    "$ref": "#/$defs/ChatMessageAssistant"
+                  },
+                  {
+                    "$ref": "#/$defs/ChatMessageTool"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Input"
+        },
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Choices"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "default": "",
+          "title": "Target"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
+        "files": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Files"
+        },
+        "setup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Setup"
+        }
+      },
+      "required": [
+        "input",
+        "choices",
+        "target",
+        "id",
+        "metadata",
+        "files",
+        "setup"
+      ],
+      "title": "Sample",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "SampleInitEvent": {
+      "description": "Beginning of processing a Sample.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "sample_init",
+          "default": "sample_init",
+          "enum": [
+            "sample_init"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "sample": {
+          "$ref": "#/$defs/Sample"
+        },
+        "state": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "sample",
+        "state"
+      ],
+      "title": "SampleInitEvent",
+      "type": "object",
       "additionalProperties": false
     },
     "SampleScore": {
@@ -1961,6 +2413,236 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ScoreEvent": {
+      "description": "Event with sample score.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "score",
+          "default": "score",
+          "enum": [
+            "score"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "score": {
+          "$ref": "#/$defs/Score"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "score"
+      ],
+      "title": "ScoreEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "StateEvent": {
+      "description": "Change to the current `TaskState`",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "state",
+          "default": "state",
+          "enum": [
+            "state"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/JsonChange"
+          },
+          "title": "Changes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "changes"
+      ],
+      "title": "StateEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "StepEvent": {
+      "description": "Step within current sample or subtask.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "step",
+          "default": "step",
+          "enum": [
+            "step"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "begin",
+            "end"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "action",
+        "type",
+        "name"
+      ],
+      "title": "StepEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "StoreEvent": {
+      "description": "Change to data within the current `Store`.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "store",
+          "default": "store",
+          "enum": [
+            "store"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/JsonChange"
+          },
+          "title": "Changes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "changes"
+      ],
+      "title": "StoreEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "SubtaskEvent": {
+      "description": "Subtask spawned.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "subtask",
+          "default": "subtask",
+          "enum": [
+            "subtask"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "input": {
+          "title": "Input",
+          "type": "object"
+        },
+        "result": {
+          "title": "Result"
+        },
+        "events": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SampleInitEvent"
+              },
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "name",
+        "input",
+        "result",
+        "events"
+      ],
+      "title": "SubtaskEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ToolCall": {
       "properties": {
         "id": {
@@ -2034,6 +2716,331 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ToolEvent": {
+      "description": "Call to a tool.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "tool",
+          "default": "tool",
+          "enum": [
+            "tool"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "type": {
+          "const": "function",
+          "default": "function",
+          "enum": [
+            "function"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "function": {
+          "title": "Function",
+          "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Arguments",
+          "type": "object"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContentText"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentImage"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Result"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "events": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SampleInitEvent"
+              },
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "type",
+        "id",
+        "function",
+        "arguments",
+        "result",
+        "error",
+        "events"
+      ],
+      "title": "ToolEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolFunction": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ToolFunction",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolInfo": {
+      "description": "Specification of a tool (JSON Schema compatible)\n\nIf you are implementing a ModelAPI, most LLM libraries can\nbe passed this object (dumped to a dict) directly as a function\nspecification. For example, in the OpenAI provider:\n\n```python\nChatCompletionToolParam(\n    type=\"function\",\n    function=tool.model_dump(exclude_none=True),\n)\n```\n\nIn some cases the field names don't match up exactly. In that case\ncall `model_dump()` on the `parameters` field. For example, in the\nAnthropic provider:\n\n```python\nToolParam(\n    name=tool.name,\n    description=tool.description,\n    input_schema=tool.parameters.model_dump(exclude_none=True),\n)\n```",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "parameters": {
+          "$ref": "#/$defs/ToolParams"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "parameters"
+      ],
+      "title": "ToolInfo",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ToolParam": {
+      "description": "Description of tool parameter in JSON Schema format.",
+      "properties": {
+        "type": {
+          "default": "null",
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "array",
+            "object",
+            "null"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "default": {
+          "default": null,
+          "title": "Default"
+        },
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolParam"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "properties": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/ToolParam"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Properties"
+        },
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolParam"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "anyOf": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ToolParam"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anyof"
+        },
+        "required": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required"
+        }
+      },
+      "title": "ToolParam",
+      "type": "object",
+      "required": [
+        "type",
+        "description",
+        "default",
+        "items",
+        "properties",
+        "additionalProperties",
+        "anyOf",
+        "required"
+      ],
+      "additionalProperties": false
+    },
+    "ToolParams": {
+      "description": "Description of tool parameters object in JSON Schema format.",
+      "properties": {
+        "type": {
+          "const": "object",
+          "default": "object",
+          "enum": [
+            "object"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ToolParam"
+          },
+          "title": "Properties"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required",
+          "type": "array"
+        }
+      },
+      "title": "ToolParams",
+      "type": "object",
+      "required": [
+        "type",
+        "properties",
+        "required"
+      ],
+      "additionalProperties": false
+    },
     "TopLogprob": {
       "description": "List of the most likely tokens and their log probability, at this token position.",
       "properties": {
@@ -2057,6 +3064,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Bytes"
         }
       },
@@ -2171,14 +3179,6 @@
       ],
       "default": null,
       "title": "Samples"
-    },
-    "logging": {
-      "default": [],
-      "items": {
-        "$ref": "#/$defs/LoggingMessage"
-      },
-      "title": "Logging",
-      "type": "array"
     }
   },
   "required": [

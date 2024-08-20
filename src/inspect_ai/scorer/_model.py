@@ -3,7 +3,7 @@ from functools import partial
 
 from inspect_ai._util.dict import omit
 from inspect_ai.model import ChatMessageUser, Model, get_model
-from inspect_ai.solver import TaskState
+from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
 from ._metric import INCORRECT, Score
@@ -119,7 +119,9 @@ def _model_graded_qa_single(
     instructions = (
         instructions if instructions else default_instructions(partial_credit)
     )
-    grade_pattern = grade_pattern if grade_pattern else DEFAULT_GRADE_PATTERN
+    grade_pattern = (
+        grade_pattern if grade_pattern is not None else DEFAULT_GRADE_PATTERN
+    )
 
     async def score(state: TaskState, target: Target) -> Score:
         # metadata without grading template variables

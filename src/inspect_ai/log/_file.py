@@ -22,8 +22,7 @@ from ._log import (
     EvalSample,
     EvalSpec,
     EvalStats,
-    LogEvent,
-    LoggingMessage,
+    LogType,
     Recorder,
 )
 
@@ -181,7 +180,6 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
         # prune if header_only
         if header_only:
             log.samples = None
-            log.logging.clear()
 
         # return log
         return log
@@ -298,21 +296,26 @@ class JSONRecorder(FileRecorder):
 
     def log_start(self, eval: EvalSpec) -> str:
         # initialize file log for this eval
-        file = self._log_file_path(eval)
+        # compute an absolute path if it's a relative ref
+        # (so that the writes go to the correct place even
+        # if the working directory is switched for a task)
+        file = absolute_file_path(self._log_file_path(eval))
 
         # compute an absolute path if it's a relative ref
         # (so that the writes go to the correct place even
         # if the working directory is switched for a task)
         self.data[self._log_file_key(eval)] = JSONRecorder.JSONLogFile(
-            file=absolute_file_path(file), data=EvalLog(eval=eval)
+            file=file, data=EvalLog(eval=eval)
         )
+
+        # attempt to
         return file
 
-    def log_event(
+    def log(
         self,
         spec: EvalSpec,
-        type: LogEvent,
-        data: EvalPlan | EvalSample | EvalResults | LoggingMessage,
+        type: LogType,
+        data: EvalPlan | EvalSample | EvalResults,
         flush: bool = False,
     ) -> None:
         log = self.data[self._log_file_key(spec)]
@@ -322,14 +325,12 @@ class JSONRecorder(FileRecorder):
             if log.data.samples is None:
                 log.data.samples = []
             log.data.samples.append(cast(EvalSample, data))
-        elif type == "logging":
-            log.data.logging.append(cast(LoggingMessage, data))
         elif type == "results":
             log.data.results = cast(EvalResults, data)
         else:
             raise ValueError(f"Unknown event {type}")
         if flush:
-            self.flush_log(log.file, log.data)
+            self.flush_log(log)
 
     def log_cancelled(
         self,
@@ -353,10 +354,11 @@ class JSONRecorder(FileRecorder):
     def read_log(self, location: str) -> EvalLog:
         return read_eval_log(location)
 
-    def flush_log(self, location: str, log: EvalLog) -> None:
+    def flush_log(self, log: JSONLogFile) -> None:
         self.flush_pending += 1
         if self.flush_pending >= self.flush_buffer:
-            self.write_log(location, log)
+            # write the log and current batch of events
+            self.write_log(log.file, log.data)
 
     def write_log(self, location: str, log: EvalLog) -> None:
         # sort samples before writing as they can come in out of order
@@ -373,7 +375,9 @@ class JSONRecorder(FileRecorder):
                 )
             )
 
+        # write the log file
         write_eval_log(log, location)
+
         self.flush_pending = 0
 
     def read_latest_log(self) -> EvalLog:
@@ -392,5 +396,8 @@ class JSONRecorder(FileRecorder):
         if error:
             log.data.error = error
         self.write_log(log.file, log.data)
+
+        # stop tracking this data
         del self.data[self._log_file_key(spec)]
+
         return log.data

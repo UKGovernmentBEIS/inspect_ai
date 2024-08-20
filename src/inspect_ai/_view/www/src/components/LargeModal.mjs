@@ -1,5 +1,7 @@
 import { html } from "htm/preact";
 
+import { FontSize } from "../appearance/Fonts.mjs";
+
 export const LargeModal = (props) => {
   const { id, title, detail, detailTools, footer, onkeyup, children } = props;
 
@@ -14,7 +16,7 @@ export const LargeModal = (props) => {
   headerEls.push(
     html`<div
       class="modal-title"
-      style=${{ fontSize: "0.7em", flex: "1 1 auto" }}
+      style=${{ fontSize: FontSize.smaller, flex: "1 1 auto" }}
     >
       ${title || ""}
     </div>`,
@@ -38,7 +40,11 @@ export const LargeModal = (props) => {
             })
           : ""}
         <div
-          style=${{ fontSize: "0.7em", display: "flex", alignItems: "center" }}
+          style=${{
+            fontSize: FontSize.smaller,
+            display: "flex",
+            alignItems: "center",
+          }}
         >
           <div>${detail}</div>
         </div>
@@ -59,7 +65,7 @@ export const LargeModal = (props) => {
       aria-label="Close"
       style=${{
         borderWidth: "0px",
-        fontSize: "1.1em",
+        fontSize: FontSize.larger,
         fontWeight: "300",
         padding: "0em 0.5em",
         flex: 1,
@@ -114,7 +120,7 @@ const TitleTool = ({ label, icon, enabled, onclick }) => {
       paddingTop: 0,
       paddingBottom: 0,
       border: "none",
-      fontSize: "0.9em",
+      fontSize: FontSize.small,
     }}
   >
     <i class="${icon}" />

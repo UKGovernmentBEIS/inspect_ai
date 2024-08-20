@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-from inspect_ai.solver import TaskState
+from inspect_ai.solver._task_state import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
 from ._metrics import accuracy, stderr

@@ -95,7 +95,14 @@ export type TracebackAnsi = string;
 export type Samples2 = EvalSample[] | null;
 export type Id = number | string;
 export type Epoch = number;
-export type Input = string | (ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool)[];
+export type Input =
+  | string
+  | (
+      | ChatMessageSystem
+      | ChatMessageUser
+      | ChatMessageAssistant
+      | ChatMessageTool
+    )[];
 export type Content = string | (ContentText | ContentImage)[];
 export type Type1 = "text";
 export type Text = string;
@@ -119,13 +126,29 @@ export type Content3 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate" | "cache") | null;
 export type Role3 = "tool";
 export type ToolCallId = string | null;
-export type Type4 = "parsing" | "timeout" | "unicode_decode" | "permission" | "file_not_found" | "unknown";
+export type Type4 =
+  | "parsing"
+  | "timeout"
+  | "unicode_decode"
+  | "permission"
+  | "file_not_found"
+  | "unknown";
 export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];
-export type Messages = (ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool)[];
+export type Messages = (
+  | ChatMessageSystem
+  | ChatMessageUser
+  | ChatMessageAssistant
+  | ChatMessageTool
+)[];
 export type Model1 = string;
-export type StopReason = "stop" | "length" | "tool_calls" | "content_filter" | "unknown";
+export type StopReason =
+  | "stop"
+  | "length"
+  | "tool_calls"
+  | "content_filter"
+  | "unknown";
 export type Token = string;
 export type Logprob1 = number;
 export type Bytes = number[] | null;
@@ -150,14 +173,134 @@ export type Value2 =
 export type Answer1 = string | null;
 export type Explanation1 = string | null;
 export type Metadata5 = {} | null;
-export type Name4 = string | null;
-export type Level = "debug" | "http" | "sandbox" | "info" | "warning" | "error" | "critical";
+export type Timestamp = string;
+export type Event = "sample_init";
+export type Input1 =
+  | string
+  | (
+      | ChatMessageSystem
+      | ChatMessageUser
+      | ChatMessageAssistant
+      | ChatMessageTool
+    )[];
+export type Choices2 = string[] | null;
+export type Target1 = string | string[];
+export type Id2 = number | string | null;
+export type Metadata7 = {} | null;
+export type Files = {
+  [k: string]: string;
+} | null;
+export type Setup = string | null;
+export type JsonValue = unknown;
+export type Timestamp1 = string;
+export type Event1 = "state";
+export type Op = "remove" | "add" | "replace" | "move" | "test" | "copy";
+export type Path = string;
+export type From = string | null;
+export type Changes = JsonChange[];
+export type Timestamp2 = string;
+export type Event2 = "store";
+export type Changes1 = JsonChange[];
+export type Timestamp3 = string;
+export type Event3 = "model";
+export type Model2 = string;
+export type Input2 = (
+  | ChatMessageSystem
+  | ChatMessageUser
+  | ChatMessageAssistant
+  | ChatMessageTool
+)[];
+export type Name4 = string;
+export type Description = string;
+export type Type5 = "object";
+export type Type6 =
+  | "string"
+  | "integer"
+  | "number"
+  | "boolean"
+  | "array"
+  | "object"
+  | "null";
+export type Description1 = string | null;
+export type Properties1 = {
+  [k: string]: ToolParam;
+} | null;
+export type Anyof = ToolParam[] | null;
+export type Required = string[] | null;
+export type Required1 = string[];
+export type Tools = ToolInfo[];
+export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
+export type Name5 = string;
+export type Timestamp4 = string;
+export type Event4 = "tool";
+export type Type7 = "function";
+export type Id3 = string;
+export type Function1 = string;
+export type Result = string | number | boolean | (ContentText | ContentImage)[];
+export type Timestamp5 = string;
+export type Event5 = "score";
+export type Timestamp6 = string;
+export type Event6 = "logger";
+export type Name6 = string | null;
+export type Level =
+  | "debug"
+  | "http"
+  | "sandbox"
+  | "info"
+  | "warning"
+  | "error"
+  | "critical";
 export type Message2 = string;
 export type Created1 = number;
 export type Filename = string;
 export type Module = string;
 export type Lineno = number;
-export type Logging = LoggingMessage[];
+export type Timestamp7 = string;
+export type Event7 = "info";
+export type Timestamp8 = string;
+export type Event8 = "step";
+export type Action = "begin" | "end";
+export type Type8 = string | null;
+export type Name7 = string;
+export type Timestamp9 = string;
+export type Event9 = "subtask";
+export type Name8 = string;
+export type Events2 = (
+  | SampleInitEvent
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | ToolEvent
+  | ScoreEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent
+)[];
+export type Events1 = (
+  | SampleInitEvent
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | ToolEvent
+  | ScoreEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent
+)[];
+export type Events = (
+  | SampleInitEvent
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | ToolEvent
+  | ScoreEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent
+)[];
 
 export interface EvalLog {
   version?: Version;
@@ -168,7 +311,6 @@ export interface EvalLog {
   stats?: EvalStats;
   error?: EvalError | null;
   samples?: Samples2;
-  logging?: Logging;
 }
 export interface EvalSpec {
   task: Task;
@@ -324,6 +466,8 @@ export interface EvalSample {
   output: ModelOutput;
   scores: Scores1;
   metadata: Metadata6;
+  store: Store;
+  transcript: EvalEvents;
 }
 export interface ChatMessageSystem {
   content: Content;
@@ -419,13 +563,233 @@ export interface Score {
   metadata: Metadata5;
 }
 export interface Metadata6 {}
-export interface LoggingMessage {
+export interface Store {}
+export interface EvalEvents {
+  events: Events;
+  content: Content5;
+}
+/**
+ * Beginning of processing a Sample.
+ */
+export interface SampleInitEvent {
+  timestamp: Timestamp;
+  event: Event;
+  sample: Sample;
+  state: JsonValue;
+}
+/**
+ * Sample to be used in an evaluation task.
+ *
+ * Args:
+ *     input (str | list[ChatMessage]): The input to be submitted to the model.
+ *     choices (list[str] | None): Optional. List of available answer choices
+ *        (used only for multiple-choice evals).
+ *     target (str | list[str]): Optional. Ideal target output. May be a literal value
+ *         or narrative text to be used by a model grader.
+ *     id (int | str | None): Optional. Unique identifier for sample.
+ *     metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
+ *     files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
+ *       SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
+ *     setup: (str | None): Optional. Setup script to run for sample (run
+ *       within default SandboxEnvironment).
+ */
+export interface Sample {
+  input: Input1;
+  choices: Choices2;
+  target: Target1;
+  id: Id2;
+  metadata: Metadata7;
+  files: Files;
+  setup: Setup;
+}
+/**
+ * Change to the current `TaskState`
+ */
+export interface StateEvent {
+  timestamp: Timestamp1;
+  event: Event1;
+  changes: Changes;
+}
+/**
+ * Describes a change to data using JSON Patch format.
+ */
+export interface JsonChange {
+  op: Op;
+  path: Path;
+  from: From;
+  value: unknown;
+}
+/**
+ * Change to data within the current `Store`.
+ */
+export interface StoreEvent {
+  timestamp: Timestamp2;
+  event: Event2;
+  changes: Changes1;
+}
+/**
+ * Call to a language model.
+ */
+export interface ModelEvent {
+  timestamp: Timestamp3;
+  event: Event3;
+  model: Model2;
+  input: Input2;
+  tools: Tools;
+  tool_choice: ToolChoice;
+  config: GenerateConfig;
+  output: ModelOutput;
+  call: ModelCall | null;
+}
+/**
+ * Specification of a tool (JSON Schema compatible)
+ *
+ * If you are implementing a ModelAPI, most LLM libraries can
+ * be passed this object (dumped to a dict) directly as a function
+ * specification. For example, in the OpenAI provider:
+ *
+ * ```python
+ * ChatCompletionToolParam(
+ *     type="function",
+ *     function=tool.model_dump(exclude_none=True),
+ * )
+ * ```
+ *
+ * In some cases the field names don't match up exactly. In that case
+ * call `model_dump()` on the `parameters` field. For example, in the
+ * Anthropic provider:
+ *
+ * ```python
+ * ToolParam(
+ *     name=tool.name,
+ *     description=tool.description,
+ *     input_schema=tool.parameters.model_dump(exclude_none=True),
+ * )
+ * ```
+ */
+export interface ToolInfo {
   name: Name4;
+  description: Description;
+  parameters: ToolParams;
+}
+/**
+ * Description of tool parameters object in JSON Schema format.
+ */
+export interface ToolParams {
+  type: Type5;
+  properties: Properties;
+  required: Required1;
+}
+export interface Properties {
+  [k: string]: ToolParam;
+}
+/**
+ * Description of tool parameter in JSON Schema format.
+ */
+export interface ToolParam {
+  type: Type6;
+  description: Description1;
+  default: Default;
+  items: ToolParam | null;
+  properties: Properties1;
+  additionalProperties: ToolParam | null;
+  anyOf: Anyof;
+  required: Required;
+}
+export interface Default {
+  [k: string]: unknown;
+}
+export interface ToolFunction {
+  name: Name5;
+}
+/**
+ * Model call (raw request/response data).
+ */
+export interface ModelCall {
+  request: Request;
+  response: Response;
+}
+export interface Request {
+  [k: string]: JsonValue;
+}
+export interface Response {
+  [k: string]: JsonValue;
+}
+/**
+ * Call to a tool.
+ */
+export interface ToolEvent {
+  timestamp: Timestamp4;
+  event: Event4;
+  type: Type7;
+  id: Id3;
+  function: Function1;
+  arguments: Arguments1;
+  result: Result;
+  error: ToolCallError | null;
+  events: Events1;
+}
+export interface Arguments1 {
+  [k: string]: JsonValue;
+}
+/**
+ * Event with sample score.
+ */
+export interface ScoreEvent {
+  timestamp: Timestamp5;
+  event: Event5;
+  score: Score;
+}
+/**
+ * Log message recorded with Python logger.
+ */
+export interface LoggerEvent {
+  timestamp: Timestamp6;
+  event: Event6;
+  message: LoggingMessage;
+}
+export interface LoggingMessage {
+  name: Name6;
   level: Level;
   message: Message2;
   created: Created1;
   filename: Filename;
   module: Module;
   lineno: Lineno;
-  args: unknown;
+}
+/**
+ * Event with custom info/data.
+ */
+export interface InfoEvent {
+  timestamp: Timestamp7;
+  event: Event7;
+  data: JsonValue;
+}
+/**
+ * Step within current sample or subtask.
+ */
+export interface StepEvent {
+  timestamp: Timestamp8;
+  event: Event8;
+  action: Action;
+  type: Type8;
+  name: Name7;
+}
+/**
+ * Subtask spawned.
+ */
+export interface SubtaskEvent {
+  timestamp: Timestamp9;
+  event: Event9;
+  name: Name8;
+  input: Input3;
+  result: Result1;
+  events: Events2;
+}
+export interface Input3 {}
+export interface Result1 {
+  [k: string]: unknown;
+}
+export interface Content5 {
+  [k: string]: string;
 }

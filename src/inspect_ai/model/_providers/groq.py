@@ -7,6 +7,7 @@ from groq import (
     RateLimitError,
 )
 from groq.types.chat import (
+    ChatCompletion,
     ChatCompletionAssistantMessageParam,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCallParam,
@@ -28,7 +29,7 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import ChatCompletionChoice, ModelCall, ModelOutput, ModelUsage
 from .util import as_stop_reason, model_base_url, parse_tool_call
 
 GROQ_API_KEY = "GROQ_API_KEY"
@@ -74,7 +75,7 @@ class GroqAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> tuple[ModelOutput, ModelCall]:
         messages = await as_groq_chat_messages(input)
 
         params = self.completion_params(config)
@@ -86,14 +87,15 @@ class GroqAPI(ModelAPI):
             if config.parallel_tool_calls is not None:
                 params["parallel_tool_calls"] = config.parallel_tool_calls
 
-        response = await self.client.chat.completions.create(
+        response: ChatCompletion = await self.client.chat.completions.create(
             messages=messages,
             model=self.model_name,
             **params,
         )
 
+        # extract output
         choices = self._chat_choices_from_response(response, tools)
-        return ModelOutput(
+        output = ModelOutput(
             model=response.model,
             choices=choices,
             usage=(
@@ -106,6 +108,15 @@ class GroqAPI(ModelAPI):
                 else None
             ),
         )
+
+        # record call
+        call = ModelCall.create(
+            request=dict(messages=messages, model=self.model_name, **params),
+            response=response.model_dump(),
+        )
+
+        # return
+        return output, call
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}
