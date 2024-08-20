@@ -17367,7 +17367,7 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
 const ErrorEventView = ({ id, depth, event }) => {
   return m$1`
   <${EventPanel} id=${id} depth=${depth} title="Error" icon=${ApplicationIcons.error}>
-    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ margin: "1em 0" }}/>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
 const TranscriptView = ({ id, events, stateManager }) => {
