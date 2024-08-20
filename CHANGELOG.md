@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
+
 ## v0.3.24 (18 August 2024)
 
 - Support for tool calling for Llama 3.1 models on Bedrock.
