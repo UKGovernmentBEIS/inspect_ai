@@ -1,6 +1,10 @@
 // @ts-check
 /// <reference path="../types/prism.d.ts" />
 import Prism from "prismjs";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-json";
+
 import { useMemo, useRef } from "preact/hooks";
 import { html } from "htm/preact";
 

@@ -1,5 +1,10 @@
 // @ts-check
 /// <reference path="../../types/prism.d.ts" />
+import Prism from "prismjs";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-json";
+
 import { html } from "htm/preact";
 import { useRef } from "preact/hooks";
 import { ChatView } from "../../components/ChatView.mjs";
@@ -8,7 +13,6 @@ import { EventSection } from "./EventSection.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-import Prism from "prismjs";
 
 /**
  * Renders the StateEventView component.
