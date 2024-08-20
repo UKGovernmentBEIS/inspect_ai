@@ -26,12 +26,12 @@ export const ToolEventView = ({ id, depth, stateManager, event }) => {
 
   return html`
   <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
-  <div name="Result">
+  <div name="Summary">
     <${ExpandablePanel}>
     ${event.result}
     </${ExpandablePanel}>
   </div>
-  <div name="Complete">
+  <div name="Transcript">
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
@@ -39,16 +39,17 @@ export const ToolEventView = ({ id, depth, stateManager, event }) => {
       output=${event.result}
       mode="compact"
       />
+        ${
+          event.events.length > 0
+            ? html`<${TranscriptView}
+                id="${id}-subtask"
+                name="Transcript"
+                events=${event.events}
+                stateManager=${stateManager}
+              />`
+            : ""
+        }
+
   </div>
-  ${
-    event.events.length > 0
-      ? html`<${TranscriptView}
-          id="${id}-subtask"
-          name="Transcript"
-          events=${event.events}
-          stateManager=${stateManager}
-        />`
-      : ""
-  }
   </${EventPanel}>`;
 };

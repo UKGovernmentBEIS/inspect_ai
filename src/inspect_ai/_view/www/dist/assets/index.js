@@ -16563,7 +16563,10 @@ function format(delta, left2) {
 const StateDiffView = ({ starting, ending, style }) => {
   const changes = diff(unescapeNewlines(starting), unescapeNewlines(ending));
   const html_result = format(changes);
-  return m$1`<div dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }} style=${{ style }}></div>`;
+  return m$1`<div
+    dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
+    style=${{ style }}
+  ></div>`;
 };
 function unescapeNewlines(obj) {
   if (typeof obj === "string") {
@@ -17000,12 +17003,12 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
   const title = `Tool: ${event.function}`;
   return m$1`
   <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
-  <div name="Result">
+  <div name="Summary">
     <${ExpandablePanel}>
     ${event.result}
     </${ExpandablePanel}>
   </div>
-  <div name="Complete">
+  <div name="Transcript">
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
@@ -17013,13 +17016,14 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
       output=${event.result}
       mode="compact"
       />
-  </div>
-  ${event.events.length > 0 ? m$1`<${TranscriptView}
+        ${event.events.length > 0 ? m$1`<${TranscriptView}
           id="${id}-subtask"
           name="Transcript"
           events=${event.events}
           stateManager=${stateManager}
         />` : ""}
+
+  </div>
   </${EventPanel}>`;
 };
 const TranscriptView = ({ id, events, stateManager }) => {
