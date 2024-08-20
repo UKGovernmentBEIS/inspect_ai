@@ -15132,7 +15132,7 @@ const EventPanel = ({
           style=${{
     paddingLeft: "0.5em",
     display: "grid",
-    gridTemplateColumns: "max-content minmax(0, max-content) auto minmax(0, max-content) minmax(0, max-content)",
+    gridTemplateColumns: "max-content minmax(0, max-content) auto minmax(0, max-content) auto",
     columnGap: "0.5em",
     fontSize: FontSize.small,
     cursor: hasCollapse ? "pointer" : void 0
@@ -15223,7 +15223,11 @@ const EventPanel = ({
 const EventNavs = ({ navs }) => {
   return m$1`<ul
     class="nav nav-pills card-header-pills"
-    style=${{ marginRight: "0" }}
+    style=${{
+    marginRight: "0",
+    alignItems: "flex-start",
+    justifyContent: "flex-end"
+  }}
     role="tablist"
     aria-orientation="horizontal"
   >
@@ -17134,20 +17138,19 @@ const ModelEventView = ({ id, depth, event }) => {
 
     <div name="All" style=${{ margin: "1em 0" }}>
 
-      <div style=${{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr)", columnGap: "1em" }}>
-      <div>
+      <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
       <${EventSection} title="Configuration" style=${tableSectionStyle}>
         <${MetaDataGrid} entries=${entries} plain=${true}/>
       </${EventSection}>
 
-      <${EventSection} title="Tools" style=${tableSectionStyle}>
-        <${ToolsConfig} tools=${event.tools}/>
-      </${EventSection}>
-
-      </div>
       <${EventSection} title="Usage" style=${tableSectionStyle}>
         <${MetaDataGrid} entries=${event.output.usage} plain=${true}/>
       </${EventSection}>
+
+      <${EventSection} title="Tools" style=${{ gridColumn: "-1/1", ...tableSectionStyle }}>
+        <${ToolsConfig} tools=${event.tools}/>
+      </${EventSection}>
+
       </div>
 
       <${EventSection} title="Messages">

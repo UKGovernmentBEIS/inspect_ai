@@ -54,7 +54,7 @@ export const EventPanel = ({
             paddingLeft: "0.5em",
             display: "grid",
             gridTemplateColumns:
-              "max-content minmax(0, max-content) auto minmax(0, max-content) minmax(0, max-content)",
+              "max-content minmax(0, max-content) auto minmax(0, max-content) auto",
             columnGap: "0.5em",
             fontSize: FontSize.small,
             cursor: hasCollapse ? "pointer" : undefined,
@@ -169,7 +169,11 @@ export const EventPanel = ({
 const EventNavs = ({ navs }) => {
   return html`<ul
     class="nav nav-pills card-header-pills"
-    style=${{ marginRight: "0" }}
+    style=${{
+      marginRight: "0",
+      alignItems: "flex-start",
+      justifyContent: "flex-end",
+    }}
     role="tablist"
     aria-orientation="horizontal"
   >

@@ -57,20 +57,19 @@ export const ModelEventView = ({ id, depth, event }) => {
 
     <div name="All" style=${{ margin: "1em 0" }}>
 
-      <div style=${{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr)", columnGap: "1em" }}>
-      <div>
+      <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
       <${EventSection} title="Configuration" style=${tableSectionStyle}>
         <${MetaDataGrid} entries=${entries} plain=${true}/>
       </${EventSection}>
 
-      <${EventSection} title="Tools" style=${tableSectionStyle}>
-        <${ToolsConfig} tools=${event.tools}/>
-      </${EventSection}>
-
-      </div>
       <${EventSection} title="Usage" style=${tableSectionStyle}>
         <${MetaDataGrid} entries=${event.output.usage} plain=${true}/>
       </${EventSection}>
+
+      <${EventSection} title="Tools" style=${{ gridColumn: "-1/1", ...tableSectionStyle }}>
+        <${ToolsConfig} tools=${event.tools}/>
+      </${EventSection}>
+
       </div>
 
       <${EventSection} title="Messages">
