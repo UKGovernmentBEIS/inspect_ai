@@ -131,6 +131,9 @@ class FileSystem:
     def is_local(self) -> bool:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
+    def put_file(self, lpath: str, rpath: str) -> None:
+        self.fs.put_file(lpath, rpath)
+
     def _file_info(self, info: dict[str, Any]) -> FileInfo:
         # name needs the protocol prepended
         file = info.copy()

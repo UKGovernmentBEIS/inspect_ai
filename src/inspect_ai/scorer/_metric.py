@@ -171,7 +171,7 @@ class Metric(Protocol):
     r"""Evaluate scores using a metric.
 
     Args:
-        scores (list[dict]): List of scores.
+        scores (list[Score]): List of scores.
 
     Returns:
         Metric value

@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 
 export const ModelTokenTable = ({ model_usage }) => {
   return html`
@@ -17,7 +18,7 @@ export const ModelTokenTable = ({ model_usage }) => {
 const TokenTable = ({ children }) => {
   return html`<table
     class="table table-sm"
-    style=${{ width: "100%", fontSize: "0.8rem", marginTop: "0.7rem" }}
+    style=${{ width: "100%", fontSize: FontSize.smaller, marginTop: "0.7rem" }}
   >
     ${children}
   </table>`;
@@ -25,9 +26,10 @@ const TokenTable = ({ children }) => {
 
 const thStyle = {
   padding: 0,
-  fontSize: "0.7rem",
-  fontWeight: 400,
-  textTransform: "uppercase",
+  fontWeight: 300,
+  fontSize: FontSize.small,
+  ...TextStyle.label,
+  ...TextStyle.secondary,
 };
 
 const TokenHeader = () => {
@@ -38,7 +40,12 @@ const TokenHeader = () => {
         colspan="3"
         align="center"
         class="card-subheading"
-        style=${{ paddingBottom: "0.7rem" }}
+        style=${{
+          paddingBottom: "0.7rem",
+          fontSize: FontSize.small,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+        }}
       >
         Tokens
       </td>

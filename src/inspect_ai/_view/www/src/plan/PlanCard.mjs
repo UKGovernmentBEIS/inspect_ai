@@ -2,7 +2,8 @@ import { html } from "htm/preact";
 
 import { toTitleCase } from "../utils/Format.mjs";
 import { ghCommitUrl } from "../utils/Git.mjs";
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { Card, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { CardHeader } from "../components/Card.mjs";
@@ -12,7 +13,7 @@ const kPlanCardBodyId = "task-plan-card-body";
 export const PlanCard = ({ log, context }) => {
   return html`
     <${Card}>
-      <${CardHeader} icon=${icons.config} label="Config"/>
+      <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
       <${CardBody} id="${kPlanCardBodyId}" style=${{
         paddingTop: "0",
         paddingBottom: "0",
@@ -31,7 +32,7 @@ export const PlanCard = ({ log, context }) => {
 };
 
 const planItemStyle = {
-  fontSize: "0.9rem",
+  fontSize: FontSize.base,
   marginBottom: "0em",
 };
 
@@ -49,7 +50,7 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
   }
 
   return html`<${DetailStep}
-    icon=${icons.scorer}
+    icon=${ApplicationIcons.scorer}
     name=${name}
     params=${params}
     context=${context}
@@ -74,7 +75,7 @@ const DatasetDetailView = ({ dataset, context, style }) => {
 
 const SolversDetailView = ({ steps, context }) => {
   const separator = html` <div style=${{ ...planItemStyle, ...planSepStyle }}>
-    <i class="${icons.arrows.right}"></i>
+    <i class="${ApplicationIcons.arrows.right}"></i>
   </div>`;
 
   const details = steps?.map((step, index) => {
@@ -115,7 +116,7 @@ const DetailStep = ({ icon, name, params, style, context }) => {
         ${html`<${MetaDataView}
           entries="${params}"
           context=${context}
-          style=${{ fontSize: "0.8rem" }}
+          style=${{ fontSize: FontSize.small }}
         />`}
       </div>
     </div>
@@ -198,7 +199,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   };
 
   const planMetadataStyle = {
-    fontSize: "0.8rem",
+    fontSize: FontSize.base,
   };
 
   const taskColumns = [];
@@ -402,7 +403,17 @@ const colCount = (...other) => {
 const PlanColumn = ({ title, classes, style, children }) => {
   return html`
     <div class="${classes || ""}" ...${{ style }}>
-      <div class="card-subheading">${title}</div>
+      <div
+        class="card-subheading"
+        style=${{
+          fontSize: FontSize.small,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+          marginTop: "1em",
+        }}
+      >
+        ${title}
+      </div>
       ${children}
     </div>
   `;

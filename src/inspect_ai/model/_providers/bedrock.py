@@ -19,7 +19,7 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import ChatCompletionChoice, ModelCall, ModelOutput, ModelUsage
 from .util import (
     ChatAPIHandler,
     ChatAPIMessage,
@@ -80,7 +80,7 @@ class BedrockAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         if self.model_api:
             return await self.model_api.generate(input, tools, tool_choice, config)
         else:
@@ -152,7 +152,7 @@ class BedrockChatHandler(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> tuple[ModelOutput, ModelCall]:
         formatted_input_with_tools: list[ChatAPIMessage] = chat_api_input(
             input, tools, self.chat_api_handler()
         )
@@ -176,11 +176,19 @@ class BedrockChatHandler(abc.ABC):
         response = await loop.run_in_executor(None, invoke_model)
         response_body = json.loads((await response).get("body").read())
         choice = self.completion_choice(response_body, tools, self.chat_api_handler())
-        return ModelOutput(
+        output = ModelOutput(
             model=self.model_name,
             choices=[choice],
             usage=self.model_usage(response_body),
         )
+
+        # record call
+        call = ModelCall.create(
+            request=dict(modelId=self.model_name, **body), response=response_body
+        )
+
+        # return
+        return output, call
 
     def is_rate_limit(self, ex: BaseException) -> bool:
         from boto3.exceptions import RetriesExceededError
