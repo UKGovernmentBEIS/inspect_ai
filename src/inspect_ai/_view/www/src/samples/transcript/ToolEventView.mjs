@@ -3,11 +3,15 @@ import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { ExpandablePanel } from "../../components/ExpandablePanel.mjs";
-import { resolveToolInput, ToolCallView } from "../../components/Tools.mjs";
+import {
+  resolveToolInput,
+  ToolCallView,
+  ToolOutput,
+} from "../../components/Tools.mjs";
 import { TranscriptView } from "./TranscriptView.mjs";
 
 /**
- * Renders the InfoEventView component.
+ * Renders the ToolEventView component.
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
@@ -28,7 +32,7 @@ export const ToolEventView = ({ id, depth, stateManager, event }) => {
   <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
   <div name="Summary">
     <${ExpandablePanel}>
-    ${event.result}
+      <${ToolOutput} output=${event.result} type=${event.function}/>
     </${ExpandablePanel}>
   </div>
   <div name="Transcript">

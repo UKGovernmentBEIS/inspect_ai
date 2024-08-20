@@ -132,6 +132,34 @@ export const ToolInput = ({ type, contents }) => {
 };
 
 /**
+ * Renders the ToolOutput component.
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string | object | Array} props.output - The tool output
+ * @returns {import("preact").JSX.Element | string} The ToolOutput component.
+ */
+export const ToolOutput = ({ output }) => {
+  if (!output) {
+    return "";
+  }
+
+  if (typeof output === "object" || Array.isArray(output)) {
+    output = JSON.stringify(output);
+  }
+
+  return html`<pre
+    style=${{
+      marginLeft: "2px",
+      padding: "0.5em 0.5em 0.5em 0.5em",
+      whiteSpace: "pre-wrap",
+      marginBottom: "0",
+    }}
+  ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
+      ${output}
+      </code></pre>`;
+};
+
+/**
  * @param {string} toolName
  * @returns {[string | undefined, string | undefined]}
  */

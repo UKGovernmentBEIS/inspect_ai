@@ -12847,67 +12847,6 @@ function unescapeCodeHtmlEntities(str) {
     }
   );
 }
-const MessageContent = (props) => {
-  const { contents } = props;
-  if (Array.isArray(contents)) {
-    return contents.map((content, index) => {
-      if (typeof content === "string") {
-        return messageRenderers["text"].render({
-          text: content,
-          index: index === contents.length - 1
-        });
-      } else {
-        const renderer = messageRenderers[content.type];
-        if (renderer) {
-          return renderer.render(content, index === contents.length - 1);
-        } else {
-          console.error(`Unknown message content type '${content.type}'`);
-        }
-      }
-    });
-  } else {
-    return messageRenderers["text"].render({ text: contents });
-  }
-};
-const messageRenderers = {
-  text: {
-    render: (content, isLast) => {
-      return m$1`<${MarkdownDiv}
-        markdown=${content.text}
-        class=${isLast ? "no-last-para-padding" : ""}
-      />`;
-    }
-  },
-  image: {
-    render: (content) => {
-      if (content.image.startsWith("data:")) {
-        return m$1`<img
-          src="${content.image}"
-          style=${{
-          maxWidth: "400px",
-          border: "solid var(--bs-border-color) 1px"
-        }}
-        />`;
-      } else {
-        return m$1`<code>${content.image}</code>`;
-      }
-    }
-  },
-  tool: {
-    render: (content) => {
-      return m$1`<pre
-        style=${{
-        marginLeft: "2px",
-        padding: "0.5em 0.5em 0.5em 0.5em",
-        whiteSpace: "pre-wrap",
-        marginBottom: "0"
-      }}
-      ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${content.text}
-      </code></pre>`;
-    }
-  }
-};
 const ApplicationStyles = {
   moreButton: {
     maxHeight: "1.8em",
@@ -13121,6 +13060,24 @@ const ToolInput = ({ type, contents }) => {
         </code>
     </pre>`;
 };
+const ToolOutput = ({ output }) => {
+  if (!output) {
+    return "";
+  }
+  if (typeof output === "object" || Array.isArray(output)) {
+    output = JSON.stringify(output);
+  }
+  return m$1`<pre
+    style=${{
+    marginLeft: "2px",
+    padding: "0.5em 0.5em 0.5em 0.5em",
+    whiteSpace: "pre-wrap",
+    marginBottom: "0"
+  }}
+  ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
+      ${output}
+      </code></pre>`;
+};
 const extractInputMetadata = (toolName) => {
   if (toolName === "bash") {
     return ["cmd", "bash"];
@@ -13168,6 +13125,58 @@ const extractInput = (inputKey, args) => {
     input: void 0,
     args: []
   };
+};
+const MessageContent = (props) => {
+  const { contents } = props;
+  if (Array.isArray(contents)) {
+    return contents.map((content, index) => {
+      if (typeof content === "string") {
+        return messageRenderers["text"].render({
+          text: content,
+          index: index === contents.length - 1
+        });
+      } else {
+        const renderer = messageRenderers[content.type];
+        if (renderer) {
+          return renderer.render(content, index === contents.length - 1);
+        } else {
+          console.error(`Unknown message content type '${content.type}'`);
+        }
+      }
+    });
+  } else {
+    return messageRenderers["text"].render({ text: contents });
+  }
+};
+const messageRenderers = {
+  text: {
+    render: (content, isLast) => {
+      return m$1`<${MarkdownDiv}
+        markdown=${content.text}
+        class=${isLast ? "no-last-para-padding" : ""}
+      />`;
+    }
+  },
+  image: {
+    render: (content) => {
+      if (content.image.startsWith("data:")) {
+        return m$1`<img
+          src="${content.image}"
+          style=${{
+          maxWidth: "400px",
+          border: "solid var(--bs-border-color) 1px"
+        }}
+        />`;
+      } else {
+        return m$1`<code>${content.image}</code>`;
+      }
+    }
+  },
+  tool: {
+    render: (content) => {
+      return m$1`<${ToolOutput} output=${content.text} />`;
+    }
+  }
 };
 const ChatView = ({ id, messages, style }) => {
   const toolMessages = {};
@@ -17005,7 +17014,7 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
   <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
   <div name="Summary">
     <${ExpandablePanel}>
-    ${event.result}
+      <${ToolOutput} output=${event.result} type=${event.function}/>
     </${ExpandablePanel}>
   </div>
   <div name="Transcript">
@@ -17017,11 +17026,11 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
       mode="compact"
       />
         ${event.events.length > 0 ? m$1`<${TranscriptView}
-          id="${id}-subtask"
-          name="Transcript"
-          events=${event.events}
-          stateManager=${stateManager}
-        />` : ""}
+                id="${id}-subtask"
+                name="Transcript"
+                events=${event.events}
+                stateManager=${stateManager}
+              />` : ""}
 
   </div>
   </${EventPanel}>`;
