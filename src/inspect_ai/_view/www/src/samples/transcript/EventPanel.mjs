@@ -143,7 +143,7 @@ export const EventPanel = ({
     ${!hasCollapse || !collapsed
       ? html` <div
           class="card-body tab-content"
-          style=${{ padding: 0, marginLeft: "2em" }}
+          style=${{ padding: 0, marginLeft: "0.5em" }}
         >
           ${filteredArrChilden?.map((child, index) => {
             return html`<div
