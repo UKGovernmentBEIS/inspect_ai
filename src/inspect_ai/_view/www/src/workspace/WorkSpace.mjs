@@ -87,8 +87,8 @@ export const WorkSpace = (props) => {
     // Select the default scorer to use
     const scorer = workspaceLog?.contents?.results?.scores[0]
       ? {
-          name: workspaceLog.contents.results.scores[0].name,
-          scorer: workspaceLog.contents.results.scores[0].scorer,
+          name: workspaceLog.contents.results?.scores[0].name,
+          scorer: workspaceLog.contents.results?.scores[0].scorer,
         }
       : undefined;
     const scorers = (workspaceLog.contents?.results?.scores || [])
