@@ -5,6 +5,7 @@ import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { TextStyle } from "../appearance/Fonts.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { SampleError } from "./SampleError.mjs";
 
 import {
   shortenCompletion,
@@ -348,9 +349,7 @@ const SampleRow = ({
         }}
       >
         ${sample.error
-          ? html`<div style=${{ color: "var(--bs-danger)" }}>
-              <i class=${ApplicationIcons.error} /> Error
-            </div>`
+          ? html`<${SampleError} />`
           : sampleDescriptor?.selectedScore(sample).render()}
       </div>
     </div>

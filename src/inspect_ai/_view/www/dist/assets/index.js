@@ -18204,6 +18204,55 @@ const resolveValue = (value, evalEvents) => {
   }
   return value;
 };
+const SampleError = ({ align, style }) => {
+  align = align || "center";
+  return m$1`<div
+              style=${{
+    color: "var(--bs-danger)",
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    alignContent: align,
+    justifyItems: "center",
+    ...style
+  }}
+            >
+              <i
+                class=${ApplicationIcons.error}
+                style=${{
+    fontSize: FontSize.small,
+    lineHeight: FontSize.small,
+    height: FontSize.small
+  }}
+              />
+              <div>Error</div>
+            </div>`;
+};
+const FlatSampleError = ({ style }) => {
+  return m$1`<div
+              style=${{
+    color: "var(--bs-danger)",
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "0.2em",
+    ...style
+  }}
+            >
+              <i
+                class=${ApplicationIcons.error}
+                style=${{
+    fontSize: FontSize.base,
+    lineHeight: FontSize.base,
+    height: FontSize.base
+  }}
+              />
+              <div                 style=${{
+    fontSize: FontSize.base,
+    lineHeight: FontSize.base,
+    height: FontSize.base
+  }}
+>Error</div>
+            </div>`;
+};
 const InlineSampleDisplay = ({
   index,
   id,
@@ -18412,7 +18461,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   }
   columns.push({
     label: "Score",
-    value: sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render(),
+    value: sample.error ? m$1`<${FlatSampleError} style=${{ marginTop: "0.4rem" }}/>` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render(),
     size: "minmax(2em, auto)",
     center: true
   });
@@ -18882,9 +18931,7 @@ const SampleRow = ({
     display: "flex"
   }}
       >
-        ${sample.error ? m$1`<div style=${{ color: "var(--bs-danger)" }}>
-              <i class=${ApplicationIcons.error} /> Error
-            </div>` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
+        ${sample.error ? m$1`<${SampleError}/>` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
       </div>
     </div>
   `;

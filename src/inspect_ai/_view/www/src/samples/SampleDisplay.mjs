@@ -16,6 +16,7 @@ import { SampleScoreView } from "./SampleScoreView.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleTranscript } from "./SampleTranscript.mjs";
 import { ANSIDisplay } from "../components/AnsiDisplay.mjs";
+import { FlatSampleError } from "./SampleError.mjs";
 
 export const InlineSampleDisplay = ({
   index,
@@ -275,7 +276,9 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
 
   columns.push({
     label: "Score",
-    value: sampleDescriptor?.selectedScore(sample).render(),
+    value: sample.error
+      ? html`<${FlatSampleError} style=${{ marginTop: "0.4rem" }} />`
+      : sampleDescriptor?.selectedScore(sample).render(),
     size: "minmax(2em, auto)",
     center: true,
   });
