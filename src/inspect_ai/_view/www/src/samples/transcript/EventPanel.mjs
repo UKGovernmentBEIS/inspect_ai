@@ -13,6 +13,7 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {string | undefined} props.text - Secondary text for the event
  * @param {string | undefined} props.icon - The icon of the event
  * @param {number | undefined} props.depth - The depth of this item
+ * @param {number | undefined} props.titleColor - The title color of this item
  * @param {boolean | undefined} props.collapse - Default collapse behavior for card. If omitted, not collapsible.
  * @param {Object} props.style - The style properties passed to the component.
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
@@ -23,6 +24,7 @@ export const EventPanel = ({
   title,
   text,
   icon,
+  titleColor,
   depth = 0,
   collapse,
   style,
@@ -63,14 +65,21 @@ export const EventPanel = ({
           ${icon
             ? html`<i
                 class=${icon || ApplicationIcons.metadata}
-                style=${{ ...TextStyle.secondary }}
+                style=${{
+                  ...TextStyle.secondary,
+                  color: titleColor ? titleColor : "",
+                }}
                 onclick=${() => {
                   setCollapsed(!collapsed);
                 }}
               />`
             : ""}
           <div
-            style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+            style=${{
+              ...TextStyle.label,
+              ...TextStyle.secondary,
+              color: titleColor ? titleColor : "",
+            }}
             onclick=${() => {
               setCollapsed(!collapsed);
             }}

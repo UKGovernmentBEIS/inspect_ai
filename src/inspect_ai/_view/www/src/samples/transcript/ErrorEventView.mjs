@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { ANSIDisplay } from "../../components/AnsiDisplay.mjs";
 
 /**
  * Renders the ErrorEventView component.
@@ -14,7 +15,7 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
  */
 export const ErrorEventView = ({ id, depth, event }) => {
   return html`
-  <${EventPanel} id=${id} depth=${depth} title="Error" icon=${ApplicationIcons.error}>
-    ${event.error.message}
+  <${EventPanel} id=${id} depth=${depth} title="Error" titleColor="red" icon=${ApplicationIcons.error}>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ margin: "1em 0" }}/>
   </${EventPanel}>`;
 };

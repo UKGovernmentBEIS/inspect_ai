@@ -9128,11 +9128,11 @@ e = r, t = function(e2, t2) {
   };
 }(0, r.exports), void 0 !== t && (e.exports = t);
 var n = r.exports;
-const ANSIDisplay = ({ output }) => {
+const ANSIDisplay = ({ output, style }) => {
   const ansiOutput = new n.ANSIOutput();
   ansiOutput.processOutput(output);
   let firstOutput = false;
-  return m$1`<div class="ansi-display">
+  return m$1`<div class="ansi-display" style=${{ ...style }}>
     ${ansiOutput.outputLines.map((line2) => {
     firstOutput = firstOutput || !!line2.outputRuns.length;
     return m$1`<div class="ansi-display-line">
@@ -14792,6 +14792,7 @@ const EventPanel = ({
   title,
   text,
   icon,
+  titleColor,
   depth = 0,
   collapse,
   style,
@@ -14816,13 +14817,13 @@ const EventPanel = ({
         >
           ${icon ? m$1`<i
                 class=${icon || ApplicationIcons.metadata}
-                style=${{ ...TextStyle.secondary }}
+                style=${{ ...TextStyle.secondary, color: titleColor ? titleColor : "" }}
                 onclick=${() => {
     setCollapsed(!collapsed);
   }}
               />` : ""}
           <div
-            style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+            style=${{ ...TextStyle.label, ...TextStyle.secondary, color: titleColor ? titleColor : "" }}
             onclick=${() => {
     setCollapsed(!collapsed);
   }}
@@ -15661,10 +15662,10 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
         />` : ""}
   </${EventPanel}>`;
 };
-const ErrorEventView = ({ id, depth, stateManager, event }) => {
+const ErrorEventView = ({ id, depth, event }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Error" icon=${ApplicationIcons.error}>
-    ${event.error.message}
+  <${EventPanel} id=${id} depth=${depth} title="Error" titleColor="red" icon=${ApplicationIcons.error}>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
 const TranscriptView = ({ id, events, stateManager }) => {
@@ -15767,10 +15768,10 @@ const renderNode = (id, event, depth, stateManager) => {
       />`;
     case "error":
       return m$1`<${ErrorEventView}
-          depth=${depth}
-          id=${id}
-          event=${event}
-          stateManager=${stateManager}
+        depth=${depth}
+        id=${id}
+        event=${event}
+        stateManager=${stateManager}
       />`;
     default:
       return m$1``;
