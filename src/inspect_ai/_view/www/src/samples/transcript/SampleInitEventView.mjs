@@ -3,7 +3,6 @@ import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
-import { isBase64 } from "../../utils/Base64.mjs";
 import { EventSection } from "./EventSection.mjs";
 
 /**
@@ -30,15 +29,10 @@ export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   const sections = [];
 
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
-    const filesTable = {};
-    Object.keys(event.sample.files).forEach((key) => {
-      filesTable[key] = isBase64(event.sample.files[key])
-        ? `<Base64 string>`
-        : event.sample.files[key];
-    });
-
     sections.push(html`<${EventSection} title="Files">
-      <${MetaDataGrid} entries=${filesTable}/>
+      ${Object.keys(event.sample.files).map((file) => {
+        return html`<pre style=${{ marginBottom: "0" }}>${file}</pre>`;
+      })}
       </${EventSection}>
   `);
   }
