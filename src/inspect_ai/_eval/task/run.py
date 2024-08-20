@@ -544,7 +544,8 @@ def eval_log_sample_source(
 
     elif eval_log.eval.dataset.samples != len(dataset):
         py_logger.warning(
-            "Unable to re-use samples from retry log file because the dataset size changed"
+            "Unable to re-use samples from retry log file because the dataset size changed "
+            + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
         return no_sample_source
     else:

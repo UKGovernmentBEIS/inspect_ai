@@ -1,7 +1,9 @@
+from random import random
 from typing import Callable
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai.dataset import Sample
+from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, TaskState, generate, solver
 
 
@@ -81,3 +83,32 @@ def test_fail_on_error_override():
     )
     log = eval(task, fail_on_error=0.6, model="mockllm/model")[0]
     assert log.status == "error"
+
+
+@task
+def fail_on_error_failing_task():
+    return Task(
+        dataset=[
+            Sample(input="Say hello", target="hello"),
+            Sample(input="Say hello", target="hello"),
+            Sample(input="Say hello", target="hello"),
+        ],
+        plan=[failing_solver(lambda _s: random() > 0.33), generate()],
+        fail_on_error=False,
+        scorer=includes(),
+    )
+
+
+def test_fail_on_error_retry():
+    # run eval with a solver that fails 2/3 times
+    log = eval(fail_on_error_failing_task, model="mockllm/model")[0]
+
+    # note the task id so we can be certain it remains the same
+    task_id = log.eval.task_id
+
+    # retry until we succeed (confirming the task_id is stable)
+    while not log.results or (
+        log.results.completed_samples < log.results.total_samples
+    ):
+        log = eval_retry(log)[0]
+        assert log.eval.task_id == task_id
