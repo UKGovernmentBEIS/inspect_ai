@@ -1,7 +1,7 @@
 """
 RACE: Large-scale ReAding Comprehension Dataset From Examinations
 
-We implement evaluation on RACE-H, the subset of the dataset corresponding to high school examinations
+Evaluation on RACE-H, the subset of the dataset corresponding to high school examinations, is implemented
 
 Guokun Lai, Qizhe Xie, Hanxiao Liu, Yiming Yang, Eduard Hovy
 https://arxiv.org/abs/1704.04683
@@ -16,17 +16,10 @@ from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
-# decided to keep it simple and change the question to include the passage instead of a custom implementation
-# {question} =
-    # {passage_from_dataset}
-
-    # Question:
-    # {question_from_dataset}
-
 
 def record_to_sample(record):
     return Sample(
-        input=record["article"] + "\n\nQuestion:\n" + record["question"], # this will be substituted for {question} in the template
+        input=record["article"] + "\n\nQuestion:\n" + record["question"],
         target=record["answer"],
         choices=record["options"],
     )
@@ -40,7 +33,8 @@ You are provided with a passage, a question based on the passage, and four choic
 Passage:
 {question}
 
-Choices:{choices}
+Choices:
+{choices}
 """.strip()
 
 
@@ -50,8 +44,7 @@ def race_h():
         path="ehovy/race",
         name="high",
         sample_fields=record_to_sample,
-        # trust=True,
-        split="validation", # replace with 'training' set later
+        split="test",
         shuffle=True,
     )
 
@@ -59,5 +52,5 @@ def race_h():
         dataset=dataset,
         plan=[multiple_choice(template=TEMPLATE)],
         scorer=choice(),
-        config=GenerateConfig(temperature=0.0), # deterministic O/P
+        config=GenerateConfig(temperature=0.0),
     )
