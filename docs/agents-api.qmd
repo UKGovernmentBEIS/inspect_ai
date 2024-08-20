@@ -159,7 +159,7 @@ my_add = tool_with(add(), parameters={"x": "the x argument"})
 
 Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions)..
 
-## Transcripts
+## Transcripts {#sec-transcripts}
 
 Transcripts provide a rich per-sample sequential view of everything that occurs during plan execution and scoring, including:
 
