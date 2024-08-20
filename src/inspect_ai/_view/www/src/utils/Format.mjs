@@ -227,3 +227,16 @@ export function formatNoDecimal(num) {
   const rounded = Math.round(num);
   return rounded.toFixed(0);
 }
+
+/**
+ * Formats a number to a string without trailing zeroes after the decimal point.
+ *
+ * @param {number} num - The number to format.
+ * @returns {string} - The formatted number as a string
+ */
+export function formatNumber(num) {
+  return num.toLocaleString(navigator.language, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 5,
+  });
+}
