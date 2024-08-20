@@ -15144,6 +15144,10 @@ const EventPanel = ({
   const filteredArrChilden = arrChildren.filter((child) => !!child);
   const hasCollapse = collapse !== void 0;
   const [collapsed, setCollapsed] = h(!!collapse);
+  const [selectedNav, setSelectedNav] = h("");
+  y(() => {
+    setSelectedNav(pillId(0));
+  }, []);
   const pillId = (index) => {
     return `${id}-nav-pill-${index}`;
   };
@@ -15210,6 +15214,8 @@ const EventPanel = ({
       target: pillId(index)
     };
   })}
+                  selectedNav=${selectedNav}
+                  setSelectedNav=${setSelectedNav}
                 />` : ""}
             ${hasCollapse ? m$1`<i
                   onclick=${() => {
@@ -15235,9 +15241,10 @@ const EventPanel = ({
           style=${{ padding: 0, marginLeft: "0.5em" }}
         >
           ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
+    const id2 = pillId(index);
     return m$1`<div
-              id=${pillId(index)}
-              class="tab-pane show ${index === 0 ? "active" : ""}"
+              id=${id2}
+              class="tab-pane show ${id2 === selectedNav ? "active" : ""}"
             >
               ${child}
             </div>`;
@@ -15246,7 +15253,7 @@ const EventPanel = ({
   </div>`;
   return card;
 };
-const EventNavs = ({ navs }) => {
+const EventNavs = ({ navs, selectedNav, setSelectedNav }) => {
   return m$1`<ul
     class="nav nav-pills card-header-pills"
     style=${{ marginRight: "0" }}
@@ -15259,15 +15266,16 @@ const EventNavs = ({ navs }) => {
         id=${nav.id}
         target=${nav.target}
         title=${nav.title}
+        selectedNav=${selectedNav}
+        setSelectedNav=${setSelectedNav}
       />`;
   })}
   </ul>`;
 };
-const EventNav = ({ target, title, active }) => {
+const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
+  const active = target === selectedNav;
   return m$1`<li class="nav-item">
     <button
-      data-bs-toggle="pill"
-      data-bs-target="#${target}"
       type="button"
       role="tab"
       aria-controls=${target}
@@ -15280,6 +15288,9 @@ const EventNav = ({ target, title, active }) => {
     borderRadius: "3px"
   }}
       class="nav-link ${active ? "active " : ""}"
+      onclick=${() => {
+    setSelectedNav(target);
+  }}
     >
       ${title}
     </button>
@@ -17413,6 +17424,7 @@ const TranscriptView = ({ id, events, stateManager }) => {
   });
   return m$1`<div
     id=${id}
+    key=${id}
     style=${{
     fontSize: FontSize.small,
     display: "grid",

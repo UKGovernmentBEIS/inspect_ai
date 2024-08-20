@@ -58,6 +58,7 @@ export const TranscriptView = ({ id, events, stateManager }) => {
 
   return html`<div
     id=${id}
+    key=${id}
     style=${{
       fontSize: FontSize.small,
       display: "grid",

@@ -1,6 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
@@ -38,6 +38,10 @@ export const EventPanel = ({
 
   const hasCollapse = collapse !== undefined;
   const [collapsed, setCollapsed] = useState(!!collapse);
+  const [selectedNav, setSelectedNav] = useState("");
+  useEffect(() => {
+    setSelectedNav(pillId(0));
+  }, []);
 
   /**
    * Generates the id for the navigation pill.
@@ -122,6 +126,8 @@ export const EventPanel = ({
                       target: pillId(index),
                     };
                   })}
+                  selectedNav=${selectedNav}
+                  setSelectedNav=${setSelectedNav}
                 />`
               : ""}
             ${hasCollapse
@@ -155,9 +161,10 @@ export const EventPanel = ({
           style=${{ padding: 0, marginLeft: "0.5em" }}
         >
           ${filteredArrChilden?.map((child, index) => {
+            const id = pillId(index);
             return html`<div
-              id=${pillId(index)}
-              class="tab-pane show ${index === 0 ? "active" : ""}"
+              id=${id}
+              class="tab-pane show ${id === selectedNav ? "active" : ""}"
             >
               ${child}
             </div>`;
@@ -173,9 +180,11 @@ export const EventPanel = ({
  *
  * @param {Object} props - The component properties.
  * @param {Array<{id: string, title: string, target: string}>} props.navs - The array of navigation items.
+ * @param {string} props.selectedNav - The id of the selected nav item.
+ * @param {(target: string) => void} props.setSelectedNav - Select this nav target
  * @returns {import("preact").ComponentChildren} - The rendered navigation items as a list.
  */
-const EventNavs = ({ navs }) => {
+const EventNavs = ({ navs, selectedNav, setSelectedNav }) => {
   return html`<ul
     class="nav nav-pills card-header-pills"
     style=${{ marginRight: "0" }}
@@ -188,6 +197,8 @@ const EventNavs = ({ navs }) => {
         id=${nav.id}
         target=${nav.target}
         title=${nav.title}
+        selectedNav=${selectedNav}
+        setSelectedNav=${setSelectedNav}
       />`;
     })}
   </ul>`;
@@ -199,14 +210,14 @@ const EventNavs = ({ navs }) => {
  * @param {Object} props - The component properties.
  * @param {string} props.target - The target of the navigation item.
  * @param {string} props.title - The title of the navigation item.
- * @param {boolean} props.active - Is the navigation item active.
+ * @param {string} props.selectedNav - The id of the selected nav item.
+ * @param {(target: string) => void} props.setSelectedNav - Select this nav target
  * @returns {import("preact").ComponentChildren} - The rendered navigation item.
  */
-const EventNav = ({ target, title, active }) => {
+const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
+  const active = target === selectedNav;
   return html`<li class="nav-item">
     <button
-      data-bs-toggle="pill"
-      data-bs-target="#${target}"
       type="button"
       role="tab"
       aria-controls=${target}
@@ -219,6 +230,9 @@ const EventNav = ({ target, title, active }) => {
         borderRadius: "3px",
       }}
       class="nav-link ${active ? "active " : ""}"
+      onclick=${() => {
+        setSelectedNav(target);
+      }}
     >
       ${title}
     </button>
