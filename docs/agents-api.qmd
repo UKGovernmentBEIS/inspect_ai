@@ -4,10 +4,10 @@ format: html
 ---
 
 ::: callout-note
-The Agents API described in this article is currently available only on the [feature/subtasks](https://github.com/UKGovernmentBEIS/inspect_ai/tree/feature/subtasks) branch of the development version of Inspect. You can install this branch with:
+The Agents API described in this article is currently available only in the development version of Inspect. You can install the development version with:
 
 ``` {.bash .code-overflow-wrap}
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai@feature/subtasks
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai
 ```
 :::
 
@@ -240,34 +240,24 @@ A few things will occur automatically when you run a subtask:
 
 You can also include one or more steps within a subtask.
 
-### Tool Subtasks
+### Parallel Execution
 
-If a tool is entirely independent of other tools (i.e. it is not coordinating with other tools via changes to the `store`) you can make the tool itself a subtask. This would be beneficial if the tool had interactions (e.g. model calls, store changes, etc.) you want to record in a distinct transcript.
+You can execute subtasks in parallel using `asyncio.gather()`. For example, to run 3 `web_search()` subtasks in parallel:
 
-To enclose a tool in a subtask, just add the `@subtask` decorator to the tool's execute function. For example, let's adapt the `web_search()` function above into a tool that also defines a subtask (note we also add a `model` parameter to customise what model is used for summarisation):
 
 ``` python
-@tool(prompt="Use the web search tool to find information online")
-def web_search(model: str | None = None):
+import asyncio
 
-    # resolve model used for summarisation
-    model = get_model(model)
+searches = [
+  web_search(keywords="solar power"),
+  web_search(keywords="wind power"),
+  web_search(keywords="hydro power"),
+]
 
-    @subtask(name="web_search")
-    def execute(keywords: str) -> str:
-        # get links for these keywords
-        links = await search_links(keywords)
-
-        # add links to the store so they end up in the transcript
-        store().set("links", links)
-
-        # summarise the links
-        return await fetch_and_summarise(links, model)
-
-    return execute
+results = await asyncio.gather(*searches)
 ```
 
-Note that we've added the `name="web_search"` argument to `@subtask`—this is because we've declared our function using the generic name `execute()` and want to provide an alternative that is more readily understandable.
+Note that we don't `await` the subtasks when building up our list of `searches`. Rather, we let `asyncio.gather()` await all of them, returning only when all of the results are available.
 
 ## Sandboxing
 
