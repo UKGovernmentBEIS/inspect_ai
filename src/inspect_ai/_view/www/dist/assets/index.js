@@ -6209,6 +6209,12 @@ function formatDecimalNoTrailingZeroes(num) {
 function toTitleCase(str) {
   return str.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
 }
+function formatNumber(num) {
+  return num.toLocaleString(navigator.language, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 5
+  });
+}
 const filename = (path) => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
@@ -13749,7 +13755,7 @@ const contentRenderers = {
       return typeof entry.value === "number";
     },
     render: (id, entry) => {
-      entry.value = entry.value.toString();
+      entry.value = formatNumber(entry.value);
       return contentRenderers.String.render(id, entry);
     }
   },
@@ -17107,7 +17113,7 @@ const Rendered = ({ values }) => {
 const ModelEventView = ({ id, depth, event }) => {
   var _a, _b;
   const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
-  const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
+  const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
   const outputMessages = (_b = event.output.choices) == null ? void 0 : _b.map((choice) => {
     return choice.message;
   });
