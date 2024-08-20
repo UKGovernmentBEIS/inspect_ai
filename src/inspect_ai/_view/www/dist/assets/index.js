@@ -15221,7 +15221,7 @@ const EventPanel = ({
     ${titleEl}
     ${!hasCollapse || !collapsed ? m$1` <div
           class="card-body tab-content"
-          style=${{ padding: 0, marginLeft: "2em" }}
+          style=${{ padding: 0, marginLeft: "0.5em" }}
         >
           ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
     return m$1`<div
@@ -18207,7 +18207,7 @@ const resolveValue = (value, evalEvents) => {
 const SampleError = ({ align, style }) => {
   align = align || "center";
   return m$1`<div
-              style=${{
+    style=${{
     color: "var(--bs-danger)",
     display: "grid",
     gridTemplateColumns: "1fr",
@@ -18215,43 +18215,46 @@ const SampleError = ({ align, style }) => {
     justifyItems: "center",
     ...style
   }}
-            >
-              <i
-                class=${ApplicationIcons.error}
-                style=${{
+  >
+    <i
+      class=${ApplicationIcons.error}
+      style=${{
     fontSize: FontSize.small,
     lineHeight: FontSize.small,
     height: FontSize.small
   }}
-              />
-              <div>Error</div>
-            </div>`;
+    />
+    <div>Error</div>
+  </div>`;
 };
 const FlatSampleError = ({ style }) => {
   return m$1`<div
-              style=${{
+    style=${{
     color: "var(--bs-danger)",
     display: "grid",
     gridTemplateColumns: "max-content max-content",
     columnGap: "0.2em",
     ...style
   }}
-            >
-              <i
-                class=${ApplicationIcons.error}
-                style=${{
+  >
+    <i
+      class=${ApplicationIcons.error}
+      style=${{
     fontSize: FontSize.base,
     lineHeight: FontSize.base,
     height: FontSize.base
   }}
-              />
-              <div                 style=${{
+    />
+    <div
+      style=${{
     fontSize: FontSize.base,
     lineHeight: FontSize.base,
     height: FontSize.base
   }}
->Error</div>
-            </div>`;
+    >
+      Error
+    </div>
+  </div>`;
 };
 const InlineSampleDisplay = ({
   index,
@@ -18461,7 +18464,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   }
   columns.push({
     label: "Score",
-    value: sample.error ? m$1`<${FlatSampleError} style=${{ marginTop: "0.4rem" }}/>` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render(),
+    value: sample.error ? m$1`<${FlatSampleError} style=${{ marginTop: "0.4rem" }} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render(),
     size: "minmax(2em, auto)",
     center: true
   });
@@ -18931,7 +18934,7 @@ const SampleRow = ({
     display: "flex"
   }}
       >
-        ${sample.error ? m$1`<${SampleError}/>` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
+        ${sample.error ? m$1`<${SampleError} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
       </div>
     </div>
   `;
