@@ -2381,7 +2381,7 @@ const MILLISECONDS_MULTIPLIER = 1e3;
 const TRANSITION_END = "transitionend";
 const parseSelector = (selector) => {
   if (selector && window.CSS && window.CSS.escape) {
-    selector = selector.replace(/#([^\s"#']+)/g, (match, id2) => `#${CSS.escape(id2)}`);
+    selector = selector.replace(/#([^\s"#']+)/g, (match, id) => `#${CSS.escape(id)}`);
   }
   return selector;
 };
@@ -6219,6 +6219,9 @@ const filename = (path) => {
     return path;
   }
 };
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 function throttle(func, wait, options) {
   var context, args, result;
   var timeout = null;
@@ -6250,9 +6253,6 @@ function throttle(func, wait, options) {
     return result;
   };
 }
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 const clearDocumentSelection = () => {
   const sel = window.getSelection();
   if (sel) {
@@ -6263,14 +6263,29 @@ const clearDocumentSelection = () => {
     }
   }
 };
-const icons = {
+const ApplicationIcons = {
   arrows: {
     right: "bi bi-arrow-right",
     down: "bi bi-arrow-down",
     up: "bi bi-arrow-up"
   },
-  "collapse-all": "bi bi-arrows-collapse",
-  "collapse-up": "bi bi-chevron-up",
+  caret: {
+    right: "bi bi-caret-right",
+    down: "bi bi-caret-down"
+  },
+  changes: {
+    add: "bi bi-plus",
+    remove: "bi bi-dash",
+    replace: "bi bi-plus-slash-minus"
+  },
+  chevron: {
+    right: "bi bi-chevron-right",
+    down: "bi bi-chevron-down"
+  },
+  collapse: {
+    all: "bi bi-arrows-collapse",
+    up: "bi bi-chevron-up"
+  },
   close: "bi bi-x",
   config: "bi bi-gear",
   confirm: "bi bi-check",
@@ -6281,11 +6296,13 @@ const icons = {
   error: "bi bi-exclamation-circle",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
+  info: "bi bi-info-circle",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
   logging: {
     notset: "bi bi-card-text",
     debug: "bi bi-bug",
+    http: "bi bi-download",
     info: "bi bi-info-square",
     warning: "bi bi-exclamation-triangle",
     error: "bi bi-x-circle",
@@ -6294,9 +6311,10 @@ const icons = {
   menu: "bi bi-list",
   messages: "bi bi-chat-right-text",
   metadata: "bi bi-table",
-  model: "bi bi-cpu",
+  model: "bi bi-grid-3x3-gap",
   "toggle-right": "bi bi-chevron-right",
   more: "bi bi-zoom-in",
+  "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
   previous: "bi bi-chevron-left",
   role: {
@@ -6305,7 +6323,7 @@ const icons = {
     assistant: "bi bi-robot",
     tool: "bi bi-tools"
   },
-  sample: "bi bi-speedometer",
+  sample: "bi bi-database",
   samples: "bi bi-file-spreadsheet",
   scorer: "bi bi-calculator",
   search: "bi bi-search",
@@ -6317,64 +6335,33 @@ const icons = {
     system_message: "bi bi-cpu",
     use_tools: "bi bi-tools"
   },
+  step: "bi bi-fast-forward-btn",
+  subtask: "bi bi-subtract",
+  transcript: "bi bi-list-columns-reverse",
   usage: "bi bi-stopwatch"
 };
-const colors = {
-  logging: {
-    debug: "var(--bs-secondary)",
-    info: "var(--bs-blue)",
-    warning: "var(--bs-warning)",
-    error: "var(--bs-danger)",
-    critical: "var(--bs-danger)"
-  }
+const kBaseFontSize = 0.9;
+const ScaleBaseFont = (scale) => {
+  return `${kBaseFontSize + scale}rem`;
 };
-const sharedStyles = {
-  moreButton: {
-    maxHeight: "1.8em",
-    fontSize: "0.8rem",
-    padding: "0 0.2em 0 0.2em",
+const FontSize = {
+  title: ScaleBaseFont(0.6),
+  "title-secondary": ScaleBaseFont(0.4),
+  larger: ScaleBaseFont(0.2),
+  large: ScaleBaseFont(0.1),
+  base: ScaleBaseFont(0),
+  small: ScaleBaseFont(-0.1),
+  smaller: ScaleBaseFont(-0.1)
+};
+const TextStyle = {
+  label: {
+    textTransform: "uppercase"
+  },
+  secondary: {
     color: "var(--bs-secondary)"
-  },
-  threeLineClamp: {
-    display: "-webkit-box",
-    "-webkit-line-clamp": "3",
-    "-webkit-box-orient": "vertical",
-    overflow: "hidden"
-  },
-  lineClamp: (len) => {
-    return {
-      display: "-webkit-box",
-      "-webkit-line-clamp": `${len}`,
-      "-webkit-box-orient": "vertical",
-      overflow: "hidden"
-    };
-  },
-  wrapText: () => {
-    return {
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden"
-    };
-  },
-  scoreFills: {
-    green: {
-      backgroundColor: "var(--bs-success)",
-      borderColor: "var(--bs-success)",
-      color: "var(--bs-body-bg)"
-    },
-    red: {
-      backgroundColor: "var(--bs-danger)",
-      borderColor: "var(--bs-danger)",
-      color: "var(--bs-body-bg)"
-    },
-    orange: {
-      backgroundColor: "var(--bs-orange)",
-      borderColor: "var(--bs-orange)",
-      color: "var(--bs-body-bg)"
-    }
   }
 };
-const ErrorPanel = ({ id: id2, classes, title, error }) => {
+const ErrorPanel = ({ id, classes, title, error }) => {
   const emptyStyle = {
     display: "flex",
     flex: "0 0 content",
@@ -6385,7 +6372,7 @@ const ErrorPanel = ({ id: id2, classes, title, error }) => {
   const stack2 = error.stack;
   return m$1`
     <div
-      ...${{ id: id2 }}
+      ...${{ id }}
       class="${classes ? classes : ""}"
       style=${{
     ...emptyStyle,
@@ -6394,10 +6381,10 @@ const ErrorPanel = ({ id: id2, classes, title, error }) => {
     marginTop: "4rem"
   }}
     >
-      <div style=${{ ...emptyStyle, fontSize: "1.3rem" }}>
+      <div style=${{ ...emptyStyle, fontSize: FontSize["title-secondary"] }}>
         <div>
           <i
-            class="${icons.error}"
+            class="${ApplicationIcons.error}"
             style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
           ></i>
         </div>
@@ -6406,7 +6393,7 @@ const ErrorPanel = ({ id: id2, classes, title, error }) => {
       <div
         style=${{
     display: "inline-block",
-    fontSize: "0.8rem",
+    fontSize: FontSize.smaller,
     marginTop: "3rem",
     border: "solid 1px var(--bs-border-color)",
     borderRadius: "var(--bs-border-radius)",
@@ -6417,7 +6404,7 @@ const ErrorPanel = ({ id: id2, classes, title, error }) => {
         <div>
           Error: ${message || ""}
           ${stack2 && m$1`
-            <pre style=${{ fontSize: "0.8rem" }}>
+            <pre style=${{ fontSize: FontSize.smaller }}>
             <code>
               at ${stack2}
             </code>
@@ -6452,7 +6439,6 @@ class AppErrorBoundary extends b {
 }
 const ProgressBar = ({ style, animating }) => {
   const emptyStyle = {
-    ...style,
     display: "flex",
     textAlign: "center",
     flex: "0 0 content",
@@ -6460,19 +6446,20 @@ const ProgressBar = ({ style, animating }) => {
     justifyContent: "center",
     border: "none",
     padding: "0",
-    background: "#FFFFFF00",
-    fontSize: "0.7em",
     zIndex: 1001,
-    width: "100%"
+    width: "100%",
+    height: "0px",
+    overflow: "visible"
   };
   const progressContainerStyle = {
     width: "100%",
-    height: "4px",
+    height: "2px",
     background: "none"
   };
   const progressBarStyle = {
     width: "5%",
-    height: "2px"
+    height: "2px",
+    ...style
   };
   return m$1`
     <div style=${emptyStyle} class="empty-message">
@@ -6492,323 +6479,6 @@ const ProgressBar = ({ style, animating }) => {
       </div>
     </div>
   `;
-};
-const CopyButton = ({ value }) => {
-  return m$1`<button
-    class="copy-button"
-    style=${{
-    border: "none",
-    backgroundColor: "inherit",
-    opacity: "0.5",
-    paddingTop: "0px"
-  }}
-    data-clipboard-text=${value}
-    onclick=${(e2) => {
-    const iEl = e2.target;
-    if (iEl) {
-      iEl.className = `${icons.confirm} primary`;
-      setTimeout(() => {
-        iEl.className = icons.copy;
-      }, 1250);
-    }
-    return false;
-  }}
-  >
-    <i class=${icons.copy}></i>
-  </button>`;
-};
-const Navbar = ({
-  file,
-  task,
-  logs,
-  model,
-  status,
-  samples,
-  results,
-  offcanvas
-}) => {
-  const toggleOffCanClass = offcanvas ? "" : " d-md-none";
-  const logFileName = file ? filename(file) : "";
-  let statusPanel;
-  if (status === "success") {
-    statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
-  } else if (status === "cancelled") {
-    statusPanel = m$1`<${CanceledPanel}
-      sampleCount=${(samples == null ? void 0 : samples.length) || 0}
-    />`;
-  } else if (status === "started") {
-    statusPanel = m$1`<${RunningPanel} />`;
-  }
-  const navbarContents = logFileName ? m$1` <div
-          class="navbar-brand navbar-text mb-0"
-          style=${{
-    display: "flex",
-    paddingTop: 0,
-    marginLeft: "0.5rem",
-    minWidth: "350px"
-  }}
-        >
-          ${logs.files.length > 1 || logs.log_dir ? m$1`<button
-                id="sidebarToggle"
-                class="btn${toggleOffCanClass}"
-                type="button"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#sidebarOffCanvas"
-                aria-controls="sidebarOffCanvas"
-                style=${{
-    padding: "0rem 0.1rem 0.1rem 0rem",
-    display: "flex"
-  }}
-              >
-                <i class=${icons.menu}></i>
-              </button> ` : ""}
-          <div
-            style=${{
-    display: "flex",
-    flexDirection: "column",
-    marginLeft: "0.2rem"
-  }}
-          >
-            <div
-              style=${{
-    marginTop: "0.1rem",
-    display: "grid",
-    gridTemplateColumns: "minmax(30px,max-content) minmax(100px, max-content)"
-  }}
-            >
-              <div
-                style=${{
-    fontWeight: 600,
-    marginRight: "0.3rem",
-    ...sharedStyles.wrapText()
-  }}
-                title=${task}
-              >
-                ${task}
-              </div>
-              <div
-                style=${{
-    fontWeight: 300,
-    fontSize: "0.9em",
-    paddingTop: "0.15em",
-    ...sharedStyles.wrapText()
-  }}
-                title=${model}
-              >
-                ${model}
-              </div>
-            </div>
-            <div
-              style=${{
-    opacity: "0.7",
-    marginTop: "0.1rem",
-    paddingBottom: 0,
-    fontSize: "0.9rem",
-    fontWeight: "300",
-    display: "grid",
-    gridTemplateColumns: "minmax(0,max-content) max-content"
-  }}
-            >
-              <div
-                class="navbar-secondary-text"
-                style=${{
-    ...sharedStyles.wrapText()
-  }}
-              >
-                ${logFileName}
-              </div>
-              <${CopyButton} value=${file} />
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="navbar-text"
-          style=${{
-    justifyContent: "end",
-    marginRight: "1em",
-    marginBottom: "0"
-  }}
-        >
-          ${statusPanel}
-        </div>` : "";
-  return m$1`
-    <nav
-      class="navbar sticky-top"
-      style=${{
-    flexWrap: "nowrap",
-    borderBottom: "solid var(--bs-border-color) 1px"
-  }}
-    >
-      <div class="navbar-title-grid">${navbarContents}</div>
-    </nav>
-  `;
-};
-const CanceledPanel = ({ sampleCount }) => {
-  return m$1`<div
-    style=${{
-    padding: "1em",
-    marginTop: "0.5em",
-    textTransform: "uppercase",
-    fontSize: "0.7em"
-  }}
-  >
-    <i class="${icons.logging.info}" style=${{ fontSize: "1.1em" }} /> cancelled
-    (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
-  </div>`;
-};
-const RunningPanel = () => {
-  return m$1`<div
-    style=${{
-    marginTop: "0.5em",
-    display: "inline-grid",
-    gridTemplateColumns: "auto auto"
-  }}
-  >
-    <div class="spinner-border spinner-border-sm" role="status"></div>
-    <div
-      style=${{ marginLeft: "0.3em", paddingTop: "0.2em", fontSize: "0.7em" }}
-    >
-      Running
-    </div>
-  </div>`;
-};
-const ResultsPanel = ({ results }) => {
-  if (results.scores.length === 1) {
-    const scorers = {};
-    results.scores.map((score) => {
-      scorers[score.name] = Object.keys(score.metrics).map((key2) => {
-        return {
-          name: key2,
-          value: score.metrics[key2].value,
-          reducer: score.reducer
-        };
-      });
-    });
-    const metrics = Object.values(scorers)[0];
-    return m$1`<div
-      style=${{
-      display: "flex",
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "end",
-      height: "100%",
-      alignItems: "center"
-    }}
-    >
-      ${metrics.map((metric, i2) => {
-      return m$1`<${VerticalMetric} metric=${metric} isFirst=${i2 === 0} />`;
-    })}
-    </div>`;
-  } else {
-    return m$1`<div
-      style=${{
-      display: "flex",
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "end",
-      height: "100%",
-      alignItems: "center",
-      marginTop: "0.2rem",
-      paddingBottom: "0.4rem",
-      rowGap: "1em"
-    }}
-    >
-      ${results.scores.map((score, index) => {
-      return m$1`<${MultiScorerMetric}
-          scorer=${score}
-          isFirst=${index === 0}
-        />`;
-    })}
-    </div>`;
-  }
-};
-const VerticalMetric = ({ metric, isFirst }) => {
-  const reducer_component = metric.reducer ? m$1` <div
-        style=${{
-    fontSize: "0.7rem",
-    fontWeight: "200",
-    textAlign: "center",
-    paddingTop: "0.3rem",
-    marginBottom: "-0.3rem"
-  }}
-      >
-        ${metric.reducer}
-      </div>` : "";
-  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
-    <div
-      class="vertical-metric-label"
-      style=${{
-    fontSize: "0.8rem",
-    fontWeight: "200",
-    textAlign: "center",
-    paddingTop: "0.3rem",
-    marginBottom: "-0.3rem",
-    textTransform: "uppercase",
-    borderBottom: "solid var(--bs-border-color) 1px"
-  }}
-    >
-      ${metric.name}
-    </div>
-    ${reducer_component}
-    <div
-      class="vertical-metric-value"
-      style=${{
-    fontSize: "1.1rem",
-    fontWeight: "500",
-    textAlign: "center"
-  }}
-    >
-      ${formatPrettyDecimal(metric.value)}
-    </div>
-  </div>`;
-};
-const MultiScorerMetric = ({ scorer, isFirst }) => {
-  const baseFontSize = Object.keys(scorer.metrics).length === 1 ? 0.9 : 0.7;
-  const reducer_component = scorer.reducer ? m$1`<div
-        style=${{
-    fontSize: `${baseFontSize - 0.1}rem`,
-    fontWeight: "200",
-    textAlign: "center",
-    textTransform: "uppercase",
-    marginBottom: "-0.3rem"
-  }}
-      >
-        ${scorer.reducer}
-      </div>` : "";
-  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1.5em" }}>
-    <div
-      style=${{
-    fontSize: `${baseFontSize}rem`,
-    fontWeight: "200",
-    textAlign: "center",
-    borderBottom: "solid var(--bs-border-color) 1px",
-    textTransform: "uppercase",
-    marginBottom: "-0.1rem"
-  }}
-      class="multi-score-label"
-    >
-      ${scorer.name}
-    </div>
-    ${reducer_component}
-    <div
-      style=${{
-    display: "grid",
-    gridTemplateColumns: "auto auto",
-    gridColumnGap: "0.3rem",
-    gridRowGap: "0",
-    fontSize: `${baseFontSize + 0.1}rem`
-  }}
-    >
-      ${Object.keys(scorer.metrics).map((key2) => {
-    const metric = scorer.metrics[key2];
-    return m$1` <div>${metric.name}</div>
-          <div style=${{ fontWeight: "600" }}>
-            ${formatPrettyDecimal(metric.value)}
-          </div>`;
-  })}
-    </div>
-  </div>`;
 };
 const Sidebar = ({
   offcanvas,
@@ -6837,7 +6507,9 @@ const Sidebar = ({
     position: "fixed",
     width: "var(--sidebar-width)",
     zIndex: 10,
-    borderBottom: "solid var(--bs-light-border-subtle) 1px"
+    borderBottom: "solid var(--bs-light-border-subtle) 1px",
+    paddingBottom: "0.5rem",
+    paddingTop: "0.5rem"
   }}
       >
         <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
@@ -6855,11 +6527,11 @@ const Sidebar = ({
     flex: "0 0 content"
   }}
         >
-          <i class=${icons.close}></i>
+          <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "41px", zIndex: 3 }}>
-        <${ProgressBar} animating=${loading} />
+      <div style=${{ marginTop: "61px", zIndex: 3 }}>
+        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
       </div>
       <ul
         class="list-group"
@@ -6892,7 +6564,6 @@ const Sidebar = ({
             <li
               class="list-group-item list-group-item-action${active}"
               onclick=${() => onSelectedIndexChanged(index)}
-              style=${{ fontSize: "0.8rem" }}
             >
               <div
                 style=${{
@@ -6904,8 +6575,7 @@ const Sidebar = ({
                 <div style=${{ overflow: "hidden" }}>
                   <div
                     style=${{
-      fontSize: "1.5em",
-      fontWeight: "600",
+      fontSize: FontSize["title-secondary"],
       whiteSpace: "nowrap",
       overflow: "hidden",
       textOverflow: "ellipsis"
@@ -6913,16 +6583,22 @@ const Sidebar = ({
                   >
                     ${((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || file.task}
                   </div>
-                  <small class="mb-1 text-muted"> ${timeStr} </small>
+                  <small class="mb-1" style=${{ fontSize: FontSize.small }}>
+                    ${timeStr}
+                  </small>
 
                   ${model ? m$1` <div>
-                        <small class="mb-1 text-muted">${model}</small>
+                        <small
+                          class="mb-1"
+                          style=${{ fontSize: FontSize.small }}
+                          >${model}</small
+                        >
                       </div>` : ""}
                 </div>
                 <${EvalStatus} logHeader=${logHeader} />
               </div>
-              <div style=${{ marginTop: "0.4em" }}>
-                <small class="mb-1 text-muted">
+              <div style=${{ marginTop: "1em" }}>
+                <small class="mb-1">
                   ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
       return `${key2}: ${hyperparameters[key2]}`;
     }).join(", ") : ""}
@@ -6932,7 +6608,8 @@ const Sidebar = ({
                     style=${{
       display: "flex",
       justifyContent: "space-between",
-      marginTop: "0.5em"
+      marginTop: "0em",
+      fontSize: FontSize.small
     }}
                   >
                     <span>dataset: ${dataset.name || "(samples)"}</span
@@ -6997,27 +6674,29 @@ const SidebarScore = ({ scorer }) => {
       flexDirection: "column",
       alignItems: "flex-end",
       marginLeft: "1em",
-      marginBottom: "0.4em"
+      marginBottom: "0.4em",
+      marginTop: "0.5rem"
     }}
         >
           <div
             style=${{
-      fontWeight: 300,
-      marginBottom: "-0.3em"
+      marginBottom: "-0.3em",
+      fontSize: FontSize.small,
+      ...TextStyle.label,
+      ...TextStyle.secondary
     }}
           >
             ${scorer.metrics[metric].name}
           </div>
           ${scorer.reducer ? m$1`<div
                 style=${{
-      fontWeight: 300,
-      fontSize: "0.9em",
+      fontSize: FontSize.small,
       marginBottom: "-0.2rem"
     }}
               >
                 ${scorer.reducer}
               </div>` : ""}
-          <div style=${{ fontWeight: 600, fontSize: "1.5em" }}>
+          <div style=${{ fontSize: FontSize["title-secondary"] }}>
             ${formatPrettyDecimal(scorer.metrics[metric].value)}
           </div>
         </div>
@@ -7049,18 +6728,19 @@ const SidebarScores = ({ scores }) => {
         >
           <div
             style=${{
-      fontSize: "0.6rem",
+      fontSize: FontSize.base,
       width: "100%",
       fontWeight: 300,
       borderBottom: "solid var(--bs-border-color) 1px",
-      textTransform: "uppercase"
+      ...TextStyle.label,
+      ...TextStyle.secondary
     }}
           >
             ${name}
           </div>
           ${reducer ? m$1` <div
                 style=${{
-      fontSize: "0.6rem",
+      fontSize: FontSize.smaller,
       width: "100%",
       fontWeight: 300
     }}
@@ -7069,7 +6749,7 @@ const SidebarScores = ({ scores }) => {
               </div>` : ""}
           <div
             style=${{
-      fontSize: "0.7rem",
+      fontSize: FontSize.smaller,
       display: "grid",
       gridTemplateColumns: "max-content max-content",
       gridGap: "0 0.3rem"
@@ -7077,7 +6757,11 @@ const SidebarScores = ({ scores }) => {
           >
             ${Object.keys(score.metrics).map((key2) => {
       const metric = score.metrics[key2];
-      return m$1` <div>${metric.name}</div>
+      return m$1` <div
+                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+                >
+                  ${metric.name}
+                </div>
                 <div style=${{ fontWeight: "600" }}>
                   ${formatPrettyDecimal(metric.value)}
                 </div>`;
@@ -7089,7 +6773,7 @@ const SidebarScores = ({ scores }) => {
   </div>`;
 };
 const StatusCancelled = ({ message }) => {
-  return m$1`<div style=${{ color: "var(--bs-secondary)" }}>${message}</div>`;
+  return m$1`<div style=${{ ...TextStyle.secondary }}>${message}</div>`;
 };
 const StatusRunning = ({ message }) => {
   return m$1`<div class="spinner-border spinner-border-sm" role="status">
@@ -7103,14 +6787,18 @@ const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   if (log_dir) {
     const displayDir = prettyDir(log_dir);
     return m$1`<div style=${{ display: "flex", flexDirection: "column" }}>
-      <span style=${{ fontSize: "0.5rem", textTransform: "uppercase" }}
+      <span
+        style=${{
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary
+    }}
         >Log Directory</span
       >
       <span
         title=${displayDir}
         style=${{
-      fontWeight: "400",
-      fontSize: "0.7rem",
+      fontSize: FontSize.base,
       overflow: "hidden",
       whiteSpace: "nowrap",
       textOverflow: "ellipsis"
@@ -7121,8 +6809,7 @@ const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   } else {
     return m$1`<span
       style=${{
-      fontWeight: "500",
-      fontSize: "1.5rem"
+      fontSize: FontSize.title
     }}
       >${offcanvas ? "Log History" : ""}
     </span>`;
@@ -7248,43 +6935,43 @@ var prism = { exports: {} };
          * @returns {T}
          * @template T
          */
-        clone: function deepClone(o2, visited) {
+        clone: function deepClone2(o2, visited) {
           visited = visited || {};
-          var clone;
-          var id2;
+          var clone2;
+          var id;
           switch (_2.util.type(o2)) {
             case "Object":
-              id2 = _2.util.objId(o2);
-              if (visited[id2]) {
-                return visited[id2];
+              id = _2.util.objId(o2);
+              if (visited[id]) {
+                return visited[id];
               }
-              clone = /** @type {Record<string, any>} */
+              clone2 = /** @type {Record<string, any>} */
               {};
-              visited[id2] = clone;
+              visited[id] = clone2;
               for (var key2 in o2) {
                 if (o2.hasOwnProperty(key2)) {
-                  clone[key2] = deepClone(o2[key2], visited);
+                  clone2[key2] = deepClone2(o2[key2], visited);
                 }
               }
               return (
                 /** @type {any} */
-                clone
+                clone2
               );
             case "Array":
-              id2 = _2.util.objId(o2);
-              if (visited[id2]) {
-                return visited[id2];
+              id = _2.util.objId(o2);
+              if (visited[id]) {
+                return visited[id];
               }
-              clone = [];
-              visited[id2] = clone;
+              clone2 = [];
+              visited[id] = clone2;
               /** @type {Array} */
               /** @type {any} */
               o2.forEach(function(v2, i2) {
-                clone[i2] = deepClone(v2, visited);
+                clone2[i2] = deepClone2(v2, visited);
               });
               return (
                 /** @type {any} */
-                clone
+                clone2
               );
             default:
               return o2;
@@ -7428,8 +7115,8 @@ var prism = { exports: {} };
          *     'color': /\b(?:red|green|blue)\b/
          * });
          */
-        extend: function(id2, redef) {
-          var lang2 = _2.util.clone(_2.languages[id2]);
+        extend: function(id, redef) {
+          var lang2 = _2.util.clone(_2.languages[id]);
           for (var key2 in redef) {
             lang2[key2] = redef[key2];
           }
@@ -8583,8 +8270,8 @@ var prism = { exports: {} };
   })();
 })(prism);
 var prismExports = prism.exports;
-const Prism = /* @__PURE__ */ getDefaultExportFromCjs(prismExports);
-const EmptyPanel = ({ id: id2, classes, height, style, children }) => {
+const Prism$1 = /* @__PURE__ */ getDefaultExportFromCjs(prismExports);
+const EmptyPanel = ({ id, classes, height, style, children }) => {
   const emptyStyle = {
     display: "flex",
     textAlign: "center",
@@ -8595,7 +8282,7 @@ const EmptyPanel = ({ id: id2, classes, height, style, children }) => {
   };
   return m$1`
     <div
-      ...${{ id: id2 }}
+      ...${{ id }}
       class="${classes ? classes : ""}"
       style=${{ width: "100%" }}
     >
@@ -8605,8 +8292,8 @@ const EmptyPanel = ({ id: id2, classes, height, style, children }) => {
     </div>
   `;
 };
-const TabSet = ({ id: id2, type, classes, tools, styles, children }) => {
-  if (!id2) {
+const TabSet = ({ id, type, classes, tools, styles, children }) => {
+  if (!id) {
     throw new Error("Tabsets require an id to function properly");
   }
   const tabs = children;
@@ -8615,7 +8302,7 @@ const TabSet = ({ id: id2, type, classes, tools, styles, children }) => {
     alignItems: "space-between"
   };
   return m$1`<ul
-      ...${{ id: id2 }}
+      ...${{ id }}
       class="nav nav-${tabType} ${classes ? classes : ""}"
       role="tablist"
       aria-orientation="horizontal"
@@ -8624,17 +8311,17 @@ const TabSet = ({ id: id2, type, classes, tools, styles, children }) => {
       <${Tabs} tabs=${tabs} type=${tabType} style=${styles.tabs} />
       <${TabTools} tools=${tools} />
     </ul>
-    <${TabPanels} id=${id2} tabs=${tabs} style=${styles.tabBody} />`;
+    <${TabPanels} id=${id} tabs=${tabs} style=${styles.tabBody} />`;
 };
 const TabPanel = ({
-  id: id2,
+  id,
   index,
   selected,
   style,
   scrollable,
   children
 }) => {
-  const tabContentsId = computeTabContentsId(id2, index);
+  const tabContentsId = computeTabContentsId(id, index);
   return m$1`<div
     id="${tabContentsId}"
     class="tab-pane show ${selected ? "active" : ""}"
@@ -8658,7 +8345,7 @@ const Tabs = ({ tabs, type, style }) => {
   });
 };
 const Tab2 = ({ type, tab, index, style }) => {
-  const tabId = tab.props.id || computeTabId(id, index);
+  const tabId = tab.props.id || computeTabId("tabset", index);
   const tabContentsId = computeTabContentsId(tab.props.id, index);
   const isActive = tab.props.selected;
   const tabStyle = {
@@ -8713,1451 +8400,54 @@ const TabTools = ({ tools }) => {
     ${tools}
   </div>`;
 };
-const TabPanels = ({ id: id2, tabs, style }) => {
-  return m$1`<div class="tab-content" id="${id2}-content" style=${{ ...style }}>
+const TabPanels = ({ id, tabs, style }) => {
+  return m$1`<div class="tab-content" id="${id}-content" style=${{ ...style }}>
     ${tabs.map((tab, index) => {
     tab.props.index = index;
     return tab;
   })}
   </div>`;
 };
-const computeTabId = (id2, index) => {
-  return `${id2}-${index}`;
+const computeTabId = (id, index) => {
+  return `${id}-${index}`;
 };
-const computeTabContentsId = (id2, index) => {
-  return `${id2}-contents-${index}`;
+const computeTabContentsId = (id, index) => {
+  return `${id}-contents-${index}`;
 };
-const ToolButton = ({ name, classes, icon: icon2, onclick, ...rest }) => {
+const ToolButton = ({ name, classes, icon, onclick, ...rest }) => {
   const attr = {
     type: "button",
     class: `btn btn-tools ${classes || ""}`,
     onclick,
     ...rest
   };
-  const iconEl = icon2 ? m$1`<i class="${icon2}" style=${{ marginRight: "0.5em" }}></i>` : "";
+  const iconEl = icon ? m$1`<i class="${icon}" style=${{ marginRight: "0.5em" }}></i>` : "";
   return _("button", attr, m$1`${iconEl}${name}`);
 };
-const asyncJsonParse = (text) => {
-  return new Promise((resolve, reject) => {
-    const blob = new Blob([kWorkerCode], { type: "application/javascript" });
-    const blobURL = URL.createObjectURL(blob);
-    const worker = new Worker(blobURL);
-    try {
-      worker.onmessage = function(e2) {
-        if (e2.data.success) {
-          resolve(e2.data.result);
-        } else {
-          reject(new Error(e2.data.error));
-        }
-      };
-      worker.onerror = function(error) {
-        reject(new Error(error.message));
-      };
-      worker.postMessage({ scriptContent: kJson5ScriptBase64, text });
-    } finally {
-      worker.onterminate = function() {
-        URL.revokeObjectURL(blobURL);
-      };
-    }
-  });
+const ghCommitUrl = (origin, commit) => {
+  const baseUrl = origin.replace(/\.git$/, "");
+  return `${baseUrl}/commit/${commit}`;
 };
-const kWorkerCode = `
-self.onmessage = function (e) {
-  eval(atob(e.data.scriptContent));
-  const text = e.data.text;
-  try {
-    const result = JSON5.parse(text);
-    self.postMessage({ success: true, result });
-  } catch (error) {
-    self.postMessage({ success: false, error: error.message });
-  }
-};`;
-const kJson5ScriptBase64 = `IWZ1bmN0aW9uKHUsRCl7Im9iamVjdCI9PXR5cGVvZiBleHBvcnRzJiYidW5kZWZpbmVkIiE9dHlwZW9mIG1vZHVsZT9tb2R1bGUuZXhwb3J0cz1EKCk6ImZ1bmN0aW9uIj09dHlwZW9mIGRlZmluZSYmZGVmaW5lLmFtZD9kZWZpbmUoRCk6dS5KU09ONT1EKCl9KHRoaXMsZnVuY3Rpb24oKXsidXNlIHN0cmljdCI7ZnVuY3Rpb24gdSh1LEQpe3JldHVybiB1KEQ9e2V4cG9ydHM6e319LEQuZXhwb3J0cyksRC5leHBvcnRzfXZhciBEPXUoZnVuY3Rpb24odSl7dmFyIEQ9dS5leHBvcnRzPSJ1bmRlZmluZWQiIT10eXBlb2Ygd2luZG93JiZ3aW5kb3cuTWF0aD09TWF0aD93aW5kb3c6InVuZGVmaW5lZCIhPXR5cGVvZiBzZWxmJiZzZWxmLk1hdGg9PU1hdGg/c2VsZjpGdW5jdGlvbigicmV0dXJuIHRoaXMiKSgpOyJudW1iZXIiPT10eXBlb2YgX19nJiYoX19nPUQpfSksZT11KGZ1bmN0aW9uKHUpe3ZhciBEPXUuZXhwb3J0cz17dmVyc2lvbjoiMi42LjUifTsibnVtYmVyIj09dHlwZW9mIF9fZSYmKF9fZT1EKX0pLHI9KGUudmVyc2lvbixmdW5jdGlvbih1KXtyZXR1cm4ib2JqZWN0Ij09dHlwZW9mIHU/bnVsbCE9PXU6ImZ1bmN0aW9uIj09dHlwZW9mIHV9KSx0PWZ1bmN0aW9uKHUpe2lmKCFyKHUpKXRocm93IFR5cGVFcnJvcih1KyIgaXMgbm90IGFuIG9iamVjdCEiKTtyZXR1cm4gdX0sbj1mdW5jdGlvbih1KXt0cnl7cmV0dXJuISF1KCl9Y2F0Y2godSl7cmV0dXJuITB9fSxGPSFuKGZ1bmN0aW9uKCl7cmV0dXJuIDchPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSh7fSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmF9KSxDPUQuZG9jdW1lbnQsQT1yKEMpJiZyKEMuY3JlYXRlRWxlbWVudCksaT0hRiYmIW4oZnVuY3Rpb24oKXtyZXR1cm4gNyE9T2JqZWN0LmRlZmluZVByb3BlcnR5KCh1PSJkaXYiLEE/Qy5jcmVhdGVFbGVtZW50KHUpOnt9KSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmE7dmFyIHV9KSxFPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSxvPXtmOkY/T2JqZWN0LmRlZmluZVByb3BlcnR5OmZ1bmN0aW9uKHUsRCxlKXtpZih0KHUpLEQ9ZnVuY3Rpb24odSxEKXtpZighcih1KSlyZXR1cm4gdTt2YXIgZSx0O2lmKEQmJiJmdW5jdGlvbiI9PXR5cGVvZihlPXUudG9TdHJpbmcpJiYhcih0PWUuY2FsbCh1KSkpcmV0dXJuIHQ7aWYoImZ1bmN0aW9uIj09dHlwZW9mKGU9dS52YWx1ZU9mKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O2lmKCFEJiYiZnVuY3Rpb24iPT10eXBlb2YoZT11LnRvU3RyaW5nKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O3Rocm93IFR5cGVFcnJvcigiQ2FuJ3QgY29udmVydCBvYmplY3QgdG8gcHJpbWl0aXZlIHZhbHVlIil9KEQsITApLHQoZSksaSl0cnl7cmV0dXJuIEUodSxELGUpfWNhdGNoKHUpe31pZigiZ2V0ImluIGV8fCJzZXQiaW4gZSl0aHJvdyBUeXBlRXJyb3IoIkFjY2Vzc29ycyBub3Qgc3VwcG9ydGVkISIpO3JldHVybiJ2YWx1ZSJpbiBlJiYodVtEXT1lLnZhbHVlKSx1fX0sYT1GP2Z1bmN0aW9uKHUsRCxlKXtyZXR1cm4gby5mKHUsRCxmdW5jdGlvbih1LEQpe3JldHVybntlbnVtZXJhYmxlOiEoMSZ1KSxjb25maWd1cmFibGU6ISgyJnUpLHdyaXRhYmxlOiEoNCZ1KSx2YWx1ZTpEfX0oMSxlKSl9OmZ1bmN0aW9uKHUsRCxlKXtyZXR1cm4gdVtEXT1lLHV9LGM9e30uaGFzT3duUHJvcGVydHksQj1mdW5jdGlvbih1LEQpe3JldHVybiBjLmNhbGwodSxEKX0scz0wLGY9TWF0aC5yYW5kb20oKSxsPXUoZnVuY3Rpb24odSl7dmFyIHI9RFsiX19jb3JlLWpzX3NoYXJlZF9fIl18fChEWyJfX2NvcmUtanNfc2hhcmVkX18iXT17fSk7KHUuZXhwb3J0cz1mdW5jdGlvbih1LEQpe3JldHVybiByW3VdfHwoclt1XT12b2lkIDAhPT1EP0Q6e30pfSkoInZlcnNpb25zIixbXSkucHVzaCh7dmVyc2lvbjplLnZlcnNpb24sbW9kZToiZ2xvYmFsIixjb3B5cmlnaHQ6IsKpIDIwMTkgRGVuaXMgUHVzaGthcmV2ICh6bG9pcm9jay5ydSkifSl9KSgibmF0aXZlLWZ1bmN0aW9uLXRvLXN0cmluZyIsRnVuY3Rpb24udG9TdHJpbmcpLGQ9dShmdW5jdGlvbih1KXt2YXIgcix0PSJTeW1ib2woIi5jb25jYXQodm9pZCAwPT09KHI9InNyYyIpPyIiOnIsIilfIiwoKytzK2YpLnRvU3RyaW5nKDM2KSksbj0oIiIrbCkuc3BsaXQoInRvU3RyaW5nIik7ZS5pbnNwZWN0U291cmNlPWZ1bmN0aW9uKHUpe3JldHVybiBsLmNhbGwodSl9LCh1LmV4cG9ydHM9ZnVuY3Rpb24odSxlLHIsRil7dmFyIEM9ImZ1bmN0aW9uIj09dHlwZW9mIHI7QyYmKEIociwibmFtZSIpfHxhKHIsIm5hbWUiLGUpKSx1W2VdIT09ciYmKEMmJihCKHIsdCl8fGEocix0LHVbZV0/IiIrdVtlXTpuLmpvaW4oU3RyaW5nKGUpKSkpLHU9PT1EP3VbZV09cjpGP3VbZV0/dVtlXT1yOmEodSxlLHIpOihkZWxldGUgdVtlXSxhKHUsZSxyKSkpfSkoRnVuY3Rpb24ucHJvdG90eXBlLCJ0b1N0cmluZyIsZnVuY3Rpb24oKXtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgdGhpcyYmdGhpc1t0XXx8bC5jYWxsKHRoaXMpfSl9KSx2PWZ1bmN0aW9uKHUsRCxlKXtpZihmdW5jdGlvbih1KXtpZigiZnVuY3Rpb24iIT10eXBlb2YgdSl0aHJvdyBUeXBlRXJyb3IodSsiIGlzIG5vdCBhIGZ1bmN0aW9uISIpfSh1KSx2b2lkIDA9PT1EKXJldHVybiB1O3N3aXRjaChlKXtjYXNlIDE6cmV0dXJuIGZ1bmN0aW9uKGUpe3JldHVybiB1LmNhbGwoRCxlKX07Y2FzZSAyOnJldHVybiBmdW5jdGlvbihlLHIpe3JldHVybiB1LmNhbGwoRCxlLHIpfTtjYXNlIDM6cmV0dXJuIGZ1bmN0aW9uKGUscix0KXtyZXR1cm4gdS5jYWxsKEQsZSxyLHQpfX1yZXR1cm4gZnVuY3Rpb24oKXtyZXR1cm4gdS5hcHBseShELGFyZ3VtZW50cyl9fSxwPWZ1bmN0aW9uKHUscix0KXt2YXIgbixGLEMsQSxpPXUmcC5GLEU9dSZwLkcsbz11JnAuUyxjPXUmcC5QLEI9dSZwLkIscz1FP0Q6bz9EW3JdfHwoRFtyXT17fSk6KERbcl18fHt9KS5wcm90b3R5cGUsZj1FP2U6ZVtyXXx8KGVbcl09e30pLGw9Zi5wcm90b3R5cGV8fChmLnByb3RvdHlwZT17fSk7Zm9yKG4gaW4gRSYmKHQ9ciksdClDPSgoRj0haSYmcyYmdm9pZCAwIT09c1tuXSk/czp0KVtuXSxBPUImJkY/dihDLEQpOmMmJiJmdW5jdGlvbiI9PXR5cGVvZiBDP3YoRnVuY3Rpb24uY2FsbCxDKTpDLHMmJmQocyxuLEMsdSZwLlUpLGZbbl0hPUMmJmEoZixuLEEpLGMmJmxbbl0hPUMmJihsW25dPUMpfTtELmNvcmU9ZSxwLkY9MSxwLkc9MixwLlM9NCxwLlA9OCxwLkI9MTYscC5XPTMyLHAuVT02NCxwLlI9MTI4O3ZhciBoLG09cCxnPU1hdGguY2VpbCx5PU1hdGguZmxvb3Isdz1mdW5jdGlvbih1KXtyZXR1cm4gaXNOYU4odT0rdSk/MDoodT4wP3k6ZykodSl9LGI9KGg9ITEsZnVuY3Rpb24odSxEKXt2YXIgZSxyLHQ9U3RyaW5nKGZ1bmN0aW9uKHUpe2lmKG51bGw9PXUpdGhyb3cgVHlwZUVycm9yKCJDYW4ndCBjYWxsIG1ldGhvZCBvbiAgIit1KTtyZXR1cm4gdX0odSkpLG49dyhEKSxGPXQubGVuZ3RoO3JldHVybiBuPDB8fG4+PUY/aD8iIjp2b2lkIDA6KGU9dC5jaGFyQ29kZUF0KG4pKTw1NTI5Nnx8ZT41NjMxOXx8bisxPT09Rnx8KHI9dC5jaGFyQ29kZUF0KG4rMSkpPDU2MzIwfHxyPjU3MzQzP2g/dC5jaGFyQXQobik6ZTpoP3Quc2xpY2UobixuKzIpOnItNTYzMjArKGUtNTUyOTY8PDEwKSs2NTUzNn0pO20obS5QLCJTdHJpbmciLHtjb2RlUG9pbnRBdDpmdW5jdGlvbih1KXtyZXR1cm4gYih0aGlzLHUpfX0pO2UuU3RyaW5nLmNvZGVQb2ludEF0O3ZhciBTPU1hdGgubWF4LHg9TWF0aC5taW4sTj1TdHJpbmcuZnJvbUNoYXJDb2RlLFA9U3RyaW5nLmZyb21Db2RlUG9pbnQ7bShtLlMrbS5GKighIVAmJjEhPVAubGVuZ3RoKSwiU3RyaW5nIix7ZnJvbUNvZGVQb2ludDpmdW5jdGlvbih1KXtmb3IodmFyIEQsZSxyLHQ9YXJndW1lbnRzLG49W10sRj1hcmd1bWVudHMubGVuZ3RoLEM9MDtGPkM7KXtpZihEPSt0W0MrK10scj0xMTE0MTExLCgoZT13KGU9RCkpPDA/UyhlK3IsMCk6eChlLHIpKSE9PUQpdGhyb3cgUmFuZ2VFcnJvcihEKyIgaXMgbm90IGEgdmFsaWQgY29kZSBwb2ludCIpO24ucHVzaChEPDY1NTM2P04oRCk6Tig1NTI5NisoKEQtPTY1NTM2KT4+MTApLEQlMTAyNCs1NjMyMCkpfXJldHVybiBuLmpvaW4oIiIpfX0pO2UuU3RyaW5nLmZyb21Db2RlUG9pbnQ7dmFyIF8sTyxqLEksVixKLE0sayxMLFQseixILCQsUixHPXtTcGFjZV9TZXBhcmF0b3I6L1tcdTE2ODBcdTIwMDAtXHUyMDBBXHUyMDJGXHUyMDVGXHUzMDAwXS8sSURfU3RhcnQ6L1tceEFBXHhCNVx4QkFceEMwLVx4RDZceEQ4LVx4RjZceEY4LVx1MDJDMVx1MDJDNi1cdTAyRDFcdTAyRTAtXHUwMkU0XHUwMkVDXHUwMkVFXHUwMzcwLVx1MDM3NFx1MDM3Nlx1MDM3N1x1MDM3QS1cdTAzN0RcdTAzN0ZcdTAzODZcdTAzODgtXHUwMzhBXHUwMzhDXHUwMzhFLVx1MDNBMVx1MDNBMy1cdTAzRjVcdTAzRjctXHUwNDgxXHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNUQwLVx1MDVFQVx1MDVGMC1cdTA1RjJcdTA2MjAtXHUwNjRBXHUwNjZFXHUwNjZGXHUwNjcxLVx1MDZEM1x1MDZENVx1MDZFNVx1MDZFNlx1MDZFRVx1MDZFRlx1MDZGQS1cdTA2RkNcdTA2RkZcdTA3MTBcdTA3MTItXHUwNzJGXHUwNzRELVx1MDdBNVx1MDdCMVx1MDdDQS1cdTA3RUFcdTA3RjRcdTA3RjVcdTA3RkFcdTA4MDAtXHUwODE1XHUwODFBXHUwODI0XHUwODI4XHUwODQwLVx1MDg1OFx1MDg2MC1cdTA4NkFcdTA4QTAtXHUwOEI0XHUwOEI2LVx1MDhCRFx1MDkwNC1cdTA5MzlcdTA5M0RcdTA5NTBcdTA5NTgtXHUwOTYxXHUwOTcxLVx1MDk4MFx1MDk4NS1cdTA5OENcdTA5OEZcdTA5OTBcdTA5OTMtXHUwOUE4XHUwOUFBLVx1MDlCMFx1MDlCMlx1MDlCNi1cdTA5QjlcdTA5QkRcdTA5Q0VcdTA5RENcdTA5RERcdTA5REYtXHUwOUUxXHUwOUYwXHUwOUYxXHUwOUZDXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTU5LVx1MEE1Q1x1MEE1RVx1MEE3Mi1cdTBBNzRcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCRFx1MEFEMFx1MEFFMFx1MEFFMVx1MEFGOVx1MEIwNS1cdTBCMENcdTBCMEZcdTBCMTBcdTBCMTMtXHUwQjI4XHUwQjJBLVx1MEIzMFx1MEIzMlx1MEIzM1x1MEIzNS1cdTBCMzlcdTBCM0RcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYxXHUwQjcxXHUwQjgzXHUwQjg1LVx1MEI4QVx1MEI4RS1cdTBCOTBcdTBCOTItXHUwQjk1XHUwQjk5XHUwQjlBXHUwQjlDXHUwQjlFXHUwQjlGXHUwQkEzXHUwQkE0XHUwQkE4LVx1MEJBQVx1MEJBRS1cdTBCQjlcdTBCRDBcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNEXHUwQzU4LVx1MEM1QVx1MEM2MFx1MEM2MVx1MEM4MFx1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JEXHUwQ0RFXHUwQ0UwXHUwQ0UxXHUwQ0YxXHUwQ0YyXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDNBXHUwRDNEXHUwRDRFXHUwRDU0LVx1MEQ1Nlx1MEQ1Ri1cdTBENjFcdTBEN0EtXHUwRDdGXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MEUwMS1cdTBFMzBcdTBFMzJcdTBFMzNcdTBFNDAtXHUwRTQ2XHUwRTgxXHUwRTgyXHUwRTg0XHUwRTg3XHUwRTg4XHUwRThBXHUwRThEXHUwRTk0LVx1MEU5N1x1MEU5OS1cdTBFOUZcdTBFQTEtXHUwRUEzXHUwRUE1XHUwRUE3XHUwRUFBXHUwRUFCXHUwRUFELVx1MEVCMFx1MEVCMlx1MEVCM1x1MEVCRFx1MEVDMC1cdTBFQzRcdTBFQzZcdTBFREMtXHUwRURGXHUwRjAwXHUwRjQwLVx1MEY0N1x1MEY0OS1cdTBGNkNcdTBGODgtXHUwRjhDXHUxMDAwLVx1MTAyQVx1MTAzRlx1MTA1MC1cdTEwNTVcdTEwNUEtXHUxMDVEXHUxMDYxXHUxMDY1XHUxMDY2XHUxMDZFLVx1MTA3MFx1MTA3NS1cdTEwODFcdTEwOEVcdTEwQTAtXHUxMEM1XHUxMEM3XHUxMENEXHUxMEQwLVx1MTBGQVx1MTBGQy1cdTEyNDhcdTEyNEEtXHUxMjREXHUxMjUwLVx1MTI1Nlx1MTI1OFx1MTI1QS1cdTEyNURcdTEyNjAtXHUxMjg4XHUxMjhBLVx1MTI4RFx1MTI5MC1cdTEyQjBcdTEyQjItXHUxMkI1XHUxMkI4LVx1MTJCRVx1MTJDMFx1MTJDMi1cdTEyQzVcdTEyQzgtXHUxMkQ2XHUxMkQ4LVx1MTMxMFx1MTMxMi1cdTEzMTVcdTEzMTgtXHUxMzVBXHUxMzgwLVx1MTM4Rlx1MTNBMC1cdTEzRjVcdTEzRjgtXHUxM0ZEXHUxNDAxLVx1MTY2Q1x1MTY2Ri1cdTE2N0ZcdTE2ODEtXHUxNjlBXHUxNkEwLVx1MTZFQVx1MTZFRS1cdTE2RjhcdTE3MDAtXHUxNzBDXHUxNzBFLVx1MTcxMVx1MTcyMC1cdTE3MzFcdTE3NDAtXHUxNzUxXHUxNzYwLVx1MTc2Q1x1MTc2RS1cdTE3NzBcdTE3ODAtXHUxN0IzXHUxN0Q3XHUxN0RDXHUxODIwLVx1MTg3N1x1MTg4MC1cdTE4ODRcdTE4ODctXHUxOEE4XHUxOEFBXHUxOEIwLVx1MThGNVx1MTkwMC1cdTE5MUVcdTE5NTAtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxQTAwLVx1MUExNlx1MUEyMC1cdTFBNTRcdTFBQTdcdTFCMDUtXHUxQjMzXHUxQjQ1LVx1MUI0Qlx1MUI4My1cdTFCQTBcdTFCQUVcdTFCQUZcdTFCQkEtXHUxQkU1XHUxQzAwLVx1MUMyM1x1MUM0RC1cdTFDNEZcdTFDNUEtXHUxQzdEXHUxQzgwLVx1MUM4OFx1MUNFOS1cdTFDRUNcdTFDRUUtXHUxQ0YxXHUxQ0Y1XHUxQ0Y2XHUxRDAwLVx1MURCRlx1MUUwMC1cdTFGMTVcdTFGMTgtXHUxRjFEXHUxRjIwLVx1MUY0NVx1MUY0OC1cdTFGNERcdTFGNTAtXHUxRjU3XHUxRjU5XHUxRjVCXHUxRjVEXHUxRjVGLVx1MUY3RFx1MUY4MC1cdTFGQjRcdTFGQjYtXHUxRkJDXHUxRkJFXHUxRkMyLVx1MUZDNFx1MUZDNi1cdTFGQ0NcdTFGRDAtXHUxRkQzXHUxRkQ2LVx1MUZEQlx1MUZFMC1cdTFGRUNcdTFGRjItXHUxRkY0XHUxRkY2LVx1MUZGQ1x1MjA3MVx1MjA3Rlx1MjA5MC1cdTIwOUNcdTIxMDJcdTIxMDdcdTIxMEEtXHUyMTEzXHUyMTE1XHUyMTE5LVx1MjExRFx1MjEyNFx1MjEyNlx1MjEyOFx1MjEyQS1cdTIxMkRcdTIxMkYtXHUyMTM5XHUyMTNDLVx1MjEzRlx1MjE0NS1cdTIxNDlcdTIxNEVcdTIxNjAtXHUyMTg4XHUyQzAwLVx1MkMyRVx1MkMzMC1cdTJDNUVcdTJDNjAtXHUyQ0U0XHUyQ0VCLVx1MkNFRVx1MkNGMlx1MkNGM1x1MkQwMC1cdTJEMjVcdTJEMjdcdTJEMkRcdTJEMzAtXHUyRDY3XHUyRDZGXHUyRDgwLVx1MkQ5Nlx1MkRBMC1cdTJEQTZcdTJEQTgtXHUyREFFXHUyREIwLVx1MkRCNlx1MkRCOC1cdTJEQkVcdTJEQzAtXHUyREM2XHUyREM4LVx1MkRDRVx1MkREMC1cdTJERDZcdTJERDgtXHUyRERFXHUyRTJGXHUzMDA1LVx1MzAwN1x1MzAyMS1cdTMwMjlcdTMwMzEtXHUzMDM1XHUzMDM4LVx1MzAzQ1x1MzA0MS1cdTMwOTZcdTMwOUQtXHUzMDlGXHUzMEExLVx1MzBGQVx1MzBGQy1cdTMwRkZcdTMxMDUtXHUzMTJFXHUzMTMxLVx1MzE4RVx1MzFBMC1cdTMxQkFcdTMxRjAtXHUzMUZGXHUzNDAwLVx1NERCNVx1NEUwMC1cdTlGRUFcdUEwMDAtXHVBNDhDXHVBNEQwLVx1QTRGRFx1QTUwMC1cdUE2MENcdUE2MTAtXHVBNjFGXHVBNjJBXHVBNjJCXHVBNjQwLVx1QTY2RVx1QTY3Ri1cdUE2OURcdUE2QTAtXHVBNkVGXHVBNzE3LVx1QTcxRlx1QTcyMi1cdUE3ODhcdUE3OEItXHVBN0FFXHVBN0IwLVx1QTdCN1x1QTdGNy1cdUE4MDFcdUE4MDMtXHVBODA1XHVBODA3LVx1QTgwQVx1QTgwQy1cdUE4MjJcdUE4NDAtXHVBODczXHVBODgyLVx1QThCM1x1QThGMi1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MEEtXHVBOTI1XHVBOTMwLVx1QTk0Nlx1QTk2MC1cdUE5N0NcdUE5ODQtXHVBOUIyXHVBOUNGXHVBOUUwLVx1QTlFNFx1QTlFNi1cdUE5RUZcdUE5RkEtXHVBOUZFXHVBQTAwLVx1QUEyOFx1QUE0MC1cdUFBNDJcdUFBNDQtXHVBQTRCXHVBQTYwLVx1QUE3Nlx1QUE3QVx1QUE3RS1cdUFBQUZcdUFBQjFcdUFBQjVcdUFBQjZcdUFBQjktXHVBQUJEXHVBQUMwXHVBQUMyXHVBQURCLVx1QUFERFx1QUFFMC1cdUFBRUFcdUFBRjItXHVBQUY0XHVBQjAxLVx1QUIwNlx1QUIwOS1cdUFCMEVcdUFCMTEtXHVBQjE2XHVBQjIwLVx1QUIyNlx1QUIyOC1cdUFCMkVcdUFCMzAtXHVBQjVBXHVBQjVDLVx1QUI2NVx1QUI3MC1cdUFCRTJcdUFDMDAtXHVEN0EzXHVEN0IwLVx1RDdDNlx1RDdDQi1cdUQ3RkJcdUY5MDAtXHVGQTZEXHVGQTcwLVx1RkFEOVx1RkIwMC1cdUZCMDZcdUZCMTMtXHVGQjE3XHVGQjFEXHVGQjFGLVx1RkIyOFx1RkIyQS1cdUZCMzZcdUZCMzgtXHVGQjNDXHVGQjNFXHVGQjQwXHVGQjQxXHVGQjQzXHVGQjQ0XHVGQjQ2LVx1RkJCMVx1RkJEMy1cdUZEM0RcdUZENTAtXHVGRDhGXHVGRDkyLVx1RkRDN1x1RkRGMC1cdUZERkJcdUZFNzAtXHVGRTc0XHVGRTc2LVx1RkVGQ1x1RkYyMS1cdUZGM0FcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGNzVcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENCMC1cdURDRDNcdURDRDgtXHVEQ0ZCXHVERDAwLVx1REQyN1x1REQzMC1cdURENjNcdURFMDAtXHVERjM2XHVERjQwLVx1REY1NVx1REY2MC1cdURGNjddfFx1RDgwMltcdURDMDAtXHVEQzA1XHVEQzA4XHVEQzBBLVx1REMzNVx1REMzN1x1REMzOFx1REMzQ1x1REMzRi1cdURDNTVcdURDNjAtXHVEQzc2XHVEQzgwLVx1REM5RVx1RENFMC1cdURDRjJcdURDRjRcdURDRjVcdUREMDAtXHVERDE1XHVERDIwLVx1REQzOVx1REQ4MC1cdUREQjdcdUREQkVcdUREQkZcdURFMDBcdURFMTAtXHVERTEzXHVERTE1LVx1REUxN1x1REUxOS1cdURFMzNcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU0XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMy1cdURDMzdcdURDODMtXHVEQ0FGXHVEQ0QwLVx1RENFOFx1REQwMy1cdUREMjZcdURENTAtXHVERDcyXHVERDc2XHVERDgzLVx1RERCMlx1RERDMS1cdUREQzRcdUREREFcdURERENcdURFMDAtXHVERTExXHVERTEzLVx1REUyQlx1REU4MC1cdURFODZcdURFODhcdURFOEEtXHVERThEXHVERThGLVx1REU5RFx1REU5Ri1cdURFQThcdURFQjAtXHVERURFXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzRFx1REY1MFx1REY1RC1cdURGNjFdfFx1RDgwNVtcdURDMDAtXHVEQzM0XHVEQzQ3LVx1REM0QVx1REM4MC1cdURDQUZcdURDQzRcdURDQzVcdURDQzdcdUREODAtXHVEREFFXHVEREQ4LVx1REREQlx1REUwMC1cdURFMkZcdURFNDRcdURFODAtXHVERUFBXHVERjAwLVx1REYxOV18XHVEODA2W1x1RENBMC1cdURDREZcdURDRkZcdURFMDBcdURFMEItXHVERTMyXHVERTNBXHVERTUwXHVERTVDLVx1REU4M1x1REU4Ni1cdURFODlcdURFQzAtXHVERUY4XXxcdUQ4MDdbXHVEQzAwLVx1REMwOFx1REMwQS1cdURDMkVcdURDNDBcdURDNzItXHVEQzhGXHVERDAwLVx1REQwNlx1REQwOFx1REQwOVx1REQwQi1cdUREMzBcdURENDZdfFx1RDgwOFtcdURDMDAtXHVERjk5XXxcdUQ4MDlbXHVEQzAwLVx1REM2RVx1REM4MC1cdURENDNdfFtcdUQ4MENcdUQ4MUMtXHVEODIwXHVEODQwLVx1RDg2OFx1RDg2QS1cdUQ4NkNcdUQ4NkYtXHVEODcyXHVEODc0LVx1RDg3OV1bXHVEQzAwLVx1REZGRl18XHVEODBEW1x1REMwMC1cdURDMkVdfFx1RDgxMVtcdURDMDAtXHVERTQ2XXxcdUQ4MUFbXHVEQzAwLVx1REUzOFx1REU0MC1cdURFNUVcdURFRDAtXHVERUVEXHVERjAwLVx1REYyRlx1REY0MC1cdURGNDNcdURGNjMtXHVERjc3XHVERjdELVx1REY4Rl18XHVEODFCW1x1REYwMC1cdURGNDRcdURGNTBcdURGOTMtXHVERjlGXHVERkUwXHVERkUxXXxcdUQ4MjFbXHVEQzAwLVx1REZFQ118XHVEODIyW1x1REMwMC1cdURFRjJdfFx1RDgyQ1tcdURDMDAtXHVERDFFXHVERDcwLVx1REVGQl18XHVEODJGW1x1REMwMC1cdURDNkFcdURDNzAtXHVEQzdDXHVEQzgwLVx1REM4OFx1REM5MC1cdURDOTldfFx1RDgzNVtcdURDMDAtXHVEQzU0XHVEQzU2LVx1REM5Q1x1REM5RVx1REM5Rlx1RENBMlx1RENBNVx1RENBNlx1RENBOS1cdURDQUNcdURDQUUtXHVEQ0I5XHVEQ0JCXHVEQ0JELVx1RENDM1x1RENDNS1cdUREMDVcdUREMDctXHVERDBBXHVERDBELVx1REQxNFx1REQxNi1cdUREMUNcdUREMUUtXHVERDM5XHVERDNCLVx1REQzRVx1REQ0MC1cdURENDRcdURENDZcdURENEEtXHVERDUwXHVERDUyLVx1REVBNVx1REVBOC1cdURFQzBcdURFQzItXHVERURBXHVERURDLVx1REVGQVx1REVGQy1cdURGMTRcdURGMTYtXHVERjM0XHVERjM2LVx1REY0RVx1REY1MC1cdURGNkVcdURGNzAtXHVERjg4XHVERjhBLVx1REZBOFx1REZBQS1cdURGQzJcdURGQzQtXHVERkNCXXxcdUQ4M0FbXHVEQzAwLVx1RENDNFx1REQwMC1cdURENDNdfFx1RDgzQltcdURFMDAtXHVERTAzXHVERTA1LVx1REUxRlx1REUyMVx1REUyMlx1REUyNFx1REUyN1x1REUyOS1cdURFMzJcdURFMzQtXHVERTM3XHVERTM5XHVERTNCXHVERTQyXHVERTQ3XHVERTQ5XHVERTRCXHVERTRELVx1REU0Rlx1REU1MVx1REU1Mlx1REU1NFx1REU1N1x1REU1OVx1REU1Qlx1REU1RFx1REU1Rlx1REU2MVx1REU2Mlx1REU2NFx1REU2Ny1cdURFNkFcdURFNkMtXHVERTcyXHVERTc0LVx1REU3N1x1REU3OS1cdURFN0NcdURFN0VcdURFODAtXHVERTg5XHVERThCLVx1REU5Qlx1REVBMS1cdURFQTNcdURFQTUtXHVERUE5XHVERUFCLVx1REVCQl18XHVEODY5W1x1REMwMC1cdURFRDZcdURGMDAtXHVERkZGXXxcdUQ4NkRbXHVEQzAwLVx1REYzNFx1REY0MC1cdURGRkZdfFx1RDg2RVtcdURDMDAtXHVEQzFEXHVEQzIwLVx1REZGRl18XHVEODczW1x1REMwMC1cdURFQTFcdURFQjAtXHVERkZGXXxcdUQ4N0FbXHVEQzAwLVx1REZFMF18XHVEODdFW1x1REMwMC1cdURFMURdLyxJRF9Db250aW51ZTovW1x4QUFceEI1XHhCQVx4QzAtXHhENlx4RDgtXHhGNlx4RjgtXHUwMkMxXHUwMkM2LVx1MDJEMVx1MDJFMC1cdTAyRTRcdTAyRUNcdTAyRUVcdTAzMDAtXHUwMzc0XHUwMzc2XHUwMzc3XHUwMzdBLVx1MDM3RFx1MDM3Rlx1MDM4Nlx1MDM4OC1cdTAzOEFcdTAzOENcdTAzOEUtXHUwM0ExXHUwM0EzLVx1MDNGNVx1MDNGNy1cdTA0ODFcdTA0ODMtXHUwNDg3XHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNTkxLVx1MDVCRFx1MDVCRlx1MDVDMVx1MDVDMlx1MDVDNFx1MDVDNVx1MDVDN1x1MDVEMC1cdTA1RUFcdTA1RjAtXHUwNUYyXHUwNjEwLVx1MDYxQVx1MDYyMC1cdTA2NjlcdTA2NkUtXHUwNkQzXHUwNkQ1LVx1MDZEQ1x1MDZERi1cdTA2RThcdTA2RUEtXHUwNkZDXHUwNkZGXHUwNzEwLVx1MDc0QVx1MDc0RC1cdTA3QjFcdTA3QzAtXHUwN0Y1XHUwN0ZBXHUwODAwLVx1MDgyRFx1MDg0MC1cdTA4NUJcdTA4NjAtXHUwODZBXHUwOEEwLVx1MDhCNFx1MDhCNi1cdTA4QkRcdTA4RDQtXHUwOEUxXHUwOEUzLVx1MDk2M1x1MDk2Ni1cdTA5NkZcdTA5NzEtXHUwOTgzXHUwOTg1LVx1MDk4Q1x1MDk4Rlx1MDk5MFx1MDk5My1cdTA5QThcdTA5QUEtXHUwOUIwXHUwOUIyXHUwOUI2LVx1MDlCOVx1MDlCQy1cdTA5QzRcdTA5QzdcdTA5QzhcdTA5Q0ItXHUwOUNFXHUwOUQ3XHUwOURDXHUwOUREXHUwOURGLVx1MDlFM1x1MDlFNi1cdTA5RjFcdTA5RkNcdTBBMDEtXHUwQTAzXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTNDXHUwQTNFLVx1MEE0Mlx1MEE0N1x1MEE0OFx1MEE0Qi1cdTBBNERcdTBBNTFcdTBBNTktXHUwQTVDXHUwQTVFXHUwQTY2LVx1MEE3NVx1MEE4MS1cdTBBODNcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCQy1cdTBBQzVcdTBBQzctXHUwQUM5XHUwQUNCLVx1MEFDRFx1MEFEMFx1MEFFMC1cdTBBRTNcdTBBRTYtXHUwQUVGXHUwQUY5LVx1MEFGRlx1MEIwMS1cdTBCMDNcdTBCMDUtXHUwQjBDXHUwQjBGXHUwQjEwXHUwQjEzLVx1MEIyOFx1MEIyQS1cdTBCMzBcdTBCMzJcdTBCMzNcdTBCMzUtXHUwQjM5XHUwQjNDLVx1MEI0NFx1MEI0N1x1MEI0OFx1MEI0Qi1cdTBCNERcdTBCNTZcdTBCNTdcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYzXHUwQjY2LVx1MEI2Rlx1MEI3MVx1MEI4Mlx1MEI4M1x1MEI4NS1cdTBCOEFcdTBCOEUtXHUwQjkwXHUwQjkyLVx1MEI5NVx1MEI5OVx1MEI5QVx1MEI5Q1x1MEI5RVx1MEI5Rlx1MEJBM1x1MEJBNFx1MEJBOC1cdTBCQUFcdTBCQUUtXHUwQkI5XHUwQkJFLVx1MEJDMlx1MEJDNi1cdTBCQzhcdTBCQ0EtXHUwQkNEXHUwQkQwXHUwQkQ3XHUwQkU2LVx1MEJFRlx1MEMwMC1cdTBDMDNcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNELVx1MEM0NFx1MEM0Ni1cdTBDNDhcdTBDNEEtXHUwQzREXHUwQzU1XHUwQzU2XHUwQzU4LVx1MEM1QVx1MEM2MC1cdTBDNjNcdTBDNjYtXHUwQzZGXHUwQzgwLVx1MEM4M1x1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JDLVx1MENDNFx1MENDNi1cdTBDQzhcdTBDQ0EtXHUwQ0NEXHUwQ0Q1XHUwQ0Q2XHUwQ0RFXHUwQ0UwLVx1MENFM1x1MENFNi1cdTBDRUZcdTBDRjFcdTBDRjJcdTBEMDAtXHUwRDAzXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDQ0XHUwRDQ2LVx1MEQ0OFx1MEQ0QS1cdTBENEVcdTBENTQtXHUwRDU3XHUwRDVGLVx1MEQ2M1x1MEQ2Ni1cdTBENkZcdTBEN0EtXHUwRDdGXHUwRDgyXHUwRDgzXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MERDQVx1MERDRi1cdTBERDRcdTBERDZcdTBERDgtXHUwRERGXHUwREU2LVx1MERFRlx1MERGMlx1MERGM1x1MEUwMS1cdTBFM0FcdTBFNDAtXHUwRTRFXHUwRTUwLVx1MEU1OVx1MEU4MVx1MEU4Mlx1MEU4NFx1MEU4N1x1MEU4OFx1MEU4QVx1MEU4RFx1MEU5NC1cdTBFOTdcdTBFOTktXHUwRTlGXHUwRUExLVx1MEVBM1x1MEVBNVx1MEVBN1x1MEVBQVx1MEVBQlx1MEVBRC1cdTBFQjlcdTBFQkItXHUwRUJEXHUwRUMwLVx1MEVDNFx1MEVDNlx1MEVDOC1cdTBFQ0RcdTBFRDAtXHUwRUQ5XHUwRURDLVx1MEVERlx1MEYwMFx1MEYxOFx1MEYxOVx1MEYyMC1cdTBGMjlcdTBGMzVcdTBGMzdcdTBGMzlcdTBGM0UtXHUwRjQ3XHUwRjQ5LVx1MEY2Q1x1MEY3MS1cdTBGODRcdTBGODYtXHUwRjk3XHUwRjk5LVx1MEZCQ1x1MEZDNlx1MTAwMC1cdTEwNDlcdTEwNTAtXHUxMDlEXHUxMEEwLVx1MTBDNVx1MTBDN1x1MTBDRFx1MTBEMC1cdTEwRkFcdTEwRkMtXHUxMjQ4XHUxMjRBLVx1MTI0RFx1MTI1MC1cdTEyNTZcdTEyNThcdTEyNUEtXHUxMjVEXHUxMjYwLVx1MTI4OFx1MTI4QS1cdTEyOERcdTEyOTAtXHUxMkIwXHUxMkIyLVx1MTJCNVx1MTJCOC1cdTEyQkVcdTEyQzBcdTEyQzItXHUxMkM1XHUxMkM4LVx1MTJENlx1MTJEOC1cdTEzMTBcdTEzMTItXHUxMzE1XHUxMzE4LVx1MTM1QVx1MTM1RC1cdTEzNUZcdTEzODAtXHUxMzhGXHUxM0EwLVx1MTNGNVx1MTNGOC1cdTEzRkRcdTE0MDEtXHUxNjZDXHUxNjZGLVx1MTY3Rlx1MTY4MS1cdTE2OUFcdTE2QTAtXHUxNkVBXHUxNkVFLVx1MTZGOFx1MTcwMC1cdTE3MENcdTE3MEUtXHUxNzE0XHUxNzIwLVx1MTczNFx1MTc0MC1cdTE3NTNcdTE3NjAtXHUxNzZDXHUxNzZFLVx1MTc3MFx1MTc3Mlx1MTc3M1x1MTc4MC1cdTE3RDNcdTE3RDdcdTE3RENcdTE3RERcdTE3RTAtXHUxN0U5XHUxODBCLVx1MTgwRFx1MTgxMC1cdTE4MTlcdTE4MjAtXHUxODc3XHUxODgwLVx1MThBQVx1MThCMC1cdTE4RjVcdTE5MDAtXHUxOTFFXHUxOTIwLVx1MTkyQlx1MTkzMC1cdTE5M0JcdTE5NDYtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxOUQwLVx1MTlEOVx1MUEwMC1cdTFBMUJcdTFBMjAtXHUxQTVFXHUxQTYwLVx1MUE3Q1x1MUE3Ri1cdTFBODlcdTFBOTAtXHUxQTk5XHUxQUE3XHUxQUIwLVx1MUFCRFx1MUIwMC1cdTFCNEJcdTFCNTAtXHUxQjU5XHUxQjZCLVx1MUI3M1x1MUI4MC1cdTFCRjNcdTFDMDAtXHUxQzM3XHUxQzQwLVx1MUM0OVx1MUM0RC1cdTFDN0RcdTFDODAtXHUxQzg4XHUxQ0QwLVx1MUNEMlx1MUNENC1cdTFDRjlcdTFEMDAtXHUxREY5XHUxREZCLVx1MUYxNVx1MUYxOC1cdTFGMURcdTFGMjAtXHUxRjQ1XHUxRjQ4LVx1MUY0RFx1MUY1MC1cdTFGNTdcdTFGNTlcdTFGNUJcdTFGNURcdTFGNUYtXHUxRjdEXHUxRjgwLVx1MUZCNFx1MUZCNi1cdTFGQkNcdTFGQkVcdTFGQzItXHUxRkM0XHUxRkM2LVx1MUZDQ1x1MUZEMC1cdTFGRDNcdTFGRDYtXHUxRkRCXHUxRkUwLVx1MUZFQ1x1MUZGMi1cdTFGRjRcdTFGRjYtXHUxRkZDXHUyMDNGXHUyMDQwXHUyMDU0XHUyMDcxXHUyMDdGXHUyMDkwLVx1MjA5Q1x1MjBEMC1cdTIwRENcdTIwRTFcdTIwRTUtXHUyMEYwXHUyMTAyXHUyMTA3XHUyMTBBLVx1MjExM1x1MjExNVx1MjExOS1cdTIxMURcdTIxMjRcdTIxMjZcdTIxMjhcdTIxMkEtXHUyMTJEXHUyMTJGLVx1MjEzOVx1MjEzQy1cdTIxM0ZcdTIxNDUtXHUyMTQ5XHUyMTRFXHUyMTYwLVx1MjE4OFx1MkMwMC1cdTJDMkVcdTJDMzAtXHUyQzVFXHUyQzYwLVx1MkNFNFx1MkNFQi1cdTJDRjNcdTJEMDAtXHUyRDI1XHUyRDI3XHUyRDJEXHUyRDMwLVx1MkQ2N1x1MkQ2Rlx1MkQ3Ri1cdTJEOTZcdTJEQTAtXHUyREE2XHUyREE4LVx1MkRBRVx1MkRCMC1cdTJEQjZcdTJEQjgtXHUyREJFXHUyREMwLVx1MkRDNlx1MkRDOC1cdTJEQ0VcdTJERDAtXHUyREQ2XHUyREQ4LVx1MkRERVx1MkRFMC1cdTJERkZcdTJFMkZcdTMwMDUtXHUzMDA3XHUzMDIxLVx1MzAyRlx1MzAzMS1cdTMwMzVcdTMwMzgtXHUzMDNDXHUzMDQxLVx1MzA5Nlx1MzA5OVx1MzA5QVx1MzA5RC1cdTMwOUZcdTMwQTEtXHUzMEZBXHUzMEZDLVx1MzBGRlx1MzEwNS1cdTMxMkVcdTMxMzEtXHUzMThFXHUzMUEwLVx1MzFCQVx1MzFGMC1cdTMxRkZcdTM0MDAtXHU0REI1XHU0RTAwLVx1OUZFQVx1QTAwMC1cdUE0OENcdUE0RDAtXHVBNEZEXHVBNTAwLVx1QTYwQ1x1QTYxMC1cdUE2MkJcdUE2NDAtXHVBNjZGXHVBNjc0LVx1QTY3RFx1QTY3Ri1cdUE2RjFcdUE3MTctXHVBNzFGXHVBNzIyLVx1QTc4OFx1QTc4Qi1cdUE3QUVcdUE3QjAtXHVBN0I3XHVBN0Y3LVx1QTgyN1x1QTg0MC1cdUE4NzNcdUE4ODAtXHVBOEM1XHVBOEQwLVx1QThEOVx1QThFMC1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MDAtXHVBOTJEXHVBOTMwLVx1QTk1M1x1QTk2MC1cdUE5N0NcdUE5ODAtXHVBOUMwXHVBOUNGLVx1QTlEOVx1QTlFMC1cdUE5RkVcdUFBMDAtXHVBQTM2XHVBQTQwLVx1QUE0RFx1QUE1MC1cdUFBNTlcdUFBNjAtXHVBQTc2XHVBQTdBLVx1QUFDMlx1QUFEQi1cdUFBRERcdUFBRTAtXHVBQUVGXHVBQUYyLVx1QUFGNlx1QUIwMS1cdUFCMDZcdUFCMDktXHVBQjBFXHVBQjExLVx1QUIxNlx1QUIyMC1cdUFCMjZcdUFCMjgtXHVBQjJFXHVBQjMwLVx1QUI1QVx1QUI1Qy1cdUFCNjVcdUFCNzAtXHVBQkVBXHVBQkVDXHVBQkVEXHVBQkYwLVx1QUJGOVx1QUMwMC1cdUQ3QTNcdUQ3QjAtXHVEN0M2XHVEN0NCLVx1RDdGQlx1RjkwMC1cdUZBNkRcdUZBNzAtXHVGQUQ5XHVGQjAwLVx1RkIwNlx1RkIxMy1cdUZCMTdcdUZCMUQtXHVGQjI4XHVGQjJBLVx1RkIzNlx1RkIzOC1cdUZCM0NcdUZCM0VcdUZCNDBcdUZCNDFcdUZCNDNcdUZCNDRcdUZCNDYtXHVGQkIxXHVGQkQzLVx1RkQzRFx1RkQ1MC1cdUZEOEZcdUZEOTItXHVGREM3XHVGREYwLVx1RkRGQlx1RkUwMC1cdUZFMEZcdUZFMjAtXHVGRTJGXHVGRTMzXHVGRTM0XHVGRTRELVx1RkU0Rlx1RkU3MC1cdUZFNzRcdUZFNzYtXHVGRUZDXHVGRjEwLVx1RkYxOVx1RkYyMS1cdUZGM0FcdUZGM0ZcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVEREZEXHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURFRTBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGN0FcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENBMC1cdURDQTlcdURDQjAtXHVEQ0QzXHVEQ0Q4LVx1RENGQlx1REQwMC1cdUREMjdcdUREMzAtXHVERDYzXHVERTAwLVx1REYzNlx1REY0MC1cdURGNTVcdURGNjAtXHVERjY3XXxcdUQ4MDJbXHVEQzAwLVx1REMwNVx1REMwOFx1REMwQS1cdURDMzVcdURDMzdcdURDMzhcdURDM0NcdURDM0YtXHVEQzU1XHVEQzYwLVx1REM3Nlx1REM4MC1cdURDOUVcdURDRTAtXHVEQ0YyXHVEQ0Y0XHVEQ0Y1XHVERDAwLVx1REQxNVx1REQyMC1cdUREMzlcdUREODAtXHVEREI3XHVEREJFXHVEREJGXHVERTAwLVx1REUwM1x1REUwNVx1REUwNlx1REUwQy1cdURFMTNcdURFMTUtXHVERTE3XHVERTE5LVx1REUzM1x1REUzOC1cdURFM0FcdURFM0ZcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU2XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMC1cdURDNDZcdURDNjYtXHVEQzZGXHVEQzdGLVx1RENCQVx1RENEMC1cdURDRThcdURDRjAtXHVEQ0Y5XHVERDAwLVx1REQzNFx1REQzNi1cdUREM0ZcdURENTAtXHVERDczXHVERDc2XHVERDgwLVx1RERDNFx1RERDQS1cdUREQ0NcdURERDAtXHVERERBXHVERERDXHVERTAwLVx1REUxMVx1REUxMy1cdURFMzdcdURFM0VcdURFODAtXHVERTg2XHVERTg4XHVERThBLVx1REU4RFx1REU4Ri1cdURFOURcdURFOUYtXHVERUE4XHVERUIwLVx1REVFQVx1REVGMC1cdURFRjlcdURGMDAtXHVERjAzXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzQy1cdURGNDRcdURGNDdcdURGNDhcdURGNEItXHVERjREXHVERjUwXHVERjU3XHVERjVELVx1REY2M1x1REY2Ni1cdURGNkNcdURGNzAtXHVERjc0XXxcdUQ4MDVbXHVEQzAwLVx1REM0QVx1REM1MC1cdURDNTlcdURDODAtXHVEQ0M1XHVEQ0M3XHVEQ0QwLVx1RENEOVx1REQ4MC1cdUREQjVcdUREQjgtXHVEREMwXHVEREQ4LVx1RERERFx1REUwMC1cdURFNDBcdURFNDRcdURFNTAtXHVERTU5XHVERTgwLVx1REVCN1x1REVDMC1cdURFQzlcdURGMDAtXHVERjE5XHVERjFELVx1REYyQlx1REYzMC1cdURGMzldfFx1RDgwNltcdURDQTAtXHVEQ0U5XHVEQ0ZGXHVERTAwLVx1REUzRVx1REU0N1x1REU1MC1cdURFODNcdURFODYtXHVERTk5XHVERUMwLVx1REVGOF18XHVEODA3W1x1REMwMC1cdURDMDhcdURDMEEtXHVEQzM2XHVEQzM4LVx1REM0MFx1REM1MC1cdURDNTlcdURDNzItXHVEQzhGXHVEQzkyLVx1RENBN1x1RENBOS1cdURDQjZcdUREMDAtXHVERDA2XHVERDA4XHVERDA5XHVERDBCLVx1REQzNlx1REQzQVx1REQzQ1x1REQzRFx1REQzRi1cdURENDdcdURENTAtXHVERDU5XXxcdUQ4MDhbXHVEQzAwLVx1REY5OV18XHVEODA5W1x1REMwMC1cdURDNkVcdURDODAtXHVERDQzXXxbXHVEODBDXHVEODFDLVx1RDgyMFx1RDg0MC1cdUQ4NjhcdUQ4NkEtXHVEODZDXHVEODZGLVx1RDg3Mlx1RDg3NC1cdUQ4NzldW1x1REMwMC1cdURGRkZdfFx1RDgwRFtcdURDMDAtXHVEQzJFXXxcdUQ4MTFbXHVEQzAwLVx1REU0Nl18XHVEODFBW1x1REMwMC1cdURFMzhcdURFNDAtXHVERTVFXHVERTYwLVx1REU2OVx1REVEMC1cdURFRURcdURFRjAtXHVERUY0XHVERjAwLVx1REYzNlx1REY0MC1cdURGNDNcdURGNTAtXHVERjU5XHVERjYzLVx1REY3N1x1REY3RC1cdURGOEZdfFx1RDgxQltcdURGMDAtXHVERjQ0XHVERjUwLVx1REY3RVx1REY4Ri1cdURGOUZcdURGRTBcdURGRTFdfFx1RDgyMVtcdURDMDAtXHVERkVDXXxcdUQ4MjJbXHVEQzAwLVx1REVGMl18XHVEODJDW1x1REMwMC1cdUREMUVcdURENzAtXHVERUZCXXxcdUQ4MkZbXHVEQzAwLVx1REM2QVx1REM3MC1cdURDN0NcdURDODAtXHVEQzg4XHVEQzkwLVx1REM5OVx1REM5RFx1REM5RV18XHVEODM0W1x1REQ2NS1cdURENjlcdURENkQtXHVERDcyXHVERDdCLVx1REQ4Mlx1REQ4NS1cdUREOEJcdUREQUEtXHVEREFEXHVERTQyLVx1REU0NF18XHVEODM1W1x1REMwMC1cdURDNTRcdURDNTYtXHVEQzlDXHVEQzlFXHVEQzlGXHVEQ0EyXHVEQ0E1XHVEQ0E2XHVEQ0E5LVx1RENBQ1x1RENBRS1cdURDQjlcdURDQkJcdURDQkQtXHVEQ0MzXHVEQ0M1LVx1REQwNVx1REQwNy1cdUREMEFcdUREMEQtXHVERDE0XHVERDE2LVx1REQxQ1x1REQxRS1cdUREMzlcdUREM0ItXHVERDNFXHVERDQwLVx1REQ0NFx1REQ0Nlx1REQ0QS1cdURENTBcdURENTItXHVERUE1XHVERUE4LVx1REVDMFx1REVDMi1cdURFREFcdURFREMtXHVERUZBXHVERUZDLVx1REYxNFx1REYxNi1cdURGMzRcdURGMzYtXHVERjRFXHVERjUwLVx1REY2RVx1REY3MC1cdURGODhcdURGOEEtXHVERkE4XHVERkFBLVx1REZDMlx1REZDNC1cdURGQ0JcdURGQ0UtXHVERkZGXXxcdUQ4MzZbXHVERTAwLVx1REUzNlx1REUzQi1cdURFNkNcdURFNzVcdURFODRcdURFOUItXHVERTlGXHVERUExLVx1REVBRl18XHVEODM4W1x1REMwMC1cdURDMDZcdURDMDgtXHVEQzE4XHVEQzFCLVx1REMyMVx1REMyM1x1REMyNFx1REMyNi1cdURDMkFdfFx1RDgzQVtcdURDMDAtXHVEQ0M0XHVEQ0QwLVx1RENENlx1REQwMC1cdURENEFcdURENTAtXHVERDU5XXxcdUQ4M0JbXHVERTAwLVx1REUwM1x1REUwNS1cdURFMUZcdURFMjFcdURFMjJcdURFMjRcdURFMjdcdURFMjktXHVERTMyXHVERTM0LVx1REUzN1x1REUzOVx1REUzQlx1REU0Mlx1REU0N1x1REU0OVx1REU0Qlx1REU0RC1cdURFNEZcdURFNTFcdURFNTJcdURFNTRcdURFNTdcdURFNTlcdURFNUJcdURFNURcdURFNUZcdURFNjFcdURFNjJcdURFNjRcdURFNjctXHVERTZBXHVERTZDLVx1REU3Mlx1REU3NC1cdURFNzdcdURFNzktXHVERTdDXHVERTdFXHVERTgwLVx1REU4OVx1REU4Qi1cdURFOUJcdURFQTEtXHVERUEzXHVERUE1LVx1REVBOVx1REVBQi1cdURFQkJdfFx1RDg2OVtcdURDMDAtXHVERUQ2XHVERjAwLVx1REZGRl18XHVEODZEW1x1REMwMC1cdURGMzRcdURGNDAtXHVERkZGXXxcdUQ4NkVbXHVEQzAwLVx1REMxRFx1REMyMC1cdURGRkZdfFx1RDg3M1tcdURDMDAtXHVERUExXHVERUIwLVx1REZGRl18XHVEODdBW1x1REMwMC1cdURGRTBdfFx1RDg3RVtcdURDMDAtXHVERTFEXXxcdURCNDBbXHVERDAwLVx1RERFRl0vfSxVPXtpc1NwYWNlU2VwYXJhdG9yOmZ1bmN0aW9uKHUpe3JldHVybiJzdHJpbmciPT10eXBlb2YgdSYmRy5TcGFjZV9TZXBhcmF0b3IudGVzdCh1KX0saXNJZFN0YXJ0Q2hhcjpmdW5jdGlvbih1KXtyZXR1cm4ic3RyaW5nIj09dHlwZW9mIHUmJih1Pj0iYSImJnU8PSJ6Inx8dT49IkEiJiZ1PD0iWiJ8fCIkIj09PXV8fCJfIj09PXV8fEcuSURfU3RhcnQudGVzdCh1KSl9LGlzSWRDb250aW51ZUNoYXI6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYodT49ImEiJiZ1PD0ieiJ8fHU+PSJBIiYmdTw9IloifHx1Pj0iMCImJnU8PSI5Inx8IiQiPT09dXx8Il8iPT09dXx8IuKAjCI9PT11fHwi4oCNIj09PXV8fEcuSURfQ29udGludWUudGVzdCh1KSl9LGlzRGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOV0vLnRlc3QodSl9LGlzSGV4RGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOUEtRmEtZl0vLnRlc3QodSl9fTtmdW5jdGlvbiBaKCl7Zm9yKFQ9ImRlZmF1bHQiLHo9IiIsSD0hMSwkPTE7Oyl7Uj1xKCk7dmFyIHU9WFtUXSgpO2lmKHUpcmV0dXJuIHV9fWZ1bmN0aW9uIHEoKXtpZihfW0ldKXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChfLmNvZGVQb2ludEF0KEkpKX1mdW5jdGlvbiBXKCl7dmFyIHU9cSgpO3JldHVybiJcbiI9PT11PyhWKyssSj0wKTp1P0orPXUubGVuZ3RoOkorKyx1JiYoSSs9dS5sZW5ndGgpLHV9dmFyIFg9e2RlZmF1bHQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJcdCI6Y2FzZSJcdiI6Y2FzZSJcZiI6Y2FzZSIgIjpjYXNlIiAiOmNhc2UiXHVmZWZmIjpjYXNlIlxuIjpjYXNlIlxyIjpjYXNlIlx1MjAyOCI6Y2FzZSJcdTIwMjkiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJjb21tZW50Iik7Y2FzZSB2b2lkIDA6cmV0dXJuIFcoKSxLKCJlb2YiKX1pZighVS5pc1NwYWNlU2VwYXJhdG9yKFIpKXJldHVybiBYW09dKCk7VygpfSxjb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiKiI6cmV0dXJuIFcoKSx2b2lkKFQ9Im11bHRpTGluZUNvbW1lbnQiKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJzaW5nbGVMaW5lQ29tbWVudCIpfXRocm93IHJ1KFcoKSl9LG11bHRpTGluZUNvbW1lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIqIjpyZXR1cm4gVygpLHZvaWQoVD0ibXVsdGlMaW5lQ29tbWVudEFzdGVyaXNrIik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCl9LG11bHRpTGluZUNvbW1lbnRBc3RlcmlzazpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIioiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJkZWZhdWx0Iik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCksVD0ibXVsdGlMaW5lQ29tbWVudCJ9LHNpbmdsZUxpbmVDb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXG4iOmNhc2UiXHIiOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSx2b2lkKFQ9ImRlZmF1bHQiKTtjYXNlIHZvaWQgMDpyZXR1cm4gVygpLEsoImVvZiIpfVcoKX0sdmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJ7IjpjYXNlIlsiOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UibiI6cmV0dXJuIFcoKSxRKCJ1bGwiKSxLKCJudWxsIixudWxsKTtjYXNlInQiOnJldHVybiBXKCksUSgicnVlIiksSygiYm9vbGVhbiIsITApO2Nhc2UiZiI6cmV0dXJuIFcoKSxRKCJhbHNlIiksSygiYm9vbGVhbiIsITEpO2Nhc2UiLSI6Y2FzZSIrIjpyZXR1cm4iLSI9PT1XKCkmJigkPS0xKSx2b2lkKFQ9InNpZ24iKTtjYXNlIi4iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImRlY2ltYWxQb2ludExlYWRpbmciKTtjYXNlIjAiOnJldHVybiB6PVcoKSx2b2lkKFQ9Inplcm8iKTtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsSW50ZWdlciIpO2Nhc2UiSSI6cmV0dXJuIFcoKSxRKCJuZmluaXR5IiksSygibnVtZXJpYyIsMS8wKTtjYXNlIk4iOnJldHVybiBXKCksUSgiYU4iKSxLKCJudW1lcmljIixOYU4pO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksej0iIix2b2lkKFQ9InN0cmluZyIpfXRocm93IHJ1KFcoKSl9LGlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmJyZWFrO2RlZmF1bHQ6aWYoIVUuaXNJZFN0YXJ0Q2hhcih1KSl0aHJvdyBudSgpfXorPXUsVD0iaWRlbnRpZmllck5hbWUifSxpZGVudGlmaWVyTmFtZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiQiOmNhc2UiXyI6Y2FzZSLigIwiOmNhc2Ui4oCNIjpyZXR1cm4gdm9pZCh6Kz1XKCkpO2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZChUPSJpZGVudGlmaWVyTmFtZUVzY2FwZSIpfWlmKCFVLmlzSWRDb250aW51ZUNoYXIoUikpcmV0dXJuIEsoImlkZW50aWZpZXIiLHopO3orPVcoKX0saWRlbnRpZmllck5hbWVFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmNhc2Ui4oCMIjpjYXNlIuKAjSI6YnJlYWs7ZGVmYXVsdDppZighVS5pc0lkQ29udGludWVDaGFyKHUpKXRocm93IG51KCl9eis9dSxUPSJpZGVudGlmaWVyTmFtZSJ9LHNpZ246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnRMZWFkaW5nIik7Y2FzZSIwIjpyZXR1cm4gej1XKCksdm9pZChUPSJ6ZXJvIik7Y2FzZSIxIjpjYXNlIjIiOmNhc2UiMyI6Y2FzZSI0IjpjYXNlIjUiOmNhc2UiNiI6Y2FzZSI3IjpjYXNlIjgiOmNhc2UiOSI6cmV0dXJuIHo9VygpLHZvaWQoVD0iZGVjaW1hbEludGVnZXIiKTtjYXNlIkkiOnJldHVybiBXKCksUSgibmZpbml0eSIpLEsoIm51bWVyaWMiLCQqKDEvMCkpO2Nhc2UiTiI6cmV0dXJuIFcoKSxRKCJhTiIpLEsoIm51bWVyaWMiLE5hTil9dGhyb3cgcnUoVygpKX0semVybzpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIi4iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnQiKTtjYXNlImUiOmNhc2UiRSI6cmV0dXJuIHorPVcoKSx2b2lkKFQ9ImRlY2ltYWxFeHBvbmVudCIpO2Nhc2UieCI6Y2FzZSJYIjpyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWwiKX1yZXR1cm4gSygibnVtZXJpYyIsMCokKX0sZGVjaW1hbEludGVnZXI6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbFBvaW50Iik7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsUG9pbnRMZWFkaW5nOmZ1bmN0aW9uKCl7aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKTt0aHJvdyBydShXKCkpfSxkZWNpbWFsUG9pbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1yZXR1cm4gVS5pc0RpZ2l0KFIpPyh6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKSk6SygibnVtZXJpYyIsJCpOdW1iZXIoeikpfSxkZWNpbWFsRnJhY3Rpb246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsRXhwb25lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIrIjpjYXNlIi0iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRTaWduIil9aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0sZGVjaW1hbEV4cG9uZW50U2lnbjpmdW5jdGlvbigpe2lmKFUuaXNEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbEV4cG9uZW50SW50ZWdlciIpO3Rocm93IHJ1KFcoKSl9LGRlY2ltYWxFeHBvbmVudEludGVnZXI6ZnVuY3Rpb24oKXtpZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxoZXhhZGVjaW1hbDpmdW5jdGlvbigpe2lmKFUuaXNIZXhEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWxJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0saGV4YWRlY2ltYWxJbnRlZ2VyOmZ1bmN0aW9uKCl7aWYoIVUuaXNIZXhEaWdpdChSKSlyZXR1cm4gSygibnVtZXJpYyIsJCpOdW1iZXIoeikpO3orPVcoKX0sc3RyaW5nOmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZCh6Kz1mdW5jdGlvbigpe3N3aXRjaChxKCkpe2Nhc2UiYiI6cmV0dXJuIFcoKSwiXGIiO2Nhc2UiZiI6cmV0dXJuIFcoKSwiXGYiO2Nhc2UibiI6cmV0dXJuIFcoKSwiXG4iO2Nhc2UiciI6cmV0dXJuIFcoKSwiXHIiO2Nhc2UidCI6cmV0dXJuIFcoKSwiXHQiO2Nhc2UidiI6cmV0dXJuIFcoKSwiXHYiO2Nhc2UiMCI6aWYoVygpLFUuaXNEaWdpdChxKCkpKXRocm93IHJ1KFcoKSk7cmV0dXJuIlwwIjtjYXNlIngiOnJldHVybiBXKCksZnVuY3Rpb24oKXt2YXIgdT0iIixEPXEoKTtpZighVS5pc0hleERpZ2l0KEQpKXRocm93IHJ1KFcoKSk7aWYodSs9VygpLEQ9cSgpLCFVLmlzSGV4RGlnaXQoRCkpdGhyb3cgcnUoVygpKTtyZXR1cm4gdSs9VygpLFN0cmluZy5mcm9tQ29kZVBvaW50KHBhcnNlSW50KHUsMTYpKX0oKTtjYXNlInUiOnJldHVybiBXKCksWSgpO2Nhc2UiXG4iOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSwiIjtjYXNlIlxyIjpyZXR1cm4gVygpLCJcbiI9PT1xKCkmJlcoKSwiIjtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpjYXNlIHZvaWQgMDp0aHJvdyBydShXKCkpfXJldHVybiBXKCl9KCkpO2Nhc2UnIic6cmV0dXJuIEg/KFcoKSxLKCJzdHJpbmciLHopKTp2b2lkKHorPVcoKSk7Y2FzZSInIjpyZXR1cm4gSD92b2lkKHorPVcoKSk6KFcoKSxLKCJzdHJpbmciLHopKTtjYXNlIlxuIjpjYXNlIlxyIjp0aHJvdyBydShXKCkpO2Nhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6IWZ1bmN0aW9uKHUpe2NvbnNvbGUud2FybigiSlNPTjU6ICciK0Z1KHUpKyInIGluIHN0cmluZ3MgaXMgbm90IHZhbGlkIEVDTUFTY3JpcHQ7IGNvbnNpZGVyIGVzY2FwaW5nIil9KFIpO2JyZWFrO2Nhc2Ugdm9pZCAwOnRocm93IHJ1KFcoKSl9eis9VygpfSxzdGFydDpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlInsiOmNhc2UiWyI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9VD0idmFsdWUifSxiZWZvcmVQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIkIjpjYXNlIl8iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7Y2FzZSJcXCI6cmV0dXJuIFcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGUiKTtjYXNlIn0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksdm9pZChUPSJzdHJpbmciKX1pZihVLmlzSWRTdGFydENoYXIoUikpcmV0dXJuIHorPVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7dGhyb3cgcnUoVygpKX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiOiI9PT1SKXJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO3Rocm93IHJ1KFcoKSl9LGJlZm9yZVByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtUPSJ2YWx1ZSJ9LGFmdGVyUHJvcGVydHlWYWx1ZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiwiOmNhc2UifSI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9dGhyb3cgcnUoVygpKX0sYmVmb3JlQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJdIj09PVIpcmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSk7VD0idmFsdWUifSxhZnRlckFycmF5VmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIsIjpjYXNlIl0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpfXRocm93IHJ1KFcoKSl9LGVuZDpmdW5jdGlvbigpe3Rocm93IHJ1KFcoKSl9fTtmdW5jdGlvbiBLKHUsRCl7cmV0dXJue3R5cGU6dSx2YWx1ZTpELGxpbmU6Vixjb2x1bW46Sn19ZnVuY3Rpb24gUSh1KXtmb3IodmFyIEQ9MCxlPXU7RDxlLmxlbmd0aDtEKz0xKXt2YXIgcj1lW0RdO2lmKHEoKSE9PXIpdGhyb3cgcnUoVygpKTtXKCl9fWZ1bmN0aW9uIFkoKXtmb3IodmFyIHU9IiIsRD00O0QtLSA+MDspe3ZhciBlPXEoKTtpZighVS5pc0hleERpZ2l0KGUpKXRocm93IHJ1KFcoKSk7dSs9VygpfXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChwYXJzZUludCh1LDE2KSl9dmFyIHV1PXtzdGFydDpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7RHUoKX0sYmVmb3JlUHJvcGVydHlOYW1lOmZ1bmN0aW9uKCl7c3dpdGNoKE0udHlwZSl7Y2FzZSJpZGVudGlmaWVyIjpjYXNlInN0cmluZyI6cmV0dXJuIGs9TS52YWx1ZSx2b2lkKE89ImFmdGVyUHJvcGVydHlOYW1lIik7Y2FzZSJwdW5jdHVhdG9yIjpyZXR1cm4gdm9pZCBldSgpO2Nhc2UiZW9mIjp0aHJvdyB0dSgpfX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO089ImJlZm9yZVByb3BlcnR5VmFsdWUifSxiZWZvcmVQcm9wZXJ0eVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTtEdSgpfSxiZWZvcmVBcnJheVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTsicHVuY3R1YXRvciIhPT1NLnR5cGV8fCJdIiE9PU0udmFsdWU/RHUoKTpldSgpfSxhZnRlclByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO3N3aXRjaChNLnZhbHVlKXtjYXNlIiwiOnJldHVybiB2b2lkKE89ImJlZm9yZVByb3BlcnR5TmFtZSIpO2Nhc2UifSI6ZXUoKX19LGFmdGVyQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7c3dpdGNoKE0udmFsdWUpe2Nhc2UiLCI6cmV0dXJuIHZvaWQoTz0iYmVmb3JlQXJyYXlWYWx1ZSIpO2Nhc2UiXSI6ZXUoKX19LGVuZDpmdW5jdGlvbigpe319O2Z1bmN0aW9uIER1KCl7dmFyIHU7c3dpdGNoKE0udHlwZSl7Y2FzZSJwdW5jdHVhdG9yIjpzd2l0Y2goTS52YWx1ZSl7Y2FzZSJ7Ijp1PXt9O2JyZWFrO2Nhc2UiWyI6dT1bXX1icmVhaztjYXNlIm51bGwiOmNhc2UiYm9vbGVhbiI6Y2FzZSJudW1lcmljIjpjYXNlInN0cmluZyI6dT1NLnZhbHVlfWlmKHZvaWQgMD09PUwpTD11O2Vsc2V7dmFyIEQ9altqLmxlbmd0aC0xXTtBcnJheS5pc0FycmF5KEQpP0QucHVzaCh1KTpPYmplY3QuZGVmaW5lUHJvcGVydHkoRCxrLHt2YWx1ZTp1LHdyaXRhYmxlOiEwLGVudW1lcmFibGU6ITAsY29uZmlndXJhYmxlOiEwfSl9aWYobnVsbCE9PXUmJiJvYmplY3QiPT10eXBlb2YgdSlqLnB1c2godSksTz1BcnJheS5pc0FycmF5KHUpPyJiZWZvcmVBcnJheVZhbHVlIjoiYmVmb3JlUHJvcGVydHlOYW1lIjtlbHNle3ZhciBlPWpbai5sZW5ndGgtMV07Tz1udWxsPT1lPyJlbmQiOkFycmF5LmlzQXJyYXkoZSk/ImFmdGVyQXJyYXlWYWx1ZSI6ImFmdGVyUHJvcGVydHlWYWx1ZSJ9fWZ1bmN0aW9uIGV1KCl7ai5wb3AoKTt2YXIgdT1qW2oubGVuZ3RoLTFdO089bnVsbD09dT8iZW5kIjpBcnJheS5pc0FycmF5KHUpPyJhZnRlckFycmF5VmFsdWUiOiJhZnRlclByb3BlcnR5VmFsdWUifWZ1bmN0aW9uIHJ1KHUpe3JldHVybiBDdSh2b2lkIDA9PT11PyJKU09ONTogaW52YWxpZCBlbmQgb2YgaW5wdXQgYXQgIitWKyI6IitKOiJKU09ONTogaW52YWxpZCBjaGFyYWN0ZXIgJyIrRnUodSkrIicgYXQgIitWKyI6IitKKX1mdW5jdGlvbiB0dSgpe3JldHVybiBDdSgiSlNPTjU6IGludmFsaWQgZW5kIG9mIGlucHV0IGF0ICIrVisiOiIrSil9ZnVuY3Rpb24gbnUoKXtyZXR1cm4gQ3UoIkpTT041OiBpbnZhbGlkIGlkZW50aWZpZXIgY2hhcmFjdGVyIGF0ICIrVisiOiIrKEotPTUpKX1mdW5jdGlvbiBGdSh1KXt2YXIgRD17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9O2lmKERbdV0pcmV0dXJuIERbdV07aWYodTwiICIpe3ZhciBlPXUuY2hhckNvZGVBdCgwKS50b1N0cmluZygxNik7cmV0dXJuIlxceCIrKCIwMCIrZSkuc3Vic3RyaW5nKGUubGVuZ3RoKX1yZXR1cm4gdX1mdW5jdGlvbiBDdSh1KXt2YXIgRD1uZXcgU3ludGF4RXJyb3IodSk7cmV0dXJuIEQubGluZU51bWJlcj1WLEQuY29sdW1uTnVtYmVyPUosRH1yZXR1cm57cGFyc2U6ZnVuY3Rpb24odSxEKXtfPVN0cmluZyh1KSxPPSJzdGFydCIsaj1bXSxJPTAsVj0xLEo9MCxNPXZvaWQgMCxrPXZvaWQgMCxMPXZvaWQgMDtkb3tNPVooKSx1dVtPXSgpfXdoaWxlKCJlb2YiIT09TS50eXBlKTtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgRD9mdW5jdGlvbiB1KEQsZSxyKXt2YXIgdD1EW2VdO2lmKG51bGwhPXQmJiJvYmplY3QiPT10eXBlb2YgdClpZihBcnJheS5pc0FycmF5KHQpKWZvcih2YXIgbj0wO248dC5sZW5ndGg7bisrKXt2YXIgRj1TdHJpbmcobiksQz11KHQsRixyKTt2b2lkIDA9PT1DP2RlbGV0ZSB0W0ZdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEYse3ZhbHVlOkMsd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1lbHNlIGZvcih2YXIgQSBpbiB0KXt2YXIgaT11KHQsQSxyKTt2b2lkIDA9PT1pP2RlbGV0ZSB0W0FdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEEse3ZhbHVlOmksd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1yZXR1cm4gci5jYWxsKEQsZSx0KX0oeyIiOkx9LCIiLEQpOkx9LHN0cmluZ2lmeTpmdW5jdGlvbih1LEQsZSl7dmFyIHIsdCxuLEY9W10sQz0iIixBPSIiO2lmKG51bGw9PUR8fCJvYmplY3QiIT10eXBlb2YgRHx8QXJyYXkuaXNBcnJheShEKXx8KGU9RC5zcGFjZSxuPUQucXVvdGUsRD1ELnJlcGxhY2VyKSwiZnVuY3Rpb24iPT10eXBlb2YgRCl0PUQ7ZWxzZSBpZihBcnJheS5pc0FycmF5KEQpKXtyPVtdO2Zvcih2YXIgaT0wLEU9RDtpPEUubGVuZ3RoO2krPTEpe3ZhciBvPUVbaV0sYT12b2lkIDA7InN0cmluZyI9PXR5cGVvZiBvP2E9bzooIm51bWJlciI9PXR5cGVvZiBvfHxvIGluc3RhbmNlb2YgU3RyaW5nfHxvIGluc3RhbmNlb2YgTnVtYmVyKSYmKGE9U3RyaW5nKG8pKSx2b2lkIDAhPT1hJiZyLmluZGV4T2YoYSk8MCYmci5wdXNoKGEpfX1yZXR1cm4gZSBpbnN0YW5jZW9mIE51bWJlcj9lPU51bWJlcihlKTplIGluc3RhbmNlb2YgU3RyaW5nJiYoZT1TdHJpbmcoZSkpLCJudW1iZXIiPT10eXBlb2YgZT9lPjAmJihlPU1hdGgubWluKDEwLE1hdGguZmxvb3IoZSkpLEE9IiAgICAgICAgICAiLnN1YnN0cigwLGUpKToic3RyaW5nIj09dHlwZW9mIGUmJihBPWUuc3Vic3RyKDAsMTApKSxjKCIiLHsiIjp1fSk7ZnVuY3Rpb24gYyh1LEQpe3ZhciBlPURbdV07c3dpdGNoKG51bGwhPWUmJigiZnVuY3Rpb24iPT10eXBlb2YgZS50b0pTT041P2U9ZS50b0pTT041KHUpOiJmdW5jdGlvbiI9PXR5cGVvZiBlLnRvSlNPTiYmKGU9ZS50b0pTT04odSkpKSx0JiYoZT10LmNhbGwoRCx1LGUpKSxlIGluc3RhbmNlb2YgTnVtYmVyP2U9TnVtYmVyKGUpOmUgaW5zdGFuY2VvZiBTdHJpbmc/ZT1TdHJpbmcoZSk6ZSBpbnN0YW5jZW9mIEJvb2xlYW4mJihlPWUudmFsdWVPZigpKSxlKXtjYXNlIG51bGw6cmV0dXJuIm51bGwiO2Nhc2UhMDpyZXR1cm4idHJ1ZSI7Y2FzZSExOnJldHVybiJmYWxzZSJ9cmV0dXJuInN0cmluZyI9PXR5cGVvZiBlP0IoZSk6Im51bWJlciI9PXR5cGVvZiBlP1N0cmluZyhlKToib2JqZWN0Ij09dHlwZW9mIGU/QXJyYXkuaXNBcnJheShlKT9mdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHI9W10sdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgbj1jKFN0cmluZyh0KSx1KTtyLnB1c2godm9pZCAwIT09bj9uOiJudWxsIil9aWYoMD09PXIubGVuZ3RoKWU9IltdIjtlbHNlIGlmKCIiPT09QSl7dmFyIGk9ci5qb2luKCIsIik7ZT0iWyIraSsiXSJ9ZWxzZXt2YXIgRT0iLFxuIitDLG89ci5qb2luKEUpO2U9IltcbiIrQytvKyIsXG4iK0QrIl0ifXJldHVybiBGLnBvcCgpLEM9RCxlfShlKTpmdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHQsbj1yfHxPYmplY3Qua2V5cyh1KSxpPVtdLEU9MCxvPW47RTxvLmxlbmd0aDtFKz0xKXt2YXIgYT1vW0VdLEI9YyhhLHUpO2lmKHZvaWQgMCE9PUIpe3ZhciBmPXMoYSkrIjoiOyIiIT09QSYmKGYrPSIgIiksZis9QixpLnB1c2goZil9fWlmKDA9PT1pLmxlbmd0aCllPSJ7fSI7ZWxzZSBpZigiIj09PUEpdD1pLmpvaW4oIiwiKSxlPSJ7Iit0KyJ9IjtlbHNle3ZhciBsPSIsXG4iK0M7dD1pLmpvaW4obCksZT0ie1xuIitDK3QrIixcbiIrRCsifSJ9cmV0dXJuIEYucG9wKCksQz1ELGV9KGUpOnZvaWQgMH1mdW5jdGlvbiBCKHUpe2Zvcih2YXIgRD17IiciOi4xLCciJzouMn0sZT17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9LHI9IiIsdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgRj11W3RdO3N3aXRjaChGKXtjYXNlIiciOmNhc2UnIic6RFtGXSsrLHIrPUY7Y29udGludWU7Y2FzZSJcMCI6aWYoVS5pc0RpZ2l0KHVbdCsxXSkpe3IrPSJcXHgwMCI7Y29udGludWV9fWlmKGVbRl0pcis9ZVtGXTtlbHNlIGlmKEY8IiAiKXt2YXIgQz1GLmNoYXJDb2RlQXQoMCkudG9TdHJpbmcoMTYpO3IrPSJcXHgiKygiMDAiK0MpLnN1YnN0cmluZyhDLmxlbmd0aCl9ZWxzZSByKz1GfXZhciBBPW58fE9iamVjdC5rZXlzKEQpLnJlZHVjZShmdW5jdGlvbih1LGUpe3JldHVybiBEW3VdPERbZV0/dTplfSk7cmV0dXJuIEErKHI9ci5yZXBsYWNlKG5ldyBSZWdFeHAoQSwiZyIpLGVbQV0pKStBfWZ1bmN0aW9uIHModSl7aWYoMD09PXUubGVuZ3RoKXJldHVybiBCKHUpO3ZhciBEPVN0cmluZy5mcm9tQ29kZVBvaW50KHUuY29kZVBvaW50QXQoMCkpO2lmKCFVLmlzSWRTdGFydENoYXIoRCkpcmV0dXJuIEIodSk7Zm9yKHZhciBlPUQubGVuZ3RoO2U8dS5sZW5ndGg7ZSsrKWlmKCFVLmlzSWRDb250aW51ZUNoYXIoU3RyaW5nLmZyb21Db2RlUG9pbnQodS5jb2RlUG9pbnRBdChlKSkpKXJldHVybiBCKHUpO3JldHVybiB1fX19fSk7`;
-async function download_file$1(_logfile, filename2, filecontents) {
-  const blob = new Blob([filecontents], { type: "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename2;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-const loaded_time = Date.now();
-let last_eval_time = 0;
-async function client_events$1() {
-  const params = new URLSearchParams();
-  params.append("loaded_time", loaded_time.valueOf());
-  params.append("last_eval_time", last_eval_time.valueOf());
-  return (await api$1("GET", `/api/events?${params.toString()}`)).parsed;
-}
-async function eval_logs$1() {
-  const logs = await api$1("GET", `/api/logs`);
-  last_eval_time = Date.now();
-  return logs.parsed;
-}
-async function eval_log$1(file, headerOnly) {
-  if (headerOnly) {
-    return await api$1("GET", `/api/logs/${file}?header-only=true`);
-  } else {
-    return await api$1("GET", `/api/logs/${file}`);
-  }
-}
-async function eval_log_headers$1(files) {
-  const params = new URLSearchParams();
-  for (const file of files) {
-    params.append("file", file);
-  }
-  return (await api$1("GET", `/api/log-headers?${params.toString()}`)).parsed;
-}
-async function api$1(method, path, body) {
-  const headers = {
-    Accept: "application/json",
-    Pragma: "no-cache",
-    Expires: "0",
-    ["Cache-Control"]: "no-cache"
-  };
-  const response = await fetch(`${path}`, { method, headers, body });
-  if (response.ok) {
-    const text = await response.text();
-    return {
-      parsed: await asyncJsonParse(text),
-      raw: text
-    };
-  } else if (response.status !== 200) {
-    const message = await response.text() || response.statusText;
-    const error = new Error(`Error: ${response.status}: ${message})`);
-    throw error;
-  } else {
-    throw new Error(`${response.status} - ${response.statusText} `);
-  }
-}
-const browserApi = {
-  client_events: client_events$1,
-  eval_logs: eval_logs$1,
-  eval_log: eval_log$1,
-  eval_log_headers: eval_log_headers$1,
-  download_file: download_file$1
-};
-var Space_Separator = /[\u1680\u2000-\u200A\u202F\u205F\u3000]/;
-var ID_Start = /[\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u09FC\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60\u0C61\u0C80\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D54-\u0D56\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u1884\u1887-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1C80-\u1C88\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312E\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEA\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6EF\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AE\uA7B0-\uA7B7\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]|\uD800[\uDC00-\uDC0B\uDC0D-\uDC26\uDC28-\uDC3A\uDC3C\uDC3D\uDC3F-\uDC4D\uDC50-\uDC5D\uDC80-\uDCFA\uDD40-\uDD74\uDE80-\uDE9C\uDEA0-\uDED0\uDF00-\uDF1F\uDF2D-\uDF4A\uDF50-\uDF75\uDF80-\uDF9D\uDFA0-\uDFC3\uDFC8-\uDFCF\uDFD1-\uDFD5]|\uD801[\uDC00-\uDC9D\uDCB0-\uDCD3\uDCD8-\uDCFB\uDD00-\uDD27\uDD30-\uDD63\uDE00-\uDF36\uDF40-\uDF55\uDF60-\uDF67]|\uD802[\uDC00-\uDC05\uDC08\uDC0A-\uDC35\uDC37\uDC38\uDC3C\uDC3F-\uDC55\uDC60-\uDC76\uDC80-\uDC9E\uDCE0-\uDCF2\uDCF4\uDCF5\uDD00-\uDD15\uDD20-\uDD39\uDD80-\uDDB7\uDDBE\uDDBF\uDE00\uDE10-\uDE13\uDE15-\uDE17\uDE19-\uDE33\uDE60-\uDE7C\uDE80-\uDE9C\uDEC0-\uDEC7\uDEC9-\uDEE4\uDF00-\uDF35\uDF40-\uDF55\uDF60-\uDF72\uDF80-\uDF91]|\uD803[\uDC00-\uDC48\uDC80-\uDCB2\uDCC0-\uDCF2]|\uD804[\uDC03-\uDC37\uDC83-\uDCAF\uDCD0-\uDCE8\uDD03-\uDD26\uDD50-\uDD72\uDD76\uDD83-\uDDB2\uDDC1-\uDDC4\uDDDA\uDDDC\uDE00-\uDE11\uDE13-\uDE2B\uDE80-\uDE86\uDE88\uDE8A-\uDE8D\uDE8F-\uDE9D\uDE9F-\uDEA8\uDEB0-\uDEDE\uDF05-\uDF0C\uDF0F\uDF10\uDF13-\uDF28\uDF2A-\uDF30\uDF32\uDF33\uDF35-\uDF39\uDF3D\uDF50\uDF5D-\uDF61]|\uD805[\uDC00-\uDC34\uDC47-\uDC4A\uDC80-\uDCAF\uDCC4\uDCC5\uDCC7\uDD80-\uDDAE\uDDD8-\uDDDB\uDE00-\uDE2F\uDE44\uDE80-\uDEAA\uDF00-\uDF19]|\uD806[\uDCA0-\uDCDF\uDCFF\uDE00\uDE0B-\uDE32\uDE3A\uDE50\uDE5C-\uDE83\uDE86-\uDE89\uDEC0-\uDEF8]|\uD807[\uDC00-\uDC08\uDC0A-\uDC2E\uDC40\uDC72-\uDC8F\uDD00-\uDD06\uDD08\uDD09\uDD0B-\uDD30\uDD46]|\uD808[\uDC00-\uDF99]|\uD809[\uDC00-\uDC6E\uDC80-\uDD43]|[\uD80C\uD81C-\uD820\uD840-\uD868\uD86A-\uD86C\uD86F-\uD872\uD874-\uD879][\uDC00-\uDFFF]|\uD80D[\uDC00-\uDC2E]|\uD811[\uDC00-\uDE46]|\uD81A[\uDC00-\uDE38\uDE40-\uDE5E\uDED0-\uDEED\uDF00-\uDF2F\uDF40-\uDF43\uDF63-\uDF77\uDF7D-\uDF8F]|\uD81B[\uDF00-\uDF44\uDF50\uDF93-\uDF9F\uDFE0\uDFE1]|\uD821[\uDC00-\uDFEC]|\uD822[\uDC00-\uDEF2]|\uD82C[\uDC00-\uDD1E\uDD70-\uDEFB]|\uD82F[\uDC00-\uDC6A\uDC70-\uDC7C\uDC80-\uDC88\uDC90-\uDC99]|\uD835[\uDC00-\uDC54\uDC56-\uDC9C\uDC9E\uDC9F\uDCA2\uDCA5\uDCA6\uDCA9-\uDCAC\uDCAE-\uDCB9\uDCBB\uDCBD-\uDCC3\uDCC5-\uDD05\uDD07-\uDD0A\uDD0D-\uDD14\uDD16-\uDD1C\uDD1E-\uDD39\uDD3B-\uDD3E\uDD40-\uDD44\uDD46\uDD4A-\uDD50\uDD52-\uDEA5\uDEA8-\uDEC0\uDEC2-\uDEDA\uDEDC-\uDEFA\uDEFC-\uDF14\uDF16-\uDF34\uDF36-\uDF4E\uDF50-\uDF6E\uDF70-\uDF88\uDF8A-\uDFA8\uDFAA-\uDFC2\uDFC4-\uDFCB]|\uD83A[\uDC00-\uDCC4\uDD00-\uDD43]|\uD83B[\uDE00-\uDE03\uDE05-\uDE1F\uDE21\uDE22\uDE24\uDE27\uDE29-\uDE32\uDE34-\uDE37\uDE39\uDE3B\uDE42\uDE47\uDE49\uDE4B\uDE4D-\uDE4F\uDE51\uDE52\uDE54\uDE57\uDE59\uDE5B\uDE5D\uDE5F\uDE61\uDE62\uDE64\uDE67-\uDE6A\uDE6C-\uDE72\uDE74-\uDE77\uDE79-\uDE7C\uDE7E\uDE80-\uDE89\uDE8B-\uDE9B\uDEA1-\uDEA3\uDEA5-\uDEA9\uDEAB-\uDEBB]|\uD869[\uDC00-\uDED6\uDF00-\uDFFF]|\uD86D[\uDC00-\uDF34\uDF40-\uDFFF]|\uD86E[\uDC00-\uDC1D\uDC20-\uDFFF]|\uD873[\uDC00-\uDEA1\uDEB0-\uDFFF]|\uD87A[\uDC00-\uDFE0]|\uD87E[\uDC00-\uDE1D]/;
-var ID_Continue = /[\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0300-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u0483-\u0487\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u05D0-\u05EA\u05F0-\u05F2\u0610-\u061A\u0620-\u0669\u066E-\u06D3\u06D5-\u06DC\u06DF-\u06E8\u06EA-\u06FC\u06FF\u0710-\u074A\u074D-\u07B1\u07C0-\u07F5\u07FA\u0800-\u082D\u0840-\u085B\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u08D4-\u08E1\u08E3-\u0963\u0966-\u096F\u0971-\u0983\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BC-\u09C4\u09C7\u09C8\u09CB-\u09CE\u09D7\u09DC\u09DD\u09DF-\u09E3\u09E6-\u09F1\u09FC\u0A01-\u0A03\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A59-\u0A5C\u0A5E\u0A66-\u0A75\u0A81-\u0A83\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABC-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AD0\u0AE0-\u0AE3\u0AE6-\u0AEF\u0AF9-\u0AFF\u0B01-\u0B03\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3C-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B5C\u0B5D\u0B5F-\u0B63\u0B66-\u0B6F\u0B71\u0B82\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD0\u0BD7\u0BE6-\u0BEF\u0C00-\u0C03\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C58-\u0C5A\u0C60-\u0C63\u0C66-\u0C6F\u0C80-\u0C83\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBC-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CDE\u0CE0-\u0CE3\u0CE6-\u0CEF\u0CF1\u0CF2\u0D00-\u0D03\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D44\u0D46-\u0D48\u0D4A-\u0D4E\u0D54-\u0D57\u0D5F-\u0D63\u0D66-\u0D6F\u0D7A-\u0D7F\u0D82\u0D83\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DE6-\u0DEF\u0DF2\u0DF3\u0E01-\u0E3A\u0E40-\u0E4E\u0E50-\u0E59\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB9\u0EBB-\u0EBD\u0EC0-\u0EC4\u0EC6\u0EC8-\u0ECD\u0ED0-\u0ED9\u0EDC-\u0EDF\u0F00\u0F18\u0F19\u0F20-\u0F29\u0F35\u0F37\u0F39\u0F3E-\u0F47\u0F49-\u0F6C\u0F71-\u0F84\u0F86-\u0F97\u0F99-\u0FBC\u0FC6\u1000-\u1049\u1050-\u109D\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u135D-\u135F\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1714\u1720-\u1734\u1740-\u1753\u1760-\u176C\u176E-\u1770\u1772\u1773\u1780-\u17D3\u17D7\u17DC\u17DD\u17E0-\u17E9\u180B-\u180D\u1810-\u1819\u1820-\u1877\u1880-\u18AA\u18B0-\u18F5\u1900-\u191E\u1920-\u192B\u1930-\u193B\u1946-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u19D0-\u19D9\u1A00-\u1A1B\u1A20-\u1A5E\u1A60-\u1A7C\u1A7F-\u1A89\u1A90-\u1A99\u1AA7\u1AB0-\u1ABD\u1B00-\u1B4B\u1B50-\u1B59\u1B6B-\u1B73\u1B80-\u1BF3\u1C00-\u1C37\u1C40-\u1C49\u1C4D-\u1C7D\u1C80-\u1C88\u1CD0-\u1CD2\u1CD4-\u1CF9\u1D00-\u1DF9\u1DFB-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u203F\u2040\u2054\u2071\u207F\u2090-\u209C\u20D0-\u20DC\u20E1\u20E5-\u20F0\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D7F-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2DE0-\u2DFF\u2E2F\u3005-\u3007\u3021-\u302F\u3031-\u3035\u3038-\u303C\u3041-\u3096\u3099\u309A\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312E\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEA\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA62B\uA640-\uA66F\uA674-\uA67D\uA67F-\uA6F1\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AE\uA7B0-\uA7B7\uA7F7-\uA827\uA840-\uA873\uA880-\uA8C5\uA8D0-\uA8D9\uA8E0-\uA8F7\uA8FB\uA8FD\uA900-\uA92D\uA930-\uA953\uA960-\uA97C\uA980-\uA9C0\uA9CF-\uA9D9\uA9E0-\uA9FE\uAA00-\uAA36\uAA40-\uAA4D\uAA50-\uAA59\uAA60-\uAA76\uAA7A-\uAAC2\uAADB-\uAADD\uAAE0-\uAAEF\uAAF2-\uAAF6\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABEA\uABEC\uABED\uABF0-\uABF9\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE00-\uFE0F\uFE20-\uFE2F\uFE33\uFE34\uFE4D-\uFE4F\uFE70-\uFE74\uFE76-\uFEFC\uFF10-\uFF19\uFF21-\uFF3A\uFF3F\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]|\uD800[\uDC00-\uDC0B\uDC0D-\uDC26\uDC28-\uDC3A\uDC3C\uDC3D\uDC3F-\uDC4D\uDC50-\uDC5D\uDC80-\uDCFA\uDD40-\uDD74\uDDFD\uDE80-\uDE9C\uDEA0-\uDED0\uDEE0\uDF00-\uDF1F\uDF2D-\uDF4A\uDF50-\uDF7A\uDF80-\uDF9D\uDFA0-\uDFC3\uDFC8-\uDFCF\uDFD1-\uDFD5]|\uD801[\uDC00-\uDC9D\uDCA0-\uDCA9\uDCB0-\uDCD3\uDCD8-\uDCFB\uDD00-\uDD27\uDD30-\uDD63\uDE00-\uDF36\uDF40-\uDF55\uDF60-\uDF67]|\uD802[\uDC00-\uDC05\uDC08\uDC0A-\uDC35\uDC37\uDC38\uDC3C\uDC3F-\uDC55\uDC60-\uDC76\uDC80-\uDC9E\uDCE0-\uDCF2\uDCF4\uDCF5\uDD00-\uDD15\uDD20-\uDD39\uDD80-\uDDB7\uDDBE\uDDBF\uDE00-\uDE03\uDE05\uDE06\uDE0C-\uDE13\uDE15-\uDE17\uDE19-\uDE33\uDE38-\uDE3A\uDE3F\uDE60-\uDE7C\uDE80-\uDE9C\uDEC0-\uDEC7\uDEC9-\uDEE6\uDF00-\uDF35\uDF40-\uDF55\uDF60-\uDF72\uDF80-\uDF91]|\uD803[\uDC00-\uDC48\uDC80-\uDCB2\uDCC0-\uDCF2]|\uD804[\uDC00-\uDC46\uDC66-\uDC6F\uDC7F-\uDCBA\uDCD0-\uDCE8\uDCF0-\uDCF9\uDD00-\uDD34\uDD36-\uDD3F\uDD50-\uDD73\uDD76\uDD80-\uDDC4\uDDCA-\uDDCC\uDDD0-\uDDDA\uDDDC\uDE00-\uDE11\uDE13-\uDE37\uDE3E\uDE80-\uDE86\uDE88\uDE8A-\uDE8D\uDE8F-\uDE9D\uDE9F-\uDEA8\uDEB0-\uDEEA\uDEF0-\uDEF9\uDF00-\uDF03\uDF05-\uDF0C\uDF0F\uDF10\uDF13-\uDF28\uDF2A-\uDF30\uDF32\uDF33\uDF35-\uDF39\uDF3C-\uDF44\uDF47\uDF48\uDF4B-\uDF4D\uDF50\uDF57\uDF5D-\uDF63\uDF66-\uDF6C\uDF70-\uDF74]|\uD805[\uDC00-\uDC4A\uDC50-\uDC59\uDC80-\uDCC5\uDCC7\uDCD0-\uDCD9\uDD80-\uDDB5\uDDB8-\uDDC0\uDDD8-\uDDDD\uDE00-\uDE40\uDE44\uDE50-\uDE59\uDE80-\uDEB7\uDEC0-\uDEC9\uDF00-\uDF19\uDF1D-\uDF2B\uDF30-\uDF39]|\uD806[\uDCA0-\uDCE9\uDCFF\uDE00-\uDE3E\uDE47\uDE50-\uDE83\uDE86-\uDE99\uDEC0-\uDEF8]|\uD807[\uDC00-\uDC08\uDC0A-\uDC36\uDC38-\uDC40\uDC50-\uDC59\uDC72-\uDC8F\uDC92-\uDCA7\uDCA9-\uDCB6\uDD00-\uDD06\uDD08\uDD09\uDD0B-\uDD36\uDD3A\uDD3C\uDD3D\uDD3F-\uDD47\uDD50-\uDD59]|\uD808[\uDC00-\uDF99]|\uD809[\uDC00-\uDC6E\uDC80-\uDD43]|[\uD80C\uD81C-\uD820\uD840-\uD868\uD86A-\uD86C\uD86F-\uD872\uD874-\uD879][\uDC00-\uDFFF]|\uD80D[\uDC00-\uDC2E]|\uD811[\uDC00-\uDE46]|\uD81A[\uDC00-\uDE38\uDE40-\uDE5E\uDE60-\uDE69\uDED0-\uDEED\uDEF0-\uDEF4\uDF00-\uDF36\uDF40-\uDF43\uDF50-\uDF59\uDF63-\uDF77\uDF7D-\uDF8F]|\uD81B[\uDF00-\uDF44\uDF50-\uDF7E\uDF8F-\uDF9F\uDFE0\uDFE1]|\uD821[\uDC00-\uDFEC]|\uD822[\uDC00-\uDEF2]|\uD82C[\uDC00-\uDD1E\uDD70-\uDEFB]|\uD82F[\uDC00-\uDC6A\uDC70-\uDC7C\uDC80-\uDC88\uDC90-\uDC99\uDC9D\uDC9E]|\uD834[\uDD65-\uDD69\uDD6D-\uDD72\uDD7B-\uDD82\uDD85-\uDD8B\uDDAA-\uDDAD\uDE42-\uDE44]|\uD835[\uDC00-\uDC54\uDC56-\uDC9C\uDC9E\uDC9F\uDCA2\uDCA5\uDCA6\uDCA9-\uDCAC\uDCAE-\uDCB9\uDCBB\uDCBD-\uDCC3\uDCC5-\uDD05\uDD07-\uDD0A\uDD0D-\uDD14\uDD16-\uDD1C\uDD1E-\uDD39\uDD3B-\uDD3E\uDD40-\uDD44\uDD46\uDD4A-\uDD50\uDD52-\uDEA5\uDEA8-\uDEC0\uDEC2-\uDEDA\uDEDC-\uDEFA\uDEFC-\uDF14\uDF16-\uDF34\uDF36-\uDF4E\uDF50-\uDF6E\uDF70-\uDF88\uDF8A-\uDFA8\uDFAA-\uDFC2\uDFC4-\uDFCB\uDFCE-\uDFFF]|\uD836[\uDE00-\uDE36\uDE3B-\uDE6C\uDE75\uDE84\uDE9B-\uDE9F\uDEA1-\uDEAF]|\uD838[\uDC00-\uDC06\uDC08-\uDC18\uDC1B-\uDC21\uDC23\uDC24\uDC26-\uDC2A]|\uD83A[\uDC00-\uDCC4\uDCD0-\uDCD6\uDD00-\uDD4A\uDD50-\uDD59]|\uD83B[\uDE00-\uDE03\uDE05-\uDE1F\uDE21\uDE22\uDE24\uDE27\uDE29-\uDE32\uDE34-\uDE37\uDE39\uDE3B\uDE42\uDE47\uDE49\uDE4B\uDE4D-\uDE4F\uDE51\uDE52\uDE54\uDE57\uDE59\uDE5B\uDE5D\uDE5F\uDE61\uDE62\uDE64\uDE67-\uDE6A\uDE6C-\uDE72\uDE74-\uDE77\uDE79-\uDE7C\uDE7E\uDE80-\uDE89\uDE8B-\uDE9B\uDEA1-\uDEA3\uDEA5-\uDEA9\uDEAB-\uDEBB]|\uD869[\uDC00-\uDED6\uDF00-\uDFFF]|\uD86D[\uDC00-\uDF34\uDF40-\uDFFF]|\uD86E[\uDC00-\uDC1D\uDC20-\uDFFF]|\uD873[\uDC00-\uDEA1\uDEB0-\uDFFF]|\uD87A[\uDC00-\uDFE0]|\uD87E[\uDC00-\uDE1D]|\uDB40[\uDD00-\uDDEF]/;
-var unicode = {
-  Space_Separator,
-  ID_Start,
-  ID_Continue
-};
-var util = {
-  isSpaceSeparator(c2) {
-    return typeof c2 === "string" && unicode.Space_Separator.test(c2);
-  },
-  isIdStartChar(c2) {
-    return typeof c2 === "string" && (c2 >= "a" && c2 <= "z" || c2 >= "A" && c2 <= "Z" || c2 === "$" || c2 === "_" || unicode.ID_Start.test(c2));
-  },
-  isIdContinueChar(c2) {
-    return typeof c2 === "string" && (c2 >= "a" && c2 <= "z" || c2 >= "A" && c2 <= "Z" || c2 >= "0" && c2 <= "9" || c2 === "$" || c2 === "_" || c2 === "‌" || c2 === "‍" || unicode.ID_Continue.test(c2));
-  },
-  isDigit(c2) {
-    return typeof c2 === "string" && /[0-9]/.test(c2);
-  },
-  isHexDigit(c2) {
-    return typeof c2 === "string" && /[0-9A-Fa-f]/.test(c2);
-  }
-};
-let source;
-let parseState;
-let stack;
-let pos;
-let line;
-let column;
-let token;
-let key;
-let root;
-var parse = function parse2(text, reviver) {
-  source = String(text);
-  parseState = "start";
-  stack = [];
-  pos = 0;
-  line = 1;
-  column = 0;
-  token = void 0;
-  key = void 0;
-  root = void 0;
-  do {
-    token = lex();
-    parseStates[parseState]();
-  } while (token.type !== "eof");
-  if (typeof reviver === "function") {
-    return internalize({ "": root }, "", reviver);
-  }
-  return root;
-};
-function internalize(holder, name, reviver) {
-  const value = holder[name];
-  if (value != null && typeof value === "object") {
-    if (Array.isArray(value)) {
-      for (let i2 = 0; i2 < value.length; i2++) {
-        const key2 = String(i2);
-        const replacement = internalize(value, key2, reviver);
-        if (replacement === void 0) {
-          delete value[key2];
-        } else {
-          Object.defineProperty(value, key2, {
-            value: replacement,
-            writable: true,
-            enumerable: true,
-            configurable: true
-          });
-        }
-      }
-    } else {
-      for (const key2 in value) {
-        const replacement = internalize(value, key2, reviver);
-        if (replacement === void 0) {
-          delete value[key2];
-        } else {
-          Object.defineProperty(value, key2, {
-            value: replacement,
-            writable: true,
-            enumerable: true,
-            configurable: true
-          });
-        }
-      }
-    }
-  }
-  return reviver.call(holder, name, value);
-}
-let lexState;
-let buffer;
-let doubleQuote;
-let sign;
-let c;
-function lex() {
-  lexState = "default";
-  buffer = "";
-  doubleQuote = false;
-  sign = 1;
-  for (; ; ) {
-    c = peek();
-    const token2 = lexStates[lexState]();
-    if (token2) {
-      return token2;
-    }
-  }
-}
-function peek() {
-  if (source[pos]) {
-    return String.fromCodePoint(source.codePointAt(pos));
-  }
-}
-function read() {
-  const c2 = peek();
-  if (c2 === "\n") {
-    line++;
-    column = 0;
-  } else if (c2) {
-    column += c2.length;
-  } else {
-    column++;
-  }
-  if (c2) {
-    pos += c2.length;
-  }
-  return c2;
-}
-const lexStates = {
-  default() {
-    switch (c) {
-      case "	":
-      case "\v":
-      case "\f":
-      case " ":
-      case " ":
-      case "\uFEFF":
-      case "\n":
-      case "\r":
-      case "\u2028":
-      case "\u2029":
-        read();
-        return;
-      case "/":
-        read();
-        lexState = "comment";
-        return;
-      case void 0:
-        read();
-        return newToken("eof");
-    }
-    if (util.isSpaceSeparator(c)) {
-      read();
-      return;
-    }
-    return lexStates[parseState]();
-  },
-  comment() {
-    switch (c) {
-      case "*":
-        read();
-        lexState = "multiLineComment";
-        return;
-      case "/":
-        read();
-        lexState = "singleLineComment";
-        return;
-    }
-    throw invalidChar(read());
-  },
-  multiLineComment() {
-    switch (c) {
-      case "*":
-        read();
-        lexState = "multiLineCommentAsterisk";
-        return;
-      case void 0:
-        throw invalidChar(read());
-    }
-    read();
-  },
-  multiLineCommentAsterisk() {
-    switch (c) {
-      case "*":
-        read();
-        return;
-      case "/":
-        read();
-        lexState = "default";
-        return;
-      case void 0:
-        throw invalidChar(read());
-    }
-    read();
-    lexState = "multiLineComment";
-  },
-  singleLineComment() {
-    switch (c) {
-      case "\n":
-      case "\r":
-      case "\u2028":
-      case "\u2029":
-        read();
-        lexState = "default";
-        return;
-      case void 0:
-        read();
-        return newToken("eof");
-    }
-    read();
-  },
-  value() {
-    switch (c) {
-      case "{":
-      case "[":
-        return newToken("punctuator", read());
-      case "n":
-        read();
-        literal("ull");
-        return newToken("null", null);
-      case "t":
-        read();
-        literal("rue");
-        return newToken("boolean", true);
-      case "f":
-        read();
-        literal("alse");
-        return newToken("boolean", false);
-      case "-":
-      case "+":
-        if (read() === "-") {
-          sign = -1;
-        }
-        lexState = "sign";
-        return;
-      case ".":
-        buffer = read();
-        lexState = "decimalPointLeading";
-        return;
-      case "0":
-        buffer = read();
-        lexState = "zero";
-        return;
-      case "1":
-      case "2":
-      case "3":
-      case "4":
-      case "5":
-      case "6":
-      case "7":
-      case "8":
-      case "9":
-        buffer = read();
-        lexState = "decimalInteger";
-        return;
-      case "I":
-        read();
-        literal("nfinity");
-        return newToken("numeric", Infinity);
-      case "N":
-        read();
-        literal("aN");
-        return newToken("numeric", NaN);
-      case '"':
-      case "'":
-        doubleQuote = read() === '"';
-        buffer = "";
-        lexState = "string";
-        return;
-    }
-    throw invalidChar(read());
-  },
-  identifierNameStartEscape() {
-    if (c !== "u") {
-      throw invalidChar(read());
-    }
-    read();
-    const u2 = unicodeEscape();
-    switch (u2) {
-      case "$":
-      case "_":
-        break;
-      default:
-        if (!util.isIdStartChar(u2)) {
-          throw invalidIdentifier();
-        }
-        break;
-    }
-    buffer += u2;
-    lexState = "identifierName";
-  },
-  identifierName() {
-    switch (c) {
-      case "$":
-      case "_":
-      case "‌":
-      case "‍":
-        buffer += read();
-        return;
-      case "\\":
-        read();
-        lexState = "identifierNameEscape";
-        return;
-    }
-    if (util.isIdContinueChar(c)) {
-      buffer += read();
-      return;
-    }
-    return newToken("identifier", buffer);
-  },
-  identifierNameEscape() {
-    if (c !== "u") {
-      throw invalidChar(read());
-    }
-    read();
-    const u2 = unicodeEscape();
-    switch (u2) {
-      case "$":
-      case "_":
-      case "‌":
-      case "‍":
-        break;
-      default:
-        if (!util.isIdContinueChar(u2)) {
-          throw invalidIdentifier();
-        }
-        break;
-    }
-    buffer += u2;
-    lexState = "identifierName";
-  },
-  sign() {
-    switch (c) {
-      case ".":
-        buffer = read();
-        lexState = "decimalPointLeading";
-        return;
-      case "0":
-        buffer = read();
-        lexState = "zero";
-        return;
-      case "1":
-      case "2":
-      case "3":
-      case "4":
-      case "5":
-      case "6":
-      case "7":
-      case "8":
-      case "9":
-        buffer = read();
-        lexState = "decimalInteger";
-        return;
-      case "I":
-        read();
-        literal("nfinity");
-        return newToken("numeric", sign * Infinity);
-      case "N":
-        read();
-        literal("aN");
-        return newToken("numeric", NaN);
-    }
-    throw invalidChar(read());
-  },
-  zero() {
-    switch (c) {
-      case ".":
-        buffer += read();
-        lexState = "decimalPoint";
-        return;
-      case "e":
-      case "E":
-        buffer += read();
-        lexState = "decimalExponent";
-        return;
-      case "x":
-      case "X":
-        buffer += read();
-        lexState = "hexadecimal";
-        return;
-    }
-    return newToken("numeric", sign * 0);
-  },
-  decimalInteger() {
-    switch (c) {
-      case ".":
-        buffer += read();
-        lexState = "decimalPoint";
-        return;
-      case "e":
-      case "E":
-        buffer += read();
-        lexState = "decimalExponent";
-        return;
-    }
-    if (util.isDigit(c)) {
-      buffer += read();
-      return;
-    }
-    return newToken("numeric", sign * Number(buffer));
-  },
-  decimalPointLeading() {
-    if (util.isDigit(c)) {
-      buffer += read();
-      lexState = "decimalFraction";
-      return;
-    }
-    throw invalidChar(read());
-  },
-  decimalPoint() {
-    switch (c) {
-      case "e":
-      case "E":
-        buffer += read();
-        lexState = "decimalExponent";
-        return;
-    }
-    if (util.isDigit(c)) {
-      buffer += read();
-      lexState = "decimalFraction";
-      return;
-    }
-    return newToken("numeric", sign * Number(buffer));
-  },
-  decimalFraction() {
-    switch (c) {
-      case "e":
-      case "E":
-        buffer += read();
-        lexState = "decimalExponent";
-        return;
-    }
-    if (util.isDigit(c)) {
-      buffer += read();
-      return;
-    }
-    return newToken("numeric", sign * Number(buffer));
-  },
-  decimalExponent() {
-    switch (c) {
-      case "+":
-      case "-":
-        buffer += read();
-        lexState = "decimalExponentSign";
-        return;
-    }
-    if (util.isDigit(c)) {
-      buffer += read();
-      lexState = "decimalExponentInteger";
-      return;
-    }
-    throw invalidChar(read());
-  },
-  decimalExponentSign() {
-    if (util.isDigit(c)) {
-      buffer += read();
-      lexState = "decimalExponentInteger";
-      return;
-    }
-    throw invalidChar(read());
-  },
-  decimalExponentInteger() {
-    if (util.isDigit(c)) {
-      buffer += read();
-      return;
-    }
-    return newToken("numeric", sign * Number(buffer));
-  },
-  hexadecimal() {
-    if (util.isHexDigit(c)) {
-      buffer += read();
-      lexState = "hexadecimalInteger";
-      return;
-    }
-    throw invalidChar(read());
-  },
-  hexadecimalInteger() {
-    if (util.isHexDigit(c)) {
-      buffer += read();
-      return;
-    }
-    return newToken("numeric", sign * Number(buffer));
-  },
-  string() {
-    switch (c) {
-      case "\\":
-        read();
-        buffer += escape$1();
-        return;
-      case '"':
-        if (doubleQuote) {
-          read();
-          return newToken("string", buffer);
-        }
-        buffer += read();
-        return;
-      case "'":
-        if (!doubleQuote) {
-          read();
-          return newToken("string", buffer);
-        }
-        buffer += read();
-        return;
-      case "\n":
-      case "\r":
-        throw invalidChar(read());
-      case "\u2028":
-      case "\u2029":
-        separatorChar(c);
-        break;
-      case void 0:
-        throw invalidChar(read());
-    }
-    buffer += read();
-  },
-  start() {
-    switch (c) {
-      case "{":
-      case "[":
-        return newToken("punctuator", read());
-    }
-    lexState = "value";
-  },
-  beforePropertyName() {
-    switch (c) {
-      case "$":
-      case "_":
-        buffer = read();
-        lexState = "identifierName";
-        return;
-      case "\\":
-        read();
-        lexState = "identifierNameStartEscape";
-        return;
-      case "}":
-        return newToken("punctuator", read());
-      case '"':
-      case "'":
-        doubleQuote = read() === '"';
-        lexState = "string";
-        return;
-    }
-    if (util.isIdStartChar(c)) {
-      buffer += read();
-      lexState = "identifierName";
-      return;
-    }
-    throw invalidChar(read());
-  },
-  afterPropertyName() {
-    if (c === ":") {
-      return newToken("punctuator", read());
-    }
-    throw invalidChar(read());
-  },
-  beforePropertyValue() {
-    lexState = "value";
-  },
-  afterPropertyValue() {
-    switch (c) {
-      case ",":
-      case "}":
-        return newToken("punctuator", read());
-    }
-    throw invalidChar(read());
-  },
-  beforeArrayValue() {
-    if (c === "]") {
-      return newToken("punctuator", read());
-    }
-    lexState = "value";
-  },
-  afterArrayValue() {
-    switch (c) {
-      case ",":
-      case "]":
-        return newToken("punctuator", read());
-    }
-    throw invalidChar(read());
-  },
-  end() {
-    throw invalidChar(read());
-  }
-};
-function newToken(type, value) {
-  return {
-    type,
-    value,
-    line,
-    column
-  };
-}
-function literal(s2) {
-  for (const c2 of s2) {
-    const p2 = peek();
-    if (p2 !== c2) {
-      throw invalidChar(read());
-    }
-    read();
-  }
-}
-function escape$1() {
-  const c2 = peek();
-  switch (c2) {
-    case "b":
-      read();
-      return "\b";
-    case "f":
-      read();
-      return "\f";
-    case "n":
-      read();
-      return "\n";
-    case "r":
-      read();
-      return "\r";
-    case "t":
-      read();
-      return "	";
-    case "v":
-      read();
-      return "\v";
-    case "0":
-      read();
-      if (util.isDigit(peek())) {
-        throw invalidChar(read());
-      }
-      return "\0";
-    case "x":
-      read();
-      return hexEscape();
-    case "u":
-      read();
-      return unicodeEscape();
-    case "\n":
-    case "\u2028":
-    case "\u2029":
-      read();
-      return "";
-    case "\r":
-      read();
-      if (peek() === "\n") {
-        read();
-      }
-      return "";
-    case "1":
-    case "2":
-    case "3":
-    case "4":
-    case "5":
-    case "6":
-    case "7":
-    case "8":
-    case "9":
-      throw invalidChar(read());
-    case void 0:
-      throw invalidChar(read());
-  }
-  return read();
-}
-function hexEscape() {
-  let buffer2 = "";
-  let c2 = peek();
-  if (!util.isHexDigit(c2)) {
-    throw invalidChar(read());
-  }
-  buffer2 += read();
-  c2 = peek();
-  if (!util.isHexDigit(c2)) {
-    throw invalidChar(read());
-  }
-  buffer2 += read();
-  return String.fromCodePoint(parseInt(buffer2, 16));
-}
-function unicodeEscape() {
-  let buffer2 = "";
-  let count = 4;
-  while (count-- > 0) {
-    const c2 = peek();
-    if (!util.isHexDigit(c2)) {
-      throw invalidChar(read());
-    }
-    buffer2 += read();
-  }
-  return String.fromCodePoint(parseInt(buffer2, 16));
-}
-const parseStates = {
-  start() {
-    if (token.type === "eof") {
-      throw invalidEOF();
-    }
-    push();
-  },
-  beforePropertyName() {
-    switch (token.type) {
-      case "identifier":
-      case "string":
-        key = token.value;
-        parseState = "afterPropertyName";
-        return;
-      case "punctuator":
-        pop();
-        return;
-      case "eof":
-        throw invalidEOF();
-    }
-  },
-  afterPropertyName() {
-    if (token.type === "eof") {
-      throw invalidEOF();
-    }
-    parseState = "beforePropertyValue";
-  },
-  beforePropertyValue() {
-    if (token.type === "eof") {
-      throw invalidEOF();
-    }
-    push();
-  },
-  beforeArrayValue() {
-    if (token.type === "eof") {
-      throw invalidEOF();
-    }
-    if (token.type === "punctuator" && token.value === "]") {
-      pop();
-      return;
-    }
-    push();
-  },
-  afterPropertyValue() {
-    if (token.type === "eof") {
-      throw invalidEOF();
-    }
-    switch (token.value) {
-      case ",":
-        parseState = "beforePropertyName";
-        return;
-      case "}":
-        pop();
-    }
-  },
-  afterArrayValue() {
-    if (token.type === "eof") {
-      throw invalidEOF();
-    }
-    switch (token.value) {
-      case ",":
-        parseState = "beforeArrayValue";
-        return;
-      case "]":
-        pop();
-    }
-  },
-  end() {
-  }
-};
-function push() {
-  let value;
-  switch (token.type) {
-    case "punctuator":
-      switch (token.value) {
-        case "{":
-          value = {};
-          break;
-        case "[":
-          value = [];
-          break;
-      }
-      break;
-    case "null":
-    case "boolean":
-    case "numeric":
-    case "string":
-      value = token.value;
-      break;
-  }
-  if (root === void 0) {
-    root = value;
-  } else {
-    const parent = stack[stack.length - 1];
-    if (Array.isArray(parent)) {
-      parent.push(value);
-    } else {
-      Object.defineProperty(parent, key, {
-        value,
-        writable: true,
-        enumerable: true,
-        configurable: true
-      });
-    }
-  }
-  if (value !== null && typeof value === "object") {
-    stack.push(value);
-    if (Array.isArray(value)) {
-      parseState = "beforeArrayValue";
-    } else {
-      parseState = "beforePropertyName";
-    }
-  } else {
-    const current = stack[stack.length - 1];
-    if (current == null) {
-      parseState = "end";
-    } else if (Array.isArray(current)) {
-      parseState = "afterArrayValue";
-    } else {
-      parseState = "afterPropertyValue";
-    }
-  }
-}
-function pop() {
-  stack.pop();
-  const current = stack[stack.length - 1];
-  if (current == null) {
-    parseState = "end";
-  } else if (Array.isArray(current)) {
-    parseState = "afterArrayValue";
-  } else {
-    parseState = "afterPropertyValue";
-  }
-}
-function invalidChar(c2) {
-  if (c2 === void 0) {
-    return syntaxError(`JSON5: invalid end of input at ${line}:${column}`);
-  }
-  return syntaxError(`JSON5: invalid character '${formatChar(c2)}' at ${line}:${column}`);
-}
-function invalidEOF() {
-  return syntaxError(`JSON5: invalid end of input at ${line}:${column}`);
-}
-function invalidIdentifier() {
-  column -= 5;
-  return syntaxError(`JSON5: invalid identifier character at ${line}:${column}`);
-}
-function separatorChar(c2) {
-  console.warn(`JSON5: '${formatChar(c2)}' in strings is not valid ECMAScript; consider escaping`);
-}
-function formatChar(c2) {
-  const replacements = {
-    "'": "\\'",
-    '"': '\\"',
-    "\\": "\\\\",
-    "\b": "\\b",
-    "\f": "\\f",
-    "\n": "\\n",
-    "\r": "\\r",
-    "	": "\\t",
-    "\v": "\\v",
-    "\0": "\\0",
-    "\u2028": "\\u2028",
-    "\u2029": "\\u2029"
-  };
-  if (replacements[c2]) {
-    return replacements[c2];
-  }
-  if (c2 < " ") {
-    const hexString = c2.charCodeAt(0).toString(16);
-    return "\\x" + ("00" + hexString).substring(hexString.length);
-  }
-  return c2;
-}
-function syntaxError(message) {
-  const err = new SyntaxError(message);
-  err.lineNumber = line;
-  err.columnNumber = column;
-  return err;
-}
-var stringify = function stringify2(value, replacer, space) {
-  const stack2 = [];
-  let indent = "";
-  let propertyList;
-  let replacerFunc;
-  let gap = "";
-  let quote;
-  if (replacer != null && typeof replacer === "object" && !Array.isArray(replacer)) {
-    space = replacer.space;
-    quote = replacer.quote;
-    replacer = replacer.replacer;
-  }
-  if (typeof replacer === "function") {
-    replacerFunc = replacer;
-  } else if (Array.isArray(replacer)) {
-    propertyList = [];
-    for (const v2 of replacer) {
-      let item;
-      if (typeof v2 === "string") {
-        item = v2;
-      } else if (typeof v2 === "number" || v2 instanceof String || v2 instanceof Number) {
-        item = String(v2);
-      }
-      if (item !== void 0 && propertyList.indexOf(item) < 0) {
-        propertyList.push(item);
-      }
-    }
-  }
-  if (space instanceof Number) {
-    space = Number(space);
-  } else if (space instanceof String) {
-    space = String(space);
-  }
-  if (typeof space === "number") {
-    if (space > 0) {
-      space = Math.min(10, Math.floor(space));
-      gap = "          ".substr(0, space);
-    }
-  } else if (typeof space === "string") {
-    gap = space.substr(0, 10);
-  }
-  return serializeProperty("", { "": value });
-  function serializeProperty(key2, holder) {
-    let value2 = holder[key2];
-    if (value2 != null) {
-      if (typeof value2.toJSON5 === "function") {
-        value2 = value2.toJSON5(key2);
-      } else if (typeof value2.toJSON === "function") {
-        value2 = value2.toJSON(key2);
-      }
-    }
-    if (replacerFunc) {
-      value2 = replacerFunc.call(holder, key2, value2);
-    }
-    if (value2 instanceof Number) {
-      value2 = Number(value2);
-    } else if (value2 instanceof String) {
-      value2 = String(value2);
-    } else if (value2 instanceof Boolean) {
-      value2 = value2.valueOf();
-    }
-    switch (value2) {
-      case null:
-        return "null";
-      case true:
-        return "true";
-      case false:
-        return "false";
-    }
-    if (typeof value2 === "string") {
-      return quoteString(value2);
-    }
-    if (typeof value2 === "number") {
-      return String(value2);
-    }
-    if (typeof value2 === "object") {
-      return Array.isArray(value2) ? serializeArray(value2) : serializeObject(value2);
-    }
-    return void 0;
-  }
-  function quoteString(value2) {
-    const quotes = {
-      "'": 0.1,
-      '"': 0.2
-    };
-    const replacements = {
-      "'": "\\'",
-      '"': '\\"',
-      "\\": "\\\\",
-      "\b": "\\b",
-      "\f": "\\f",
-      "\n": "\\n",
-      "\r": "\\r",
-      "	": "\\t",
-      "\v": "\\v",
-      "\0": "\\0",
-      "\u2028": "\\u2028",
-      "\u2029": "\\u2029"
-    };
-    let product = "";
-    for (let i2 = 0; i2 < value2.length; i2++) {
-      const c2 = value2[i2];
-      switch (c2) {
-        case "'":
-        case '"':
-          quotes[c2]++;
-          product += c2;
-          continue;
-        case "\0":
-          if (util.isDigit(value2[i2 + 1])) {
-            product += "\\x00";
-            continue;
-          }
-      }
-      if (replacements[c2]) {
-        product += replacements[c2];
-        continue;
-      }
-      if (c2 < " ") {
-        let hexString = c2.charCodeAt(0).toString(16);
-        product += "\\x" + ("00" + hexString).substring(hexString.length);
-        continue;
-      }
-      product += c2;
-    }
-    const quoteChar = quote || Object.keys(quotes).reduce((a2, b2) => quotes[a2] < quotes[b2] ? a2 : b2);
-    product = product.replace(new RegExp(quoteChar, "g"), replacements[quoteChar]);
-    return quoteChar + product + quoteChar;
-  }
-  function serializeObject(value2) {
-    if (stack2.indexOf(value2) >= 0) {
-      throw TypeError("Converting circular structure to JSON5");
-    }
-    stack2.push(value2);
-    let stepback = indent;
-    indent = indent + gap;
-    let keys = propertyList || Object.keys(value2);
-    let partial = [];
-    for (const key2 of keys) {
-      const propertyString = serializeProperty(key2, value2);
-      if (propertyString !== void 0) {
-        let member = serializeKey(key2) + ":";
-        if (gap !== "") {
-          member += " ";
-        }
-        member += propertyString;
-        partial.push(member);
-      }
-    }
-    let final;
-    if (partial.length === 0) {
-      final = "{}";
-    } else {
-      let properties;
-      if (gap === "") {
-        properties = partial.join(",");
-        final = "{" + properties + "}";
-      } else {
-        let separator = ",\n" + indent;
-        properties = partial.join(separator);
-        final = "{\n" + indent + properties + ",\n" + stepback + "}";
-      }
-    }
-    stack2.pop();
-    indent = stepback;
-    return final;
-  }
-  function serializeKey(key2) {
-    if (key2.length === 0) {
-      return quoteString(key2);
-    }
-    const firstChar = String.fromCodePoint(key2.codePointAt(0));
-    if (!util.isIdStartChar(firstChar)) {
-      return quoteString(key2);
-    }
-    for (let i2 = firstChar.length; i2 < key2.length; i2++) {
-      if (!util.isIdContinueChar(String.fromCodePoint(key2.codePointAt(i2)))) {
-        return quoteString(key2);
-      }
-    }
-    return key2;
-  }
-  function serializeArray(value2) {
-    if (stack2.indexOf(value2) >= 0) {
-      throw TypeError("Converting circular structure to JSON5");
-    }
-    stack2.push(value2);
-    let stepback = indent;
-    indent = indent + gap;
-    let partial = [];
-    for (let i2 = 0; i2 < value2.length; i2++) {
-      const propertyString = serializeProperty(String(i2), value2);
-      partial.push(propertyString !== void 0 ? propertyString : "null");
-    }
-    let final;
-    if (partial.length === 0) {
-      final = "[]";
-    } else {
-      if (gap === "") {
-        let properties = partial.join(",");
-        final = "[" + properties + "]";
-      } else {
-        let separator = ",\n" + indent;
-        let properties = partial.join(separator);
-        final = "[\n" + indent + properties + ",\n" + stepback + "]";
-      }
-    }
-    stack2.pop();
-    indent = stepback;
-    return final;
-  }
-};
-const JSON5 = {
-  parse,
-  stringify
-};
-var lib = JSON5;
-var kMethodEvalLogs = "eval_logs";
-var kMethodEvalLog = "eval_log";
-var kMethodEvalLogHeaders = "eval_log_headers";
-function webViewJsonRpcClient(vscode) {
-  var target = {
-    postMessage: function(data) {
-      vscode.postMessage(data);
-    },
-    onMessage: function(handler) {
-      var onMessage = function(ev) {
-        handler(ev.data);
-      };
-      window.addEventListener("message", onMessage);
-      return function() {
-        window.removeEventListener("message", onMessage);
-      };
-    }
-  };
-  var request = jsonRpcPostMessageRequestTransport(target).request;
-  return request;
-}
-function jsonRpcPostMessageRequestTransport(target) {
-  var requests = /* @__PURE__ */ new Map();
-  var disconnect = target.onMessage(function(ev) {
-    var response = asJsonRpcResponse(ev);
-    if (response) {
-      var request = requests.get(response.id);
-      if (request) {
-        requests["delete"](response.id);
-        if (response.error) {
-          request.reject(response.error);
-        } else {
-          request.resolve(response.result);
-        }
-      }
-    }
-  });
-  return {
-    request: function(method, params) {
-      return new Promise(function(resolve, reject) {
-        var requestId = Math.floor(Math.random() * 1e6);
-        requests.set(requestId, {
-          resolve,
-          reject
-        });
-        var request = {
-          jsonrpc: kJsonRpcVersion,
-          id: requestId,
-          method,
-          params
-        };
-        target.postMessage(request);
-      });
-    },
-    disconnect
-  };
-}
-var kJsonRpcVersion = "2.0";
-function isJsonRpcMessage(message) {
-  var jsMessage = message;
-  return jsMessage.jsonrpc !== void 0 && jsMessage.id !== void 0;
-}
-function asJsonRpcMessage(data) {
-  if (isJsonRpcMessage(data) && data.jsonrpc === kJsonRpcVersion) {
-    return data;
-  } else {
-    return null;
-  }
-}
-function asJsonRpcResponse(data) {
-  var message = asJsonRpcMessage(data);
-  if (message) {
-    return message;
-  } else {
-    return null;
-  }
-}
-const vscodeApi = window.acquireVsCodeApi ? window.acquireVsCodeApi() : void 0;
-const vscodeClient = webViewJsonRpcClient(vscodeApi);
-async function client_events() {
-  return [];
-}
-async function eval_logs() {
-  const response = await vscodeClient(kMethodEvalLogs, []);
-  if (response) {
-    const parsed = lib.parse(response);
-    if (Array.isArray(parsed)) {
-      return {
-        log_dir: "",
-        files: parsed
-      };
-    } else {
-      return parsed;
-    }
-  } else {
-    return void 0;
-  }
-}
-async function eval_log(file, headerOnly, capabilities) {
-  const response = await vscodeClient(kMethodEvalLog, [file, headerOnly]);
-  if (response) {
-    let json;
-    if (capabilities.webWorkers) {
-      json = await asyncJsonParse(response);
-    } else {
-      json = lib.parse(response);
-    }
-    return {
-      parsed: json,
-      raw: response
-    };
-  } else {
-    return void 0;
-  }
-}
-async function eval_log_headers(files) {
-  const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
-  if (response) {
-    return lib.parse(response);
-  } else {
-    return void 0;
-  }
-}
-async function download_file(logFile) {
-  vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
-}
-const vscodeApi$1 = {
-  client_events,
-  eval_logs,
-  eval_log,
-  eval_log_headers,
-  download_file
-};
-function singleFileHttpApi() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const fetchLogPath = urlParams.get("log_file");
-  if (fetchLogPath) {
-    const api2 = httpApiForFile(fetchLogPath);
-    return api2;
-  }
-}
-function httpApiForFile(logFile) {
-  const getContents = async () => {
-    {
-      const response = await fetch(`${logFile}`, { method: "GET" });
-      if (response.ok) {
-        const text = await response.text();
-        const log = await asyncJsonParse(text);
-        if (log.version === 1) {
-          if (log.results) {
-            log.results.scores = [];
-            log.results.scorer.scorer = log.results.scorer.name;
-            log.results.scores.push(log.results.scorer);
-            delete log.results.scorer;
-            log.results.scores[0].metrics = log.results.metrics;
-            delete log.results.metrics;
-            const scorerName = log.results.scores[0].name;
-            log.samples.forEach((sample) => {
-              sample.scores = { [scorerName]: sample.score };
-              delete sample.score;
-            });
-          }
-        }
-        return {
-          parsed: log,
-          raw: text
-        };
-      } else if (response.status !== 200) {
-        const message = await response.text() || response.statusText;
-        const error = new Error(`Error: ${response.status}: ${message})`);
-        throw error;
-      } else {
-        throw new Error(`${response.status} - ${response.statusText} `);
-      }
-    }
-  };
-  return {
-    client_events: async () => {
-      return Promise.resolve([]);
-    },
-    eval_logs: async () => {
-      const contents = await getContents();
-      const files = [
-        {
-          name: logFile,
-          task: contents.parsed.eval.task,
-          task_id: contents.parsed.eval.task_id
-        }
-      ];
-      return Promise.resolve({
-        files
-      });
-    },
-    eval_log: async () => {
-      return await getContents();
-    },
-    eval_log_headers: async () => {
-      const contents = await getContents();
-      return Promise.resolve([contents.parsed]);
-    },
-    download_file: download_file$1
-  };
-}
-const api = window.acquireVsCodeApi ? vscodeApi$1 : singleFileHttpApi() || browserApi;
-const DownloadButton = ({ logFile, label, fileName, fileContents }) => {
-  return m$1`<button
-    class="btn btn-outline-primary"
-    style=${{ fontSize: "0.9em", marginTop: "3em" }}
-    onclick=${async () => {
-    await api.download_file(logFile, fileName, fileContents);
+const CardHeader = ({ id, icon, label, classes, style, children }) => {
+  return m$1`<div class="card-header ${classes || ""}" ...${{ id, style }}>
+    ${icon ? m$1`<i
+          class="${icon}"
+          style=${{
+    paddingRight: "0.2rem"
   }}
-  >
-    ${label}
-  </button>`;
+        ></i>` : ""}
+    ${label ? label : ""} ${children}
+  </div> `;
 };
-const DownloadPanel = ({
-  message,
-  buttonLabel,
-  logFile,
-  fileName,
-  fileContents
-}) => {
-  return m$1`<div
-    style=${{
-    display: "grid",
-    gridTemplateRows: "content content",
-    paddingTop: "3em",
-    justifyItems: "center"
-  }}
-  >
-    <div style=${{ fontSize: "0.9rem" }}>${message}</div>
-    <${DownloadButton}
-      label=${buttonLabel}
-      logFile=${logFile}
-      fileName=${fileName}
-      fileContents=${fileContents}
-    />
+const CardBody = ({ id, classes, style, children }) => {
+  return m$1`<div class="card-body ${classes || ""}" ...${{ id, style }}>
+    ${children}
   </div>`;
+};
+const Card = ({ id, classes, style, children }) => {
+  return m$1`
+    <div class="card ${classes || ""}" ...${{ id, style }}>${children}</div>
+  `;
 };
 var e, t, r = { exports: {} };
 e = r, t = function(e2, t2) {
@@ -10920,8 +9210,8 @@ const OutputRun = ({ outputRun }) => {
     }
     return cssProperties;
   };
-  const computeForegroundBackgroundColor = (colorType, color2) => {
-    switch (color2) {
+  const computeForegroundBackgroundColor = (colorType, color) => {
+    switch (color) {
       case void 0:
         return {};
       case n.ANSIColor.Black:
@@ -10941,15 +9231,15 @@ const OutputRun = ({ outputRun }) => {
       case n.ANSIColor.BrightCyan:
       case n.ANSIColor.BrightWhite:
         if (colorType === kForeground) {
-          return { color: `var(--${color2})` };
+          return { color: `var(--${color})` };
         } else {
-          return { background: `var(--${color2})` };
+          return { background: `var(--${color})` };
         }
       default:
         if (colorType === kForeground) {
-          return { color: color2 };
+          return { color };
         } else {
-          return { background: color2 };
+          return { background: color };
         }
     }
   };
@@ -10969,85 +9259,6 @@ const OutputRun = ({ outputRun }) => {
   return m$1`<span style=${computeCSSProperties(outputRun)}
     >${outputRun.text}</span
   >`;
-};
-const MetaDataView = ({
-  id: id2,
-  baseClass,
-  classes,
-  style,
-  entries,
-  tableOptions,
-  context,
-  expanded,
-  compact
-}) => {
-  const baseId = baseClass || "metadataview";
-  const cellStyle = compact ? { padding: "0em" } : { padding: "0.3em 0.3em 0.3em 0em" };
-  const cellKeyStyle = compact ? {
-    fontWeight: "400",
-    paddingRight: "0.2em",
-    whiteSpace: "nowrap"
-  } : {
-    fontWeight: "400",
-    paddingRight: "1em",
-    whiteSpace: "nowrap"
-  };
-  const cellValueStyle = {
-    fontWeight: "300",
-    whiteSpace: "pre-wrap",
-    wordWrap: "anywhere",
-    fontSize: "0.8rem"
-  };
-  const cellKeyTextStyle = {
-    fontSize: "0.8rem"
-  };
-  tableOptions = tableOptions || "sm";
-  const tblClz = (tableOptions || "").split(",").map((option) => {
-    return `table-${option}`;
-  });
-  if (entries && !Array.isArray(entries)) {
-    entries = Object.entries(entries || {}).map(([key2, value]) => {
-      return { name: key2, value };
-    });
-  }
-  const entryEls = (entries || []).map((entry, index) => {
-    const id3 = `${baseId}-value-${index}`;
-    return m$1`<tr class="${baseId}-row">
-      <td
-        class="${baseId}-key"
-        style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}
-      >
-        ${entry.name}
-      </td>
-      <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id3}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
-      </td>
-    </tr>`;
-  });
-  return m$1`<table
-    ...${{ id: id2 }}
-    class="${classes || ""} table ${tblClz.join(" ")}"
-    style=${{
-    paddingLeft: "0",
-    marginLeft: "0",
-    marginBottom: "0.2rem",
-    ...style
-  }}
-  >
-    <thead>
-      <tr>
-        <th colspan="2" style="${{ padding: 0 }}"></th>
-      </tr>
-    </thead>
-    <tbody>
-      ${entryEls}
-    </tbody>
-  </table>`;
 };
 var showdown = { exports: {} };
 (function(module) {
@@ -11353,7 +9564,7 @@ var showdown = { exports: {} };
         if (!showdown2.helper.isArray(ext)) {
           ext = [ext];
         }
-        var validExtension = validate(ext, name);
+        var validExtension = validate2(ext, name);
         if (validExtension.valid) {
           extensions[name] = ext;
         } else {
@@ -11370,7 +9581,7 @@ var showdown = { exports: {} };
     showdown2.resetExtensions = function() {
       extensions = {};
     };
-    function validate(extension, name) {
+    function validate2(extension, name) {
       var errMsg = name ? "Error in " + name + " extension->" : "Error in unnamed extension", ret = {
         valid: true,
         error: ""
@@ -11456,7 +9667,7 @@ var showdown = { exports: {} };
       return ret;
     }
     showdown2.validateExtension = function(ext) {
-      var validateExtension = validate(ext, null);
+      var validateExtension = validate2(ext, null);
       if (!validateExtension.valid) {
         console.warn(validateExtension.error);
         return false;
@@ -12893,7 +11104,7 @@ var showdown = { exports: {} };
         if (!showdown2.helper.isArray(ext)) {
           ext = [ext];
         }
-        var validExt = validate(ext, name);
+        var validExt = validate2(ext, name);
         if (!validExt.valid) {
           throw Error(validExt.error);
         }
@@ -12922,7 +11133,7 @@ var showdown = { exports: {} };
         if (!showdown2.helper.isArray(ext)) {
           ext = [ext];
         }
-        var valid = validate(ext, name);
+        var valid = validate2(ext, name);
         if (!valid.valid) {
           throw Error(valid.error);
         }
@@ -13158,8 +11369,8 @@ var showdown = { exports: {} };
       this._setMetadataPair = function(key2, value) {
         metadata.parsed[key2] = value;
       };
-      this._setMetadataFormat = function(format) {
-        metadata.format = format;
+      this._setMetadataFormat = function(format2) {
+        metadata.format = format2;
       };
       this._setMetadataRaw = function(raw) {
         metadata.raw = raw;
@@ -13933,13 +12144,13 @@ var showdown = { exports: {} };
           return "";
         });
       }
-      text = text.replace(/^\s*«««+(\S*?)\n([\s\S]+?)\n»»»+\n/, function(wholematch, format, content) {
+      text = text.replace(/^\s*«««+(\S*?)\n([\s\S]+?)\n»»»+\n/, function(wholematch, format2, content) {
         parseMetadataContents(content);
         return "¨M";
       });
-      text = text.replace(/^\s*---+(\S*?)\n([\s\S]+?)\n---+\n/, function(wholematch, format, content) {
-        if (format) {
-          globals.metadata.format = format;
+      text = text.replace(/^\s*---+(\S*?)\n([\s\S]+?)\n---+\n/, function(wholematch, format2, content) {
+        if (format2) {
+          globals.metadata.format = format2;
         }
         parseMetadataContents(content);
         return "¨M";
@@ -14102,13 +12313,13 @@ var showdown = { exports: {} };
         }
       }
       function parseHeaders(header, style) {
-        var id2 = "";
+        var id = "";
         header = header.trim();
         if (options.tablesHeaderId || options.tableHeaderId) {
-          id2 = ' id="' + header.replace(/ /g, "_").toLowerCase() + '"';
+          id = ' id="' + header.replace(/ /g, "_").toLowerCase() + '"';
         }
         header = showdown2.subParser("spanGamut")(header, options, globals);
-        return "<th" + id2 + style + ">" + header + "</th>\n";
+        return "<th" + id + style + ">" + header + "</th>\n";
       }
       function parseCells(cell, style) {
         var subText = showdown2.subParser("spanGamut")(cell, options, globals);
@@ -14580,7 +12791,7 @@ showdownExports.setOption("literalMidWordUnderscores", true);
 const converter = new showdownExports.Converter();
 const MarkdownDiv = (props) => {
   const { markdown, style } = props;
-  const escaped = markdown ? escape(markdown) : "";
+  const escaped = markdown ? escape$1(markdown) : "";
   const preRendered = preRenderText(escaped);
   const renderedHtml = converter.makeHtml(preRendered);
   const withCode = unescapeCodeHtmlEntities(renderedHtml);
@@ -14600,7 +12811,7 @@ const preRenderText = (txt) => {
   );
   return rendered.replaceAll(kCommonmarkReferenceLinkPattern, "[$1]:$2");
 };
-const escape = (content) => {
+const escape$1 = (content) => {
   return content.replace(/[<>&'"]/g, function(c2) {
     switch (c2) {
       case "<":
@@ -14636,65 +12847,363 @@ function unescapeCodeHtmlEntities(str) {
     }
   );
 }
-const MessageContent = (props) => {
-  const { contents } = props;
-  if (Array.isArray(contents)) {
-    return contents.map((content, index) => {
-      if (typeof content === "string") {
-        return messageRenderers["text"].render({
-          text: content,
-          index: index === contents.length - 1
-        });
-      } else {
-        const renderer = messageRenderers[content.type];
-        if (renderer) {
-          return renderer.render(content, index === contents.length - 1);
-        } else {
-          console.error(`Unknown message content type '${content.type}'`);
+Prism.languages.python = {
+  "comment": {
+    pattern: /(^|[^\\])#.*/,
+    lookbehind: true,
+    greedy: true
+  },
+  "string-interpolation": {
+    pattern: /(?:f|fr|rf)(?:("""|''')[\s\S]*?\1|("|')(?:\\.|(?!\2)[^\\\r\n])*\2)/i,
+    greedy: true,
+    inside: {
+      "interpolation": {
+        // "{" <expression> <optional "!s", "!r", or "!a"> <optional ":" format specifier> "}"
+        pattern: /((?:^|[^{])(?:\{\{)*)\{(?!\{)(?:[^{}]|\{(?!\{)(?:[^{}]|\{(?!\{)(?:[^{}])+\})+\})+\}/,
+        lookbehind: true,
+        inside: {
+          "format-spec": {
+            pattern: /(:)[^:(){}]+(?=\}$)/,
+            lookbehind: true
+          },
+          "conversion-option": {
+            pattern: /![sra](?=[:}]$)/,
+            alias: "punctuation"
+          },
+          rest: null
+        }
+      },
+      "string": /[\s\S]+/
+    }
+  },
+  "triple-quoted-string": {
+    pattern: /(?:[rub]|br|rb)?("""|''')[\s\S]*?\1/i,
+    greedy: true,
+    alias: "string"
+  },
+  "string": {
+    pattern: /(?:[rub]|br|rb)?("|')(?:\\.|(?!\1)[^\\\r\n])*\1/i,
+    greedy: true
+  },
+  "function": {
+    pattern: /((?:^|\s)def[ \t]+)[a-zA-Z_]\w*(?=\s*\()/g,
+    lookbehind: true
+  },
+  "class-name": {
+    pattern: /(\bclass\s+)\w+/i,
+    lookbehind: true
+  },
+  "decorator": {
+    pattern: /(^[\t ]*)@\w+(?:\.\w+)*/m,
+    lookbehind: true,
+    alias: ["annotation", "punctuation"],
+    inside: {
+      "punctuation": /\./
+    }
+  },
+  "keyword": /\b(?:_(?=\s*:)|and|as|assert|async|await|break|case|class|continue|def|del|elif|else|except|exec|finally|for|from|global|if|import|in|is|lambda|match|nonlocal|not|or|pass|print|raise|return|try|while|with|yield)\b/,
+  "builtin": /\b(?:__import__|abs|all|any|apply|ascii|basestring|bin|bool|buffer|bytearray|bytes|callable|chr|classmethod|cmp|coerce|compile|complex|delattr|dict|dir|divmod|enumerate|eval|execfile|file|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|intern|isinstance|issubclass|iter|len|list|locals|long|map|max|memoryview|min|next|object|oct|open|ord|pow|property|range|raw_input|reduce|reload|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|unichr|unicode|vars|xrange|zip)\b/,
+  "boolean": /\b(?:False|None|True)\b/,
+  "number": /\b0(?:b(?:_?[01])+|o(?:_?[0-7])+|x(?:_?[a-f0-9])+)\b|(?:\b\d+(?:_\d+)*(?:\.(?:\d+(?:_\d+)*)?)?|\B\.\d+(?:_\d+)*)(?:e[+-]?\d+(?:_\d+)*)?j?(?!\w)/i,
+  "operator": /[-+%=]=?|!=|:=|\*\*?=?|\/\/?=?|<[<=>]?|>[=>]?|[&|^~]/,
+  "punctuation": /[{}[\];(),.:]/
+};
+Prism.languages.python["string-interpolation"].inside["interpolation"].inside.rest = Prism.languages.python;
+Prism.languages.py = Prism.languages.python;
+(function(Prism2) {
+  var envVars = "\\b(?:BASH|BASHOPTS|BASH_ALIASES|BASH_ARGC|BASH_ARGV|BASH_CMDS|BASH_COMPLETION_COMPAT_DIR|BASH_LINENO|BASH_REMATCH|BASH_SOURCE|BASH_VERSINFO|BASH_VERSION|COLORTERM|COLUMNS|COMP_WORDBREAKS|DBUS_SESSION_BUS_ADDRESS|DEFAULTS_PATH|DESKTOP_SESSION|DIRSTACK|DISPLAY|EUID|GDMSESSION|GDM_LANG|GNOME_KEYRING_CONTROL|GNOME_KEYRING_PID|GPG_AGENT_INFO|GROUPS|HISTCONTROL|HISTFILE|HISTFILESIZE|HISTSIZE|HOME|HOSTNAME|HOSTTYPE|IFS|INSTANCE|JOB|LANG|LANGUAGE|LC_ADDRESS|LC_ALL|LC_IDENTIFICATION|LC_MEASUREMENT|LC_MONETARY|LC_NAME|LC_NUMERIC|LC_PAPER|LC_TELEPHONE|LC_TIME|LESSCLOSE|LESSOPEN|LINES|LOGNAME|LS_COLORS|MACHTYPE|MAILCHECK|MANDATORY_PATH|NO_AT_BRIDGE|OLDPWD|OPTERR|OPTIND|ORBIT_SOCKETDIR|OSTYPE|PAPERSIZE|PATH|PIPESTATUS|PPID|PS1|PS2|PS3|PS4|PWD|RANDOM|REPLY|SECONDS|SELINUX_INIT|SESSION|SESSIONTYPE|SESSION_MANAGER|SHELL|SHELLOPTS|SHLVL|SSH_AUTH_SOCK|TERM|UID|UPSTART_EVENTS|UPSTART_INSTANCE|UPSTART_JOB|UPSTART_SESSION|USER|WINDOWID|XAUTHORITY|XDG_CONFIG_DIRS|XDG_CURRENT_DESKTOP|XDG_DATA_DIRS|XDG_GREETER_DATA_DIR|XDG_MENU_PREFIX|XDG_RUNTIME_DIR|XDG_SEAT|XDG_SEAT_PATH|XDG_SESSION_DESKTOP|XDG_SESSION_ID|XDG_SESSION_PATH|XDG_SESSION_TYPE|XDG_VTNR|XMODIFIERS)\\b";
+  var commandAfterHeredoc = {
+    pattern: /(^(["']?)\w+\2)[ \t]+\S.*/,
+    lookbehind: true,
+    alias: "punctuation",
+    // this looks reasonably well in all themes
+    inside: null
+    // see below
+  };
+  var insideString = {
+    "bash": commandAfterHeredoc,
+    "environment": {
+      pattern: RegExp("\\$" + envVars),
+      alias: "constant"
+    },
+    "variable": [
+      // [0]: Arithmetic Environment
+      {
+        pattern: /\$?\(\([\s\S]+?\)\)/,
+        greedy: true,
+        inside: {
+          // If there is a $ sign at the beginning highlight $(( and )) as variable
+          "variable": [
+            {
+              pattern: /(^\$\(\([\s\S]+)\)\)/,
+              lookbehind: true
+            },
+            /^\$\(\(/
+          ],
+          "number": /\b0x[\dA-Fa-f]+\b|(?:\b\d+(?:\.\d*)?|\B\.\d+)(?:[Ee]-?\d+)?/,
+          // Operators according to https://www.gnu.org/software/bash/manual/bashref.html#Shell-Arithmetic
+          "operator": /--|\+\+|\*\*=?|<<=?|>>=?|&&|\|\||[=!+\-*/%<>^&|]=?|[?~:]/,
+          // If there is no $ sign at the beginning highlight (( and )) as punctuation
+          "punctuation": /\(\(?|\)\)?|,|;/
+        }
+      },
+      // [1]: Command Substitution
+      {
+        pattern: /\$\((?:\([^)]+\)|[^()])+\)|`[^`]+`/,
+        greedy: true,
+        inside: {
+          "variable": /^\$\(|^`|\)$|`$/
+        }
+      },
+      // [2]: Brace expansion
+      {
+        pattern: /\$\{[^}]+\}/,
+        greedy: true,
+        inside: {
+          "operator": /:[-=?+]?|[!\/]|##?|%%?|\^\^?|,,?/,
+          "punctuation": /[\[\]]/,
+          "environment": {
+            pattern: RegExp("(\\{)" + envVars),
+            lookbehind: true,
+            alias: "constant"
+          }
+        }
+      },
+      /\$(?:\w+|[#?*!@$])/
+    ],
+    // Escape sequences from echo and printf's manuals, and escaped quotes.
+    "entity": /\\(?:[abceEfnrtv\\"]|O?[0-7]{1,3}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{1,2})/
+  };
+  Prism2.languages.bash = {
+    "shebang": {
+      pattern: /^#!\s*\/.*/,
+      alias: "important"
+    },
+    "comment": {
+      pattern: /(^|[^"{\\$])#.*/,
+      lookbehind: true
+    },
+    "function-name": [
+      // a) function foo {
+      // b) foo() {
+      // c) function foo() {
+      // but not “foo {”
+      {
+        // a) and c)
+        pattern: /(\bfunction\s+)[\w-]+(?=(?:\s*\(?:\s*\))?\s*\{)/,
+        lookbehind: true,
+        alias: "function"
+      },
+      {
+        // b)
+        pattern: /\b[\w-]+(?=\s*\(\s*\)\s*\{)/,
+        alias: "function"
+      }
+    ],
+    // Highlight variable names as variables in for and select beginnings.
+    "for-or-select": {
+      pattern: /(\b(?:for|select)\s+)\w+(?=\s+in\s)/,
+      alias: "variable",
+      lookbehind: true
+    },
+    // Highlight variable names as variables in the left-hand part
+    // of assignments (“=” and “+=”).
+    "assign-left": {
+      pattern: /(^|[\s;|&]|[<>]\()\w+(?:\.\w+)*(?=\+?=)/,
+      inside: {
+        "environment": {
+          pattern: RegExp("(^|[\\s;|&]|[<>]\\()" + envVars),
+          lookbehind: true,
+          alias: "constant"
+        }
+      },
+      alias: "variable",
+      lookbehind: true
+    },
+    // Highlight parameter names as variables
+    "parameter": {
+      pattern: /(^|\s)-{1,2}(?:\w+:[+-]?)?\w+(?:\.\w+)*(?=[=\s]|$)/,
+      alias: "variable",
+      lookbehind: true
+    },
+    "string": [
+      // Support for Here-documents https://en.wikipedia.org/wiki/Here_document
+      {
+        pattern: /((?:^|[^<])<<-?\s*)(\w+)\s[\s\S]*?(?:\r?\n|\r)\2/,
+        lookbehind: true,
+        greedy: true,
+        inside: insideString
+      },
+      // Here-document with quotes around the tag
+      // → No expansion (so no “inside”).
+      {
+        pattern: /((?:^|[^<])<<-?\s*)(["'])(\w+)\2\s[\s\S]*?(?:\r?\n|\r)\3/,
+        lookbehind: true,
+        greedy: true,
+        inside: {
+          "bash": commandAfterHeredoc
+        }
+      },
+      // “Normal” string
+      {
+        // https://www.gnu.org/software/bash/manual/html_node/Double-Quotes.html
+        pattern: /(^|[^\\](?:\\\\)*)"(?:\\[\s\S]|\$\([^)]+\)|\$(?!\()|`[^`]+`|[^"\\`$])*"/,
+        lookbehind: true,
+        greedy: true,
+        inside: insideString
+      },
+      {
+        // https://www.gnu.org/software/bash/manual/html_node/Single-Quotes.html
+        pattern: /(^|[^$\\])'[^']*'/,
+        lookbehind: true,
+        greedy: true
+      },
+      {
+        // https://www.gnu.org/software/bash/manual/html_node/ANSI_002dC-Quoting.html
+        pattern: /\$'(?:[^'\\]|\\[\s\S])*'/,
+        greedy: true,
+        inside: {
+          "entity": insideString.entity
         }
       }
-    });
-  } else {
-    return messageRenderers["text"].render({ text: contents });
+    ],
+    "environment": {
+      pattern: RegExp("\\$?" + envVars),
+      alias: "constant"
+    },
+    "variable": insideString.variable,
+    "function": {
+      pattern: /(^|[\s;|&]|[<>]\()(?:add|apropos|apt|apt-cache|apt-get|aptitude|aspell|automysqlbackup|awk|basename|bash|bc|bconsole|bg|bzip2|cal|cargo|cat|cfdisk|chgrp|chkconfig|chmod|chown|chroot|cksum|clear|cmp|column|comm|composer|cp|cron|crontab|csplit|curl|cut|date|dc|dd|ddrescue|debootstrap|df|diff|diff3|dig|dir|dircolors|dirname|dirs|dmesg|docker|docker-compose|du|egrep|eject|env|ethtool|expand|expect|expr|fdformat|fdisk|fg|fgrep|file|find|fmt|fold|format|free|fsck|ftp|fuser|gawk|git|gparted|grep|groupadd|groupdel|groupmod|groups|grub-mkconfig|gzip|halt|head|hg|history|host|hostname|htop|iconv|id|ifconfig|ifdown|ifup|import|install|ip|java|jobs|join|kill|killall|less|link|ln|locate|logname|logrotate|look|lpc|lpr|lprint|lprintd|lprintq|lprm|ls|lsof|lynx|make|man|mc|mdadm|mkconfig|mkdir|mke2fs|mkfifo|mkfs|mkisofs|mknod|mkswap|mmv|more|most|mount|mtools|mtr|mutt|mv|nano|nc|netstat|nice|nl|node|nohup|notify-send|npm|nslookup|op|open|parted|passwd|paste|pathchk|ping|pkill|pnpm|podman|podman-compose|popd|pr|printcap|printenv|ps|pushd|pv|quota|quotacheck|quotactl|ram|rar|rcp|reboot|remsync|rename|renice|rev|rm|rmdir|rpm|rsync|scp|screen|sdiff|sed|sendmail|seq|service|sftp|sh|shellcheck|shuf|shutdown|sleep|slocate|sort|split|ssh|stat|strace|su|sudo|sum|suspend|swapon|sync|sysctl|tac|tail|tar|tee|time|timeout|top|touch|tr|traceroute|tsort|tty|umount|uname|unexpand|uniq|units|unrar|unshar|unzip|update-grub|uptime|useradd|userdel|usermod|users|uudecode|uuencode|v|vcpkg|vdir|vi|vim|virsh|vmstat|wait|watch|wc|wget|whereis|which|who|whoami|write|xargs|xdg-open|yarn|yes|zenity|zip|zsh|zypper)(?=$|[)\s;|&])/,
+      lookbehind: true
+    },
+    "keyword": {
+      pattern: /(^|[\s;|&]|[<>]\()(?:case|do|done|elif|else|esac|fi|for|function|if|in|select|then|until|while)(?=$|[)\s;|&])/,
+      lookbehind: true
+    },
+    // https://www.gnu.org/software/bash/manual/html_node/Shell-Builtin-Commands.html
+    "builtin": {
+      pattern: /(^|[\s;|&]|[<>]\()(?:\.|:|alias|bind|break|builtin|caller|cd|command|continue|declare|echo|enable|eval|exec|exit|export|getopts|hash|help|let|local|logout|mapfile|printf|pwd|read|readarray|readonly|return|set|shift|shopt|source|test|times|trap|type|typeset|ulimit|umask|unalias|unset)(?=$|[)\s;|&])/,
+      lookbehind: true,
+      // Alias added to make those easier to distinguish from strings.
+      alias: "class-name"
+    },
+    "boolean": {
+      pattern: /(^|[\s;|&]|[<>]\()(?:false|true)(?=$|[)\s;|&])/,
+      lookbehind: true
+    },
+    "file-descriptor": {
+      pattern: /\B&\d\b/,
+      alias: "important"
+    },
+    "operator": {
+      // Lots of redirections here, but not just that.
+      pattern: /\d?<>|>\||\+=|=[=~]?|!=?|<<[<-]?|[&\d]?>>|\d[<>]&?|[<>][&=]?|&[>&]?|\|[&|]?/,
+      inside: {
+        "file-descriptor": {
+          pattern: /^\d/,
+          alias: "important"
+        }
+      }
+    },
+    "punctuation": /\$?\(\(?|\)\)?|\.\.|[{}[\];\\]/,
+    "number": {
+      pattern: /(^|\s)(?:[1-9]\d*|0)(?:[.,]\d+)?\b/,
+      lookbehind: true
+    }
+  };
+  commandAfterHeredoc.inside = Prism2.languages.bash;
+  var toBeCopied = [
+    "comment",
+    "function-name",
+    "for-or-select",
+    "assign-left",
+    "parameter",
+    "string",
+    "environment",
+    "function",
+    "keyword",
+    "builtin",
+    "boolean",
+    "file-descriptor",
+    "operator",
+    "punctuation",
+    "number"
+  ];
+  var inside = insideString.variable[1].inside;
+  for (var i2 = 0; i2 < toBeCopied.length; i2++) {
+    inside[toBeCopied[i2]] = Prism2.languages.bash[toBeCopied[i2]];
+  }
+  Prism2.languages.sh = Prism2.languages.bash;
+  Prism2.languages.shell = Prism2.languages.bash;
+})(Prism);
+Prism.languages.json = {
+  "property": {
+    pattern: /(^|[^\\])"(?:\\.|[^\\"\r\n])*"(?=\s*:)/,
+    lookbehind: true,
+    greedy: true
+  },
+  "string": {
+    pattern: /(^|[^\\])"(?:\\.|[^\\"\r\n])*"(?!\s*:)/,
+    lookbehind: true,
+    greedy: true
+  },
+  "comment": {
+    pattern: /\/\/.*|\/\*[\s\S]*?(?:\*\/|$)/,
+    greedy: true
+  },
+  "number": /-?\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b/i,
+  "punctuation": /[{}[\],]/,
+  "operator": /:/,
+  "boolean": /\b(?:false|true)\b/,
+  "null": {
+    pattern: /\bnull\b/,
+    alias: "keyword"
   }
 };
-const messageRenderers = {
-  text: {
-    render: (content, isLast) => {
-      return m$1`<${MarkdownDiv}
-        markdown=${content.text}
-        style=${{ wordBreak: "break-all" }}
-        class=${isLast ? "no-last-para-padding" : ""}
-      />`;
-    }
+Prism.languages.webmanifest = Prism.languages.json;
+const ApplicationStyles = {
+  moreButton: {
+    maxHeight: "1.8em",
+    fontSize: FontSize.smaller,
+    padding: "0 0.2em 0 0.2em",
+    ...TextStyle.secondary
   },
-  image: {
-    render: (content) => {
-      if (content.image.startsWith("data:")) {
-        return m$1`<img
-          src="${content.image}"
-          style=${{
-          maxWidth: "400px",
-          border: "solid var(--bs-border-color) 1px"
-        }}
-        />`;
-      } else {
-        return m$1`<code>${content.image}</code>`;
-      }
-    }
+  threeLineClamp: {
+    display: "-webkit-box",
+    "-webkit-line-clamp": "3",
+    "-webkit-box-orient": "vertical",
+    overflow: "hidden"
   },
-  tool: {
-    render: (content) => {
-      return m$1`<pre
-        style=${{
-        marginLeft: "2px",
-        padding: "0.5em 0.5em 0.5em 0.5em",
-        whiteSpace: "pre-wrap",
-        marginBottom: "0"
-      }}
-      ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${content.text}
-      </code></pre>`;
+  lineClamp: (len) => {
+    return {
+      display: "-webkit-box",
+      "-webkit-line-clamp": `${len}`,
+      "-webkit-box-orient": "vertical",
+      overflow: "hidden"
+    };
+  },
+  wrapText: () => {
+    return {
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden"
+    };
+  },
+  scoreFills: {
+    green: {
+      backgroundColor: "var(--bs-success)",
+      borderColor: "var(--bs-success)",
+      color: "var(--bs-body-bg)"
+    },
+    red: {
+      backgroundColor: "var(--bs-danger)",
+      borderColor: "var(--bs-danger)",
+      color: "var(--bs-body-bg)"
+    },
+    orange: {
+      backgroundColor: "var(--bs-orange)",
+      borderColor: "var(--bs-orange)",
+      color: "var(--bs-body-bg)"
     }
   }
 };
@@ -14730,9 +13239,9 @@ const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
       }
     };
   }, [collapse, contentsRef, observerRef]);
-  let contentsStyle = { fontSize: "0.8rem" };
+  let contentsStyle = { fontSize: FontSize.base };
   if (collapse && collapsed) {
-    contentsStyle = { ...contentsStyle, ...sharedStyles.lineClamp(lines) };
+    contentsStyle = { ...contentsStyle, ...ApplicationStyles.lineClamp(lines) };
   }
   if (border) {
     contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
@@ -14752,7 +13261,7 @@ const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
 };
 const MoreToggle = ({ collapsed, border, setCollapsed }) => {
   const text = collapsed ? "more" : "less";
-  const icon2 = collapsed ? icons["expand-down"] : icons["collapse-up"];
+  const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
   const topStyle = {
     display: "flex",
     marginBottom: "0.5em"
@@ -14777,7 +13286,7 @@ const MoreToggle = ({ collapsed, border, setCollapsed }) => {
         <button
           class="btn"
           style=${{
-    fontSize: "0.7rem",
+    fontSize: FontSize.smaller,
     border: "none",
     padding: "0.1rem .5rem"
   }}
@@ -14785,22 +13294,215 @@ const MoreToggle = ({ collapsed, border, setCollapsed }) => {
     setCollapsed(!collapsed);
   }}
         >
-          <i class="${icon2}" /> ${text}
+          <i class="${icon}" /> ${text}
         </button>
       </div>
     </div>
   `;
 };
-const ChatView = ({ id: id2, messages, style }) => {
-  const toolMessages = {};
-  const nonToolMessages = messages.map((msg) => {
-    if (msg.role === "tool") {
-      toolMessages[msg.tool_call_id] = msg;
+const resolveToolInput = (fn2, toolArgs) => {
+  const toolName = fn2;
+  const [inputKey, inputType] = extractInputMetadata(toolName);
+  const { input, args } = extractInput(inputKey, toolArgs);
+  const functionCall = args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
+  return {
+    functionCall,
+    input,
+    inputType
+  };
+};
+const ToolCallView = ({
+  functionCall,
+  input,
+  inputType,
+  output,
+  mode
+}) => {
+  const icon = mode === "compact" ? "" : m$1`<i
+          class="bi bi-tools"
+          style=${{
+    marginRight: "0.2rem",
+    opacity: "0.4"
+  }}
+        ></i>`;
+  const codeIndent = mode === "compact" ? "" : "";
+  return m$1`<p>
+        ${icon}
+        <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
+        <div>
+            <div style=${{ marginLeft: `${codeIndent}` }}>
+            <${ToolInput} type=${inputType} contents=${input}/>
+            ${output ? m$1`
+              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+              <${MessageContent} contents=${output} />
+              </${ExpandablePanel}>` : ""}
+            </div>
+        </div>
+        </p>`;
+};
+const ToolInput = ({ type, contents }) => {
+  if (!contents) {
+    return "";
+  }
+  const toolInputRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
+  if (typeof contents === "object" || Array.isArray(contents)) {
+    contents = JSON.stringify(contents);
+  }
+  T(() => {
+    const tokens = Prism$1.languages[type];
+    if (toolInputRef.current && tokens) {
+      const html = Prism$1.highlight(contents, tokens, type);
+      toolInputRef.current.innerHTML = html;
     }
-    return msg;
-  }).filter((msg) => {
-    return msg.role !== "tool";
-  });
+  }, [toolInputRef.current, type, contents]);
+  return m$1`<pre
+    class="tool-output"
+    style=${{
+    padding: "0.5em",
+    marginTop: "0.25em",
+    marginBottom: "1rem"
+  }}
+  >
+      <code ref=${toolInputRef} class="sourceCode${type ? ` language-${type}` : ""}" style=${{
+    overflowWrap: "anywhere",
+    whiteSpace: "pre-wrap"
+  }}>
+        ${contents}
+        </code>
+    </pre>`;
+};
+const ToolOutput = ({ output, style }) => {
+  if (!output) {
+    return "";
+  }
+  if (typeof output === "object" || Array.isArray(output)) {
+    output = JSON.stringify(output);
+  }
+  return m$1`<pre
+    style=${{
+    marginLeft: "2px",
+    padding: "0.5em 0.5em 0.5em 0.5em",
+    whiteSpace: "pre-wrap",
+    marginBottom: "0",
+    ...style
+  }}
+  ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
+      ${output}
+      </code></pre>`;
+};
+const extractInputMetadata = (toolName) => {
+  if (toolName === "bash") {
+    return ["cmd", "bash"];
+  } else if (toolName === "python") {
+    return ["code", "python"];
+  } else if (toolName === "web_search") {
+    return ["query", "text"];
+  } else {
+    return [void 0, void 0];
+  }
+};
+const extractInput = (inputKey, args) => {
+  const formatArg = (key2, value) => {
+    const quotedValue = typeof value === "string" ? `"${value}"` : value;
+    return `${key2}: ${quotedValue}`;
+  };
+  if (args) {
+    if (Object.keys(args).length === 1) {
+      return {
+        input: args[Object.keys(args)[0]],
+        args: []
+      };
+    } else if (args[inputKey]) {
+      const input = args[inputKey];
+      const filteredArgs = Object.keys(args).filter((key2) => {
+        return key2 !== inputKey;
+      }).map((key2) => {
+        return formatArg(key2, args[key2]);
+      });
+      return {
+        input,
+        args: filteredArgs
+      };
+    } else {
+      const formattedArgs = Object.keys(args).map((key2) => {
+        return formatArg(key2, args[key2]);
+      });
+      return {
+        input: void 0,
+        args: formattedArgs
+      };
+    }
+  }
+  return {
+    input: void 0,
+    args: []
+  };
+};
+const MessageContent = (props) => {
+  const { contents } = props;
+  if (Array.isArray(contents)) {
+    return contents.map((content, index) => {
+      if (typeof content === "string") {
+        return messageRenderers["text"].render({
+          text: content,
+          index: index === contents.length - 1
+        });
+      } else {
+        const renderer = messageRenderers[content.type];
+        if (renderer) {
+          return renderer.render(content, index === contents.length - 1);
+        } else {
+          console.error(`Unknown message content type '${content.type}'`);
+        }
+      }
+    });
+  } else {
+    return messageRenderers["text"].render({ text: contents });
+  }
+};
+const messageRenderers = {
+  text: {
+    render: (content, isLast) => {
+      return m$1`<${MarkdownDiv}
+        markdown=${content.text}
+        class=${isLast ? "no-last-para-padding" : ""}
+      />`;
+    }
+  },
+  image: {
+    render: (content) => {
+      if (content.image.startsWith("data:")) {
+        return m$1`<img
+          src="${content.image}"
+          style=${{
+          maxWidth: "400px",
+          border: "solid var(--bs-border-color) 1px"
+        }}
+        />`;
+      } else {
+        return m$1`<code>${content.image}</code>`;
+      }
+    }
+  },
+  tool: {
+    render: (content) => {
+      return m$1`<${ToolOutput} output=${content.text} />`;
+    }
+  }
+};
+const ChatView = ({ id, messages, style }) => {
+  const toolMessages = {};
+  const nonToolMessages = [];
+  for (const message of messages) {
+    if (message.role === "tool") {
+      toolMessages[message.tool_call_id] = message;
+    } else {
+      nonToolMessages.push(message);
+    }
+  }
   const systemMessages = [];
   const collapsedMessages = nonToolMessages.map((msg) => {
     if (msg.role === "system") {
@@ -14821,17 +13523,18 @@ const ChatView = ({ id: id2, messages, style }) => {
   if (systemMessage && systemMessage.content.length > 0) {
     collapsedMessages.unshift(systemMessage);
   }
-  return m$1`
-    <div style=${{ paddingTop: "0.5em", ...style }}>
+  const result = m$1`
+    <div style=${style}>
       ${collapsedMessages.map((msg) => {
     return m$1`<${ChatMessage}
-          id=${`${id2}-chat-messages`}
+          id=${`${id}-chat-messages`}
           message=${msg}
           toolMessages=${toolMessages}
         />`;
   })}
     </div>
   `;
+  return result;
 };
 const normalizeContent = (content) => {
   if (typeof content === "string") {
@@ -14843,15 +13546,15 @@ const normalizeContent = (content) => {
     return content;
   }
 };
-const ChatMessage = ({ id: id2, message, toolMessages }) => {
+const ChatMessage = ({ id, message, toolMessages }) => {
   const iconCls = iconForMsg(message);
-  const icon2 = iconCls ? m$1`<i class="${iconCls}"></i>` : "";
+  const icon = iconCls ? m$1`<i class="${iconCls}"></i>` : "";
   const collapse = message.role === "system";
   return m$1`
     <div
       class="container-fluid ${message.role}"
       style=${{
-    fontSize: "0.9rem",
+    fontSize: FontSize.base,
     fontWeight: "300",
     paddingBottom: ".5em",
     justifyContent: "flex-start",
@@ -14872,7 +13575,7 @@ const ChatMessage = ({ id: id2, message, toolMessages }) => {
     fontWeight: "500"
   }}
         >
-          ${icon2}
+          ${icon}
         </div>
         <div
           class="col"
@@ -14882,10 +13585,10 @@ const ChatMessage = ({ id: id2, message, toolMessages }) => {
     paddingLeft: "0"
   }}
         >
-          <div style=${{ fontWeight: "500" }}>${message.role}</div>
+          <div style=${{ fontWeight: "500", ...TextStyle.label }}>${message.role}</div>
           <${ExpandablePanel} collapse=${collapse}>
             <${MessageContents}
-              key=${`${id2}-contents`}
+              key=${`${id}-contents`}
               message=${message}
               toolMessages=${toolMessages}
             />
@@ -14907,25 +13610,17 @@ const MessageContents = ({ message, toolMessages }) => {
     }
     const toolCalls = message.tool_calls.map((tool_call) => {
       const toolMessage = toolMessages[tool_call.id];
-      const { input, functionCall, inputType } = resolveToolInput(tool_call);
+      const { input, functionCall, inputType } = resolveToolInput(
+        tool_call.function,
+        tool_call.arguments
+      );
       const resolvedToolOutput = resolveToolMessage(toolMessage);
-      return m$1`<p>
-        <i class="bi bi-tools" style=${{
-        marginRight: "0.2rem",
-        opacity: "0.4"
-      }}></i>
-        <code style=${{ fontSize: "0.7rem" }}>${functionCall}</code>
-        <div>
-          ${toolMessage ? m$1`
-              <div style=${{ marginLeft: "1.5em" }}>
-              <${ToolInput} type=${inputType} contents=${input}/>
-              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
-              <${MessageContent} contents=${resolvedToolOutput} />
-              </${ExpandablePanel}>
-              </div>
-              ` : ""}
-        </div>
-        </p>`;
+      return m$1`<${ToolCallView}
+        functionCall=${functionCall}
+        input=${input}
+        inputType=${inputType}
+        output=${resolvedToolOutput}
+      />`;
     });
     if (toolCalls) {
       result.push(...toolCalls);
@@ -14935,45 +13630,14 @@ const MessageContents = ({ message, toolMessages }) => {
     return m$1`<${MessageContent} contents=${message.content} />`;
   }
 };
-const ToolInput = ({ type, contents }) => {
-  if (!contents) {
-    return "";
-  }
-  if (typeof contents === "object" || Array.isArray(contents)) {
-    contents = JSON.stringify(contents);
-  }
-  const toolInputRef = A();
-  T(() => {
-    const tokens = Prism.languages[type];
-    if (toolInputRef.current && tokens) {
-      const html = Prism.highlight(contents, tokens, type);
-      toolInputRef.current.innerHTML = html;
-    }
-  }, [toolInputRef.current, type, contents]);
-  return m$1` <pre
-    class="tool-output"
-    style=${{
-    padding: "0.5em",
-    marginTop: "0.25em",
-    marginBottom: "1rem"
-  }}
-  >
-      <code ref=${toolInputRef} class="sourceCode${type ? ` language-${type}` : ""}" style=${{
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap"
-  }}>
-        ${contents}
-        </code>
-    </pre>`;
-};
 const iconForMsg = (msg) => {
-  let iconCls = icons.role.assistant;
+  let iconCls = ApplicationIcons.role.assistant;
   if (msg.role === "user") {
-    iconCls = icons.role.user;
+    iconCls = ApplicationIcons.role.user;
   } else if (msg.role === "system") {
-    iconCls = icons.role.system;
+    iconCls = ApplicationIcons.role.system;
   } else if (msg.role === "tool") {
-    iconCls = icons.role.tool;
+    iconCls = ApplicationIcons.role.tool;
   }
   return iconCls;
 };
@@ -15006,67 +13670,8 @@ const resolveToolMessage = (toolMessage) => {
     });
   }
 };
-const resolveToolInput = (tool_call) => {
-  const toolName = tool_call.function;
-  const extractInputMetadata = () => {
-    if (toolName === "bash") {
-      return ["cmd", "bash"];
-    } else if (toolName === "python") {
-      return ["code", "python"];
-    } else if (toolName === "web_search") {
-      return ["query", "text"];
-    } else {
-      return [void 0, void 0];
-    }
-  };
-  const [inputKey, inputType] = extractInputMetadata();
-  const extractInput = (inputKey2, tool_call2) => {
-    const formatArg = (key2, value) => {
-      const quotedValue = typeof value === "string" ? `"${value}"` : value;
-      return `${key2}: ${quotedValue}`;
-    };
-    if (tool_call2.arguments) {
-      if (Object.keys(tool_call2.arguments).length === 1) {
-        return {
-          input: tool_call2.arguments[Object.keys(tool_call2.arguments)[0]],
-          args: []
-        };
-      } else if (tool_call2.arguments[inputKey2]) {
-        const input2 = tool_call2.arguments[inputKey2];
-        const args2 = Object.keys(tool_call2.arguments).filter((key2) => {
-          return key2 !== inputKey2;
-        }).map((key2) => {
-          return formatArg(key2, tool_call2.arguments[key2]);
-        });
-        return {
-          input: input2,
-          args: args2
-        };
-      } else {
-        const args2 = Object.keys(tool_call2.arguments).map((key2) => {
-          return formatArg(key2, tool_call2.arguments[key2]);
-        });
-        return {
-          input: void 0,
-          args: args2
-        };
-      }
-    }
-    return {
-      input: void 0,
-      args: []
-    };
-  };
-  const { input, args } = extractInput(inputKey, tool_call);
-  const functionCall = args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
-  return {
-    functionCall,
-    input,
-    inputType
-  };
-};
 const RenderedContent = ({
-  id: id2,
+  id,
   entry,
   context,
   defaultRendering,
@@ -15085,7 +13690,7 @@ const RenderedContent = ({
   let value = entry.value;
   if (renderer) {
     const { rendered, afterBody } = renderer.render(
-      id2,
+      id,
       entry,
       defaultRendering,
       options,
@@ -15111,7 +13716,7 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "string" && entry.value.indexOf("\x1B") > -1;
     },
-    render: (id2, entry) => {
+    render: (id, entry) => {
       return {
         rendered: m$1`<${ANSIDisplay} output=${entry.value} />`
       };
@@ -15124,7 +13729,7 @@ const contentRenderers = {
     },
     render: (_id, entry) => {
       return {
-        rendered: m$1`<i class="${icons.model}"></i> ${entry.value._model}`
+        rendered: m$1`<i class="${ApplicationIcons.model}"></i> ${entry.value._model}`
       };
     }
   },
@@ -15133,9 +13738,9 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "boolean";
     },
-    render: (id2, entry) => {
+    render: (id, entry) => {
       entry.value = entry.value.toString();
-      return contentRenderers.String.render(id2, entry);
+      return contentRenderers.String.render(id, entry);
     }
   },
   Number: {
@@ -15143,9 +13748,9 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "number";
     },
-    render: (id2, entry) => {
+    render: (id, entry) => {
       entry.value = entry.value.toString();
-      return contentRenderers.String.render(id2, entry);
+      return contentRenderers.String.render(id, entry);
     }
   },
   String: {
@@ -15175,14 +13780,14 @@ const contentRenderers = {
         return false;
       }
     },
-    render: (id2, entry, _defaultRendering, _options, context) => {
+    render: (id, entry, _defaultRendering, _options, context) => {
       const arrayMap = {};
       entry.value.forEach((entry2, index) => {
         arrayMap[`[${index}]`] = entry2;
       });
       const arrayRendered = m$1`<${MetaDataView}
-        id=${id2}
-        style=${{ fontSize: "0.8rem" }}
+        id=${id}
+        style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
         context=${context}
@@ -15213,7 +13818,7 @@ const contentRenderers = {
       const results = [];
       results.push(
         m$1`<div style=${{ marginBottom: "0.5rem", fontWeight: "500" }}>
-          <i class=${icons.search}></i> ${entry.value.query}
+          <i class=${ApplicationIcons.search}></i> ${entry.value.query}
         </div>`
       );
       entry.value.results.forEach((result) => {
@@ -15223,7 +13828,9 @@ const contentRenderers = {
           </div>`
         );
         results.push(
-          m$1`<div style=${{ fontSize: "0.7rem", marginBottom: "0.5rem" }}>
+          m$1`<div
+            style=${{ fontSize: FontSize.smaller, marginBottom: "0.5rem" }}
+          >
             ${result.summary}
           </div>`
         );
@@ -15238,7 +13845,7 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "object" && entry.value._html;
     },
-    render: (id2, entry) => {
+    render: (id, entry) => {
       return {
         rendered: entry.value._html
       };
@@ -15249,7 +13856,7 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (id2, entry, _defaultRendering, _options, context) => {
+    render: (id, entry, _defaultRendering, _options, context) => {
       const summary = [];
       const keys = Object.keys(entry.value);
       if (keys.length > 4) {
@@ -15261,148 +13868,102 @@ const contentRenderers = {
       }
       return {
         rendered: m$1`<${MetaDataView}
-          id=${id2}
-          style=${{ fontSize: "0.8rem" }}
+          id=${id}
+          style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
           context=${context}
+          compact
         />`
       };
     }
   }
 };
-const LoggingPanel = ({ logFile, capabilities, logging, context }) => {
-  if (!logging || logging.length === 0) {
-    return m$1`<${EmptyPanel} style=${{
-      fontSize: "0.8rem"
-    }}>No Messages</${EmptyPanel}>`;
-  }
-  if (logging.length > 1e3 && capabilities.downloadFiles) {
-    const file = `log.txt`;
-    const logContents = logging.map((row) => {
-      return `[${row.level.toUpperCase()}] (${new Date(row.created).toISOString()}) ${row.message}`;
+const MetaDataView = ({
+  id,
+  baseClass,
+  classes,
+  style,
+  entries,
+  tableOptions,
+  context,
+  expanded,
+  compact
+}) => {
+  const baseId = baseClass || "metadataview";
+  const cellStyle = compact ? { padding: "0em" } : { padding: "0.3em 0.3em 0.3em 0em" };
+  const cellKeyStyle = compact ? {
+    fontWeight: "400",
+    paddingRight: "0.2em",
+    whiteSpace: "nowrap"
+  } : {
+    fontWeight: "400",
+    paddingRight: "1em",
+    whiteSpace: "nowrap"
+  };
+  const cellValueStyle = {
+    fontWeight: "300",
+    whiteSpace: "pre-wrap",
+    wordWrap: "anywhere",
+    fontSize: FontSize.small
+  };
+  const cellKeyTextStyle = {
+    fontSize: FontSize.small
+  };
+  tableOptions = tableOptions || "sm";
+  const tblClz = (tableOptions || "").split(",").map((option) => {
+    return `table-${option}`;
+  });
+  if (entries && !Array.isArray(entries)) {
+    entries = Object.entries(entries || {}).map(([key2, value]) => {
+      return { name: key2, value };
     });
-    return m$1`<div style=${{ width: "100%" }}>
-      <${DownloadPanel}
-        message="There are too many logging entries to render."
-        buttonLabel="Download Log File"
-        logFile=${logFile}
-        fileName=${file}
-        fileContents=${logContents.join("\n")}
-      />
-    </div>`;
-  } else {
-    return m$1`
-      <table
-        class="table table-hover table-sm"
-        style=${{
-      fontSize: "0.9rem",
-      width: "100%",
-      marginBottom: "0rem",
-      tableLayout: "fixed",
-      alignSelf: "flex-start"
-    }}
-      >
-        <colgroup>
-          <col span="1" style="width: 1.6rem;" />
-          <col span="1" style="width: 10rem;" />
-          <col span="1" />
-        </colgroup>
-        <tbody>
-          ${logging.map((log, index) => {
-      const logDate = new Date(log.created);
-      return m$1`<tr>
-              <td>
-                <i
-                  class="${icon(log.level)}"
-                  style=${{
-        marginLeft: "0.5rem",
-        fontSize: "0.7rem",
-        color: color(log.level)
-      }}
-                ></i>
-              </td>
-              <td>
-                <pre
-                  style=${{
-        fontSize: "0.7rem",
-        marginLeft: "0.2rem",
-        marginTop: "0.2rem",
-        marginBottom: "0.2rem"
-      }}
-                >
-              ${logDate.toLocaleDateString()} ${logDate.toLocaleTimeString()}
-              </pre
-                >
-              </td>
-              <td>
-                <${RenderedContent}
-                  id="log-message-${index}"
-                  entry=${{
-        name: "log_message",
-        value: log.message
-      }}
-                  context=${context}
-                  defaultRendering=${(val) => {
-        return m$1`<pre
-                      style=${{
-          marginTop: "0.3rem",
-          marginBottom: "0.2rem",
-          fontSize: "0.7rem",
-          whiteSpace: "pre-wrap"
-        }}
-                    >
-${val}</pre
-                    >`;
-      }}
-                />
-              </td>
-            </tr>`;
-    })}
-        </tbody>
-      </table>
-    `;
   }
-};
-const icon = (level) => {
-  const icon2 = icons.logging[level.toLowerCase()];
-  return icon2 || icons.logging.notset;
-};
-const color = (level) => {
-  const color2 = colors.logging[level.toLowerCase()];
-  return color2 || colors.debug;
-};
-const ghCommitUrl = (origin, commit) => {
-  const baseUrl = origin.replace(/\.git$/, "");
-  return `${baseUrl}/commit/${commit}`;
-};
-const CardHeader = ({ id: id2, icon: icon2, label, classes, style, children }) => {
-  return m$1`<div class="card-header ${classes || ""}" ...${{ id: id2, style }}>
-    ${icon2 ? m$1`<i
-          class="${icon2}"
-          style=${{
-    paddingRight: "0.2rem"
+  const entryEls = (entries || []).map((entry, index) => {
+    const id2 = `${baseId}-value-${index}`;
+    return m$1`<tr class="${baseId}-row">
+      <td
+        class="${baseId}-key"
+        style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}
+      >
+        ${entry.name}
+      </td>
+      <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
+        <${RenderedContent}
+          id=${id2}
+          entry=${entry}
+          context=${context}
+          options=${{ expanded }}
+        />
+      </td>
+    </tr>`;
+  });
+  return m$1`<table
+    ...${{ id }}
+    class="${classes || ""} table ${tblClz.join(" ")}"
+    style=${{
+    paddingLeft: "0",
+    marginLeft: "0",
+    marginBottom: "0.2rem",
+    ...style
   }}
-        ></i>` : ""}
-    ${label ? label : ""} ${children}
-  </div> `;
-};
-const CardBody = ({ id: id2, classes, style, children }) => {
-  return m$1`<div class="card-body ${classes || ""}" ...${{ id: id2, style }}>
-    ${children}
-  </div>`;
-};
-const Card = ({ id: id2, classes, style, children }) => {
-  return m$1`
-    <div class="card ${classes || ""}" ...${{ id: id2, style }}>${children}</div>
-  `;
+  >
+    <thead>
+      <tr>
+        <th colspan="2" style="${{ padding: 0 }}"></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${entryEls}
+    </tbody>
+  </table>`;
 };
 const kPlanCardBodyId = "task-plan-card-body";
 const PlanCard = ({ log, context }) => {
   var _a;
   return m$1`
     <${Card}>
-      <${CardHeader} icon=${icons.config} label="Config"/>
+      <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
       <${CardBody} id="${kPlanCardBodyId}" style=${{
     paddingTop: "0",
     paddingBottom: "0",
@@ -15420,7 +13981,7 @@ const PlanCard = ({ log, context }) => {
   `;
 };
 const planItemStyle = {
-  fontSize: "0.9rem",
+  fontSize: FontSize.base,
   marginBottom: "0em"
 };
 const planSepStyle = {
@@ -15434,7 +13995,7 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
     params["scores"] = scores;
   }
   return m$1`<${DetailStep}
-    icon=${icons.scorer}
+    icon=${ApplicationIcons.scorer}
     name=${name}
     params=${params}
     context=${context}
@@ -15456,7 +14017,7 @@ const DatasetDetailView = ({ dataset, context, style }) => {
 };
 const SolversDetailView = ({ steps, context }) => {
   const separator = m$1` <div style=${{ ...planItemStyle, ...planSepStyle }}>
-    <i class="${icons.arrows.right}"></i>
+    <i class="${ApplicationIcons.arrows.right}"></i>
   </div>`;
   const details = steps == null ? void 0 : steps.map((step, index) => {
     return m$1`
@@ -15477,8 +14038,8 @@ const SolversDetailView = ({ steps, context }) => {
     ${details}
   </div>`;
 };
-const DetailStep = ({ icon: icon2, name, params, style, context }) => {
-  const iconHtml = icon2 ? m$1`<i class="${icon2}" style=${{ marginRight: ".3em" }}></i>` : "";
+const DetailStep = ({ icon, name, params, style, context }) => {
+  const iconHtml = icon ? m$1`<i class="${icon}" style=${{ marginRight: ".3em" }}></i>` : "";
   return m$1`
     <div style=${style}>
       ${iconHtml} ${name}
@@ -15492,7 +14053,7 @@ const DetailStep = ({ icon: icon2, name, params, style, context }) => {
         ${m$1`<${MetaDataView}
           entries="${params}"
           context=${context}
-          style=${{ fontSize: "0.8rem" }}
+          style=${{ fontSize: FontSize.small }}
         />`}
       </div>
     </div>
@@ -15560,7 +14121,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
     flex: "0 0 50%"
   };
   const planMetadataStyle = {
-    fontSize: "0.8rem"
+    fontSize: FontSize.base
   };
   const taskColumns = [];
   taskColumns.push({
@@ -15749,7 +14310,17 @@ const colCount = (...other) => {
 const PlanColumn = ({ title, classes, style, children }) => {
   return m$1`
     <div class="${classes || ""}" ...${{ style }}>
-      <div class="card-subheading">${title}</div>
+      <div
+        class="card-subheading"
+        style=${{
+    fontSize: FontSize.small,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginTop: "1em"
+  }}
+      >
+        ${title}
+      </div>
       ${children}
     </div>
   `;
@@ -15848,9 +14419,18 @@ const samplesDescriptor = (selectedScore, scorers, samples, epochs, context) => 
   const sizes = samples.reduce(
     (previous, current) => {
       var _a;
-      previous[0] = Math.max(previous[0], inputString(current.input).length);
-      previous[1] = Math.max(previous[1], arrayToString(current.target).length);
-      previous[2] = Math.max(previous[2], ((_a = scoreAnswer(current)) == null ? void 0 : _a.length) || 0);
+      previous[0] = Math.min(
+        Math.max(previous[0], inputString(current.input).length),
+        300
+      );
+      previous[1] = Math.min(
+        Math.max(previous[1], arrayToString(current.target).length),
+        300
+      );
+      previous[2] = Math.min(
+        Math.max(previous[2], ((_a = scoreAnswer(current)) == null ? void 0 : _a.length) || 0),
+        300
+      );
       return previous;
     },
     [0, 0, 0]
@@ -16043,10 +14623,10 @@ const scoreCategorizers = [
               }
               scores.push(m$1`
                 <div style=${style}>
-                  <div style=${{ fontSize: "0.9em", fontWeight: 300 }}>
+                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
                     ${key2}
                   </div>
-                  <div style=${{ fontSize: "1.5em", fontWeight: 600 }}>
+                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
                     ${formattedValue}
                   </div>
                 </div>
@@ -16074,20 +14654,21 @@ const scoreCategorizers = [
   }
 ];
 const filledCircleStyle = {
-  border: "solid 1px",
-  fontSize: "0.8em",
-  width: "2em",
-  height: "2em",
+  fontSize: FontSize.small,
+  fontFamily: "Consola Regular",
+  width: "20px",
+  height: "20px",
   display: "inline-flex",
   justifyContent: "center",
   alignItems: "center",
-  borderRadius: "50%"
+  borderRadius: "50%",
+  paddingTop: "1px"
 };
 const booleanScoreCategorizer = () => {
   return {
     scoreType: "boolean",
     render: (score) => {
-      const scoreColorStyle = score ? sharedStyles.scoreFills.green : sharedStyles.scoreFills.red;
+      const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
       return m$1`<span
         style=${{
         ...scoreColorStyle,
@@ -16132,7 +14713,7 @@ const passFailScoreCategorizer = (values) => {
       if (score === "C") {
         return m$1`<span
           style=${{
-          ...sharedStyles.scoreFills.green,
+          ...ApplicationStyles.scoreFills.green,
           ...filledCircleStyle
         }}
           >C</span
@@ -16140,7 +14721,7 @@ const passFailScoreCategorizer = (values) => {
       } else if (score === "I") {
         return m$1`<span
           style=${{
-          ...sharedStyles.scoreFills.red,
+          ...ApplicationStyles.scoreFills.red,
           ...filledCircleStyle
         }}
           >I</span
@@ -16148,7 +14729,7 @@ const passFailScoreCategorizer = (values) => {
       } else if (score === "P") {
         return m$1`<span
           style=${{
-          ...sharedStyles.scoreFills.orange,
+          ...ApplicationStyles.scoreFills.orange,
           ...filledCircleStyle
         }}
           >P</span
@@ -16156,7 +14737,7 @@ const passFailScoreCategorizer = (values) => {
       } else if (score === "N") {
         return m$1`<span
           style=${{
-          ...sharedStyles.scoreFills.red,
+          ...ApplicationStyles.scoreFills.red,
           ...filledCircleStyle
         }}
           >N</span
@@ -16207,14 +14788,21 @@ const SortFilter = ({ sampleDescriptor, sort: sort2, setSort, epochs }) => {
   return m$1`
     <div style=${{ display: "flex" }}>
       <span
-        class="epoch-filter-label"
-        style=${{ alignSelf: "center", marginRight: "0.5em" }}
+        class="sort-filter-label"
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
         >Sort:</span
       >
       <select
         class="form-select form-select-sm"
-        aria-label=".epoch-filter-label"
-        style=${{ fontSize: "0.7rem" }}
+        aria-label=".sort-filter-label"
+        style=${{ fontSize: FontSize.smaller }}
         value=${sort2}
         onChange=${(e2) => {
     setSort(e2.target.value);
@@ -16270,13 +14858,13 @@ const sort = (sort2, samples, sampleDescriptor) => {
   };
 };
 const LargeModal = (props) => {
-  const { id: id2, title, detail, detailTools, footer, onkeyup, children } = props;
+  const { id, title, detail, detailTools, footer, onkeyup, children } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
   const headerEls = [];
   headerEls.push(
     m$1`<div
       class="modal-title"
-      style=${{ fontSize: "0.7em", flex: "1 1 auto" }}
+      style=${{ fontSize: FontSize.smaller, flex: "1 1 auto" }}
     >
       ${title || ""}
     </div>`
@@ -16296,7 +14884,11 @@ const LargeModal = (props) => {
         return m$1`<${TitleTool} ...${tool} />`;
       }) : ""}
         <div
-          style=${{ fontSize: "0.7em", display: "flex", alignItems: "center" }}
+          style=${{
+        fontSize: FontSize.smaller,
+        display: "flex",
+        alignItems: "center"
+      }}
         >
           <div>${detail}</div>
         </div>
@@ -16313,7 +14905,7 @@ const LargeModal = (props) => {
       aria-label="Close"
       style=${{
     borderWidth: "0px",
-    fontSize: "1.1em",
+    fontSize: FontSize.larger,
     fontWeight: "300",
     padding: "0em 0.5em",
     flex: 1,
@@ -16323,7 +14915,7 @@ const LargeModal = (props) => {
       <${HtmlEntity}>&times;</${HtmlEntity}>
     </button>`);
   return m$1`<div
-    id=${id2}
+    id=${id}
     class="modal"
     tabindex="0"
     role="dialog"
@@ -16353,7 +14945,7 @@ const LargeModal = (props) => {
   </div>`;
 };
 const HtmlEntity = ({ children }) => m$1`<span dangerouslySetInnerHTML=${{ __html: children }} />`;
-const TitleTool = ({ label, icon: icon2, enabled, onclick }) => {
+const TitleTool = ({ label, icon, enabled, onclick }) => {
   return m$1`<button
     type="button"
     class="btn btn-outline"
@@ -16364,10 +14956,10 @@ const TitleTool = ({ label, icon: icon2, enabled, onclick }) => {
     paddingTop: 0,
     paddingBottom: 0,
     border: "none",
-    fontSize: "0.9em"
+    fontSize: FontSize.small
   }}
   >
-    <i class="${icon2}" />
+    <i class="${icon}" />
   </button>`;
 };
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
@@ -16393,7 +14985,9 @@ const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
 const labelStyle = {
   paddingRight: "2em",
   paddingLeft: "0",
-  paddingBottom: "0"
+  paddingBottom: "0",
+  ...TextStyle.label,
+  ...TextStyle.secondary
 };
 const SampleScoreView = ({
   sample,
@@ -16420,14 +15014,14 @@ const SampleScoreView = ({
     <div
       class="container-fluid"
       style=${{
-    paddingTop: "0",
+    paddingTop: "1em",
     paddingLeft: "0",
-    fontSize: "0.8rem",
+    fontSize: FontSize.base,
     ...style
   }}
     >
       <div>
-        <div style=${{ ...labelStyle, fontWeight: 600 }}>Input</div>
+        <div style=${{ ...labelStyle }}>Input</div>
         <div>
           <${MarkdownDiv}
             markdown=${scoreInput.join("\n")}
@@ -16442,9 +15036,22 @@ const SampleScoreView = ({
       >
         <thead style=${{ borderBottomColor: "#00000000" }}>
           <tr>
-            <th style=${labelStyle}>Target</th>
-            <th style=${{ paddingBottom: "0" }}>Answer</th>
-            <th style=${{ paddingLeft: "2em", paddingBottom: "0" }}>Score</th>
+            <th style=${{ ...labelStyle, fontWeight: "400" }}>Target</th>
+            <th
+              style=${{ ...labelStyle, paddingBottom: "0", fontWeight: "400" }}
+            >
+              Answer
+            </th>
+            <th
+              style=${{
+    ...labelStyle,
+    paddingLeft: "2em",
+    paddingBottom: "0",
+    fontWeight: "400"
+  }}
+            >
+              Score
+            </th>
           </tr>
         </thead>
         <tbody style=${{ borderBottomColor: "#00000000" }}>
@@ -16464,7 +15071,7 @@ const SampleScoreView = ({
                 class="no-last-para-padding"
               />
             </td>
-            <td style=${{ paddingTop: "0" }}>
+            <td style=${{ paddingTop: "0", paddingLeft: "0" }}>
               <${MarkdownDiv}
                 class="no-last-para-padding"
                 markdown=${shortenCompletion(answer)}
@@ -16488,7 +15095,9 @@ const SampleScoreView = ({
                 <tr>
                   <th style=${{
     paddingBottom: "0",
-    paddingLeft: "0"
+    paddingLeft: "0",
+    ...labelStyle,
+    fontWeight: "400"
   }}>Explanation</th>
                 </tr>
               </thead>
@@ -16502,9 +15111,3078 @@ const SampleScoreView = ({
     </div>
   `;
 };
+const EventPanel = ({
+  id,
+  title,
+  text,
+  icon,
+  depth = 0,
+  collapse,
+  style,
+  children
+}) => {
+  const arrChildren = Array.isArray(children) ? children : [children];
+  const filteredArrChilden = arrChildren.filter((child) => !!child);
+  const hasCollapse = collapse !== void 0;
+  const [collapsed, setCollapsed] = h(!!collapse);
+  const pillId = (index) => {
+    return `${id}-nav-pill-${index}`;
+  };
+  const titleEl = title || icon || filteredArrChilden.length > 1 ? m$1`<div
+          style=${{
+    paddingLeft: "0.5em",
+    display: "grid",
+    gridTemplateColumns: "max-content minmax(0, max-content) auto minmax(0, max-content) auto",
+    columnGap: "0.5em",
+    fontSize: FontSize.small,
+    cursor: hasCollapse ? "pointer" : void 0
+  }}
+        >
+          ${icon ? m$1`<i
+                class=${icon || ApplicationIcons.metadata}
+                style=${{ ...TextStyle.secondary }}
+                onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+              />` : ""}
+          <div
+            style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+            onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+          >
+            ${title}
+          </div>
+          <div
+            onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+          ></div>
+          <div
+            style=${{ justifySelf: "end", ...TextStyle.secondary }}
+            onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+          >
+            ${text}
+          </div>
+          <div
+            style=${{
+    justifySelf: "end",
+    display: "flex",
+    flexDirection: "columns"
+  }}
+          >
+            ${(!hasCollapse || !collapsed) && filteredArrChilden && filteredArrChilden.length > 1 ? m$1` <${EventNavs}
+                  navs=${filteredArrChilden.map((child, index) => {
+    var _a;
+    const defaultTitle = `Tab ${index}`;
+    const title2 = child && typeof child === "object" ? ((_a = child["props"]) == null ? void 0 : _a.name) || defaultTitle : defaultTitle;
+    return {
+      id: `eventpanel-${id}-${index}`,
+      title: title2,
+      target: pillId(index)
+    };
+  })}
+                />` : ""}
+            ${hasCollapse ? m$1`<i
+                  onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+                  class=${collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down}
+                />` : ""}
+          </div>
+        </div>` : "";
+  const left_padding = 0.5 + depth * 1.5;
+  const card = m$1` <div
+    id=${id}
+    class="card"
+    style=${{
+    padding: `0.5em 0.5em 0.5em ${left_padding}em`,
+    marginBottom: "-1px",
+    ...style
+  }}
+  >
+    ${titleEl}
+    ${!hasCollapse || !collapsed ? m$1` <div
+          class="card-body tab-content"
+          style=${{ padding: 0, marginLeft: "2em" }}
+        >
+          ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
+    return m$1`<div
+              id=${pillId(index)}
+              class="tab-pane show ${index === 0 ? "active" : ""}"
+            >
+              ${child}
+            </div>`;
+  })}
+        </div>` : ""}
+  </div>`;
+  return card;
+};
+const EventNavs = ({ navs }) => {
+  return m$1`<ul
+    class="nav nav-pills card-header-pills"
+    style=${{
+    marginRight: "0",
+    alignItems: "flex-start",
+    justifyContent: "flex-end"
+  }}
+    role="tablist"
+    aria-orientation="horizontal"
+  >
+    ${navs.map((nav, index) => {
+    return m$1`<${EventNav}
+        active=${index === 0}
+        id=${nav.id}
+        target=${nav.target}
+        title=${nav.title}
+      />`;
+  })}
+  </ul>`;
+};
+const EventNav = ({ target, title, active }) => {
+  return m$1`<li class="nav-item">
+    <button
+      data-bs-toggle="pill"
+      data-bs-target="#${target}"
+      type="button"
+      role="tab"
+      aria-controls=${target}
+      aria-selected=${active}
+      style=${{
+    minWidth: "4rem",
+    ...TextStyle.label,
+    fontSize: FontSize.small,
+    padding: "0.1rem  0.6rem",
+    borderRadius: "3px"
+  }}
+      class="nav-link ${active ? "active " : ""}"
+    >
+      ${title}
+    </button>
+  </li>`;
+};
+const MetaDataGrid = ({
+  id,
+  entries,
+  classes,
+  context,
+  style,
+  expanded,
+  plain
+}) => {
+  const baseId = "metadata-grid";
+  const cellKeyStyle = {
+    fontWeight: "400",
+    whiteSpace: "nowrap",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  };
+  const cellValueStyle = {
+    whiteSpace: "pre-wrap",
+    wordWrap: "anywhere",
+    fontSize: FontSize.small
+  };
+  const cellKeyTextStyle = {
+    fontSize: FontSize.small
+  };
+  const entryRecords = (entries2) => {
+    if (!entries2) {
+      return [];
+    }
+    if (!Array.isArray(entries2)) {
+      return Object.entries(entries2 || {}).map(([key2, value]) => {
+        return { name: key2, value };
+      });
+    } else {
+      return entries2;
+    }
+  };
+  const entryEls = entryRecords(entries).map((entry, index) => {
+    const id2 = `${baseId}-value-${index}`;
+    return m$1`
+      <div
+        style=${{
+      gridColumn: "1 / -1",
+      borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
+    }}
+      ></div>
+      <div
+        class="${baseId}-key"
+        style=${{ ...cellKeyStyle, ...cellKeyTextStyle }}
+      >
+        ${entry.name}
+      </div>
+      <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
+        <${RenderedContent}
+          id=${id2}
+          entry=${entry}
+          context=${context}
+          options=${{ expanded }}
+        />
+      </div>
+    `;
+  });
+  return m$1`<div
+    ...${{ id }}
+    class="${classes || ""}"
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content auto",
+    columnGap: "1em",
+    ...style
+  }}
+  >
+    ${entryEls}
+  </div>`;
+};
+const isBase64 = (str) => {
+  const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+  return base64Pattern.test(str);
+};
+const EventSection = ({ title, style, children }) => {
+  return m$1`<div
+    style=${{
+    margin: "1em 0 0 0",
+    ...style
+  }}
+  >
+    <div
+      style=${{
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    fontWeight: 600,
+    paddingBottom: "0.3em"
+  }}
+    >
+      ${title}
+    </div>
+    ${children}
+  </div>`;
+};
+const SampleInitEventView = ({ id, depth, event, stateManager }) => {
+  const stateObj = event.state;
+  stateManager.setState(stateObj);
+  const sections = [];
+  if (event.sample.files && Object.keys(event.sample.files).length > 0) {
+    const filesTable = {};
+    Object.keys(event.sample.files).forEach((key2) => {
+      filesTable[key2] = isBase64(event.sample.files[key2]) ? `<Base64 string>` : event.sample.files[key2];
+    });
+    sections.push(m$1`<${EventSection} title="Files">
+      <${MetaDataGrid} entries=${filesTable}/>
+      </${EventSection}>
+  `);
+  }
+  if (event.sample.setup) {
+    sections.push(m$1`<${EventSection} title="Setup">
+      <pre style=${{ background: "var(--bs-light)", borderRadius: "3px" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
+      </${EventSection}>
+  `);
+  }
+  return m$1`
+  <${EventPanel} id=${id} depth=${depth}>
+    
+    <div name="Sample">
+      <${ChatView} messages=${stateObj["messages"]}/>
+      <div style=${{ marginLeft: "2.1em", marginBottom: "1em" }}>
+        ${event.sample.choices ? event.sample.choices.map((choice, index) => {
+    return m$1`<div>
+                  ${String.fromCharCode(65 + index)}) ${choice}
+                </div>`;
+  }) : ""}
+        <div style=${{ display: "flex", flexWrap: "wrap", gap: "1em", overflowWrap: "break-word" }}>
+        ${sections}
+        </div>
+        <${EventSection} title="Target">
+          ${event.sample.target}
+        </${EventSection}>
+      </div>
+    </div>
+    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0" }} entries=${event.sample.metadata} />` : ""}
+
+  </${EventPanel}>`;
+};
+const system_msg_added_sig = {
+  type: "system_message",
+  signature: {
+    remove: ["/messages/0/source"],
+    replace: ["/messages/0/role", "/messages/0/content"],
+    add: ["/messages/1"]
+  },
+  render: (resolvedState) => {
+    const message = resolvedState["messages"][0];
+    return m$1`<${ChatView}
+      id="system_msg_event_preview"
+      messages=${[message]}
+    />`;
+  }
+};
+const tools_choice = {
+  type: "tools_choice",
+  signature: {
+    add: ["/tools/0"],
+    replace: ["/tool_choice"],
+    remove: []
+  },
+  render: (resolvedState) => {
+    const toolsInfo = {
+      "Tool Choice": resolvedState.tool_choice
+    };
+    if (resolvedState.tools.length > 0) {
+      toolsInfo["Tools"] = m$1`<${Tools}
+        toolDefinitions=${resolvedState.tools}
+      />`;
+    }
+    return m$1`
+      <div
+        style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content max-content",
+      columnGap: "1rem",
+      margin: "1em 0"
+    }}
+      >
+        ${Object.keys(toolsInfo).map((key2) => {
+      return m$1` <div
+              style=${{
+        fontSize: FontSize.smaller,
+        ...TextStyle.label,
+        ...TextStyle.secondary
+      }}
+            >
+              ${key2}
+            </div>
+            <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key2]}</div>`;
+    })}
+      </div>
+    `;
+  }
+};
+const RenderableChangeTypes = [system_msg_added_sig, tools_choice];
+const Tools = ({ toolDefinitions }) => {
+  return toolDefinitions.map((toolDefinition) => {
+    const toolName = toolDefinition.name;
+    const toolArgs = Object.keys(toolDefinition.parameters.properties);
+    return m$1`<${Tool} toolName=${toolName} toolArgs=${toolArgs} />`;
+  });
+};
+const Tool = ({ toolName, toolArgs }) => {
+  const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
+  return m$1`<div>
+    <code style=${{ fontSize: FontSize.small, padding: "0" }}
+      >${functionCall}</code
+    >
+  </div>`;
+};
+class Processor {
+  constructor(options) {
+    this.selfOptions = options || {};
+    this.pipes = {};
+  }
+  options(options) {
+    if (options) {
+      this.selfOptions = options;
+    }
+    return this.selfOptions;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pipe(name, pipeArg) {
+    let pipe = pipeArg;
+    if (typeof name === "string") {
+      if (typeof pipe === "undefined") {
+        return this.pipes[name];
+      } else {
+        this.pipes[name] = pipe;
+      }
+    }
+    if (name && name.name) {
+      pipe = name;
+      if (pipe.processor === this) {
+        return pipe;
+      }
+      this.pipes[pipe.name] = pipe;
+    }
+    pipe.processor = this;
+    return pipe;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  process(input, pipe) {
+    let context = input;
+    context.options = this.options();
+    let nextPipe = pipe || input.pipe || "default";
+    let lastPipe;
+    while (nextPipe) {
+      if (typeof context.nextAfterChildren !== "undefined") {
+        context.next = context.nextAfterChildren;
+        context.nextAfterChildren = null;
+      }
+      if (typeof nextPipe === "string") {
+        nextPipe = this.pipe(nextPipe);
+      }
+      nextPipe.process(context);
+      lastPipe = nextPipe;
+      nextPipe = null;
+      if (context) {
+        if (context.next) {
+          context = context.next;
+          nextPipe = context.pipe || lastPipe;
+        }
+      }
+    }
+    return context.hasResult ? context.result : void 0;
+  }
+}
+class Pipe {
+  constructor(name) {
+    this.name = name;
+    this.filters = [];
+  }
+  process(input) {
+    if (!this.processor) {
+      throw new Error("add this pipe to a processor before using it");
+    }
+    const debug = this.debug;
+    const length = this.filters.length;
+    const context = input;
+    for (let index = 0; index < length; index++) {
+      const filter = this.filters[index];
+      if (debug) {
+        this.log(`filter: ${filter.filterName}`);
+      }
+      filter(context);
+      if (typeof context === "object" && context.exiting) {
+        context.exiting = false;
+        break;
+      }
+    }
+    if (!context.next && this.resultCheck) {
+      this.resultCheck(context);
+    }
+  }
+  log(msg) {
+    console.log(`[jsondiffpatch] ${this.name} pipe, ${msg}`);
+  }
+  append(...args) {
+    this.filters.push(...args);
+    return this;
+  }
+  prepend(...args) {
+    this.filters.unshift(...args);
+    return this;
+  }
+  indexOf(filterName) {
+    if (!filterName) {
+      throw new Error("a filter name is required");
+    }
+    for (let index = 0; index < this.filters.length; index++) {
+      const filter = this.filters[index];
+      if (filter.filterName === filterName) {
+        return index;
+      }
+    }
+    throw new Error(`filter not found: ${filterName}`);
+  }
+  list() {
+    return this.filters.map((f2) => f2.filterName);
+  }
+  after(filterName, ...params) {
+    const index = this.indexOf(filterName);
+    this.filters.splice(index + 1, 0, ...params);
+    return this;
+  }
+  before(filterName, ...params) {
+    const index = this.indexOf(filterName);
+    this.filters.splice(index, 0, ...params);
+    return this;
+  }
+  replace(filterName, ...params) {
+    const index = this.indexOf(filterName);
+    this.filters.splice(index, 1, ...params);
+    return this;
+  }
+  remove(filterName) {
+    const index = this.indexOf(filterName);
+    this.filters.splice(index, 1);
+    return this;
+  }
+  clear() {
+    this.filters.length = 0;
+    return this;
+  }
+  shouldHaveResult(should) {
+    if (should === false) {
+      this.resultCheck = null;
+      return;
+    }
+    if (this.resultCheck) {
+      return;
+    }
+    this.resultCheck = (context) => {
+      if (!context.hasResult) {
+        console.log(context);
+        const error = new Error(`${this.name} failed`);
+        error.noResult = true;
+        throw error;
+      }
+    };
+    return this;
+  }
+}
+class Context {
+  setResult(result) {
+    this.result = result;
+    this.hasResult = true;
+    return this;
+  }
+  exit() {
+    this.exiting = true;
+    return this;
+  }
+  push(child, name) {
+    child.parent = this;
+    if (typeof name !== "undefined") {
+      child.childName = name;
+    }
+    child.root = this.root || this;
+    child.options = child.options || this.options;
+    if (!this.children) {
+      this.children = [child];
+      this.nextAfterChildren = this.next || null;
+      this.next = child;
+    } else {
+      this.children[this.children.length - 1].next = child;
+      this.children.push(child);
+    }
+    child.next = this;
+    return this;
+  }
+}
+function cloneRegExp(re) {
+  const regexMatch = /^\/(.*)\/([gimyu]*)$/.exec(re.toString());
+  return new RegExp(regexMatch[1], regexMatch[2]);
+}
+function clone(arg) {
+  if (typeof arg !== "object") {
+    return arg;
+  }
+  if (arg === null) {
+    return null;
+  }
+  if (Array.isArray(arg)) {
+    return arg.map(clone);
+  }
+  if (arg instanceof Date) {
+    return new Date(arg.getTime());
+  }
+  if (arg instanceof RegExp) {
+    return cloneRegExp(arg);
+  }
+  const cloned = {};
+  for (const name in arg) {
+    if (Object.prototype.hasOwnProperty.call(arg, name)) {
+      cloned[name] = clone(arg[name]);
+    }
+  }
+  return cloned;
+}
+class DiffContext extends Context {
+  constructor(left2, right2) {
+    super();
+    this.left = left2;
+    this.right = right2;
+    this.pipe = "diff";
+  }
+  setResult(result) {
+    if (this.options.cloneDiffValues && typeof result === "object") {
+      const clone$1 = typeof this.options.cloneDiffValues === "function" ? this.options.cloneDiffValues : clone;
+      if (typeof result[0] === "object") {
+        result[0] = clone$1(result[0]);
+      }
+      if (typeof result[1] === "object") {
+        result[1] = clone$1(result[1]);
+      }
+    }
+    return super.setResult(result);
+  }
+}
+class PatchContext extends Context {
+  constructor(left2, delta) {
+    super();
+    this.left = left2;
+    this.delta = delta;
+    this.pipe = "patch";
+  }
+}
+class ReverseContext extends Context {
+  constructor(delta) {
+    super();
+    this.delta = delta;
+    this.pipe = "reverse";
+  }
+}
+const diffFilter$3 = function trivialMatchesDiffFilter(context) {
+  if (context.left === context.right) {
+    context.setResult(void 0).exit();
+    return;
+  }
+  if (typeof context.left === "undefined") {
+    if (typeof context.right === "function") {
+      throw new Error("functions are not supported");
+    }
+    context.setResult([context.right]).exit();
+    return;
+  }
+  if (typeof context.right === "undefined") {
+    context.setResult([context.left, 0, 0]).exit();
+    return;
+  }
+  if (typeof context.left === "function" || typeof context.right === "function") {
+    throw new Error("functions are not supported");
+  }
+  context.leftType = context.left === null ? "null" : typeof context.left;
+  context.rightType = context.right === null ? "null" : typeof context.right;
+  if (context.leftType !== context.rightType) {
+    context.setResult([context.left, context.right]).exit();
+    return;
+  }
+  if (context.leftType === "boolean" || context.leftType === "number") {
+    context.setResult([context.left, context.right]).exit();
+    return;
+  }
+  if (context.leftType === "object") {
+    context.leftIsArray = Array.isArray(context.left);
+  }
+  if (context.rightType === "object") {
+    context.rightIsArray = Array.isArray(context.right);
+  }
+  if (context.leftIsArray !== context.rightIsArray) {
+    context.setResult([context.left, context.right]).exit();
+    return;
+  }
+  if (context.left instanceof RegExp) {
+    if (context.right instanceof RegExp) {
+      context.setResult([context.left.toString(), context.right.toString()]).exit();
+    } else {
+      context.setResult([context.left, context.right]).exit();
+    }
+  }
+};
+diffFilter$3.filterName = "trivial";
+const patchFilter$3 = function trivialMatchesPatchFilter(context) {
+  if (typeof context.delta === "undefined") {
+    context.setResult(context.left).exit();
+    return;
+  }
+  context.nested = !Array.isArray(context.delta);
+  if (context.nested) {
+    return;
+  }
+  const nonNestedDelta = context.delta;
+  if (nonNestedDelta.length === 1) {
+    context.setResult(nonNestedDelta[0]).exit();
+    return;
+  }
+  if (nonNestedDelta.length === 2) {
+    if (context.left instanceof RegExp) {
+      const regexArgs = /^\/(.*)\/([gimyu]+)$/.exec(nonNestedDelta[1]);
+      if (regexArgs) {
+        context.setResult(new RegExp(regexArgs[1], regexArgs[2])).exit();
+        return;
+      }
+    }
+    context.setResult(nonNestedDelta[1]).exit();
+    return;
+  }
+  if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) {
+    context.setResult(void 0).exit();
+  }
+};
+patchFilter$3.filterName = "trivial";
+const reverseFilter$3 = function trivialReferseFilter(context) {
+  if (typeof context.delta === "undefined") {
+    context.setResult(context.delta).exit();
+    return;
+  }
+  context.nested = !Array.isArray(context.delta);
+  if (context.nested) {
+    return;
+  }
+  const nonNestedDelta = context.delta;
+  if (nonNestedDelta.length === 1) {
+    context.setResult([nonNestedDelta[0], 0, 0]).exit();
+    return;
+  }
+  if (nonNestedDelta.length === 2) {
+    context.setResult([nonNestedDelta[1], nonNestedDelta[0]]).exit();
+    return;
+  }
+  if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) {
+    context.setResult([nonNestedDelta[0]]).exit();
+  }
+};
+reverseFilter$3.filterName = "trivial";
+const collectChildrenDiffFilter = (context) => {
+  if (!context || !context.children) {
+    return;
+  }
+  const length = context.children.length;
+  let child;
+  let result = context.result;
+  for (let index = 0; index < length; index++) {
+    child = context.children[index];
+    if (typeof child.result === "undefined") {
+      continue;
+    }
+    result = result || {};
+    result[child.childName] = child.result;
+  }
+  if (result && context.leftIsArray) {
+    result._t = "a";
+  }
+  context.setResult(result).exit();
+};
+collectChildrenDiffFilter.filterName = "collectChildren";
+const objectsDiffFilter = (context) => {
+  if (context.leftIsArray || context.leftType !== "object") {
+    return;
+  }
+  const left2 = context.left;
+  const right2 = context.right;
+  let name;
+  let child;
+  const propertyFilter = context.options.propertyFilter;
+  for (name in left2) {
+    if (!Object.prototype.hasOwnProperty.call(left2, name)) {
+      continue;
+    }
+    if (propertyFilter && !propertyFilter(name, context)) {
+      continue;
+    }
+    child = new DiffContext(left2[name], right2[name]);
+    context.push(child, name);
+  }
+  for (name in right2) {
+    if (!Object.prototype.hasOwnProperty.call(right2, name)) {
+      continue;
+    }
+    if (propertyFilter && !propertyFilter(name, context)) {
+      continue;
+    }
+    if (typeof left2[name] === "undefined") {
+      child = new DiffContext(void 0, right2[name]);
+      context.push(child, name);
+    }
+  }
+  if (!context.children || context.children.length === 0) {
+    context.setResult(void 0).exit();
+    return;
+  }
+  context.exit();
+};
+objectsDiffFilter.filterName = "objects";
+const patchFilter$2 = function nestedPatchFilter(context) {
+  if (!context.nested) {
+    return;
+  }
+  const nestedDelta = context.delta;
+  if (nestedDelta._t) {
+    return;
+  }
+  const objectDelta = nestedDelta;
+  let name;
+  let child;
+  for (name in objectDelta) {
+    child = new PatchContext(context.left[name], objectDelta[name]);
+    context.push(child, name);
+  }
+  context.exit();
+};
+patchFilter$2.filterName = "objects";
+const collectChildrenPatchFilter$1 = function collectChildrenPatchFilter(context) {
+  if (!context || !context.children) {
+    return;
+  }
+  const deltaWithChildren = context.delta;
+  if (deltaWithChildren._t) {
+    return;
+  }
+  const object = context.left;
+  const length = context.children.length;
+  let child;
+  for (let index = 0; index < length; index++) {
+    child = context.children[index];
+    const property = child.childName;
+    if (Object.prototype.hasOwnProperty.call(context.left, property) && child.result === void 0) {
+      delete object[property];
+    } else if (object[property] !== child.result) {
+      object[property] = child.result;
+    }
+  }
+  context.setResult(object).exit();
+};
+collectChildrenPatchFilter$1.filterName = "collectChildren";
+const reverseFilter$2 = function nestedReverseFilter(context) {
+  if (!context.nested) {
+    return;
+  }
+  const nestedDelta = context.delta;
+  if (nestedDelta._t) {
+    return;
+  }
+  const objectDelta = context.delta;
+  let name;
+  let child;
+  for (name in objectDelta) {
+    child = new ReverseContext(objectDelta[name]);
+    context.push(child, name);
+  }
+  context.exit();
+};
+reverseFilter$2.filterName = "objects";
+const collectChildrenReverseFilter$1 = (context) => {
+  if (!context || !context.children) {
+    return;
+  }
+  const deltaWithChildren = context.delta;
+  if (deltaWithChildren._t) {
+    return;
+  }
+  const length = context.children.length;
+  let child;
+  const delta = {};
+  for (let index = 0; index < length; index++) {
+    child = context.children[index];
+    const property = child.childName;
+    if (delta[property] !== child.result) {
+      delta[property] = child.result;
+    }
+  }
+  context.setResult(delta).exit();
+};
+collectChildrenReverseFilter$1.filterName = "collectChildren";
+const defaultMatch = function(array1, array2, index1, index2) {
+  return array1[index1] === array2[index2];
+};
+const lengthMatrix = function(array1, array2, match, context) {
+  const len1 = array1.length;
+  const len2 = array2.length;
+  let x2, y2;
+  const matrix = new Array(len1 + 1);
+  for (x2 = 0; x2 < len1 + 1; x2++) {
+    matrix[x2] = new Array(len2 + 1);
+    for (y2 = 0; y2 < len2 + 1; y2++) {
+      matrix[x2][y2] = 0;
+    }
+  }
+  matrix.match = match;
+  for (x2 = 1; x2 < len1 + 1; x2++) {
+    for (y2 = 1; y2 < len2 + 1; y2++) {
+      if (match(array1, array2, x2 - 1, y2 - 1, context)) {
+        matrix[x2][y2] = matrix[x2 - 1][y2 - 1] + 1;
+      } else {
+        matrix[x2][y2] = Math.max(matrix[x2 - 1][y2], matrix[x2][y2 - 1]);
+      }
+    }
+  }
+  return matrix;
+};
+const backtrack = function(matrix, array1, array2, context) {
+  let index1 = array1.length;
+  let index2 = array2.length;
+  const subsequence = {
+    sequence: [],
+    indices1: [],
+    indices2: []
+  };
+  while (index1 !== 0 && index2 !== 0) {
+    const sameLetter = matrix.match(array1, array2, index1 - 1, index2 - 1, context);
+    if (sameLetter) {
+      subsequence.sequence.unshift(array1[index1 - 1]);
+      subsequence.indices1.unshift(index1 - 1);
+      subsequence.indices2.unshift(index2 - 1);
+      --index1;
+      --index2;
+    } else {
+      const valueAtMatrixAbove = matrix[index1][index2 - 1];
+      const valueAtMatrixLeft = matrix[index1 - 1][index2];
+      if (valueAtMatrixAbove > valueAtMatrixLeft) {
+        --index2;
+      } else {
+        --index1;
+      }
+    }
+  }
+  return subsequence;
+};
+const get = function(array1, array2, match, context) {
+  const innerContext = context || {};
+  const matrix = lengthMatrix(array1, array2, match || defaultMatch, innerContext);
+  return backtrack(matrix, array1, array2, innerContext);
+};
+const lcs = {
+  get
+};
+const ARRAY_MOVE = 3;
+function arraysHaveMatchByRef(array1, array2, len1, len2) {
+  for (let index1 = 0; index1 < len1; index1++) {
+    const val1 = array1[index1];
+    for (let index2 = 0; index2 < len2; index2++) {
+      const val2 = array2[index2];
+      if (index1 !== index2 && val1 === val2) {
+        return true;
+      }
+    }
+  }
+}
+function matchItems(array1, array2, index1, index2, context) {
+  const value1 = array1[index1];
+  const value2 = array2[index2];
+  if (value1 === value2) {
+    return true;
+  }
+  if (typeof value1 !== "object" || typeof value2 !== "object") {
+    return false;
+  }
+  const objectHash = context.objectHash;
+  if (!objectHash) {
+    return context.matchByPosition && index1 === index2;
+  }
+  context.hashCache1 = context.hashCache1 || [];
+  let hash1 = context.hashCache1[index1];
+  if (typeof hash1 === "undefined") {
+    context.hashCache1[index1] = hash1 = objectHash(value1, index1);
+  }
+  if (typeof hash1 === "undefined") {
+    return false;
+  }
+  context.hashCache2 = context.hashCache2 || [];
+  let hash2 = context.hashCache2[index2];
+  if (typeof hash2 === "undefined") {
+    context.hashCache2[index2] = hash2 = objectHash(value2, index2);
+  }
+  if (typeof hash2 === "undefined") {
+    return false;
+  }
+  return hash1 === hash2;
+}
+const diffFilter$2 = function arraysDiffFilter(context) {
+  if (!context.leftIsArray) {
+    return;
+  }
+  const matchContext = {
+    objectHash: context.options && context.options.objectHash,
+    matchByPosition: context.options && context.options.matchByPosition
+  };
+  let commonHead = 0;
+  let commonTail = 0;
+  let index;
+  let index1;
+  let index2;
+  const array1 = context.left;
+  const array2 = context.right;
+  const len1 = array1.length;
+  const len2 = array2.length;
+  let child;
+  if (len1 > 0 && len2 > 0 && !matchContext.objectHash && typeof matchContext.matchByPosition !== "boolean") {
+    matchContext.matchByPosition = !arraysHaveMatchByRef(array1, array2, len1, len2);
+  }
+  while (commonHead < len1 && commonHead < len2 && matchItems(array1, array2, commonHead, commonHead, matchContext)) {
+    index = commonHead;
+    child = new DiffContext(array1[index], array2[index]);
+    context.push(child, index);
+    commonHead++;
+  }
+  while (commonTail + commonHead < len1 && commonTail + commonHead < len2 && matchItems(array1, array2, len1 - 1 - commonTail, len2 - 1 - commonTail, matchContext)) {
+    index1 = len1 - 1 - commonTail;
+    index2 = len2 - 1 - commonTail;
+    child = new DiffContext(array1[index1], array2[index2]);
+    context.push(child, index2);
+    commonTail++;
+  }
+  let result;
+  if (commonHead + commonTail === len1) {
+    if (len1 === len2) {
+      context.setResult(void 0).exit();
+      return;
+    }
+    result = result || {
+      _t: "a"
+    };
+    for (index = commonHead; index < len2 - commonTail; index++) {
+      result[index] = [array2[index]];
+    }
+    context.setResult(result).exit();
+    return;
+  }
+  if (commonHead + commonTail === len2) {
+    result = result || {
+      _t: "a"
+    };
+    for (index = commonHead; index < len1 - commonTail; index++) {
+      result[`_${index}`] = [array1[index], 0, 0];
+    }
+    context.setResult(result).exit();
+    return;
+  }
+  delete matchContext.hashCache1;
+  delete matchContext.hashCache2;
+  const trimmed1 = array1.slice(commonHead, len1 - commonTail);
+  const trimmed2 = array2.slice(commonHead, len2 - commonTail);
+  const seq = lcs.get(trimmed1, trimmed2, matchItems, matchContext);
+  const removedItems = [];
+  result = result || {
+    _t: "a"
+  };
+  for (index = commonHead; index < len1 - commonTail; index++) {
+    if (seq.indices1.indexOf(index - commonHead) < 0) {
+      result[`_${index}`] = [array1[index], 0, 0];
+      removedItems.push(index);
+    }
+  }
+  let detectMove = true;
+  if (context.options && context.options.arrays && context.options.arrays.detectMove === false) {
+    detectMove = false;
+  }
+  let includeValueOnMove = false;
+  if (context.options && context.options.arrays && context.options.arrays.includeValueOnMove) {
+    includeValueOnMove = true;
+  }
+  const removedItemsLength = removedItems.length;
+  for (index = commonHead; index < len2 - commonTail; index++) {
+    const indexOnArray2 = seq.indices2.indexOf(index - commonHead);
+    if (indexOnArray2 < 0) {
+      let isMove = false;
+      if (detectMove && removedItemsLength > 0) {
+        for (let removeItemIndex1 = 0; removeItemIndex1 < removedItemsLength; removeItemIndex1++) {
+          index1 = removedItems[removeItemIndex1];
+          if (matchItems(trimmed1, trimmed2, index1 - commonHead, index - commonHead, matchContext)) {
+            result[`_${index1}`].splice(1, 2, index, ARRAY_MOVE);
+            if (!includeValueOnMove) {
+              result[`_${index1}`][0] = "";
+            }
+            index2 = index;
+            child = new DiffContext(array1[index1], array2[index2]);
+            context.push(child, index2);
+            removedItems.splice(removeItemIndex1, 1);
+            isMove = true;
+            break;
+          }
+        }
+      }
+      if (!isMove) {
+        result[index] = [array2[index]];
+      }
+    } else {
+      index1 = seq.indices1[indexOnArray2] + commonHead;
+      index2 = seq.indices2[indexOnArray2] + commonHead;
+      child = new DiffContext(array1[index1], array2[index2]);
+      context.push(child, index2);
+    }
+  }
+  context.setResult(result).exit();
+};
+diffFilter$2.filterName = "arrays";
+const compare$1 = {
+  numerically(a2, b2) {
+    return a2 - b2;
+  },
+  numericallyBy(name) {
+    return (a2, b2) => a2[name] - b2[name];
+  }
+};
+const patchFilter$1 = function nestedPatchFilter2(context) {
+  if (!context.nested) {
+    return;
+  }
+  const nestedDelta = context.delta;
+  if (nestedDelta._t !== "a") {
+    return;
+  }
+  let index;
+  let index1;
+  const delta = nestedDelta;
+  const array = context.left;
+  let toRemove = [];
+  let toInsert = [];
+  const toModify = [];
+  for (index in delta) {
+    if (index !== "_t") {
+      if (index[0] === "_") {
+        const removedOrMovedIndex = index;
+        if (delta[removedOrMovedIndex][2] === 0 || delta[removedOrMovedIndex][2] === ARRAY_MOVE) {
+          toRemove.push(parseInt(index.slice(1), 10));
+        } else {
+          throw new Error(`only removal or move can be applied at original array indices, invalid diff type: ${delta[removedOrMovedIndex][2]}`);
+        }
+      } else {
+        const numberIndex = index;
+        if (delta[numberIndex].length === 1) {
+          toInsert.push({
+            index: parseInt(numberIndex, 10),
+            value: delta[numberIndex][0]
+          });
+        } else {
+          toModify.push({
+            index: parseInt(numberIndex, 10),
+            delta: delta[numberIndex]
+          });
+        }
+      }
+    }
+  }
+  toRemove = toRemove.sort(compare$1.numerically);
+  for (index = toRemove.length - 1; index >= 0; index--) {
+    index1 = toRemove[index];
+    const indexDiff = delta[`_${index1}`];
+    const removedValue = array.splice(index1, 1)[0];
+    if (indexDiff[2] === ARRAY_MOVE) {
+      toInsert.push({
+        index: indexDiff[1],
+        value: removedValue
+      });
+    }
+  }
+  toInsert = toInsert.sort(compare$1.numericallyBy("index"));
+  const toInsertLength = toInsert.length;
+  for (index = 0; index < toInsertLength; index++) {
+    const insertion = toInsert[index];
+    array.splice(insertion.index, 0, insertion.value);
+  }
+  const toModifyLength = toModify.length;
+  let child;
+  if (toModifyLength > 0) {
+    for (index = 0; index < toModifyLength; index++) {
+      const modification = toModify[index];
+      child = new PatchContext(array[modification.index], modification.delta);
+      context.push(child, modification.index);
+    }
+  }
+  if (!context.children) {
+    context.setResult(array).exit();
+    return;
+  }
+  context.exit();
+};
+patchFilter$1.filterName = "arrays";
+const collectChildrenPatchFilter2 = function collectChildrenPatchFilter3(context) {
+  if (!context || !context.children) {
+    return;
+  }
+  const deltaWithChildren = context.delta;
+  if (deltaWithChildren._t !== "a") {
+    return;
+  }
+  const array = context.left;
+  const length = context.children.length;
+  let child;
+  for (let index = 0; index < length; index++) {
+    child = context.children[index];
+    const arrayIndex = child.childName;
+    array[arrayIndex] = child.result;
+  }
+  context.setResult(array).exit();
+};
+collectChildrenPatchFilter2.filterName = "arraysCollectChildren";
+const reverseFilter$1 = function arraysReverseFilter(context) {
+  if (!context.nested) {
+    const nonNestedDelta = context.delta;
+    if (nonNestedDelta[2] === ARRAY_MOVE) {
+      const arrayMoveDelta = nonNestedDelta;
+      context.newName = `_${arrayMoveDelta[1]}`;
+      context.setResult([
+        arrayMoveDelta[0],
+        parseInt(context.childName.substring(1), 10),
+        ARRAY_MOVE
+      ]).exit();
+    }
+    return;
+  }
+  const nestedDelta = context.delta;
+  if (nestedDelta._t !== "a") {
+    return;
+  }
+  const arrayDelta = nestedDelta;
+  let name;
+  let child;
+  for (name in arrayDelta) {
+    if (name === "_t") {
+      continue;
+    }
+    child = new ReverseContext(arrayDelta[name]);
+    context.push(child, name);
+  }
+  context.exit();
+};
+reverseFilter$1.filterName = "arrays";
+const reverseArrayDeltaIndex = (delta, index, itemDelta) => {
+  if (typeof index === "string" && index[0] === "_") {
+    return parseInt(index.substring(1), 10);
+  } else if (Array.isArray(itemDelta) && itemDelta[2] === 0) {
+    return `_${index}`;
+  }
+  let reverseIndex = +index;
+  for (const deltaIndex in delta) {
+    const deltaItem = delta[deltaIndex];
+    if (Array.isArray(deltaItem)) {
+      if (deltaItem[2] === ARRAY_MOVE) {
+        const moveFromIndex = parseInt(deltaIndex.substring(1), 10);
+        const moveToIndex = deltaItem[1];
+        if (moveToIndex === +index) {
+          return moveFromIndex;
+        }
+        if (moveFromIndex <= reverseIndex && moveToIndex > reverseIndex) {
+          reverseIndex++;
+        } else if (moveFromIndex >= reverseIndex && moveToIndex < reverseIndex) {
+          reverseIndex--;
+        }
+      } else if (deltaItem[2] === 0) {
+        const deleteIndex = parseInt(deltaIndex.substring(1), 10);
+        if (deleteIndex <= reverseIndex) {
+          reverseIndex++;
+        }
+      } else if (deltaItem.length === 1 && parseInt(deltaIndex, 10) <= reverseIndex) {
+        reverseIndex--;
+      }
+    }
+  }
+  return reverseIndex;
+};
+const collectChildrenReverseFilter = (context) => {
+  if (!context || !context.children) {
+    return;
+  }
+  const deltaWithChildren = context.delta;
+  if (deltaWithChildren._t !== "a") {
+    return;
+  }
+  const arrayDelta = deltaWithChildren;
+  const length = context.children.length;
+  let child;
+  const delta = {
+    _t: "a"
+  };
+  for (let index = 0; index < length; index++) {
+    child = context.children[index];
+    let name = child.newName;
+    if (typeof name === "undefined") {
+      name = reverseArrayDeltaIndex(arrayDelta, child.childName, child.result);
+    }
+    if (delta[name] !== child.result) {
+      delta[name] = child.result;
+    }
+  }
+  context.setResult(delta).exit();
+};
+collectChildrenReverseFilter.filterName = "arraysCollectChildren";
+const diffFilter$1 = function datesDiffFilter(context) {
+  if (context.left instanceof Date) {
+    if (context.right instanceof Date) {
+      if (context.left.getTime() !== context.right.getTime()) {
+        context.setResult([context.left, context.right]);
+      } else {
+        context.setResult(void 0);
+      }
+    } else {
+      context.setResult([context.left, context.right]);
+    }
+    context.exit();
+  } else if (context.right instanceof Date) {
+    context.setResult([context.left, context.right]).exit();
+  }
+};
+diffFilter$1.filterName = "dates";
+const TEXT_DIFF = 2;
+const DEFAULT_MIN_LENGTH = 60;
+let cachedDiffPatch = null;
+function getDiffMatchPatch(options, required) {
+  var _a;
+  if (!cachedDiffPatch) {
+    let instance;
+    if ((_a = options === null || options === void 0 ? void 0 : options.textDiff) === null || _a === void 0 ? void 0 : _a.diffMatchPatch) {
+      instance = new options.textDiff.diffMatchPatch();
+    } else {
+      if (!required) {
+        return null;
+      }
+      const error = new Error("The diff-match-patch library was not provided. Pass the library in through the options or use the `jsondiffpatch/with-text-diffs` entry-point.");
+      error.diff_match_patch_not_found = true;
+      throw error;
+    }
+    cachedDiffPatch = {
+      diff: function(txt1, txt2) {
+        return instance.patch_toText(instance.patch_make(txt1, txt2));
+      },
+      patch: function(txt1, patch) {
+        const results = instance.patch_apply(instance.patch_fromText(patch), txt1);
+        for (let i2 = 0; i2 < results[1].length; i2++) {
+          if (!results[1][i2]) {
+            const error = new Error("text patch failed");
+            error.textPatchFailed = true;
+          }
+        }
+        return results[0];
+      }
+    };
+  }
+  return cachedDiffPatch;
+}
+const diffFilter = function textsDiffFilter(context) {
+  if (context.leftType !== "string") {
+    return;
+  }
+  const left2 = context.left;
+  const right2 = context.right;
+  const minLength = context.options && context.options.textDiff && context.options.textDiff.minLength || DEFAULT_MIN_LENGTH;
+  if (left2.length < minLength || right2.length < minLength) {
+    context.setResult([left2, right2]).exit();
+    return;
+  }
+  const diffMatchPatch = getDiffMatchPatch(context.options);
+  if (!diffMatchPatch) {
+    context.setResult([left2, right2]).exit();
+    return;
+  }
+  const diff2 = diffMatchPatch.diff;
+  context.setResult([diff2(left2, right2), 0, TEXT_DIFF]).exit();
+};
+diffFilter.filterName = "texts";
+const patchFilter = function textsPatchFilter(context) {
+  if (context.nested) {
+    return;
+  }
+  const nonNestedDelta = context.delta;
+  if (nonNestedDelta[2] !== TEXT_DIFF) {
+    return;
+  }
+  const textDiffDelta = nonNestedDelta;
+  const patch = getDiffMatchPatch(context.options, true).patch;
+  context.setResult(patch(context.left, textDiffDelta[0])).exit();
+};
+patchFilter.filterName = "texts";
+const textDeltaReverse = function(delta) {
+  let i2;
+  let l2;
+  let line2;
+  let lineTmp;
+  let header = null;
+  const headerRegex = /^@@ +-(\d+),(\d+) +\+(\d+),(\d+) +@@$/;
+  let lineHeader;
+  const lines = delta.split("\n");
+  for (i2 = 0, l2 = lines.length; i2 < l2; i2++) {
+    line2 = lines[i2];
+    const lineStart = line2.slice(0, 1);
+    if (lineStart === "@") {
+      header = headerRegex.exec(line2);
+      lineHeader = i2;
+      lines[lineHeader] = "@@ -" + header[3] + "," + header[4] + " +" + header[1] + "," + header[2] + " @@";
+    } else if (lineStart === "+") {
+      lines[i2] = "-" + lines[i2].slice(1);
+      if (lines[i2 - 1].slice(0, 1) === "+") {
+        lineTmp = lines[i2];
+        lines[i2] = lines[i2 - 1];
+        lines[i2 - 1] = lineTmp;
+      }
+    } else if (lineStart === "-") {
+      lines[i2] = "+" + lines[i2].slice(1);
+    }
+  }
+  return lines.join("\n");
+};
+const reverseFilter = function textsReverseFilter(context) {
+  if (context.nested) {
+    return;
+  }
+  const nonNestedDelta = context.delta;
+  if (nonNestedDelta[2] !== TEXT_DIFF) {
+    return;
+  }
+  const textDiffDelta = nonNestedDelta;
+  context.setResult([textDeltaReverse(textDiffDelta[0]), 0, TEXT_DIFF]).exit();
+};
+reverseFilter.filterName = "texts";
+class DiffPatcher {
+  constructor(options) {
+    this.processor = new Processor(options);
+    this.processor.pipe(new Pipe("diff").append(collectChildrenDiffFilter, diffFilter$3, diffFilter$1, diffFilter, objectsDiffFilter, diffFilter$2).shouldHaveResult());
+    this.processor.pipe(new Pipe("patch").append(collectChildrenPatchFilter$1, collectChildrenPatchFilter2, patchFilter$3, patchFilter, patchFilter$2, patchFilter$1).shouldHaveResult());
+    this.processor.pipe(new Pipe("reverse").append(collectChildrenReverseFilter$1, collectChildrenReverseFilter, reverseFilter$3, reverseFilter, reverseFilter$2, reverseFilter$1).shouldHaveResult());
+  }
+  options(options) {
+    return this.processor.options(options);
+  }
+  diff(left2, right2) {
+    return this.processor.process(new DiffContext(left2, right2));
+  }
+  patch(left2, delta) {
+    return this.processor.process(new PatchContext(left2, delta));
+  }
+  reverse(delta) {
+    return this.processor.process(new ReverseContext(delta));
+  }
+  unpatch(right2, delta) {
+    return this.patch(right2, this.reverse(delta));
+  }
+  clone(value) {
+    return clone(value);
+  }
+}
+let defaultInstance$1;
+function diff(left2, right2) {
+  if (!defaultInstance$1) {
+    defaultInstance$1 = new DiffPatcher();
+  }
+  return defaultInstance$1.diff(left2, right2);
+}
+const trimUnderscore = (str) => {
+  if (str.substring(0, 1) === "_") {
+    return str.slice(1);
+  }
+  return str;
+};
+const arrayKeyToSortNumber = (key2) => {
+  if (key2 === "_t") {
+    return -1;
+  } else {
+    if (key2.substring(0, 1) === "_") {
+      return parseInt(key2.slice(1), 10);
+    } else {
+      return parseInt(key2, 10) + 0.1;
+    }
+  }
+};
+const arrayKeyComparer = (key1, key2) => arrayKeyToSortNumber(key1) - arrayKeyToSortNumber(key2);
+class BaseFormatter {
+  format(delta, left2) {
+    const context = {};
+    this.prepareContext(context);
+    const preparedContext = context;
+    this.recurse(preparedContext, delta, left2);
+    return this.finalize(preparedContext);
+  }
+  prepareContext(context) {
+    context.buffer = [];
+    context.out = function(...args) {
+      this.buffer.push(...args);
+    };
+  }
+  typeFormattterNotFound(context, deltaType) {
+    throw new Error(`cannot format delta type: ${deltaType}`);
+  }
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  typeFormattterErrorFormatter(context, err, delta, leftValue, key2, leftKey, movedFrom) {
+  }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+  finalize({ buffer: buffer2 }) {
+    if (Array.isArray(buffer2)) {
+      return buffer2.join("");
+    }
+  }
+  recurse(context, delta, left2, key2, leftKey, movedFrom, isLast) {
+    const useMoveOriginHere = delta && movedFrom;
+    const leftValue = useMoveOriginHere ? movedFrom.value : left2;
+    if (typeof delta === "undefined" && typeof key2 === "undefined") {
+      return void 0;
+    }
+    const type = this.getDeltaType(delta, movedFrom);
+    const nodeType = type === "node" ? delta._t === "a" ? "array" : "object" : "";
+    if (typeof key2 !== "undefined") {
+      this.nodeBegin(context, key2, leftKey, type, nodeType, isLast);
+    } else {
+      this.rootBegin(context, type, nodeType);
+    }
+    let typeFormattter;
+    try {
+      typeFormattter = type !== "unknown" ? this[`format_${type}`] : this.typeFormattterNotFound(context, type);
+      typeFormattter.call(this, context, delta, leftValue, key2, leftKey, movedFrom);
+    } catch (err) {
+      this.typeFormattterErrorFormatter(context, err, delta, leftValue, key2, leftKey, movedFrom);
+      if (typeof console !== "undefined" && console.error) {
+        console.error(err.stack);
+      }
+    }
+    if (typeof key2 !== "undefined") {
+      this.nodeEnd(context, key2, leftKey, type, nodeType, isLast);
+    } else {
+      this.rootEnd(context, type, nodeType);
+    }
+  }
+  formatDeltaChildren(context, delta, left2) {
+    this.forEachDeltaKey(delta, left2, (key2, leftKey, movedFrom, isLast) => {
+      this.recurse(context, delta[key2], left2 ? left2[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
+    });
+  }
+  forEachDeltaKey(delta, left2, fn2) {
+    const keys = Object.keys(delta);
+    const arrayKeys = delta._t === "a";
+    const moveDestinations = {};
+    let name;
+    if (typeof left2 !== "undefined") {
+      for (name in left2) {
+        if (Object.prototype.hasOwnProperty.call(left2, name)) {
+          if (typeof delta[name] === "undefined" && (!arrayKeys || typeof delta[`_${name}`] === "undefined")) {
+            keys.push(name);
+          }
+        }
+      }
+    }
+    for (name in delta) {
+      if (Object.prototype.hasOwnProperty.call(delta, name)) {
+        const value = delta[name];
+        if (Array.isArray(value) && value[2] === 3) {
+          const movedDelta = value;
+          moveDestinations[`${movedDelta[1]}`] = {
+            key: name,
+            value: left2 && left2[parseInt(name.substring(1), 10)]
+          };
+          if (this.includeMoveDestinations !== false) {
+            if (typeof left2 === "undefined" && typeof delta[movedDelta[1]] === "undefined") {
+              keys.push(movedDelta[1].toString());
+            }
+          }
+        }
+      }
+    }
+    if (arrayKeys) {
+      keys.sort(arrayKeyComparer);
+    } else {
+      keys.sort();
+    }
+    for (let index = 0, length = keys.length; index < length; index++) {
+      const key2 = keys[index];
+      if (arrayKeys && key2 === "_t") {
+        continue;
+      }
+      const leftKey = arrayKeys ? parseInt(trimUnderscore(key2), 10) : key2;
+      const isLast = index === length - 1;
+      fn2(key2, leftKey, moveDestinations[leftKey], isLast);
+    }
+  }
+  getDeltaType(delta, movedFrom) {
+    if (typeof delta === "undefined") {
+      if (typeof movedFrom !== "undefined") {
+        return "movedestination";
+      }
+      return "unchanged";
+    }
+    if (Array.isArray(delta)) {
+      if (delta.length === 1) {
+        return "added";
+      }
+      if (delta.length === 2) {
+        return "modified";
+      }
+      if (delta.length === 3 && delta[2] === 0) {
+        return "deleted";
+      }
+      if (delta.length === 3 && delta[2] === 2) {
+        return "textdiff";
+      }
+      if (delta.length === 3 && delta[2] === 3) {
+        return "moved";
+      }
+    } else if (typeof delta === "object") {
+      return "node";
+    }
+    return "unknown";
+  }
+  parseTextDiff(value) {
+    const output = [];
+    const lines = value.split("\n@@ ");
+    for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
+      const line2 = lines[i2];
+      const lineOutput = {
+        pieces: []
+      };
+      const location = /^(?:@@ )?[-+]?(\d+),(\d+)/.exec(line2).slice(1);
+      lineOutput.location = {
+        line: location[0],
+        chr: location[1]
+      };
+      const pieces = line2.split("\n").slice(1);
+      for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
+        const piece = pieces[pieceIndex];
+        if (!piece.length) {
+          continue;
+        }
+        const pieceOutput = {
+          type: "context"
+        };
+        if (piece.substring(0, 1) === "+") {
+          pieceOutput.type = "added";
+        } else if (piece.substring(0, 1) === "-") {
+          pieceOutput.type = "deleted";
+        }
+        pieceOutput.text = piece.slice(1);
+        lineOutput.pieces.push(pieceOutput);
+      }
+      output.push(lineOutput);
+    }
+    return output;
+  }
+}
+class HtmlFormatter extends BaseFormatter {
+  typeFormattterErrorFormatter(context, err) {
+    context.out(`<pre class="jsondiffpatch-error">${err}</pre>`);
+  }
+  formatValue(context, value) {
+    context.out(`<pre>${htmlEscape(JSON.stringify(value, null, 2))}</pre>`);
+  }
+  formatTextDiffString(context, value) {
+    const lines = this.parseTextDiff(value);
+    context.out('<ul class="jsondiffpatch-textdiff">');
+    for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
+      const line2 = lines[i2];
+      context.out(`<li><div class="jsondiffpatch-textdiff-location"><span class="jsondiffpatch-textdiff-line-number">${line2.location.line}</span><span class="jsondiffpatch-textdiff-char">${line2.location.chr}</span></div><div class="jsondiffpatch-textdiff-line">`);
+      const pieces = line2.pieces;
+      for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
+        const piece = pieces[pieceIndex];
+        context.out(`<span class="jsondiffpatch-textdiff-${piece.type}">${htmlEscape(decodeURI(piece.text))}</span>`);
+      }
+      context.out("</div></li>");
+    }
+    context.out("</ul>");
+  }
+  rootBegin(context, type, nodeType) {
+    const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
+    context.out(`<div class="jsondiffpatch-delta ${nodeClass}">`);
+  }
+  rootEnd(context) {
+    context.out(`</div>${context.hasArrows ? `<script type="text/javascript">setTimeout(${adjustArrows.toString()},10);<\/script>` : ""}`);
+  }
+  nodeBegin(context, key2, leftKey, type, nodeType) {
+    const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
+    context.out(`<li class="${nodeClass}" data-key="${leftKey}"><div class="jsondiffpatch-property-name">${leftKey}</div>`);
+  }
+  nodeEnd(context) {
+    context.out("</li>");
+  }
+  format_unchanged(context, delta, left2) {
+    if (typeof left2 === "undefined") {
+      return;
+    }
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, left2);
+    context.out("</div>");
+  }
+  format_movedestination(context, delta, left2) {
+    if (typeof left2 === "undefined") {
+      return;
+    }
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, left2);
+    context.out("</div>");
+  }
+  format_node(context, delta, left2) {
+    const nodeType = delta._t === "a" ? "array" : "object";
+    context.out(`<ul class="jsondiffpatch-node jsondiffpatch-node-type-${nodeType}">`);
+    this.formatDeltaChildren(context, delta, left2);
+    context.out("</ul>");
+  }
+  format_added(context, delta) {
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, delta[0]);
+    context.out("</div>");
+  }
+  format_modified(context, delta) {
+    context.out('<div class="jsondiffpatch-value jsondiffpatch-left-value">');
+    this.formatValue(context, delta[0]);
+    context.out('</div><div class="jsondiffpatch-value jsondiffpatch-right-value">');
+    this.formatValue(context, delta[1]);
+    context.out("</div>");
+  }
+  format_deleted(context, delta) {
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, delta[0]);
+    context.out("</div>");
+  }
+  format_moved(context, delta) {
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, delta[0]);
+    context.out(`</div><div class="jsondiffpatch-moved-destination">${delta[1]}</div>`);
+    context.out(
+      /* jshint multistr: true */
+      `<div class="jsondiffpatch-arrow" style="position: relative; left: -34px;">
+          <svg width="30" height="60" style="position: absolute; display: none;">
+          <defs>
+              <marker id="markerArrow" markerWidth="8" markerHeight="8"
+                 refx="2" refy="4"
+                     orient="auto" markerUnits="userSpaceOnUse">
+                  <path d="M1,1 L1,7 L7,4 L1,1" style="fill: #339;" />
+              </marker>
+          </defs>
+          <path d="M30,0 Q-10,25 26,50"
+            style="stroke: #88f; stroke-width: 2px; fill: none; stroke-opacity: 0.5; marker-end: url(#markerArrow);"
+          ></path>
+          </svg>
+      </div>`
+    );
+    context.hasArrows = true;
+  }
+  format_textdiff(context, delta) {
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatTextDiffString(context, delta[0]);
+    context.out("</div>");
+  }
+}
+function htmlEscape(text) {
+  let html = text;
+  const replacements = [
+    [/&/g, "&amp;"],
+    [/</g, "&lt;"],
+    [/>/g, "&gt;"],
+    [/'/g, "&apos;"],
+    [/"/g, "&quot;"]
+  ];
+  for (let i2 = 0; i2 < replacements.length; i2++) {
+    html = html.replace(replacements[i2][0], replacements[i2][1]);
+  }
+  return html;
+}
+const adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
+  const node = nodeArg || document;
+  const getElementText = ({ textContent, innerText }) => textContent || innerText;
+  const eachByQuery = (el, query, fn2) => {
+    const elems = el.querySelectorAll(query);
+    for (let i2 = 0, l2 = elems.length; i2 < l2; i2++) {
+      fn2(elems[i2]);
+    }
+  };
+  const eachChildren = ({ children }, fn2) => {
+    for (let i2 = 0, l2 = children.length; i2 < l2; i2++) {
+      fn2(children[i2], i2);
+    }
+  };
+  eachByQuery(node, ".jsondiffpatch-arrow", ({ parentNode, children, style }) => {
+    const arrowParent = parentNode;
+    const svg = children[0];
+    const path = svg.children[1];
+    svg.style.display = "none";
+    const destination = getElementText(arrowParent.querySelector(".jsondiffpatch-moved-destination"));
+    const container = arrowParent.parentNode;
+    let destinationElem;
+    eachChildren(container, (child) => {
+      if (child.getAttribute("data-key") === destination) {
+        destinationElem = child;
+      }
+    });
+    if (!destinationElem) {
+      return;
+    }
+    try {
+      const distance = destinationElem.offsetTop - arrowParent.offsetTop;
+      svg.setAttribute("height", `${Math.abs(distance) + 6}`);
+      style.top = `${-8 + (distance > 0 ? 0 : distance)}px`;
+      const curve = distance > 0 ? `M30,0 Q-10,${Math.round(distance / 2)} 26,${distance - 4}` : `M30,${-distance} Q-10,${Math.round(-distance / 2)} 26,4`;
+      path.setAttribute("d", curve);
+      svg.style.display = "";
+    } catch (err) {
+    }
+  });
+};
+let defaultInstance;
+function format(delta, left2) {
+  if (!defaultInstance) {
+    defaultInstance = new HtmlFormatter();
+  }
+  return defaultInstance.format(delta, left2);
+}
+const StateDiffView = ({ starting, ending, style }) => {
+  const changes = diff(unescapeNewlines(starting), unescapeNewlines(ending));
+  const html_result = format(changes);
+  return m$1`<div
+    dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
+    style=${{ style }}
+  ></div>`;
+};
+function unescapeNewlines(obj) {
+  if (typeof obj === "string") {
+    return obj.replace(/\\n/g, "\n");
+  } else if (typeof obj === "object") {
+    for (let key2 in obj) {
+      obj[key2] = unescapeNewlines(obj[key2]);
+    }
+  }
+  return obj;
+}
+const StateEventView = ({ id, event, depth, stateManager }) => {
+  const startingState = stateManager.getState();
+  const resolvedState = stateManager.applyChanges(event.changes);
+  const summary = summarizeChanges(event.changes);
+  const tabs = [
+    m$1`<${StateDiffView}
+      starting=${startingState}
+      ending=${resolvedState}
+      name="Diff"
+      style=${{ margin: "1em 0" }}
+    />`
+  ];
+  const changePreview = generatePreview(event.changes, resolvedState);
+  if (changePreview) {
+    tabs.unshift(
+      m$1`<div name="Summary" style=${{ margin: "1em 0" }}>
+        ${changePreview}
+      </div>`
+    );
+  }
+  const title = event.event === "state" ? "State Updated" : "Store Updated";
+  return m$1`
+  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.metadata} text=${tabs.length === 1 ? summary : void 0} depth=${depth} collapse=${changePreview === void 0 ? true : void 0}>
+    ${tabs}
+  </${EventPanel}>`;
+};
+const generatePreview = (changes, resolvedState) => {
+  for (const changeType of RenderableChangeTypes) {
+    const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
+    let matchingOps = 0;
+    for (const change of changes) {
+      if (changeType.signature.remove.includes(change.path) || changeType.signature.replace.includes(change.path) || changeType.signature.add.includes(change.path)) {
+        matchingOps++;
+      }
+      if (matchingOps === requiredMatchCount) {
+        return changeType.render(resolvedState);
+      }
+    }
+  }
+  return void 0;
+};
+const summarizeChanges = (changes) => {
+  const changeMap = {
+    add: [],
+    copy: [],
+    move: [],
+    replace: [],
+    remove: [],
+    test: []
+  };
+  for (const change of changes) {
+    changeMap[change.op].push(change.path);
+  }
+  const changeList = [];
+  const totalOpCount = Object.keys(changeMap).reduce((prev, current) => {
+    return prev + changeMap[current].length;
+  }, 0);
+  if (totalOpCount > 2) {
+    Object.keys(changeMap).forEach((key2) => {
+      const opChanges = changeMap[key2];
+      if (opChanges.length > 0) {
+        changeList.push(`${key2} ${opChanges.length}`);
+      }
+    });
+  } else {
+    Object.keys(changeMap).forEach((key2) => {
+      const opChanges = changeMap[key2];
+      if (opChanges.length > 0) {
+        changeList.push(`${key2} ${opChanges.join(", ")}`);
+      }
+    });
+  }
+  return changeList.join(", ");
+};
+const StepEventView = ({ depth, event }) => {
+  const descriptor = stepDescriptor(event);
+  if (event.action === "end") {
+    if (descriptor.endSpace) {
+      return m$1`<div style=${{ height: "1.5em" }}></div>`;
+    } else {
+      return m$1``;
+    }
+  }
+  const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
+  return m$1`<${EventPanel}
+    title="${title}"
+    depth=${depth}
+    icon=${descriptor.icon}
+    style=${descriptor.style}
+  />`;
+};
+const rootStepStyle = {
+  backgroundColor: "var(--bs-light)",
+  fontWeight: "600"
+};
+const stepDescriptor = (event) => {
+  const rootStepDescriptor = {
+    style: rootStepStyle,
+    endSpace: true
+  };
+  if (event.type === "solver") {
+    switch (event.name) {
+      case "chain_of_thought":
+        return {
+          icon: ApplicationIcons.solvers.chain_of_thought,
+          ...rootStepDescriptor
+        };
+      case "generate":
+        return {
+          icon: ApplicationIcons.solvers.generate,
+          ...rootStepDescriptor
+        };
+      case "self_critique":
+        return {
+          icon: ApplicationIcons.solvers.self_critique,
+          ...rootStepDescriptor
+        };
+      case "system_message":
+        return {
+          icon: ApplicationIcons.solvers.system_message,
+          ...rootStepDescriptor
+        };
+      case "use_tools":
+        return {
+          icon: ApplicationIcons.solvers.use_tools,
+          ...rootStepDescriptor
+        };
+      case "multiple_choice":
+        return {
+          icon: ApplicationIcons["multiple-choice"],
+          ...rootStepDescriptor
+        };
+      default:
+        return {
+          icon: ApplicationIcons.solvers.default,
+          ...rootStepDescriptor
+        };
+    }
+  } else if (event.type === "scorer") {
+    return {
+      icon: ApplicationIcons.scorer,
+      ...rootStepDescriptor
+    };
+  } else {
+    switch (event.name) {
+      case "sample_init":
+        return {
+          icon: ApplicationIcons.sample,
+          ...rootStepDescriptor,
+          name: "Sample Init"
+        };
+      default:
+        return {
+          icon: ApplicationIcons.step,
+          style: {},
+          endSpace: false
+        };
+    }
+  }
+};
+const SubtaskEventView = ({ id, depth, event, stateManager }) => {
+  return m$1`
+    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask}>
+      <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
+      ${event.events.length > 0 ? m$1`<${TranscriptView}
+              id="${id}-subtask"
+              name="Transcript"
+              events=${event.events}
+              stateManager=${stateManager}
+            />` : ""}
+    </${EventPanel}>`;
+};
+const SubtaskSummary = ({ input, result }) => {
+  result = typeof result === "object" ? result : { result };
+  return m$1` <div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "minmax(0,max-content) max-content minmax(0,max-content)",
+    columnGap: "1em",
+    margin: "1em 0"
+  }}
+  >
+    <div style=${{ ...TextStyle.label }}>Input</div>
+    <div style=${{ fontSize: FontSize.large, padding: "0 2em" }}>
+      <i class="${ApplicationIcons.arrows.right}" />
+    </div>
+
+    <div style=${{ ...TextStyle.label }}>Output</div>
+    <${Rendered} values=${input} />
+    <div></div>
+    <${Rendered} values=${result} />
+  </div>`;
+};
+const Rendered = ({ values }) => {
+  if (Array.isArray(values)) {
+    return values.map((val) => {
+      return m$1`<${Rendered} values=${val} />`;
+    });
+  } else if (values && typeof values === "object") {
+    return m$1`<${MetaDataView} entries=${values} />`;
+  } else {
+    return values;
+  }
+};
+const ModelEventView = ({ id, depth, event }) => {
+  var _a, _b;
+  const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
+  const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
+  const outputMessages = (_b = event.output.choices) == null ? void 0 : _b.map((choice) => {
+    return choice.message;
+  });
+  const entries = { ...event.config };
+  entries["tool_choice"] = event.tool_choice;
+  delete entries["max_connections"];
+  const tableSectionStyle = {
+    width: "fit-content",
+    alignSelf: "start",
+    justifySelf: "start"
+  };
+  return m$1`
+  <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
+  
+    <div name="Completion">
+    <${ChatView}
+      id="${id}-model-output"
+      messages=${[...outputMessages || []]}
+      style=${{ paddingTop: "1em" }}
+      />
+    </div>
+
+    <div name="All" style=${{ margin: "1em 0" }}>
+
+      <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
+      <${EventSection} title="Configuration" style=${tableSectionStyle}>
+        <${MetaDataGrid} entries=${entries} plain=${true}/>
+      </${EventSection}>
+
+      <${EventSection} title="Usage" style=${tableSectionStyle}>
+        <${MetaDataGrid} entries=${event.output.usage} plain=${true}/>
+      </${EventSection}>
+
+      <${EventSection} title="Tools" style=${{ gridColumn: "-1/1", ...tableSectionStyle }}>
+        <${ToolsConfig} tools=${event.tools}/>
+      </${EventSection}>
+
+      </div>
+
+      <${EventSection} title="Messages">
+        <${ChatView}
+          id="${id}-model-input-full"
+          messages=${[...event.input, ...outputMessages || []]}
+          />      
+      </${EventSection}>
+
+    </div>
+
+    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0", width: "100%" }} />` : ""}
+   
+  </${EventPanel}>`;
+};
+const APIView = ({ call, style }) => {
+  if (!call) {
+    return "";
+  }
+  return m$1`<div style=${style}>
+
+    <${EventSection} title="Request">
+      <${APICodeCell} contents=${call.request} />
+    </${EventSection}>
+    <${EventSection} title="Response">
+      <${APICodeCell} contents=${call.response} />
+    </${EventSection}>
+
+    </div>`;
+};
+const APICodeCell = ({ id, contents }) => {
+  if (!contents) {
+    return "";
+  }
+  const sourceCode = JSON.stringify(contents, void 0, 2);
+  const codeRef = A();
+  if (codeRef.current) {
+    codeRef.current.innerHTML = Prism$1.highlight(
+      sourceCode,
+      Prism$1.languages.javascript,
+      "javacript"
+    );
+  }
+  return m$1`<div>
+    <pre
+      style=${{
+    background: "var(--bs-light)",
+    width: "100%",
+    padding: "0.5em",
+    borderRadius: "3px"
+  }}
+    >
+      <code 
+        id=${id} 
+        ref=${codeRef}
+        class="sourceCode-js" 
+        style=${{
+    fontSize: FontSize.small,
+    whiteSpace: "pre-wrap",
+    wordWrap: "anywhere"
+  }}>
+      </code>
+      </pre>
+  </div>`;
+};
+const ToolsConfig = ({ tools }) => {
+  const toolEls = tools.map((tool) => {
+    return m$1`<div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+        ${tool.name}
+      </div>
+      <div>${tool.description}</div>`;
+  });
+  return m$1`<div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "1em"
+  }}
+  >
+    ${toolEls}
+  </div>`;
+};
+const EventRow = ({ title, icon, depth, children }) => {
+  const paddingLeft = depth * 1.5 + 0.5;
+  const contentEl = title ? m$1`<div
+        style=${{
+    padding: `0.5em 0.5em 0.5em ${paddingLeft}em`,
+    display: "grid",
+    gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
+    columnGap: "0.5em",
+    fontSize: FontSize.small
+  }}
+      >
+        <i
+          class=${icon || ApplicationIcons.metadata}
+          style=${{ ...TextStyle.secondary }}
+        />
+        <div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+          ${title}
+        </div>
+        <div>${children}</div>
+      </div>` : "";
+  const card = m$1` <div
+    class="card"
+    style=${{
+    padding: "0.1em 0.5em",
+    marginBottom: "-1px"
+  }}
+  >
+    ${contentEl}
+  </div>`;
+  return card;
+};
+const LoggerEventView = ({ id, depth, event }) => {
+  return m$1`
+  <${EventRow} 
+    id=${id}
+    depth=${depth}
+    title=${event.message.level} 
+    icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
+  >
+  <div
+    style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "1em", fontSize: FontSize.base }}
+  >
+    <div style=${{ fontSize: FontSize.smaller }}>${event.message.message}</div>
+    <div style=${{ fontSize: FontSize.smaller, ...TextStyle.secondary }}>${event.message.filename}:${event.message.lineno}</div>
+  </div>
+  </${EventRow}>`;
+};
+const InfoEventView = ({ id, depth, event }) => {
+  return m$1`
+  <${EventPanel} id=${id} depth=${depth} title="Info" icon=${ApplicationIcons.info}>
+  <div
+    style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
+  >
+    <div><i class=${ApplicationIcons.logging.info} /></div>
+    <div>${event.message}</div>
+    <div></div>
+  </div>
+  </${EventPanel}>`;
+};
+const ScoreEventView = ({ id, depth, event }) => {
+  return m$1`
+  <${EventPanel} id=${id} depth=${depth} title="Score" icon=${ApplicationIcons.scorer}>
+  
+    <div
+      name="Explanation"
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0" }}
+    >
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+      <div style=${{ ...TextStyle.label }}>Answer</div>
+      <div>${event.score.answer}</div>
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+      <div style=${{ ...TextStyle.label }}>Explanation</div>
+      <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+      <div style=${{ ...TextStyle.label }}>Score</div>  
+      <div>${event.score.value}</div>
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+    </div>
+    ${event.score.metadata ? m$1`<div name="Metadata">
+            <${MetaDataGrid}
+              entries=${event.score.metadata}
+              compact=${true}
+              style=${{ margin: "1em 0" }}
+            />
+          </div>` : void 0}
+
+
+  </${EventPanel}>`;
+};
+const ToolEventView = ({ id, depth, stateManager, event }) => {
+  const { input, functionCall, inputType } = resolveToolInput(
+    event.function,
+    event.arguments
+  );
+  const title = `Tool: ${event.function}`;
+  return m$1`
+  <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
+  <div name="Summary">
+    <${ExpandablePanel}>
+      ${event.result ? m$1`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
+    </${ExpandablePanel}>
+  </div>
+  <div name="Transcript">
+    <${ToolCallView}
+      functionCall=${functionCall}
+      input=${input}
+      inputType=${inputType}
+      output=${event.result}
+      mode="compact"
+      />
+        ${event.events.length > 0 ? m$1`<${TranscriptView}
+                id="${id}-subtask"
+                name="Transcript"
+                events=${event.events}
+                stateManager=${stateManager}
+              />` : ""}
+
+  </div>
+  </${EventPanel}>`;
+};
+const TranscriptView = ({ id, events, stateManager }) => {
+  const resolvedEvents = fixupEventStream(events);
+  let depth = 0;
+  const rows = resolvedEvents.map((event, index) => {
+    const row = m$1`
+      <div
+        style=${{
+      paddingTop: 0,
+      paddingBottom: 0
+    }}
+      >
+        <div>
+          ${renderNode(
+      `${id}-event${index}`,
+      event,
+      Math.max(depth - 1, 0),
+      stateManager
+    )}
+        </div>
+      </div>
+    `;
+    if (event.event === "step") {
+      if (event.action === "end") {
+        depth = depth - 1;
+      } else {
+        depth = depth + 1;
+      }
+    }
+    return row;
+  });
+  return m$1`<div
+    id=${id}
+    style=${{
+    fontSize: FontSize.small,
+    display: "grid",
+    margin: "1em 0",
+    width: "100%"
+  }}
+  >
+    ${rows}
+  </div>`;
+};
+const renderNode = (id, event, depth, stateManager) => {
+  switch (event.event) {
+    case "sample_init":
+      return m$1`<${SampleInitEventView}
+        id=${id}
+        depth=${depth}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
+    case "info":
+      return m$1`<${InfoEventView} id=${id} depth=${depth} event=${event} />`;
+    case "logger":
+      return m$1`<${LoggerEventView}
+        id=${id}
+        depth=${depth}
+        event=${event}
+      />`;
+    case "model":
+      return m$1`<${ModelEventView} id=${id} depth=${depth} event=${event} />`;
+    case "score":
+      return m$1`<${ScoreEventView} id=${id} depth=${depth} event=${event} />`;
+    case "state":
+      return m$1`<${StateEventView}
+        id=${id}
+        depth=${depth}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
+    case "step":
+      return m$1`<${StepEventView}
+        id=${id}
+        depth=${depth}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
+    case "store":
+      return m$1`<${StateEventView}
+        id=${id}
+        depth=${depth}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
+    case "subtask":
+      return m$1`<${SubtaskEventView}
+        id=${id}
+        depth=${depth}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
+    case "tool":
+      return m$1`<${ToolEventView}
+        depth=${depth}
+        id=${id}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
+    default:
+      return m$1``;
+  }
+};
+const fixupEventStream = (events) => {
+  const initEventIndex = events.findIndex((e2) => {
+    return e2.event === "sample_init";
+  });
+  const initEvent = events[initEventIndex];
+  const fixedUp = [...events];
+  if (initEvent) {
+    fixedUp.splice(initEventIndex, 0, {
+      timestamp: initEvent.timestamp,
+      event: "step",
+      action: "begin",
+      type: null,
+      name: "sample_init"
+    });
+    fixedUp.splice(initEventIndex + 2, 0, {
+      timestamp: initEvent.timestamp,
+      event: "step",
+      action: "end",
+      type: null,
+      name: "sample_init"
+    });
+  }
+  return fixedUp;
+};
+/*!
+ * https://github.com/Starcounter-Jack/JSON-Patch
+ * (c) 2017-2022 Joachim Wester
+ * MIT licensed
+ */
+var __extends = /* @__PURE__ */ function() {
+  var extendStatics = function(d2, b2) {
+    extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d3, b3) {
+      d3.__proto__ = b3;
+    } || function(d3, b3) {
+      for (var p2 in b3) if (b3.hasOwnProperty(p2)) d3[p2] = b3[p2];
+    };
+    return extendStatics(d2, b2);
+  };
+  return function(d2, b2) {
+    extendStatics(d2, b2);
+    function __() {
+      this.constructor = d2;
+    }
+    d2.prototype = b2 === null ? Object.create(b2) : (__.prototype = b2.prototype, new __());
+  };
+}();
+var _hasOwnProperty = Object.prototype.hasOwnProperty;
+function hasOwnProperty(obj, key2) {
+  return _hasOwnProperty.call(obj, key2);
+}
+function _objectKeys(obj) {
+  if (Array.isArray(obj)) {
+    var keys_1 = new Array(obj.length);
+    for (var k2 = 0; k2 < keys_1.length; k2++) {
+      keys_1[k2] = "" + k2;
+    }
+    return keys_1;
+  }
+  if (Object.keys) {
+    return Object.keys(obj);
+  }
+  var keys = [];
+  for (var i2 in obj) {
+    if (hasOwnProperty(obj, i2)) {
+      keys.push(i2);
+    }
+  }
+  return keys;
+}
+function _deepClone(obj) {
+  switch (typeof obj) {
+    case "object":
+      return JSON.parse(JSON.stringify(obj));
+    case "undefined":
+      return null;
+    default:
+      return obj;
+  }
+}
+function isInteger(str) {
+  var i2 = 0;
+  var len = str.length;
+  var charCode;
+  while (i2 < len) {
+    charCode = str.charCodeAt(i2);
+    if (charCode >= 48 && charCode <= 57) {
+      i2++;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+function escapePathComponent(path) {
+  if (path.indexOf("/") === -1 && path.indexOf("~") === -1)
+    return path;
+  return path.replace(/~/g, "~0").replace(/\//g, "~1");
+}
+function unescapePathComponent(path) {
+  return path.replace(/~1/g, "/").replace(/~0/g, "~");
+}
+function hasUndefined(obj) {
+  if (obj === void 0) {
+    return true;
+  }
+  if (obj) {
+    if (Array.isArray(obj)) {
+      for (var i_1 = 0, len = obj.length; i_1 < len; i_1++) {
+        if (hasUndefined(obj[i_1])) {
+          return true;
+        }
+      }
+    } else if (typeof obj === "object") {
+      var objKeys = _objectKeys(obj);
+      var objKeysLength = objKeys.length;
+      for (var i2 = 0; i2 < objKeysLength; i2++) {
+        if (hasUndefined(obj[objKeys[i2]])) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+function patchErrorMessageFormatter(message, args) {
+  var messageParts = [message];
+  for (var key2 in args) {
+    var value = typeof args[key2] === "object" ? JSON.stringify(args[key2], null, 2) : args[key2];
+    if (typeof value !== "undefined") {
+      messageParts.push(key2 + ": " + value);
+    }
+  }
+  return messageParts.join("\n");
+}
+var PatchError = (
+  /** @class */
+  function(_super) {
+    __extends(PatchError2, _super);
+    function PatchError2(message, name, index, operation, tree) {
+      var _newTarget = this.constructor;
+      var _this = _super.call(this, patchErrorMessageFormatter(message, { name, index, operation, tree })) || this;
+      _this.name = name;
+      _this.index = index;
+      _this.operation = operation;
+      _this.tree = tree;
+      Object.setPrototypeOf(_this, _newTarget.prototype);
+      _this.message = patchErrorMessageFormatter(message, { name, index, operation, tree });
+      return _this;
+    }
+    return PatchError2;
+  }(Error)
+);
+var JsonPatchError = PatchError;
+var deepClone = _deepClone;
+var objOps = {
+  add: function(obj, key2, document2) {
+    obj[key2] = this.value;
+    return { newDocument: document2 };
+  },
+  remove: function(obj, key2, document2) {
+    var removed = obj[key2];
+    delete obj[key2];
+    return { newDocument: document2, removed };
+  },
+  replace: function(obj, key2, document2) {
+    var removed = obj[key2];
+    obj[key2] = this.value;
+    return { newDocument: document2, removed };
+  },
+  move: function(obj, key2, document2) {
+    var removed = getValueByPointer(document2, this.path);
+    if (removed) {
+      removed = _deepClone(removed);
+    }
+    var originalValue = applyOperation(document2, { op: "remove", path: this.from }).removed;
+    applyOperation(document2, { op: "add", path: this.path, value: originalValue });
+    return { newDocument: document2, removed };
+  },
+  copy: function(obj, key2, document2) {
+    var valueToCopy = getValueByPointer(document2, this.from);
+    applyOperation(document2, { op: "add", path: this.path, value: _deepClone(valueToCopy) });
+    return { newDocument: document2 };
+  },
+  test: function(obj, key2, document2) {
+    return { newDocument: document2, test: _areEquals(obj[key2], this.value) };
+  },
+  _get: function(obj, key2, document2) {
+    this.value = obj[key2];
+    return { newDocument: document2 };
+  }
+};
+var arrOps = {
+  add: function(arr, i2, document2) {
+    if (isInteger(i2)) {
+      arr.splice(i2, 0, this.value);
+    } else {
+      arr[i2] = this.value;
+    }
+    return { newDocument: document2, index: i2 };
+  },
+  remove: function(arr, i2, document2) {
+    var removedList = arr.splice(i2, 1);
+    return { newDocument: document2, removed: removedList[0] };
+  },
+  replace: function(arr, i2, document2) {
+    var removed = arr[i2];
+    arr[i2] = this.value;
+    return { newDocument: document2, removed };
+  },
+  move: objOps.move,
+  copy: objOps.copy,
+  test: objOps.test,
+  _get: objOps._get
+};
+function getValueByPointer(document2, pointer) {
+  if (pointer == "") {
+    return document2;
+  }
+  var getOriginalDestination = { op: "_get", path: pointer };
+  applyOperation(document2, getOriginalDestination);
+  return getOriginalDestination.value;
+}
+function applyOperation(document2, operation, validateOperation, mutateDocument, banPrototypeModifications, index) {
+  if (validateOperation === void 0) {
+    validateOperation = false;
+  }
+  if (mutateDocument === void 0) {
+    mutateDocument = true;
+  }
+  if (banPrototypeModifications === void 0) {
+    banPrototypeModifications = true;
+  }
+  if (index === void 0) {
+    index = 0;
+  }
+  if (validateOperation) {
+    if (typeof validateOperation == "function") {
+      validateOperation(operation, 0, document2, operation.path);
+    } else {
+      validator(operation, 0);
+    }
+  }
+  if (operation.path === "") {
+    var returnValue = { newDocument: document2 };
+    if (operation.op === "add") {
+      returnValue.newDocument = operation.value;
+      return returnValue;
+    } else if (operation.op === "replace") {
+      returnValue.newDocument = operation.value;
+      returnValue.removed = document2;
+      return returnValue;
+    } else if (operation.op === "move" || operation.op === "copy") {
+      returnValue.newDocument = getValueByPointer(document2, operation.from);
+      if (operation.op === "move") {
+        returnValue.removed = document2;
+      }
+      return returnValue;
+    } else if (operation.op === "test") {
+      returnValue.test = _areEquals(document2, operation.value);
+      if (returnValue.test === false) {
+        throw new JsonPatchError("Test operation failed", "TEST_OPERATION_FAILED", index, operation, document2);
+      }
+      returnValue.newDocument = document2;
+      return returnValue;
+    } else if (operation.op === "remove") {
+      returnValue.removed = document2;
+      returnValue.newDocument = null;
+      return returnValue;
+    } else if (operation.op === "_get") {
+      operation.value = document2;
+      return returnValue;
+    } else {
+      if (validateOperation) {
+        throw new JsonPatchError("Operation `op` property is not one of operations defined in RFC-6902", "OPERATION_OP_INVALID", index, operation, document2);
+      } else {
+        return returnValue;
+      }
+    }
+  } else {
+    if (!mutateDocument) {
+      document2 = _deepClone(document2);
+    }
+    var path = operation.path || "";
+    var keys = path.split("/");
+    var obj = document2;
+    var t2 = 1;
+    var len = keys.length;
+    var existingPathFragment = void 0;
+    var key2 = void 0;
+    var validateFunction = void 0;
+    if (typeof validateOperation == "function") {
+      validateFunction = validateOperation;
+    } else {
+      validateFunction = validator;
+    }
+    while (true) {
+      key2 = keys[t2];
+      if (key2 && key2.indexOf("~") != -1) {
+        key2 = unescapePathComponent(key2);
+      }
+      if (banPrototypeModifications && (key2 == "__proto__" || key2 == "prototype" && t2 > 0 && keys[t2 - 1] == "constructor")) {
+        throw new TypeError("JSON-Patch: modifying `__proto__` or `constructor/prototype` prop is banned for security reasons, if this was on purpose, please set `banPrototypeModifications` flag false and pass it to this function. More info in fast-json-patch README");
+      }
+      if (validateOperation) {
+        if (existingPathFragment === void 0) {
+          if (obj[key2] === void 0) {
+            existingPathFragment = keys.slice(0, t2).join("/");
+          } else if (t2 == len - 1) {
+            existingPathFragment = operation.path;
+          }
+          if (existingPathFragment !== void 0) {
+            validateFunction(operation, 0, document2, existingPathFragment);
+          }
+        }
+      }
+      t2++;
+      if (Array.isArray(obj)) {
+        if (key2 === "-") {
+          key2 = obj.length;
+        } else {
+          if (validateOperation && !isInteger(key2)) {
+            throw new JsonPatchError("Expected an unsigned base-10 integer value, making the new referenced value the array element with the zero-based index", "OPERATION_PATH_ILLEGAL_ARRAY_INDEX", index, operation, document2);
+          } else if (isInteger(key2)) {
+            key2 = ~~key2;
+          }
+        }
+        if (t2 >= len) {
+          if (validateOperation && operation.op === "add" && key2 > obj.length) {
+            throw new JsonPatchError("The specified index MUST NOT be greater than the number of elements in the array", "OPERATION_VALUE_OUT_OF_BOUNDS", index, operation, document2);
+          }
+          var returnValue = arrOps[operation.op].call(operation, obj, key2, document2);
+          if (returnValue.test === false) {
+            throw new JsonPatchError("Test operation failed", "TEST_OPERATION_FAILED", index, operation, document2);
+          }
+          return returnValue;
+        }
+      } else {
+        if (t2 >= len) {
+          var returnValue = objOps[operation.op].call(operation, obj, key2, document2);
+          if (returnValue.test === false) {
+            throw new JsonPatchError("Test operation failed", "TEST_OPERATION_FAILED", index, operation, document2);
+          }
+          return returnValue;
+        }
+      }
+      obj = obj[key2];
+      if (validateOperation && t2 < len && (!obj || typeof obj !== "object")) {
+        throw new JsonPatchError("Cannot perform operation at the desired path", "OPERATION_PATH_UNRESOLVABLE", index, operation, document2);
+      }
+    }
+  }
+}
+function applyPatch(document2, patch, validateOperation, mutateDocument, banPrototypeModifications) {
+  if (mutateDocument === void 0) {
+    mutateDocument = true;
+  }
+  if (banPrototypeModifications === void 0) {
+    banPrototypeModifications = true;
+  }
+  if (validateOperation) {
+    if (!Array.isArray(patch)) {
+      throw new JsonPatchError("Patch sequence must be an array", "SEQUENCE_NOT_AN_ARRAY");
+    }
+  }
+  if (!mutateDocument) {
+    document2 = _deepClone(document2);
+  }
+  var results = new Array(patch.length);
+  for (var i2 = 0, length_1 = patch.length; i2 < length_1; i2++) {
+    results[i2] = applyOperation(document2, patch[i2], validateOperation, true, banPrototypeModifications, i2);
+    document2 = results[i2].newDocument;
+  }
+  results.newDocument = document2;
+  return results;
+}
+function applyReducer(document2, operation, index) {
+  var operationResult = applyOperation(document2, operation);
+  if (operationResult.test === false) {
+    throw new JsonPatchError("Test operation failed", "TEST_OPERATION_FAILED", index, operation, document2);
+  }
+  return operationResult.newDocument;
+}
+function validator(operation, index, document2, existingPathFragment) {
+  if (typeof operation !== "object" || operation === null || Array.isArray(operation)) {
+    throw new JsonPatchError("Operation is not an object", "OPERATION_NOT_AN_OBJECT", index, operation, document2);
+  } else if (!objOps[operation.op]) {
+    throw new JsonPatchError("Operation `op` property is not one of operations defined in RFC-6902", "OPERATION_OP_INVALID", index, operation, document2);
+  } else if (typeof operation.path !== "string") {
+    throw new JsonPatchError("Operation `path` property is not a string", "OPERATION_PATH_INVALID", index, operation, document2);
+  } else if (operation.path.indexOf("/") !== 0 && operation.path.length > 0) {
+    throw new JsonPatchError('Operation `path` property must start with "/"', "OPERATION_PATH_INVALID", index, operation, document2);
+  } else if ((operation.op === "move" || operation.op === "copy") && typeof operation.from !== "string") {
+    throw new JsonPatchError("Operation `from` property is not present (applicable in `move` and `copy` operations)", "OPERATION_FROM_REQUIRED", index, operation, document2);
+  } else if ((operation.op === "add" || operation.op === "replace" || operation.op === "test") && operation.value === void 0) {
+    throw new JsonPatchError("Operation `value` property is not present (applicable in `add`, `replace` and `test` operations)", "OPERATION_VALUE_REQUIRED", index, operation, document2);
+  } else if ((operation.op === "add" || operation.op === "replace" || operation.op === "test") && hasUndefined(operation.value)) {
+    throw new JsonPatchError("Operation `value` property is not present (applicable in `add`, `replace` and `test` operations)", "OPERATION_VALUE_CANNOT_CONTAIN_UNDEFINED", index, operation, document2);
+  } else if (document2) {
+    if (operation.op == "add") {
+      var pathLen = operation.path.split("/").length;
+      var existingPathLen = existingPathFragment.split("/").length;
+      if (pathLen !== existingPathLen + 1 && pathLen !== existingPathLen) {
+        throw new JsonPatchError("Cannot perform an `add` operation at the desired path", "OPERATION_PATH_CANNOT_ADD", index, operation, document2);
+      }
+    } else if (operation.op === "replace" || operation.op === "remove" || operation.op === "_get") {
+      if (operation.path !== existingPathFragment) {
+        throw new JsonPatchError("Cannot perform the operation at a path that does not exist", "OPERATION_PATH_UNRESOLVABLE", index, operation, document2);
+      }
+    } else if (operation.op === "move" || operation.op === "copy") {
+      var existingValue = { op: "_get", path: operation.from, value: void 0 };
+      var error = validate([existingValue], document2);
+      if (error && error.name === "OPERATION_PATH_UNRESOLVABLE") {
+        throw new JsonPatchError("Cannot perform the operation from a path that does not exist", "OPERATION_FROM_UNRESOLVABLE", index, operation, document2);
+      }
+    }
+  }
+}
+function validate(sequence, document2, externalValidator) {
+  try {
+    if (!Array.isArray(sequence)) {
+      throw new JsonPatchError("Patch sequence must be an array", "SEQUENCE_NOT_AN_ARRAY");
+    }
+    if (document2) {
+      applyPatch(_deepClone(document2), _deepClone(sequence), externalValidator || true);
+    } else {
+      externalValidator = externalValidator || validator;
+      for (var i2 = 0; i2 < sequence.length; i2++) {
+        externalValidator(sequence[i2], i2, document2, void 0);
+      }
+    }
+  } catch (e2) {
+    if (e2 instanceof JsonPatchError) {
+      return e2;
+    } else {
+      throw e2;
+    }
+  }
+}
+function _areEquals(a2, b2) {
+  if (a2 === b2)
+    return true;
+  if (a2 && b2 && typeof a2 == "object" && typeof b2 == "object") {
+    var arrA = Array.isArray(a2), arrB = Array.isArray(b2), i2, length, key2;
+    if (arrA && arrB) {
+      length = a2.length;
+      if (length != b2.length)
+        return false;
+      for (i2 = length; i2-- !== 0; )
+        if (!_areEquals(a2[i2], b2[i2]))
+          return false;
+      return true;
+    }
+    if (arrA != arrB)
+      return false;
+    var keys = Object.keys(a2);
+    length = keys.length;
+    if (length !== Object.keys(b2).length)
+      return false;
+    for (i2 = length; i2-- !== 0; )
+      if (!b2.hasOwnProperty(keys[i2]))
+        return false;
+    for (i2 = length; i2-- !== 0; ) {
+      key2 = keys[i2];
+      if (!_areEquals(a2[key2], b2[key2]))
+        return false;
+    }
+    return true;
+  }
+  return a2 !== a2 && b2 !== b2;
+}
+const core = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  JsonPatchError,
+  _areEquals,
+  applyOperation,
+  applyPatch,
+  applyReducer,
+  deepClone,
+  getValueByPointer,
+  validate,
+  validator
+}, Symbol.toStringTag, { value: "Module" }));
+/*!
+ * https://github.com/Starcounter-Jack/JSON-Patch
+ * (c) 2017-2021 Joachim Wester
+ * MIT license
+ */
+var beforeDict = /* @__PURE__ */ new WeakMap();
+var Mirror = (
+  /** @class */
+  /* @__PURE__ */ function() {
+    function Mirror2(obj) {
+      this.observers = /* @__PURE__ */ new Map();
+      this.obj = obj;
+    }
+    return Mirror2;
+  }()
+);
+var ObserverInfo = (
+  /** @class */
+  /* @__PURE__ */ function() {
+    function ObserverInfo2(callback, observer) {
+      this.callback = callback;
+      this.observer = observer;
+    }
+    return ObserverInfo2;
+  }()
+);
+function getMirror(obj) {
+  return beforeDict.get(obj);
+}
+function getObserverFromMirror(mirror, callback) {
+  return mirror.observers.get(callback);
+}
+function removeObserverFromMirror(mirror, observer) {
+  mirror.observers.delete(observer.callback);
+}
+function unobserve(root2, observer) {
+  observer.unobserve();
+}
+function observe(obj, callback) {
+  var patches = [];
+  var observer;
+  var mirror = getMirror(obj);
+  if (!mirror) {
+    mirror = new Mirror(obj);
+    beforeDict.set(obj, mirror);
+  } else {
+    var observerInfo = getObserverFromMirror(mirror, callback);
+    observer = observerInfo && observerInfo.observer;
+  }
+  if (observer) {
+    return observer;
+  }
+  observer = {};
+  mirror.value = _deepClone(obj);
+  if (callback) {
+    observer.callback = callback;
+    observer.next = null;
+    var dirtyCheck = function() {
+      generate(observer);
+    };
+    var fastCheck = function() {
+      clearTimeout(observer.next);
+      observer.next = setTimeout(dirtyCheck);
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("mouseup", fastCheck);
+      window.addEventListener("keyup", fastCheck);
+      window.addEventListener("mousedown", fastCheck);
+      window.addEventListener("keydown", fastCheck);
+      window.addEventListener("change", fastCheck);
+    }
+  }
+  observer.patches = patches;
+  observer.object = obj;
+  observer.unobserve = function() {
+    generate(observer);
+    clearTimeout(observer.next);
+    removeObserverFromMirror(mirror, observer);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("mouseup", fastCheck);
+      window.removeEventListener("keyup", fastCheck);
+      window.removeEventListener("mousedown", fastCheck);
+      window.removeEventListener("keydown", fastCheck);
+      window.removeEventListener("change", fastCheck);
+    }
+  };
+  mirror.observers.set(callback, new ObserverInfo(callback, observer));
+  return observer;
+}
+function generate(observer, invertible) {
+  if (invertible === void 0) {
+    invertible = false;
+  }
+  var mirror = beforeDict.get(observer.object);
+  _generate(mirror.value, observer.object, observer.patches, "", invertible);
+  if (observer.patches.length) {
+    applyPatch(mirror.value, observer.patches);
+  }
+  var temp = observer.patches;
+  if (temp.length > 0) {
+    observer.patches = [];
+    if (observer.callback) {
+      observer.callback(temp);
+    }
+  }
+  return temp;
+}
+function _generate(mirror, obj, patches, path, invertible) {
+  if (obj === mirror) {
+    return;
+  }
+  if (typeof obj.toJSON === "function") {
+    obj = obj.toJSON();
+  }
+  var newKeys = _objectKeys(obj);
+  var oldKeys = _objectKeys(mirror);
+  var deleted = false;
+  for (var t2 = oldKeys.length - 1; t2 >= 0; t2--) {
+    var key2 = oldKeys[t2];
+    var oldVal = mirror[key2];
+    if (hasOwnProperty(obj, key2) && !(obj[key2] === void 0 && oldVal !== void 0 && Array.isArray(obj) === false)) {
+      var newVal = obj[key2];
+      if (typeof oldVal == "object" && oldVal != null && typeof newVal == "object" && newVal != null && Array.isArray(oldVal) === Array.isArray(newVal)) {
+        _generate(oldVal, newVal, patches, path + "/" + escapePathComponent(key2), invertible);
+      } else {
+        if (oldVal !== newVal) {
+          if (invertible) {
+            patches.push({ op: "test", path: path + "/" + escapePathComponent(key2), value: _deepClone(oldVal) });
+          }
+          patches.push({ op: "replace", path: path + "/" + escapePathComponent(key2), value: _deepClone(newVal) });
+        }
+      }
+    } else if (Array.isArray(mirror) === Array.isArray(obj)) {
+      if (invertible) {
+        patches.push({ op: "test", path: path + "/" + escapePathComponent(key2), value: _deepClone(oldVal) });
+      }
+      patches.push({ op: "remove", path: path + "/" + escapePathComponent(key2) });
+      deleted = true;
+    } else {
+      if (invertible) {
+        patches.push({ op: "test", path, value: mirror });
+      }
+      patches.push({ op: "replace", path, value: obj });
+    }
+  }
+  if (!deleted && newKeys.length == oldKeys.length) {
+    return;
+  }
+  for (var t2 = 0; t2 < newKeys.length; t2++) {
+    var key2 = newKeys[t2];
+    if (!hasOwnProperty(mirror, key2) && obj[key2] !== void 0) {
+      patches.push({ op: "add", path: path + "/" + escapePathComponent(key2), value: _deepClone(obj[key2]) });
+    }
+  }
+}
+function compare(tree1, tree2, invertible) {
+  if (invertible === void 0) {
+    invertible = false;
+  }
+  var patches = [];
+  _generate(tree1, tree2, patches, "", invertible);
+  return patches;
+}
+const duplex = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  compare,
+  generate,
+  observe,
+  unobserve
+}, Symbol.toStringTag, { value: "Module" }));
+Object.assign({}, core, duplex, {
+  JsonPatchError: PatchError,
+  deepClone: _deepClone,
+  escapePathComponent,
+  unescapePathComponent
+});
+const initStateManager = () => {
+  let state = {};
+  return {
+    /**
+     * Retrieves the current state object.
+     *
+     * @returns {Object} The current state object.
+     */
+    getState: () => {
+      return state;
+    },
+    /**
+     * Updates the current state with a new state object.
+     *
+     * @param {Object} newState - The new state object to update with.
+     */
+    setState: (newState) => {
+      state = structuredClone(newState);
+    },
+    /**
+     * Updates the current state with a new state object.
+     *
+     * @param {import("../../types/log").Changes} changes - The new state object to update with.
+     */
+    applyChanges: (changes) => {
+      state = structuredClone(state);
+      changes.forEach((change) => {
+        applyOperation(state, change);
+      });
+      return state;
+    }
+  };
+};
+const kContentProtocol = "tc://";
+const SampleTranscript = ({ id, evalEvents }) => {
+  const stateManager = initStateManager();
+  const denormalizedEvents = resolveEventContent(evalEvents);
+  return m$1`<${TranscriptView}
+    id=${id}
+    events=${denormalizedEvents}
+    stateManager=${stateManager}
+  />`;
+};
+const resolveEventContent = (evalEvents) => {
+  return (
+    /** @type {import("../types/log").Events} */
+    evalEvents.events.map((e2) => {
+      return resolveValue(e2, evalEvents);
+    })
+  );
+};
+const resolveValue = (value, evalEvents) => {
+  if (Array.isArray(value)) {
+    return value.map((v2) => resolveValue(v2, evalEvents));
+  } else if (value && typeof value === "object") {
+    const resolvedObject = {};
+    for (const key2 of Object.keys(value)) {
+      resolvedObject[key2] = resolveValue(value[key2], evalEvents);
+    }
+    return resolvedObject;
+  } else if (typeof value === "string") {
+    if (value.startsWith(kContentProtocol)) {
+      return evalEvents.content[value.replace(kContentProtocol, "")];
+    }
+  }
+  return value;
+};
 const InlineSampleDisplay = ({
   index,
-  id: id2,
+  id,
   sample,
   sampleDescriptor,
   context
@@ -16514,7 +18192,7 @@ const InlineSampleDisplay = ({
   >
     <${SampleDisplay}
       index=${index}
-      id=${id2}
+      id=${id}
       sample=${sample}
       sampleDescriptor=${sampleDescriptor}
       context=${context}
@@ -16523,51 +18201,64 @@ const InlineSampleDisplay = ({
 };
 const SampleDisplay = ({
   index,
-  id: id2,
+  id,
   sample,
   sampleDescriptor,
   context
 }) => {
   const baseId = `sample-${index}`;
   const msgTabId = `${baseId}-messages`;
+  const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   y(() => {
-    setSelectedTab(msgTabId);
+    if (sample.transcript && sample.transcript.events.length > 0) {
+      setSelectedTab(transcriptTabId);
+    } else {
+      setSelectedTab(msgTabId);
+    }
   }, [sample]);
   const [selectedTab, setSelectedTab] = h(void 0);
   const onSelectedTab = (e2) => {
-    const id3 = e2.currentTarget.id;
-    setSelectedTab(id3);
+    const id2 = e2.currentTarget.id;
+    setSelectedTab(id2);
     return false;
   };
   const tabs = [
     m$1`
-    <${TabPanel} id=${msgTabId} title="Messages" icon=${icons.messages} onSelected=${onSelectedTab} selected=${selectedTab === msgTabId || selectedTab === void 0}>
-      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages}/>
+    <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
+      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages} style=${{ paddingLeft: ".8em", paddingTop: "1em" }}/>
     </${TabPanel}>`
   ];
+  if (sample.transcript && sample.transcript.events.length > 0) {
+    tabs.unshift(m$1`
+      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
+        <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
+      </${TabPanel}>`);
+  }
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(m$1`
-      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
+      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
         <${SampleScoreView}
           sample=${sample}
           context=${context}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
+          style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
         />
       </${TabPanel}>`);
   } else {
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(m$1`
-        <${TabPanel} id="${tabId}" title="${scorer}" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
+        <${TabPanel} id="${tabId}" title="${scorer}" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
             context=${context}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
+            style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
         </${TabPanel}>`);
     }
@@ -16579,10 +18270,12 @@ const SampleDisplay = ({
       <${TabPanel} 
           id=${metdataTabId} 
           title="Metadata" 
-          icon=${icons.metadata}
+          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
         ${sampleMetadatas}
+        </div>
       </${TabPanel}>`
     );
   }
@@ -16591,25 +18284,22 @@ const SampleDisplay = ({
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 
-  <${TabSet} id="task-sample-details-tab-${id2}" styles=${{
+  <${TabSet} id="task-sample-details-tab-${id}" styles=${{
     tabs: {
-      fontSize: "0.8em"
+      fontSize: FontSize.base
     },
-    tabBody: {
-      paddingLeft: ".4em",
-      marginTop: "0.5rem"
-    }
+    tabBody: {}
   }}>
     ${tabs}
   </${TabSet}>`;
 };
-const metadataViewsForSample = (id2, sample, context) => {
+const metadataViewsForSample = (id, sample, context) => {
   var _a, _b, _c;
   const sampleMetadatas = [];
   if (Object.keys(sample == null ? void 0 : sample.metadata).length > 0) {
     sampleMetadatas.push(
       m$1` <${MetaDataView}
-        id="task-sample-metadata-${id2}"
+        id="task-sample-metadata-${id}"
         classes="tab-pane"
         entries="${sample == null ? void 0 : sample.metadata}"
         style=${{ marginTop: "1em" }}
@@ -16620,7 +18310,7 @@ const metadataViewsForSample = (id2, sample, context) => {
   if (((_a = sample == null ? void 0 : sample.score) == null ? void 0 : _a.metadata) && Object.keys((_b = sample == null ? void 0 : sample.score) == null ? void 0 : _b.metadata).length > 0) {
     sampleMetadatas.push(
       m$1`<${MetaDataView}
-        id="task-sample-metadata-${id2}"
+        id="task-sample-metadata-${id}"
         classes="tab-pane"
         entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
         style=${{ marginTop: "1em" }}
@@ -16630,7 +18320,7 @@ const metadataViewsForSample = (id2, sample, context) => {
   }
   return sampleMetadatas;
 };
-const SampleSummary = ({ id: id2, sample, sampleDescriptor }) => {
+const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
@@ -16646,8 +18336,8 @@ const SampleSummary = ({ id: id2, sample, sampleDescriptor }) => {
   const columns = [];
   columns.push({
     label: "Id",
-    value: id2,
-    size: "minmax(2em, 25%)"
+    value: id,
+    size: "minmax(min-content, max-content)"
   });
   columns.push({
     label: "Input",
@@ -16688,47 +18378,49 @@ const SampleSummary = ({ id: id2, sample, sampleDescriptor }) => {
   });
   return m$1`
     <div
-      id=${`sample-${id2}`}
+      id=${`sample-${id}`}
       style=${{
     display: "grid",
     gridTemplateColumns: `${columns.map((col) => {
       return col.size;
     }).join(" ")}`,
     gridColumnGap: "0.5em",
-    fontSize: "0.8em",
+    fontSize: FontSize.base,
     borderBottom: "solid var(--bs-border-color) 1px",
     marginBottom: "1em",
-    padding: "0em 1em 1em 1em"
+    padding: "0em 1em 1em 1em",
+    ...style
   }}
     >
       ${columns.map((col) => {
-    const style = {
-      textTransform: "uppercase",
-      fontSize: "0.6rem"
+    const style2 = {
+      ...TextStyle.label,
+      ...TextStyle.secondary,
+      fontSize: FontSize.base
     };
     if (col.center) {
-      style.display = "flex";
-      style.justifyContent = "center";
+      style2["display"] = "flex";
+      style2["justifyContent"] = "center";
     }
-    return m$1`<div style=${{ ...style }}>${col.label}</div>`;
+    return m$1`<div style=${{ ...style2 }}>${col.label}</div>`;
   })}
       ${columns.map((col) => {
-    const style = {
-      ...col.clamp ? sharedStyles.threeLineClamp : {}
+    const style2 = {
+      ...col.clamp ? ApplicationStyles.threeLineClamp : {}
     };
     if (col.center) {
-      style.display = "flex";
-      style.justifyContent = "center";
+      style2.display = "flex";
+      style2.justifyContent = "center";
     }
-    style.wordWrap = "anywhere";
-    return m$1`<div style=${{ ...style }}>${col.value}</div>`;
+    style2.wordWrap = "anywhere";
+    return m$1`<div style=${{ ...style2 }}>${col.value}</div>`;
   })}
     </div>
   `;
 };
 const SampleDialog = (props) => {
   const {
-    id: id2,
+    id,
     index,
     title,
     sample,
@@ -16738,18 +18430,18 @@ const SampleDialog = (props) => {
     context
   } = props;
   if (!sample) {
-    return m$1`<${LargeModal} id=${id2} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
+    return m$1`<${LargeModal} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
   }
   const tools = T(() => {
     const nextTool = {
       label: "Next Sample",
-      icon: icons.next,
+      icon: ApplicationIcons.next,
       onclick: nextSample,
       enabled: !!nextSample
     };
     const prevTool = {
       label: "Previous Sample",
-      icon: icons.previous,
+      icon: ApplicationIcons.previous,
       onclick: prevSample,
       enabled: !!prevSample
     };
@@ -16777,14 +18469,14 @@ const SampleDialog = (props) => {
   );
   return m$1`
     <${LargeModal} 
-      id=${id2} 
+      id=${id} 
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
     >
     <${SampleDisplay}
       index=${index}
-      id=${id2}
+      id=${id}
       sample=${sample}
       sampleDescriptor=${sampleDescriptor}
       context=${context}/>
@@ -16860,8 +18552,8 @@ class VirtualList extends b {
     return rows;
   }
 }
-const kSampleHeight = 82;
-const kSeparatorHeight = 20;
+const kSampleHeight = 88;
+const kSeparatorHeight = 24;
 const SampleList = (props) => {
   const {
     listRef,
@@ -16936,7 +18628,6 @@ const SampleList = (props) => {
       return m$1`
         <${SeparatorRow}
           id=${`sample-group${item.number}`}
-          class="cool"
           title=${item.data}
           height=${kSeparatorHeight}
         />
@@ -16969,13 +18660,15 @@ const SampleList = (props) => {
     style=${{
     display: "grid",
     ...gridColumnStyles(sampleDescriptor),
-    fontSize: "0.7rem",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
     paddingBottom: "0.3em",
     paddingTop: "0.3em",
     borderBottom: "solid var(--bs-light-border-subtle) 1px"
   }}
   >
-    <div>#</div>
+    <div>Id</div>
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
@@ -16996,15 +18689,14 @@ const SampleList = (props) => {
     />
   </div>`;
 };
-const SeparatorRow = ({ id: id2, title, height }) => {
+const SeparatorRow = ({ id, title, height }) => {
   return m$1`<div
-    id=${id2}
+    id=${id}
     style=${{
-    backgroundColor: "var(--bs-secondary-bg)",
     padding: ".25em 1em .25em 1em",
     textTransform: "uppercase",
-    color: "var(--bs-secondary)",
-    fontSize: "0.6rem",
+    ...TextStyle.secondary,
+    fontSize: FontSize.smaller,
     fontWeight: 600,
     borderBottom: "solid 1px var(--bs-border-color)",
     height: `${height}px`
@@ -17014,7 +18706,7 @@ const SeparatorRow = ({ id: id2, title, height }) => {
   </div>`;
 };
 const SampleRow = ({
-  id: id2,
+  id,
   index,
   sample,
   sampleDescriptor,
@@ -17032,7 +18724,7 @@ const SampleRow = ({
   };
   return m$1`
     <div
-      id=${`sample-${id2}`}
+      id=${`sample-${id}`}
       onclick=${() => {
     if (setSelected) {
       setSelected(index);
@@ -17048,18 +18740,18 @@ const SampleRow = ({
     paddingTop: "1em",
     paddingBottom: "1em",
     gridTemplateRows: `${height - 28}px`,
-    fontSize: "0.8em",
+    fontSize: FontSize.base,
     borderBottom: "solid var(--bs-border-color) 1px",
     cursor: "pointer",
     ...selectedStyle,
     overflowY: "hidden"
   }}
     >
-      <div class="sample-index" style=${{ ...cellStyle }}>${id2}</div>
+      <div class="sample-index" style=${{ ...cellStyle }}>${id}</div>
       <div
         class="sample-input"
         style=${{
-    ...sharedStyles.threeLineClamp,
+    ...ApplicationStyles.threeLineClamp,
     wordWrap: "anywhere",
     ...cellStyle
   }}
@@ -17069,7 +18761,7 @@ const SampleRow = ({
       <div
         class="sample-target"
         style=${{
-    ...sharedStyles.threeLineClamp,
+    ...ApplicationStyles.threeLineClamp,
     ...cellStyle
   }}
       >
@@ -17082,7 +18774,7 @@ const SampleRow = ({
       <div
         class="sample-answer"
         style=${{
-    ...sharedStyles.threeLineClamp,
+    ...ApplicationStyles.threeLineClamp,
     ...cellStyle
   }}
       >
@@ -17099,7 +18791,7 @@ const SampleRow = ({
 
       <div
         style=${{
-    fontSize: "0.8rem",
+    fontSize: FontSize.small,
     ...cellStyle,
     display: "flex"
   }}
@@ -17407,13 +19099,22 @@ const EpochFilter = ({ epochs, epoch, setEpoch }) => {
   }
   return m$1`
     <div style=${{ display: "flex" }}>
-      <span class="epoch-filter-label" style=${{ alignSelf: "center" }}
+      <span
+        class="epoch-filter-label"
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
         >Epochs:</span
       >
       <select
         class="form-select form-select-sm"
         aria-label=".epoch-filter-label"
-        style=${{ fontSize: "0.7rem" }}
+        style=${{ fontSize: FontSize.smaller }}
         value=${epoch}
         onChange=${(e2) => {
     setEpoch(e2.target.value);
@@ -17522,13 +19223,20 @@ const SelectFilter = ({ value, options, filterFn }) => {
     <div style=${{ display: "flex" }}>
       <span
         class="sample-label"
-        style=${{ alignSelf: "center", marginRight: "0.5em" }}
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
         >Scores:</span
       >
       <select
         class="form-select form-select-sm"
         aria-label=".sample-label"
-        style=${{ fontSize: "0.7rem" }}
+        style=${{ fontSize: FontSize.smaller }}
         value=${value}
         onChange=${filterFn}
       >
@@ -17621,7 +19329,14 @@ const SelectScorer = ({ scores, score, setScore }) => {
   if (scorers.length === 1) {
     return m$1`
       <div style=${{ display: "flex" }}>
-        <span class="select-scorer-label" style=${{ alignSelf: "center" }}
+        <span
+          class="select-scorer-label"
+          style=${{
+      alignSelf: "center",
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary
+    }}
           >Score:</span
         >
         <${ScoreSelector}
@@ -17660,7 +19375,16 @@ const SelectScorer = ({ scores, score, setScore }) => {
     }
     return m$1`
       <div style=${{ display: "flex" }}>
-        <span class="select-scorer-label" style=${{ alignSelf: "center" }}
+        <span
+          class="select-scorer-label"
+          style=${{
+      alignSelf: "center",
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary,
+      marginRight: "0.3em",
+      marginLeft: "0.2em"
+    }}
           >Scorer:</span
         >
         ${selectors}
@@ -17676,8 +19400,8 @@ const ScoreSelector = ({
 }) => {
   return m$1`<select
     class="form-select form-select-sm"
-    aria-label=".epoch-filter-label"
-    style=${{ fontSize: "0.7rem", ...style }}
+    aria-label=".select-scorer-label"
+    style=${{ fontSize: FontSize.smaller, ...style }}
     value=${scores[selectedIndex].name}
     onChange=${(e2) => {
     selectedIndexChanged(e2.target.selectedIndex);
@@ -17692,7 +19416,7 @@ const ScorerSelector = ({ scorers, selectedIndex, selectedIndexChanged }) => {
   return m$1`<select
     class="form-select form-select-sm"
     aria-label=".epoch-filter-label"
-    style=${{ fontSize: "0.7rem" }}
+    style=${{ fontSize: FontSize.smaller }}
     value=${scorers[selectedIndex].scorer}
     onChange=${(e2) => {
     selectedIndexChanged(e2.target.selectedIndex);
@@ -17760,6 +19484,146 @@ const SampleTools = (props) => {
   );
   return tools;
 };
+const ModelTokenTable = ({ model_usage }) => {
+  return m$1`
+  <${TokenTable}>
+    <${TokenHeader}/>
+    <tbody>
+    ${Object.keys(model_usage).map((key2) => {
+    const vals = Object.values(model_usage[key2]);
+    return m$1`<${TokenRow} model=${key2} values=${vals} />`;
+  })}
+    </tbody>
+  </${TokenTable}>
+  `;
+};
+const TokenTable = ({ children }) => {
+  return m$1`<table
+    class="table table-sm"
+    style=${{ width: "100%", fontSize: FontSize.smaller, marginTop: "0.7rem" }}
+  >
+    ${children}
+  </table>`;
+};
+const thStyle = {
+  padding: 0,
+  fontWeight: 300,
+  fontSize: FontSize.small,
+  ...TextStyle.label,
+  ...TextStyle.secondary
+};
+const TokenHeader = () => {
+  return m$1`<thead>
+    <tr>
+      <td></td>
+      <td
+        colspan="3"
+        align="center"
+        class="card-subheading"
+        style=${{
+    paddingBottom: "0.7rem",
+    fontSize: FontSize.small,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        Tokens
+      </td>
+    </tr>
+    <tr>
+      <th style=${thStyle}>Model</th>
+      <th style=${thStyle}>Input</th>
+      <th style=${thStyle}>Output</th>
+      <th style=${thStyle}>Total</th>
+    </tr>
+  </thead>`;
+};
+const TokenRow = ({ model, values }) => {
+  return m$1`<tr>
+    <td>${model}</td>
+    ${values.map((val) => {
+    return m$1`<td>${val.toLocaleString()}</td>`;
+  })}
+  </tr>`;
+};
+const kUsageCardBodyId = "usage-card-body";
+const UsageCard = ({ stats, context }) => {
+  if (!stats) {
+    return "";
+  }
+  const totalDuration = duration(stats);
+  const usageMetadataStyle = {
+    fontSize: FontSize.smaller
+  };
+  return m$1`
+
+    <${Card}>
+      <${CardHeader} icon=${ApplicationIcons.usage} label="Usage"/>
+      <${CardBody} id=${kUsageCardBodyId} style=${{
+    paddingTop: "0",
+    paddingBottom: "0",
+    borderTop: "solid var(--bs-border-color) 1px"
+  }}>
+        <div style=${{
+    paddingTop: "0",
+    paddingBottom: "1em",
+    marginLeft: "0",
+    display: "flex"
+  }}>
+
+          <div style=${{ flex: "1 1 40%", marginRight: "1em" }}>
+          <div style=${{ marginTop: "1em", fontSize: FontSize.smaller, ...TextStyle.label, ...TextStyle.secondary }}>Duration</div>
+          <${MetaDataView}
+            entries="${{
+    ["Start"]: new Date(stats.started_at).toLocaleString(),
+    ["End"]: new Date(stats.completed_at).toLocaleString(),
+    ["Duration"]: totalDuration
+  }}"
+            tableOptions="borderless,sm"
+            context=${context}
+            style=${usageMetadataStyle}
+          />
+          </div>
+
+          <div style=${{ flex: "1 1 60%" }}>
+            <${ModelTokenTable} model_usage=${stats.model_usage}/>
+          </div>
+        </div>
+      </${CardBody}>
+    </${Card}>
+  `;
+};
+const duration = (stats) => {
+  const start2 = new Date(stats.started_at);
+  const end2 = new Date(stats.completed_at);
+  const durationMs = end2.getTime() - start2.getTime();
+  const durationSec = durationMs / 1e3;
+  return formatTime(durationSec);
+};
+const CopyButton = ({ value }) => {
+  return m$1`<button
+    class="copy-button"
+    style=${{
+    border: "none",
+    backgroundColor: "inherit",
+    opacity: "0.5",
+    paddingTop: "0px"
+  }}
+    data-clipboard-text=${value}
+    onclick=${(e2) => {
+    const iEl = e2.target;
+    if (iEl) {
+      iEl.className = `${ApplicationIcons.confirm} primary`;
+      setTimeout(() => {
+        iEl.className = ApplicationIcons.copy;
+      }, 1250);
+    }
+    return false;
+  }}
+  >
+    <i class=${ApplicationIcons.copy}></i>
+  </button>`;
+};
 const LabeledValue = ({
   label,
   style,
@@ -17777,24 +19641,20 @@ const LabeledValue = ({
   >
     <div
       style=${{
-    fontSize: "0.5rem",
-    textTransform: "uppercase",
-    fontWeight: "600",
+    fontSize: FontSize.smaller,
     marginBottom: "-0.2rem",
-    color: "var(--bs-secondary)"
+    ...TextStyle.secondary,
+    ...TextStyle.label
   }}
     >
       ${label}
     </div>
-    <div style=${{ fontSize: "0.8rem", ...valueStyle }}>${children}</div>
+    <div style=${{ fontSize: FontSize.base, ...valueStyle }}>${children}</div>
   </div>`;
 };
-const TitleBlock = ({ log, status }) => {
+const SecondaryBar = ({ log, status, style }) => {
   var _a, _b, _c;
-  if (!log) {
-    return "";
-  }
-  if (status !== "success") {
+  if (!log || status !== "success") {
     return "";
   }
   const staticColStyle = {
@@ -17805,30 +19665,30 @@ const TitleBlock = ({ log, status }) => {
     ...log.plan.config,
     ...log.eval.task_args
   };
+  const hasConfig = Object.keys(hyperparameters).length > 0;
   const values = [];
   values.push({
-    size: "auto",
+    size: "minmax(12%, auto)",
     value: m$1`<${LabeledValue} label="Dataset" style=${staticColStyle}>
     <${DatasetSummary}
       dataset=${(_a = log.eval) == null ? void 0 : _a.dataset}
       samples=${log.samples}
-      epochs=${epochs}
-      style=${{ fontSize: "0.8rem" }} />
+      epochs=${epochs} />
   </${LabeledValue}>
 `
   });
   const label = ((_b = log == null ? void 0 : log.results) == null ? void 0 : _b.scores.length) > 1 ? "Scorers" : "Scorer";
   values.push({
-    size: "auto",
-    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle}>
+    size: "minmax(12%, auto)",
+    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
     <${ScorerSummary} 
       scorers=${(_c = log == null ? void 0 : log.results) == null ? void 0 : _c.scores} />
   </${LabeledValue}>`
   });
-  if (Object.keys(hyperparameters).length > 0) {
+  if (hasConfig) {
     values.push({
-      size: "auto",
-      value: m$1`<${LabeledValue} label="Config">
+      size: "minmax(12%, auto)",
+      value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
       <${ParamSummary} params=${hyperparameters}/>
     </${LabeledValue}>`
     });
@@ -17840,10 +19700,11 @@ const TitleBlock = ({ log, status }) => {
     padding: "0.2em 1em 0.2em 1em",
     display: "grid",
     gridColumnGap: "1em",
-    paddingTop: "0.5em",
+    borderTop: "1px solid var(--bs-border-color)",
     gridTemplateColumns: `${values.map((val) => {
       return val.size;
-    }).join(" ")}`
+    }).join(" ")}`,
+    ...style
   }}
     >
       ${values.map((val) => {
@@ -17858,9 +19719,7 @@ const DatasetSummary = ({ dataset, samples, epochs, style }) => {
   }
   return m$1`
     <div style=${style}>
-      ${dataset.name}${(samples == null ? void 0 : samples.length) ? m$1` <span style=${{ fontSize: "0.9em" }}>
-            ${formatDataset(dataset.name, samples.length, epochs)}
-          </span>` : ""}
+      ${dataset.name}${(samples == null ? void 0 : samples.length) ? m$1`${formatDataset(dataset.name, samples.length, epochs)}` : ""}
     </div>
   `;
 };
@@ -17889,121 +19748,1746 @@ const ParamSummary = ({ params }) => {
     return "";
   }
 };
-const ModelTokenTable = ({ model_usage }) => {
-  return m$1`
-  <${TokenTable}>
-    <${TokenHeader}/>
-    <tbody>
-    ${Object.keys(model_usage).map((key2) => {
-    const vals = Object.values(model_usage[key2]);
-    return m$1`<${TokenRow} model=${key2} values=${vals} />`;
-  })}
-    </tbody>
-  </${TokenTable}>
-  `;
-};
-const TokenTable = ({ children }) => {
-  return m$1`<table
-    class="table table-sm"
-    style=${{ width: "100%", fontSize: "0.8rem", marginTop: "0.7rem" }}
-  >
-    ${children}
-  </table>`;
-};
-const thStyle = {
-  padding: 0,
-  fontSize: "0.7rem",
-  fontWeight: 400,
-  textTransform: "uppercase"
-};
-const TokenHeader = () => {
-  return m$1`<thead>
-    <tr>
-      <td></td>
-      <td
-        colspan="3"
-        align="center"
-        class="card-subheading"
-        style=${{ paddingBottom: "0.7rem" }}
-      >
-        Tokens
-      </td>
-    </tr>
-    <tr>
-      <th style=${thStyle}>Model</th>
-      <th style=${thStyle}>Input</th>
-      <th style=${thStyle}>Output</th>
-      <th style=${thStyle}>Total</th>
-    </tr>
-  </thead>`;
-};
-const TokenRow = ({ model, values }) => {
-  return m$1`<tr>
-    <td>${model}</td>
-    ${values.map((val) => {
-    return m$1`<td>${val.toLocaleString()}</td>`;
-  })}
-  </tr>`;
-};
-const kUsageCardBodyId = "usage-card-body";
-const UsageCard = ({ stats, context }) => {
-  if (!stats) {
-    return "";
+const Navbar = ({ file, logs, log, offcanvas }) => {
+  var _a, _b;
+  const toggleOffCanClass = offcanvas ? "" : " d-md-none";
+  const logFileName = file ? filename(file) : "";
+  const task = (_a = log == null ? void 0 : log.eval) == null ? void 0 : _a.task;
+  const model = (_b = log == null ? void 0 : log.eval) == null ? void 0 : _b.model;
+  const results = log == null ? void 0 : log.results;
+  const samples = log == null ? void 0 : log.samples;
+  const status = log == null ? void 0 : log.status;
+  let statusPanel;
+  if (status === "success") {
+    statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
+  } else if (status === "cancelled") {
+    statusPanel = m$1`<${CanceledPanel}
+      sampleCount=${(samples == null ? void 0 : samples.length) || 0}
+    />`;
+  } else if (status === "started") {
+    statusPanel = m$1`<${RunningPanel} />`;
   }
-  const totalDuration = duration(stats);
-  const usageMetadataStyle = {
-    fontSize: "0.8em"
-  };
-  return m$1`
-
-    <${Card}>
-      <${CardHeader} icon=${icons.usage} label="Usage"/>
-      <${CardBody} id=${kUsageCardBodyId} style=${{
-    paddingTop: "0",
-    paddingBottom: "0",
-    borderTop: "solid var(--bs-border-color) 1px"
-  }}>
-        <div style=${{
-    paddingTop: "0",
-    paddingBottom: "1em",
-    marginLeft: "0",
+  const navbarContents = logFileName ? m$1` <div
+          class="navbar-brand navbar-text mb-0"
+          style=${{
+    display: "flex",
+    paddingTop: 0,
+    marginLeft: "0.5rem",
+    minWidth: "250px"
+  }}
+        >
+          ${logs.files.length > 1 || logs.log_dir ? m$1`<button
+                id="sidebarToggle"
+                class="btn${toggleOffCanClass}"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#sidebarOffCanvas"
+                aria-controls="sidebarOffCanvas"
+                style=${{
+    padding: "0rem 0.1rem 0.1rem 0rem",
     display: "flex"
-  }}>
-
-          <div style=${{ flex: "1 1 40%", marginRight: "1em" }}>
-          <div class="card-subheading">Duration</div>
-          <${MetaDataView}
-            entries="${{
-    ["Start"]: new Date(stats.started_at).toLocaleString(),
-    ["End"]: new Date(stats.completed_at).toLocaleString(),
-    ["Duration"]: totalDuration
-  }}"
-            tableOptions="borderless,sm"
-            context=${context}
-            style=${usageMetadataStyle}
-          />
-          </div>
-
-          <div style=${{ flex: "1 1 60%" }}>
-            <${ModelTokenTable} model_usage=${stats.model_usage}/>
+  }}
+              >
+                <i class=${ApplicationIcons.menu}></i>
+              </button> ` : ""}
+          <div
+            style=${{
+    display: "flex",
+    flexDirection: "column",
+    marginLeft: "0.2rem"
+  }}
+          >
+            <div
+              style=${{
+    marginTop: "0.1rem",
+    display: "grid",
+    gridTemplateColumns: "minmax(30px,max-content) minmax(100px, max-content)"
+  }}
+            >
+              <div
+                style=${{
+    fontWeight: 600,
+    marginRight: "0.3rem",
+    ...ApplicationStyles.wrapText()
+  }}
+                class="task-title"
+                title=${task}
+              >
+                ${task}
+              </div>
+              <div
+                style=${{
+    fontSize: FontSize.base,
+    paddingTop: "0.4rem",
+    ...ApplicationStyles.wrapText()
+  }}
+                class="task-model"
+                title=${model}
+              >
+                ${model}
+              </div>
+            </div>
+            <div
+              style=${{
+    opacity: "0.7",
+    marginTop: "0.1rem",
+    paddingBottom: 0,
+    fontSize: FontSize.small,
+    display: "grid",
+    gridTemplateColumns: "minmax(0,max-content) max-content"
+  }}
+            >
+              <div
+                class="navbar-secondary-text"
+                style=${{
+    ...ApplicationStyles.wrapText()
+  }}
+              >
+                ${logFileName}
+              </div>
+              <${CopyButton} value=${file} />
+            </div>
           </div>
         </div>
-      </${CardBody}>
-    </${Card}>
+
+        <div
+          class="navbar-text"
+          style=${{
+    justifyContent: "end",
+    marginRight: "1em",
+    marginBottom: "0"
+  }}
+        >
+          ${statusPanel}
+        </div>` : "";
+  return m$1`
+    <nav
+      class="navbar sticky-top"
+      style=${{
+    flexWrap: "nowrap"
+  }}
+    >
+      <div
+        style=${{
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    width: "100%"
+  }}
+      >
+        ${navbarContents}
+        <${SecondaryBar}
+          log=${log}
+          status=${status}
+          style=${{ gridColumn: "1/-1" }}
+        />
+      </div>
+    </nav>
   `;
 };
-const duration = (stats) => {
-  const start2 = new Date(stats.started_at);
-  const end2 = new Date(stats.completed_at);
-  const durationMs = end2.getTime() - start2.getTime();
-  const durationSec = durationMs / 1e3;
-  return formatTime(durationSec);
+const CanceledPanel = ({ sampleCount }) => {
+  return m$1`<div
+    style=${{
+    padding: "1em",
+    marginTop: "0.5em",
+    textTransform: "uppercase",
+    fontSize: FontSize.smaller
+  }}
+  >
+    <i
+      class="${ApplicationIcons.logging.info}"
+      style=${{ fontSize: FontSize.large }}
+    />
+    cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
+  </div>`;
+};
+const RunningPanel = () => {
+  return m$1`<div
+    style=${{
+    marginTop: "0.5em",
+    display: "inline-grid",
+    gridTemplateColumns: "auto auto"
+  }}
+  >
+    <div class="spinner-border spinner-border-sm" role="status"></div>
+    <div
+      style=${{
+    marginLeft: "0.3em",
+    paddingTop: "0.2em",
+    fontSize: FontSize.smaller
+  }}
+    >
+      Running
+    </div>
+  </div>`;
+};
+const ResultsPanel = ({ results }) => {
+  if (results.scores.length === 1) {
+    const scorers = {};
+    results.scores.map((score) => {
+      scorers[score.name] = Object.keys(score.metrics).map((key2) => {
+        return {
+          name: key2,
+          value: score.metrics[key2].value,
+          reducer: score.reducer
+        };
+      });
+    });
+    const metrics = Object.values(scorers)[0];
+    return m$1`<div
+      style=${{
+      display: "flex",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "end",
+      height: "100%",
+      alignItems: "center"
+    }}
+    >
+      ${metrics.map((metric, i2) => {
+      return m$1`<${VerticalMetric} metric=${metric} isFirst=${i2 === 0} />`;
+    })}
+    </div>`;
+  } else {
+    return m$1`<div
+      style=${{
+      display: "flex",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "end",
+      height: "100%",
+      alignItems: "center",
+      marginTop: "0.2rem",
+      paddingBottom: "0.4rem",
+      rowGap: "1em"
+    }}
+    >
+      ${results.scores.map((score, index) => {
+      return m$1`<${MultiScorerMetric}
+          scorer=${score}
+          isFirst=${index === 0}
+        />`;
+    })}
+    </div>`;
+  }
+};
+const VerticalMetric = ({ metric, isFirst }) => {
+  const reducer_component = metric.reducer ? m$1` <div
+        style=${{
+    fontSize: FontSize.smaller,
+    textAlign: "center",
+    paddingTop: "0.3rem",
+    marginBottom: "-0.3rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        ${metric.reducer}
+      </div>` : "";
+  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
+    <div
+      class="vertical-metric-label"
+      style=${{
+    fontSize: FontSize.smaller,
+    ...TextStyle.secondary,
+    textAlign: "center",
+    paddingTop: "0.3rem",
+    marginBottom: "-0.2rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    borderBottom: "solid var(--bs-border-color) 1px"
+  }}
+    >
+      ${metric.name}
+    </div>
+    ${reducer_component}
+    <div
+      class="vertical-metric-value"
+      style=${{
+    fontSize: FontSize.larger,
+    fontWeight: "500",
+    textAlign: "center"
+  }}
+    >
+      ${formatPrettyDecimal(metric.value)}
+    </div>
+  </div>`;
+};
+const MultiScorerMetric = ({ scorer, isFirst }) => {
+  const titleFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.larger : FontSize.base;
+  const reducerFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.small : FontSize.smaller;
+  const valueFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.base : FontSize.base;
+  const reducer_component = scorer.reducer ? m$1`<div
+        style=${{
+    fontSize: reducerFontSize,
+    textAlign: "center",
+    marginBottom: "-0.3rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        ${scorer.reducer}
+      </div>` : "";
+  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1.5em" }}>
+    <div
+      style=${{
+    fontSize: titleFontSize,
+    textAlign: "center",
+    borderBottom: "solid var(--bs-border-color) 1px",
+    marginBottom: "-0.1rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      class="multi-score-label"
+    >
+      ${scorer.name}
+    </div>
+    ${reducer_component}
+    <div
+      style=${{
+    display: "grid",
+    gridTemplateColumns: "auto auto",
+    gridColumnGap: "0.3rem",
+    gridRowGap: "0",
+    fontSize: valueFontSize
+  }}
+    >
+      ${Object.keys(scorer.metrics).map((key2) => {
+    const metric = scorer.metrics[key2];
+    return m$1` <div>${metric.name}</div>
+          <div style=${{ fontWeight: "600" }}>
+            ${formatPrettyDecimal(metric.value)}
+          </div>`;
+  })}
+    </div>
+  </div>`;
+};
+const asyncJsonParse = (text) => {
+  return new Promise((resolve, reject) => {
+    const blob = new Blob([kWorkerCode], { type: "application/javascript" });
+    const blobURL = URL.createObjectURL(blob);
+    const worker = new Worker(blobURL);
+    try {
+      worker.onmessage = function(e2) {
+        if (e2.data.success) {
+          resolve(e2.data.result);
+        } else {
+          reject(new Error(e2.data.error));
+        }
+      };
+      worker.onerror = function(error) {
+        reject(new Error(error.message));
+      };
+      worker.postMessage({ scriptContent: kJson5ScriptBase64, text });
+    } finally {
+      worker.onterminate = function() {
+        URL.revokeObjectURL(blobURL);
+      };
+    }
+  });
+};
+const kWorkerCode = `
+self.onmessage = function (e) {
+  eval(atob(e.data.scriptContent));
+  const text = e.data.text;
+  try {
+    const result = JSON5.parse(text);
+    self.postMessage({ success: true, result });
+  } catch (error) {
+    self.postMessage({ success: false, error: error.message });
+  }
+};`;
+const kJson5ScriptBase64 = `IWZ1bmN0aW9uKHUsRCl7Im9iamVjdCI9PXR5cGVvZiBleHBvcnRzJiYidW5kZWZpbmVkIiE9dHlwZW9mIG1vZHVsZT9tb2R1bGUuZXhwb3J0cz1EKCk6ImZ1bmN0aW9uIj09dHlwZW9mIGRlZmluZSYmZGVmaW5lLmFtZD9kZWZpbmUoRCk6dS5KU09ONT1EKCl9KHRoaXMsZnVuY3Rpb24oKXsidXNlIHN0cmljdCI7ZnVuY3Rpb24gdSh1LEQpe3JldHVybiB1KEQ9e2V4cG9ydHM6e319LEQuZXhwb3J0cyksRC5leHBvcnRzfXZhciBEPXUoZnVuY3Rpb24odSl7dmFyIEQ9dS5leHBvcnRzPSJ1bmRlZmluZWQiIT10eXBlb2Ygd2luZG93JiZ3aW5kb3cuTWF0aD09TWF0aD93aW5kb3c6InVuZGVmaW5lZCIhPXR5cGVvZiBzZWxmJiZzZWxmLk1hdGg9PU1hdGg/c2VsZjpGdW5jdGlvbigicmV0dXJuIHRoaXMiKSgpOyJudW1iZXIiPT10eXBlb2YgX19nJiYoX19nPUQpfSksZT11KGZ1bmN0aW9uKHUpe3ZhciBEPXUuZXhwb3J0cz17dmVyc2lvbjoiMi42LjUifTsibnVtYmVyIj09dHlwZW9mIF9fZSYmKF9fZT1EKX0pLHI9KGUudmVyc2lvbixmdW5jdGlvbih1KXtyZXR1cm4ib2JqZWN0Ij09dHlwZW9mIHU/bnVsbCE9PXU6ImZ1bmN0aW9uIj09dHlwZW9mIHV9KSx0PWZ1bmN0aW9uKHUpe2lmKCFyKHUpKXRocm93IFR5cGVFcnJvcih1KyIgaXMgbm90IGFuIG9iamVjdCEiKTtyZXR1cm4gdX0sbj1mdW5jdGlvbih1KXt0cnl7cmV0dXJuISF1KCl9Y2F0Y2godSl7cmV0dXJuITB9fSxGPSFuKGZ1bmN0aW9uKCl7cmV0dXJuIDchPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSh7fSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmF9KSxDPUQuZG9jdW1lbnQsQT1yKEMpJiZyKEMuY3JlYXRlRWxlbWVudCksaT0hRiYmIW4oZnVuY3Rpb24oKXtyZXR1cm4gNyE9T2JqZWN0LmRlZmluZVByb3BlcnR5KCh1PSJkaXYiLEE/Qy5jcmVhdGVFbGVtZW50KHUpOnt9KSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmE7dmFyIHV9KSxFPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSxvPXtmOkY/T2JqZWN0LmRlZmluZVByb3BlcnR5OmZ1bmN0aW9uKHUsRCxlKXtpZih0KHUpLEQ9ZnVuY3Rpb24odSxEKXtpZighcih1KSlyZXR1cm4gdTt2YXIgZSx0O2lmKEQmJiJmdW5jdGlvbiI9PXR5cGVvZihlPXUudG9TdHJpbmcpJiYhcih0PWUuY2FsbCh1KSkpcmV0dXJuIHQ7aWYoImZ1bmN0aW9uIj09dHlwZW9mKGU9dS52YWx1ZU9mKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O2lmKCFEJiYiZnVuY3Rpb24iPT10eXBlb2YoZT11LnRvU3RyaW5nKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O3Rocm93IFR5cGVFcnJvcigiQ2FuJ3QgY29udmVydCBvYmplY3QgdG8gcHJpbWl0aXZlIHZhbHVlIil9KEQsITApLHQoZSksaSl0cnl7cmV0dXJuIEUodSxELGUpfWNhdGNoKHUpe31pZigiZ2V0ImluIGV8fCJzZXQiaW4gZSl0aHJvdyBUeXBlRXJyb3IoIkFjY2Vzc29ycyBub3Qgc3VwcG9ydGVkISIpO3JldHVybiJ2YWx1ZSJpbiBlJiYodVtEXT1lLnZhbHVlKSx1fX0sYT1GP2Z1bmN0aW9uKHUsRCxlKXtyZXR1cm4gby5mKHUsRCxmdW5jdGlvbih1LEQpe3JldHVybntlbnVtZXJhYmxlOiEoMSZ1KSxjb25maWd1cmFibGU6ISgyJnUpLHdyaXRhYmxlOiEoNCZ1KSx2YWx1ZTpEfX0oMSxlKSl9OmZ1bmN0aW9uKHUsRCxlKXtyZXR1cm4gdVtEXT1lLHV9LGM9e30uaGFzT3duUHJvcGVydHksQj1mdW5jdGlvbih1LEQpe3JldHVybiBjLmNhbGwodSxEKX0scz0wLGY9TWF0aC5yYW5kb20oKSxsPXUoZnVuY3Rpb24odSl7dmFyIHI9RFsiX19jb3JlLWpzX3NoYXJlZF9fIl18fChEWyJfX2NvcmUtanNfc2hhcmVkX18iXT17fSk7KHUuZXhwb3J0cz1mdW5jdGlvbih1LEQpe3JldHVybiByW3VdfHwoclt1XT12b2lkIDAhPT1EP0Q6e30pfSkoInZlcnNpb25zIixbXSkucHVzaCh7dmVyc2lvbjplLnZlcnNpb24sbW9kZToiZ2xvYmFsIixjb3B5cmlnaHQ6IsKpIDIwMTkgRGVuaXMgUHVzaGthcmV2ICh6bG9pcm9jay5ydSkifSl9KSgibmF0aXZlLWZ1bmN0aW9uLXRvLXN0cmluZyIsRnVuY3Rpb24udG9TdHJpbmcpLGQ9dShmdW5jdGlvbih1KXt2YXIgcix0PSJTeW1ib2woIi5jb25jYXQodm9pZCAwPT09KHI9InNyYyIpPyIiOnIsIilfIiwoKytzK2YpLnRvU3RyaW5nKDM2KSksbj0oIiIrbCkuc3BsaXQoInRvU3RyaW5nIik7ZS5pbnNwZWN0U291cmNlPWZ1bmN0aW9uKHUpe3JldHVybiBsLmNhbGwodSl9LCh1LmV4cG9ydHM9ZnVuY3Rpb24odSxlLHIsRil7dmFyIEM9ImZ1bmN0aW9uIj09dHlwZW9mIHI7QyYmKEIociwibmFtZSIpfHxhKHIsIm5hbWUiLGUpKSx1W2VdIT09ciYmKEMmJihCKHIsdCl8fGEocix0LHVbZV0/IiIrdVtlXTpuLmpvaW4oU3RyaW5nKGUpKSkpLHU9PT1EP3VbZV09cjpGP3VbZV0/dVtlXT1yOmEodSxlLHIpOihkZWxldGUgdVtlXSxhKHUsZSxyKSkpfSkoRnVuY3Rpb24ucHJvdG90eXBlLCJ0b1N0cmluZyIsZnVuY3Rpb24oKXtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgdGhpcyYmdGhpc1t0XXx8bC5jYWxsKHRoaXMpfSl9KSx2PWZ1bmN0aW9uKHUsRCxlKXtpZihmdW5jdGlvbih1KXtpZigiZnVuY3Rpb24iIT10eXBlb2YgdSl0aHJvdyBUeXBlRXJyb3IodSsiIGlzIG5vdCBhIGZ1bmN0aW9uISIpfSh1KSx2b2lkIDA9PT1EKXJldHVybiB1O3N3aXRjaChlKXtjYXNlIDE6cmV0dXJuIGZ1bmN0aW9uKGUpe3JldHVybiB1LmNhbGwoRCxlKX07Y2FzZSAyOnJldHVybiBmdW5jdGlvbihlLHIpe3JldHVybiB1LmNhbGwoRCxlLHIpfTtjYXNlIDM6cmV0dXJuIGZ1bmN0aW9uKGUscix0KXtyZXR1cm4gdS5jYWxsKEQsZSxyLHQpfX1yZXR1cm4gZnVuY3Rpb24oKXtyZXR1cm4gdS5hcHBseShELGFyZ3VtZW50cyl9fSxwPWZ1bmN0aW9uKHUscix0KXt2YXIgbixGLEMsQSxpPXUmcC5GLEU9dSZwLkcsbz11JnAuUyxjPXUmcC5QLEI9dSZwLkIscz1FP0Q6bz9EW3JdfHwoRFtyXT17fSk6KERbcl18fHt9KS5wcm90b3R5cGUsZj1FP2U6ZVtyXXx8KGVbcl09e30pLGw9Zi5wcm90b3R5cGV8fChmLnByb3RvdHlwZT17fSk7Zm9yKG4gaW4gRSYmKHQ9ciksdClDPSgoRj0haSYmcyYmdm9pZCAwIT09c1tuXSk/czp0KVtuXSxBPUImJkY/dihDLEQpOmMmJiJmdW5jdGlvbiI9PXR5cGVvZiBDP3YoRnVuY3Rpb24uY2FsbCxDKTpDLHMmJmQocyxuLEMsdSZwLlUpLGZbbl0hPUMmJmEoZixuLEEpLGMmJmxbbl0hPUMmJihsW25dPUMpfTtELmNvcmU9ZSxwLkY9MSxwLkc9MixwLlM9NCxwLlA9OCxwLkI9MTYscC5XPTMyLHAuVT02NCxwLlI9MTI4O3ZhciBoLG09cCxnPU1hdGguY2VpbCx5PU1hdGguZmxvb3Isdz1mdW5jdGlvbih1KXtyZXR1cm4gaXNOYU4odT0rdSk/MDoodT4wP3k6ZykodSl9LGI9KGg9ITEsZnVuY3Rpb24odSxEKXt2YXIgZSxyLHQ9U3RyaW5nKGZ1bmN0aW9uKHUpe2lmKG51bGw9PXUpdGhyb3cgVHlwZUVycm9yKCJDYW4ndCBjYWxsIG1ldGhvZCBvbiAgIit1KTtyZXR1cm4gdX0odSkpLG49dyhEKSxGPXQubGVuZ3RoO3JldHVybiBuPDB8fG4+PUY/aD8iIjp2b2lkIDA6KGU9dC5jaGFyQ29kZUF0KG4pKTw1NTI5Nnx8ZT41NjMxOXx8bisxPT09Rnx8KHI9dC5jaGFyQ29kZUF0KG4rMSkpPDU2MzIwfHxyPjU3MzQzP2g/dC5jaGFyQXQobik6ZTpoP3Quc2xpY2UobixuKzIpOnItNTYzMjArKGUtNTUyOTY8PDEwKSs2NTUzNn0pO20obS5QLCJTdHJpbmciLHtjb2RlUG9pbnRBdDpmdW5jdGlvbih1KXtyZXR1cm4gYih0aGlzLHUpfX0pO2UuU3RyaW5nLmNvZGVQb2ludEF0O3ZhciBTPU1hdGgubWF4LHg9TWF0aC5taW4sTj1TdHJpbmcuZnJvbUNoYXJDb2RlLFA9U3RyaW5nLmZyb21Db2RlUG9pbnQ7bShtLlMrbS5GKighIVAmJjEhPVAubGVuZ3RoKSwiU3RyaW5nIix7ZnJvbUNvZGVQb2ludDpmdW5jdGlvbih1KXtmb3IodmFyIEQsZSxyLHQ9YXJndW1lbnRzLG49W10sRj1hcmd1bWVudHMubGVuZ3RoLEM9MDtGPkM7KXtpZihEPSt0W0MrK10scj0xMTE0MTExLCgoZT13KGU9RCkpPDA/UyhlK3IsMCk6eChlLHIpKSE9PUQpdGhyb3cgUmFuZ2VFcnJvcihEKyIgaXMgbm90IGEgdmFsaWQgY29kZSBwb2ludCIpO24ucHVzaChEPDY1NTM2P04oRCk6Tig1NTI5NisoKEQtPTY1NTM2KT4+MTApLEQlMTAyNCs1NjMyMCkpfXJldHVybiBuLmpvaW4oIiIpfX0pO2UuU3RyaW5nLmZyb21Db2RlUG9pbnQ7dmFyIF8sTyxqLEksVixKLE0sayxMLFQseixILCQsUixHPXtTcGFjZV9TZXBhcmF0b3I6L1tcdTE2ODBcdTIwMDAtXHUyMDBBXHUyMDJGXHUyMDVGXHUzMDAwXS8sSURfU3RhcnQ6L1tceEFBXHhCNVx4QkFceEMwLVx4RDZceEQ4LVx4RjZceEY4LVx1MDJDMVx1MDJDNi1cdTAyRDFcdTAyRTAtXHUwMkU0XHUwMkVDXHUwMkVFXHUwMzcwLVx1MDM3NFx1MDM3Nlx1MDM3N1x1MDM3QS1cdTAzN0RcdTAzN0ZcdTAzODZcdTAzODgtXHUwMzhBXHUwMzhDXHUwMzhFLVx1MDNBMVx1MDNBMy1cdTAzRjVcdTAzRjctXHUwNDgxXHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNUQwLVx1MDVFQVx1MDVGMC1cdTA1RjJcdTA2MjAtXHUwNjRBXHUwNjZFXHUwNjZGXHUwNjcxLVx1MDZEM1x1MDZENVx1MDZFNVx1MDZFNlx1MDZFRVx1MDZFRlx1MDZGQS1cdTA2RkNcdTA2RkZcdTA3MTBcdTA3MTItXHUwNzJGXHUwNzRELVx1MDdBNVx1MDdCMVx1MDdDQS1cdTA3RUFcdTA3RjRcdTA3RjVcdTA3RkFcdTA4MDAtXHUwODE1XHUwODFBXHUwODI0XHUwODI4XHUwODQwLVx1MDg1OFx1MDg2MC1cdTA4NkFcdTA4QTAtXHUwOEI0XHUwOEI2LVx1MDhCRFx1MDkwNC1cdTA5MzlcdTA5M0RcdTA5NTBcdTA5NTgtXHUwOTYxXHUwOTcxLVx1MDk4MFx1MDk4NS1cdTA5OENcdTA5OEZcdTA5OTBcdTA5OTMtXHUwOUE4XHUwOUFBLVx1MDlCMFx1MDlCMlx1MDlCNi1cdTA5QjlcdTA5QkRcdTA5Q0VcdTA5RENcdTA5RERcdTA5REYtXHUwOUUxXHUwOUYwXHUwOUYxXHUwOUZDXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTU5LVx1MEE1Q1x1MEE1RVx1MEE3Mi1cdTBBNzRcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCRFx1MEFEMFx1MEFFMFx1MEFFMVx1MEFGOVx1MEIwNS1cdTBCMENcdTBCMEZcdTBCMTBcdTBCMTMtXHUwQjI4XHUwQjJBLVx1MEIzMFx1MEIzMlx1MEIzM1x1MEIzNS1cdTBCMzlcdTBCM0RcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYxXHUwQjcxXHUwQjgzXHUwQjg1LVx1MEI4QVx1MEI4RS1cdTBCOTBcdTBCOTItXHUwQjk1XHUwQjk5XHUwQjlBXHUwQjlDXHUwQjlFXHUwQjlGXHUwQkEzXHUwQkE0XHUwQkE4LVx1MEJBQVx1MEJBRS1cdTBCQjlcdTBCRDBcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNEXHUwQzU4LVx1MEM1QVx1MEM2MFx1MEM2MVx1MEM4MFx1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JEXHUwQ0RFXHUwQ0UwXHUwQ0UxXHUwQ0YxXHUwQ0YyXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDNBXHUwRDNEXHUwRDRFXHUwRDU0LVx1MEQ1Nlx1MEQ1Ri1cdTBENjFcdTBEN0EtXHUwRDdGXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MEUwMS1cdTBFMzBcdTBFMzJcdTBFMzNcdTBFNDAtXHUwRTQ2XHUwRTgxXHUwRTgyXHUwRTg0XHUwRTg3XHUwRTg4XHUwRThBXHUwRThEXHUwRTk0LVx1MEU5N1x1MEU5OS1cdTBFOUZcdTBFQTEtXHUwRUEzXHUwRUE1XHUwRUE3XHUwRUFBXHUwRUFCXHUwRUFELVx1MEVCMFx1MEVCMlx1MEVCM1x1MEVCRFx1MEVDMC1cdTBFQzRcdTBFQzZcdTBFREMtXHUwRURGXHUwRjAwXHUwRjQwLVx1MEY0N1x1MEY0OS1cdTBGNkNcdTBGODgtXHUwRjhDXHUxMDAwLVx1MTAyQVx1MTAzRlx1MTA1MC1cdTEwNTVcdTEwNUEtXHUxMDVEXHUxMDYxXHUxMDY1XHUxMDY2XHUxMDZFLVx1MTA3MFx1MTA3NS1cdTEwODFcdTEwOEVcdTEwQTAtXHUxMEM1XHUxMEM3XHUxMENEXHUxMEQwLVx1MTBGQVx1MTBGQy1cdTEyNDhcdTEyNEEtXHUxMjREXHUxMjUwLVx1MTI1Nlx1MTI1OFx1MTI1QS1cdTEyNURcdTEyNjAtXHUxMjg4XHUxMjhBLVx1MTI4RFx1MTI5MC1cdTEyQjBcdTEyQjItXHUxMkI1XHUxMkI4LVx1MTJCRVx1MTJDMFx1MTJDMi1cdTEyQzVcdTEyQzgtXHUxMkQ2XHUxMkQ4LVx1MTMxMFx1MTMxMi1cdTEzMTVcdTEzMTgtXHUxMzVBXHUxMzgwLVx1MTM4Rlx1MTNBMC1cdTEzRjVcdTEzRjgtXHUxM0ZEXHUxNDAxLVx1MTY2Q1x1MTY2Ri1cdTE2N0ZcdTE2ODEtXHUxNjlBXHUxNkEwLVx1MTZFQVx1MTZFRS1cdTE2RjhcdTE3MDAtXHUxNzBDXHUxNzBFLVx1MTcxMVx1MTcyMC1cdTE3MzFcdTE3NDAtXHUxNzUxXHUxNzYwLVx1MTc2Q1x1MTc2RS1cdTE3NzBcdTE3ODAtXHUxN0IzXHUxN0Q3XHUxN0RDXHUxODIwLVx1MTg3N1x1MTg4MC1cdTE4ODRcdTE4ODctXHUxOEE4XHUxOEFBXHUxOEIwLVx1MThGNVx1MTkwMC1cdTE5MUVcdTE5NTAtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxQTAwLVx1MUExNlx1MUEyMC1cdTFBNTRcdTFBQTdcdTFCMDUtXHUxQjMzXHUxQjQ1LVx1MUI0Qlx1MUI4My1cdTFCQTBcdTFCQUVcdTFCQUZcdTFCQkEtXHUxQkU1XHUxQzAwLVx1MUMyM1x1MUM0RC1cdTFDNEZcdTFDNUEtXHUxQzdEXHUxQzgwLVx1MUM4OFx1MUNFOS1cdTFDRUNcdTFDRUUtXHUxQ0YxXHUxQ0Y1XHUxQ0Y2XHUxRDAwLVx1MURCRlx1MUUwMC1cdTFGMTVcdTFGMTgtXHUxRjFEXHUxRjIwLVx1MUY0NVx1MUY0OC1cdTFGNERcdTFGNTAtXHUxRjU3XHUxRjU5XHUxRjVCXHUxRjVEXHUxRjVGLVx1MUY3RFx1MUY4MC1cdTFGQjRcdTFGQjYtXHUxRkJDXHUxRkJFXHUxRkMyLVx1MUZDNFx1MUZDNi1cdTFGQ0NcdTFGRDAtXHUxRkQzXHUxRkQ2LVx1MUZEQlx1MUZFMC1cdTFGRUNcdTFGRjItXHUxRkY0XHUxRkY2LVx1MUZGQ1x1MjA3MVx1MjA3Rlx1MjA5MC1cdTIwOUNcdTIxMDJcdTIxMDdcdTIxMEEtXHUyMTEzXHUyMTE1XHUyMTE5LVx1MjExRFx1MjEyNFx1MjEyNlx1MjEyOFx1MjEyQS1cdTIxMkRcdTIxMkYtXHUyMTM5XHUyMTNDLVx1MjEzRlx1MjE0NS1cdTIxNDlcdTIxNEVcdTIxNjAtXHUyMTg4XHUyQzAwLVx1MkMyRVx1MkMzMC1cdTJDNUVcdTJDNjAtXHUyQ0U0XHUyQ0VCLVx1MkNFRVx1MkNGMlx1MkNGM1x1MkQwMC1cdTJEMjVcdTJEMjdcdTJEMkRcdTJEMzAtXHUyRDY3XHUyRDZGXHUyRDgwLVx1MkQ5Nlx1MkRBMC1cdTJEQTZcdTJEQTgtXHUyREFFXHUyREIwLVx1MkRCNlx1MkRCOC1cdTJEQkVcdTJEQzAtXHUyREM2XHUyREM4LVx1MkRDRVx1MkREMC1cdTJERDZcdTJERDgtXHUyRERFXHUyRTJGXHUzMDA1LVx1MzAwN1x1MzAyMS1cdTMwMjlcdTMwMzEtXHUzMDM1XHUzMDM4LVx1MzAzQ1x1MzA0MS1cdTMwOTZcdTMwOUQtXHUzMDlGXHUzMEExLVx1MzBGQVx1MzBGQy1cdTMwRkZcdTMxMDUtXHUzMTJFXHUzMTMxLVx1MzE4RVx1MzFBMC1cdTMxQkFcdTMxRjAtXHUzMUZGXHUzNDAwLVx1NERCNVx1NEUwMC1cdTlGRUFcdUEwMDAtXHVBNDhDXHVBNEQwLVx1QTRGRFx1QTUwMC1cdUE2MENcdUE2MTAtXHVBNjFGXHVBNjJBXHVBNjJCXHVBNjQwLVx1QTY2RVx1QTY3Ri1cdUE2OURcdUE2QTAtXHVBNkVGXHVBNzE3LVx1QTcxRlx1QTcyMi1cdUE3ODhcdUE3OEItXHVBN0FFXHVBN0IwLVx1QTdCN1x1QTdGNy1cdUE4MDFcdUE4MDMtXHVBODA1XHVBODA3LVx1QTgwQVx1QTgwQy1cdUE4MjJcdUE4NDAtXHVBODczXHVBODgyLVx1QThCM1x1QThGMi1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MEEtXHVBOTI1XHVBOTMwLVx1QTk0Nlx1QTk2MC1cdUE5N0NcdUE5ODQtXHVBOUIyXHVBOUNGXHVBOUUwLVx1QTlFNFx1QTlFNi1cdUE5RUZcdUE5RkEtXHVBOUZFXHVBQTAwLVx1QUEyOFx1QUE0MC1cdUFBNDJcdUFBNDQtXHVBQTRCXHVBQTYwLVx1QUE3Nlx1QUE3QVx1QUE3RS1cdUFBQUZcdUFBQjFcdUFBQjVcdUFBQjZcdUFBQjktXHVBQUJEXHVBQUMwXHVBQUMyXHVBQURCLVx1QUFERFx1QUFFMC1cdUFBRUFcdUFBRjItXHVBQUY0XHVBQjAxLVx1QUIwNlx1QUIwOS1cdUFCMEVcdUFCMTEtXHVBQjE2XHVBQjIwLVx1QUIyNlx1QUIyOC1cdUFCMkVcdUFCMzAtXHVBQjVBXHVBQjVDLVx1QUI2NVx1QUI3MC1cdUFCRTJcdUFDMDAtXHVEN0EzXHVEN0IwLVx1RDdDNlx1RDdDQi1cdUQ3RkJcdUY5MDAtXHVGQTZEXHVGQTcwLVx1RkFEOVx1RkIwMC1cdUZCMDZcdUZCMTMtXHVGQjE3XHVGQjFEXHVGQjFGLVx1RkIyOFx1RkIyQS1cdUZCMzZcdUZCMzgtXHVGQjNDXHVGQjNFXHVGQjQwXHVGQjQxXHVGQjQzXHVGQjQ0XHVGQjQ2LVx1RkJCMVx1RkJEMy1cdUZEM0RcdUZENTAtXHVGRDhGXHVGRDkyLVx1RkRDN1x1RkRGMC1cdUZERkJcdUZFNzAtXHVGRTc0XHVGRTc2LVx1RkVGQ1x1RkYyMS1cdUZGM0FcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGNzVcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENCMC1cdURDRDNcdURDRDgtXHVEQ0ZCXHVERDAwLVx1REQyN1x1REQzMC1cdURENjNcdURFMDAtXHVERjM2XHVERjQwLVx1REY1NVx1REY2MC1cdURGNjddfFx1RDgwMltcdURDMDAtXHVEQzA1XHVEQzA4XHVEQzBBLVx1REMzNVx1REMzN1x1REMzOFx1REMzQ1x1REMzRi1cdURDNTVcdURDNjAtXHVEQzc2XHVEQzgwLVx1REM5RVx1RENFMC1cdURDRjJcdURDRjRcdURDRjVcdUREMDAtXHVERDE1XHVERDIwLVx1REQzOVx1REQ4MC1cdUREQjdcdUREQkVcdUREQkZcdURFMDBcdURFMTAtXHVERTEzXHVERTE1LVx1REUxN1x1REUxOS1cdURFMzNcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU0XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMy1cdURDMzdcdURDODMtXHVEQ0FGXHVEQ0QwLVx1RENFOFx1REQwMy1cdUREMjZcdURENTAtXHVERDcyXHVERDc2XHVERDgzLVx1RERCMlx1RERDMS1cdUREQzRcdUREREFcdURERENcdURFMDAtXHVERTExXHVERTEzLVx1REUyQlx1REU4MC1cdURFODZcdURFODhcdURFOEEtXHVERThEXHVERThGLVx1REU5RFx1REU5Ri1cdURFQThcdURFQjAtXHVERURFXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzRFx1REY1MFx1REY1RC1cdURGNjFdfFx1RDgwNVtcdURDMDAtXHVEQzM0XHVEQzQ3LVx1REM0QVx1REM4MC1cdURDQUZcdURDQzRcdURDQzVcdURDQzdcdUREODAtXHVEREFFXHVEREQ4LVx1REREQlx1REUwMC1cdURFMkZcdURFNDRcdURFODAtXHVERUFBXHVERjAwLVx1REYxOV18XHVEODA2W1x1RENBMC1cdURDREZcdURDRkZcdURFMDBcdURFMEItXHVERTMyXHVERTNBXHVERTUwXHVERTVDLVx1REU4M1x1REU4Ni1cdURFODlcdURFQzAtXHVERUY4XXxcdUQ4MDdbXHVEQzAwLVx1REMwOFx1REMwQS1cdURDMkVcdURDNDBcdURDNzItXHVEQzhGXHVERDAwLVx1REQwNlx1REQwOFx1REQwOVx1REQwQi1cdUREMzBcdURENDZdfFx1RDgwOFtcdURDMDAtXHVERjk5XXxcdUQ4MDlbXHVEQzAwLVx1REM2RVx1REM4MC1cdURENDNdfFtcdUQ4MENcdUQ4MUMtXHVEODIwXHVEODQwLVx1RDg2OFx1RDg2QS1cdUQ4NkNcdUQ4NkYtXHVEODcyXHVEODc0LVx1RDg3OV1bXHVEQzAwLVx1REZGRl18XHVEODBEW1x1REMwMC1cdURDMkVdfFx1RDgxMVtcdURDMDAtXHVERTQ2XXxcdUQ4MUFbXHVEQzAwLVx1REUzOFx1REU0MC1cdURFNUVcdURFRDAtXHVERUVEXHVERjAwLVx1REYyRlx1REY0MC1cdURGNDNcdURGNjMtXHVERjc3XHVERjdELVx1REY4Rl18XHVEODFCW1x1REYwMC1cdURGNDRcdURGNTBcdURGOTMtXHVERjlGXHVERkUwXHVERkUxXXxcdUQ4MjFbXHVEQzAwLVx1REZFQ118XHVEODIyW1x1REMwMC1cdURFRjJdfFx1RDgyQ1tcdURDMDAtXHVERDFFXHVERDcwLVx1REVGQl18XHVEODJGW1x1REMwMC1cdURDNkFcdURDNzAtXHVEQzdDXHVEQzgwLVx1REM4OFx1REM5MC1cdURDOTldfFx1RDgzNVtcdURDMDAtXHVEQzU0XHVEQzU2LVx1REM5Q1x1REM5RVx1REM5Rlx1RENBMlx1RENBNVx1RENBNlx1RENBOS1cdURDQUNcdURDQUUtXHVEQ0I5XHVEQ0JCXHVEQ0JELVx1RENDM1x1RENDNS1cdUREMDVcdUREMDctXHVERDBBXHVERDBELVx1REQxNFx1REQxNi1cdUREMUNcdUREMUUtXHVERDM5XHVERDNCLVx1REQzRVx1REQ0MC1cdURENDRcdURENDZcdURENEEtXHVERDUwXHVERDUyLVx1REVBNVx1REVBOC1cdURFQzBcdURFQzItXHVERURBXHVERURDLVx1REVGQVx1REVGQy1cdURGMTRcdURGMTYtXHVERjM0XHVERjM2LVx1REY0RVx1REY1MC1cdURGNkVcdURGNzAtXHVERjg4XHVERjhBLVx1REZBOFx1REZBQS1cdURGQzJcdURGQzQtXHVERkNCXXxcdUQ4M0FbXHVEQzAwLVx1RENDNFx1REQwMC1cdURENDNdfFx1RDgzQltcdURFMDAtXHVERTAzXHVERTA1LVx1REUxRlx1REUyMVx1REUyMlx1REUyNFx1REUyN1x1REUyOS1cdURFMzJcdURFMzQtXHVERTM3XHVERTM5XHVERTNCXHVERTQyXHVERTQ3XHVERTQ5XHVERTRCXHVERTRELVx1REU0Rlx1REU1MVx1REU1Mlx1REU1NFx1REU1N1x1REU1OVx1REU1Qlx1REU1RFx1REU1Rlx1REU2MVx1REU2Mlx1REU2NFx1REU2Ny1cdURFNkFcdURFNkMtXHVERTcyXHVERTc0LVx1REU3N1x1REU3OS1cdURFN0NcdURFN0VcdURFODAtXHVERTg5XHVERThCLVx1REU5Qlx1REVBMS1cdURFQTNcdURFQTUtXHVERUE5XHVERUFCLVx1REVCQl18XHVEODY5W1x1REMwMC1cdURFRDZcdURGMDAtXHVERkZGXXxcdUQ4NkRbXHVEQzAwLVx1REYzNFx1REY0MC1cdURGRkZdfFx1RDg2RVtcdURDMDAtXHVEQzFEXHVEQzIwLVx1REZGRl18XHVEODczW1x1REMwMC1cdURFQTFcdURFQjAtXHVERkZGXXxcdUQ4N0FbXHVEQzAwLVx1REZFMF18XHVEODdFW1x1REMwMC1cdURFMURdLyxJRF9Db250aW51ZTovW1x4QUFceEI1XHhCQVx4QzAtXHhENlx4RDgtXHhGNlx4RjgtXHUwMkMxXHUwMkM2LVx1MDJEMVx1MDJFMC1cdTAyRTRcdTAyRUNcdTAyRUVcdTAzMDAtXHUwMzc0XHUwMzc2XHUwMzc3XHUwMzdBLVx1MDM3RFx1MDM3Rlx1MDM4Nlx1MDM4OC1cdTAzOEFcdTAzOENcdTAzOEUtXHUwM0ExXHUwM0EzLVx1MDNGNVx1MDNGNy1cdTA0ODFcdTA0ODMtXHUwNDg3XHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNTkxLVx1MDVCRFx1MDVCRlx1MDVDMVx1MDVDMlx1MDVDNFx1MDVDNVx1MDVDN1x1MDVEMC1cdTA1RUFcdTA1RjAtXHUwNUYyXHUwNjEwLVx1MDYxQVx1MDYyMC1cdTA2NjlcdTA2NkUtXHUwNkQzXHUwNkQ1LVx1MDZEQ1x1MDZERi1cdTA2RThcdTA2RUEtXHUwNkZDXHUwNkZGXHUwNzEwLVx1MDc0QVx1MDc0RC1cdTA3QjFcdTA3QzAtXHUwN0Y1XHUwN0ZBXHUwODAwLVx1MDgyRFx1MDg0MC1cdTA4NUJcdTA4NjAtXHUwODZBXHUwOEEwLVx1MDhCNFx1MDhCNi1cdTA4QkRcdTA4RDQtXHUwOEUxXHUwOEUzLVx1MDk2M1x1MDk2Ni1cdTA5NkZcdTA5NzEtXHUwOTgzXHUwOTg1LVx1MDk4Q1x1MDk4Rlx1MDk5MFx1MDk5My1cdTA5QThcdTA5QUEtXHUwOUIwXHUwOUIyXHUwOUI2LVx1MDlCOVx1MDlCQy1cdTA5QzRcdTA5QzdcdTA5QzhcdTA5Q0ItXHUwOUNFXHUwOUQ3XHUwOURDXHUwOUREXHUwOURGLVx1MDlFM1x1MDlFNi1cdTA5RjFcdTA5RkNcdTBBMDEtXHUwQTAzXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTNDXHUwQTNFLVx1MEE0Mlx1MEE0N1x1MEE0OFx1MEE0Qi1cdTBBNERcdTBBNTFcdTBBNTktXHUwQTVDXHUwQTVFXHUwQTY2LVx1MEE3NVx1MEE4MS1cdTBBODNcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCQy1cdTBBQzVcdTBBQzctXHUwQUM5XHUwQUNCLVx1MEFDRFx1MEFEMFx1MEFFMC1cdTBBRTNcdTBBRTYtXHUwQUVGXHUwQUY5LVx1MEFGRlx1MEIwMS1cdTBCMDNcdTBCMDUtXHUwQjBDXHUwQjBGXHUwQjEwXHUwQjEzLVx1MEIyOFx1MEIyQS1cdTBCMzBcdTBCMzJcdTBCMzNcdTBCMzUtXHUwQjM5XHUwQjNDLVx1MEI0NFx1MEI0N1x1MEI0OFx1MEI0Qi1cdTBCNERcdTBCNTZcdTBCNTdcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYzXHUwQjY2LVx1MEI2Rlx1MEI3MVx1MEI4Mlx1MEI4M1x1MEI4NS1cdTBCOEFcdTBCOEUtXHUwQjkwXHUwQjkyLVx1MEI5NVx1MEI5OVx1MEI5QVx1MEI5Q1x1MEI5RVx1MEI5Rlx1MEJBM1x1MEJBNFx1MEJBOC1cdTBCQUFcdTBCQUUtXHUwQkI5XHUwQkJFLVx1MEJDMlx1MEJDNi1cdTBCQzhcdTBCQ0EtXHUwQkNEXHUwQkQwXHUwQkQ3XHUwQkU2LVx1MEJFRlx1MEMwMC1cdTBDMDNcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNELVx1MEM0NFx1MEM0Ni1cdTBDNDhcdTBDNEEtXHUwQzREXHUwQzU1XHUwQzU2XHUwQzU4LVx1MEM1QVx1MEM2MC1cdTBDNjNcdTBDNjYtXHUwQzZGXHUwQzgwLVx1MEM4M1x1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JDLVx1MENDNFx1MENDNi1cdTBDQzhcdTBDQ0EtXHUwQ0NEXHUwQ0Q1XHUwQ0Q2XHUwQ0RFXHUwQ0UwLVx1MENFM1x1MENFNi1cdTBDRUZcdTBDRjFcdTBDRjJcdTBEMDAtXHUwRDAzXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDQ0XHUwRDQ2LVx1MEQ0OFx1MEQ0QS1cdTBENEVcdTBENTQtXHUwRDU3XHUwRDVGLVx1MEQ2M1x1MEQ2Ni1cdTBENkZcdTBEN0EtXHUwRDdGXHUwRDgyXHUwRDgzXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MERDQVx1MERDRi1cdTBERDRcdTBERDZcdTBERDgtXHUwRERGXHUwREU2LVx1MERFRlx1MERGMlx1MERGM1x1MEUwMS1cdTBFM0FcdTBFNDAtXHUwRTRFXHUwRTUwLVx1MEU1OVx1MEU4MVx1MEU4Mlx1MEU4NFx1MEU4N1x1MEU4OFx1MEU4QVx1MEU4RFx1MEU5NC1cdTBFOTdcdTBFOTktXHUwRTlGXHUwRUExLVx1MEVBM1x1MEVBNVx1MEVBN1x1MEVBQVx1MEVBQlx1MEVBRC1cdTBFQjlcdTBFQkItXHUwRUJEXHUwRUMwLVx1MEVDNFx1MEVDNlx1MEVDOC1cdTBFQ0RcdTBFRDAtXHUwRUQ5XHUwRURDLVx1MEVERlx1MEYwMFx1MEYxOFx1MEYxOVx1MEYyMC1cdTBGMjlcdTBGMzVcdTBGMzdcdTBGMzlcdTBGM0UtXHUwRjQ3XHUwRjQ5LVx1MEY2Q1x1MEY3MS1cdTBGODRcdTBGODYtXHUwRjk3XHUwRjk5LVx1MEZCQ1x1MEZDNlx1MTAwMC1cdTEwNDlcdTEwNTAtXHUxMDlEXHUxMEEwLVx1MTBDNVx1MTBDN1x1MTBDRFx1MTBEMC1cdTEwRkFcdTEwRkMtXHUxMjQ4XHUxMjRBLVx1MTI0RFx1MTI1MC1cdTEyNTZcdTEyNThcdTEyNUEtXHUxMjVEXHUxMjYwLVx1MTI4OFx1MTI4QS1cdTEyOERcdTEyOTAtXHUxMkIwXHUxMkIyLVx1MTJCNVx1MTJCOC1cdTEyQkVcdTEyQzBcdTEyQzItXHUxMkM1XHUxMkM4LVx1MTJENlx1MTJEOC1cdTEzMTBcdTEzMTItXHUxMzE1XHUxMzE4LVx1MTM1QVx1MTM1RC1cdTEzNUZcdTEzODAtXHUxMzhGXHUxM0EwLVx1MTNGNVx1MTNGOC1cdTEzRkRcdTE0MDEtXHUxNjZDXHUxNjZGLVx1MTY3Rlx1MTY4MS1cdTE2OUFcdTE2QTAtXHUxNkVBXHUxNkVFLVx1MTZGOFx1MTcwMC1cdTE3MENcdTE3MEUtXHUxNzE0XHUxNzIwLVx1MTczNFx1MTc0MC1cdTE3NTNcdTE3NjAtXHUxNzZDXHUxNzZFLVx1MTc3MFx1MTc3Mlx1MTc3M1x1MTc4MC1cdTE3RDNcdTE3RDdcdTE3RENcdTE3RERcdTE3RTAtXHUxN0U5XHUxODBCLVx1MTgwRFx1MTgxMC1cdTE4MTlcdTE4MjAtXHUxODc3XHUxODgwLVx1MThBQVx1MThCMC1cdTE4RjVcdTE5MDAtXHUxOTFFXHUxOTIwLVx1MTkyQlx1MTkzMC1cdTE5M0JcdTE5NDYtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxOUQwLVx1MTlEOVx1MUEwMC1cdTFBMUJcdTFBMjAtXHUxQTVFXHUxQTYwLVx1MUE3Q1x1MUE3Ri1cdTFBODlcdTFBOTAtXHUxQTk5XHUxQUE3XHUxQUIwLVx1MUFCRFx1MUIwMC1cdTFCNEJcdTFCNTAtXHUxQjU5XHUxQjZCLVx1MUI3M1x1MUI4MC1cdTFCRjNcdTFDMDAtXHUxQzM3XHUxQzQwLVx1MUM0OVx1MUM0RC1cdTFDN0RcdTFDODAtXHUxQzg4XHUxQ0QwLVx1MUNEMlx1MUNENC1cdTFDRjlcdTFEMDAtXHUxREY5XHUxREZCLVx1MUYxNVx1MUYxOC1cdTFGMURcdTFGMjAtXHUxRjQ1XHUxRjQ4LVx1MUY0RFx1MUY1MC1cdTFGNTdcdTFGNTlcdTFGNUJcdTFGNURcdTFGNUYtXHUxRjdEXHUxRjgwLVx1MUZCNFx1MUZCNi1cdTFGQkNcdTFGQkVcdTFGQzItXHUxRkM0XHUxRkM2LVx1MUZDQ1x1MUZEMC1cdTFGRDNcdTFGRDYtXHUxRkRCXHUxRkUwLVx1MUZFQ1x1MUZGMi1cdTFGRjRcdTFGRjYtXHUxRkZDXHUyMDNGXHUyMDQwXHUyMDU0XHUyMDcxXHUyMDdGXHUyMDkwLVx1MjA5Q1x1MjBEMC1cdTIwRENcdTIwRTFcdTIwRTUtXHUyMEYwXHUyMTAyXHUyMTA3XHUyMTBBLVx1MjExM1x1MjExNVx1MjExOS1cdTIxMURcdTIxMjRcdTIxMjZcdTIxMjhcdTIxMkEtXHUyMTJEXHUyMTJGLVx1MjEzOVx1MjEzQy1cdTIxM0ZcdTIxNDUtXHUyMTQ5XHUyMTRFXHUyMTYwLVx1MjE4OFx1MkMwMC1cdTJDMkVcdTJDMzAtXHUyQzVFXHUyQzYwLVx1MkNFNFx1MkNFQi1cdTJDRjNcdTJEMDAtXHUyRDI1XHUyRDI3XHUyRDJEXHUyRDMwLVx1MkQ2N1x1MkQ2Rlx1MkQ3Ri1cdTJEOTZcdTJEQTAtXHUyREE2XHUyREE4LVx1MkRBRVx1MkRCMC1cdTJEQjZcdTJEQjgtXHUyREJFXHUyREMwLVx1MkRDNlx1MkRDOC1cdTJEQ0VcdTJERDAtXHUyREQ2XHUyREQ4LVx1MkRERVx1MkRFMC1cdTJERkZcdTJFMkZcdTMwMDUtXHUzMDA3XHUzMDIxLVx1MzAyRlx1MzAzMS1cdTMwMzVcdTMwMzgtXHUzMDNDXHUzMDQxLVx1MzA5Nlx1MzA5OVx1MzA5QVx1MzA5RC1cdTMwOUZcdTMwQTEtXHUzMEZBXHUzMEZDLVx1MzBGRlx1MzEwNS1cdTMxMkVcdTMxMzEtXHUzMThFXHUzMUEwLVx1MzFCQVx1MzFGMC1cdTMxRkZcdTM0MDAtXHU0REI1XHU0RTAwLVx1OUZFQVx1QTAwMC1cdUE0OENcdUE0RDAtXHVBNEZEXHVBNTAwLVx1QTYwQ1x1QTYxMC1cdUE2MkJcdUE2NDAtXHVBNjZGXHVBNjc0LVx1QTY3RFx1QTY3Ri1cdUE2RjFcdUE3MTctXHVBNzFGXHVBNzIyLVx1QTc4OFx1QTc4Qi1cdUE3QUVcdUE3QjAtXHVBN0I3XHVBN0Y3LVx1QTgyN1x1QTg0MC1cdUE4NzNcdUE4ODAtXHVBOEM1XHVBOEQwLVx1QThEOVx1QThFMC1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MDAtXHVBOTJEXHVBOTMwLVx1QTk1M1x1QTk2MC1cdUE5N0NcdUE5ODAtXHVBOUMwXHVBOUNGLVx1QTlEOVx1QTlFMC1cdUE5RkVcdUFBMDAtXHVBQTM2XHVBQTQwLVx1QUE0RFx1QUE1MC1cdUFBNTlcdUFBNjAtXHVBQTc2XHVBQTdBLVx1QUFDMlx1QUFEQi1cdUFBRERcdUFBRTAtXHVBQUVGXHVBQUYyLVx1QUFGNlx1QUIwMS1cdUFCMDZcdUFCMDktXHVBQjBFXHVBQjExLVx1QUIxNlx1QUIyMC1cdUFCMjZcdUFCMjgtXHVBQjJFXHVBQjMwLVx1QUI1QVx1QUI1Qy1cdUFCNjVcdUFCNzAtXHVBQkVBXHVBQkVDXHVBQkVEXHVBQkYwLVx1QUJGOVx1QUMwMC1cdUQ3QTNcdUQ3QjAtXHVEN0M2XHVEN0NCLVx1RDdGQlx1RjkwMC1cdUZBNkRcdUZBNzAtXHVGQUQ5XHVGQjAwLVx1RkIwNlx1RkIxMy1cdUZCMTdcdUZCMUQtXHVGQjI4XHVGQjJBLVx1RkIzNlx1RkIzOC1cdUZCM0NcdUZCM0VcdUZCNDBcdUZCNDFcdUZCNDNcdUZCNDRcdUZCNDYtXHVGQkIxXHVGQkQzLVx1RkQzRFx1RkQ1MC1cdUZEOEZcdUZEOTItXHVGREM3XHVGREYwLVx1RkRGQlx1RkUwMC1cdUZFMEZcdUZFMjAtXHVGRTJGXHVGRTMzXHVGRTM0XHVGRTRELVx1RkU0Rlx1RkU3MC1cdUZFNzRcdUZFNzYtXHVGRUZDXHVGRjEwLVx1RkYxOVx1RkYyMS1cdUZGM0FcdUZGM0ZcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVEREZEXHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURFRTBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGN0FcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENBMC1cdURDQTlcdURDQjAtXHVEQ0QzXHVEQ0Q4LVx1RENGQlx1REQwMC1cdUREMjdcdUREMzAtXHVERDYzXHVERTAwLVx1REYzNlx1REY0MC1cdURGNTVcdURGNjAtXHVERjY3XXxcdUQ4MDJbXHVEQzAwLVx1REMwNVx1REMwOFx1REMwQS1cdURDMzVcdURDMzdcdURDMzhcdURDM0NcdURDM0YtXHVEQzU1XHVEQzYwLVx1REM3Nlx1REM4MC1cdURDOUVcdURDRTAtXHVEQ0YyXHVEQ0Y0XHVEQ0Y1XHVERDAwLVx1REQxNVx1REQyMC1cdUREMzlcdUREODAtXHVEREI3XHVEREJFXHVEREJGXHVERTAwLVx1REUwM1x1REUwNVx1REUwNlx1REUwQy1cdURFMTNcdURFMTUtXHVERTE3XHVERTE5LVx1REUzM1x1REUzOC1cdURFM0FcdURFM0ZcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU2XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMC1cdURDNDZcdURDNjYtXHVEQzZGXHVEQzdGLVx1RENCQVx1RENEMC1cdURDRThcdURDRjAtXHVEQ0Y5XHVERDAwLVx1REQzNFx1REQzNi1cdUREM0ZcdURENTAtXHVERDczXHVERDc2XHVERDgwLVx1RERDNFx1RERDQS1cdUREQ0NcdURERDAtXHVERERBXHVERERDXHVERTAwLVx1REUxMVx1REUxMy1cdURFMzdcdURFM0VcdURFODAtXHVERTg2XHVERTg4XHVERThBLVx1REU4RFx1REU4Ri1cdURFOURcdURFOUYtXHVERUE4XHVERUIwLVx1REVFQVx1REVGMC1cdURFRjlcdURGMDAtXHVERjAzXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzQy1cdURGNDRcdURGNDdcdURGNDhcdURGNEItXHVERjREXHVERjUwXHVERjU3XHVERjVELVx1REY2M1x1REY2Ni1cdURGNkNcdURGNzAtXHVERjc0XXxcdUQ4MDVbXHVEQzAwLVx1REM0QVx1REM1MC1cdURDNTlcdURDODAtXHVEQ0M1XHVEQ0M3XHVEQ0QwLVx1RENEOVx1REQ4MC1cdUREQjVcdUREQjgtXHVEREMwXHVEREQ4LVx1RERERFx1REUwMC1cdURFNDBcdURFNDRcdURFNTAtXHVERTU5XHVERTgwLVx1REVCN1x1REVDMC1cdURFQzlcdURGMDAtXHVERjE5XHVERjFELVx1REYyQlx1REYzMC1cdURGMzldfFx1RDgwNltcdURDQTAtXHVEQ0U5XHVEQ0ZGXHVERTAwLVx1REUzRVx1REU0N1x1REU1MC1cdURFODNcdURFODYtXHVERTk5XHVERUMwLVx1REVGOF18XHVEODA3W1x1REMwMC1cdURDMDhcdURDMEEtXHVEQzM2XHVEQzM4LVx1REM0MFx1REM1MC1cdURDNTlcdURDNzItXHVEQzhGXHVEQzkyLVx1RENBN1x1RENBOS1cdURDQjZcdUREMDAtXHVERDA2XHVERDA4XHVERDA5XHVERDBCLVx1REQzNlx1REQzQVx1REQzQ1x1REQzRFx1REQzRi1cdURENDdcdURENTAtXHVERDU5XXxcdUQ4MDhbXHVEQzAwLVx1REY5OV18XHVEODA5W1x1REMwMC1cdURDNkVcdURDODAtXHVERDQzXXxbXHVEODBDXHVEODFDLVx1RDgyMFx1RDg0MC1cdUQ4NjhcdUQ4NkEtXHVEODZDXHVEODZGLVx1RDg3Mlx1RDg3NC1cdUQ4NzldW1x1REMwMC1cdURGRkZdfFx1RDgwRFtcdURDMDAtXHVEQzJFXXxcdUQ4MTFbXHVEQzAwLVx1REU0Nl18XHVEODFBW1x1REMwMC1cdURFMzhcdURFNDAtXHVERTVFXHVERTYwLVx1REU2OVx1REVEMC1cdURFRURcdURFRjAtXHVERUY0XHVERjAwLVx1REYzNlx1REY0MC1cdURGNDNcdURGNTAtXHVERjU5XHVERjYzLVx1REY3N1x1REY3RC1cdURGOEZdfFx1RDgxQltcdURGMDAtXHVERjQ0XHVERjUwLVx1REY3RVx1REY4Ri1cdURGOUZcdURGRTBcdURGRTFdfFx1RDgyMVtcdURDMDAtXHVERkVDXXxcdUQ4MjJbXHVEQzAwLVx1REVGMl18XHVEODJDW1x1REMwMC1cdUREMUVcdURENzAtXHVERUZCXXxcdUQ4MkZbXHVEQzAwLVx1REM2QVx1REM3MC1cdURDN0NcdURDODAtXHVEQzg4XHVEQzkwLVx1REM5OVx1REM5RFx1REM5RV18XHVEODM0W1x1REQ2NS1cdURENjlcdURENkQtXHVERDcyXHVERDdCLVx1REQ4Mlx1REQ4NS1cdUREOEJcdUREQUEtXHVEREFEXHVERTQyLVx1REU0NF18XHVEODM1W1x1REMwMC1cdURDNTRcdURDNTYtXHVEQzlDXHVEQzlFXHVEQzlGXHVEQ0EyXHVEQ0E1XHVEQ0E2XHVEQ0E5LVx1RENBQ1x1RENBRS1cdURDQjlcdURDQkJcdURDQkQtXHVEQ0MzXHVEQ0M1LVx1REQwNVx1REQwNy1cdUREMEFcdUREMEQtXHVERDE0XHVERDE2LVx1REQxQ1x1REQxRS1cdUREMzlcdUREM0ItXHVERDNFXHVERDQwLVx1REQ0NFx1REQ0Nlx1REQ0QS1cdURENTBcdURENTItXHVERUE1XHVERUE4LVx1REVDMFx1REVDMi1cdURFREFcdURFREMtXHVERUZBXHVERUZDLVx1REYxNFx1REYxNi1cdURGMzRcdURGMzYtXHVERjRFXHVERjUwLVx1REY2RVx1REY3MC1cdURGODhcdURGOEEtXHVERkE4XHVERkFBLVx1REZDMlx1REZDNC1cdURGQ0JcdURGQ0UtXHVERkZGXXxcdUQ4MzZbXHVERTAwLVx1REUzNlx1REUzQi1cdURFNkNcdURFNzVcdURFODRcdURFOUItXHVERTlGXHVERUExLVx1REVBRl18XHVEODM4W1x1REMwMC1cdURDMDZcdURDMDgtXHVEQzE4XHVEQzFCLVx1REMyMVx1REMyM1x1REMyNFx1REMyNi1cdURDMkFdfFx1RDgzQVtcdURDMDAtXHVEQ0M0XHVEQ0QwLVx1RENENlx1REQwMC1cdURENEFcdURENTAtXHVERDU5XXxcdUQ4M0JbXHVERTAwLVx1REUwM1x1REUwNS1cdURFMUZcdURFMjFcdURFMjJcdURFMjRcdURFMjdcdURFMjktXHVERTMyXHVERTM0LVx1REUzN1x1REUzOVx1REUzQlx1REU0Mlx1REU0N1x1REU0OVx1REU0Qlx1REU0RC1cdURFNEZcdURFNTFcdURFNTJcdURFNTRcdURFNTdcdURFNTlcdURFNUJcdURFNURcdURFNUZcdURFNjFcdURFNjJcdURFNjRcdURFNjctXHVERTZBXHVERTZDLVx1REU3Mlx1REU3NC1cdURFNzdcdURFNzktXHVERTdDXHVERTdFXHVERTgwLVx1REU4OVx1REU4Qi1cdURFOUJcdURFQTEtXHVERUEzXHVERUE1LVx1REVBOVx1REVBQi1cdURFQkJdfFx1RDg2OVtcdURDMDAtXHVERUQ2XHVERjAwLVx1REZGRl18XHVEODZEW1x1REMwMC1cdURGMzRcdURGNDAtXHVERkZGXXxcdUQ4NkVbXHVEQzAwLVx1REMxRFx1REMyMC1cdURGRkZdfFx1RDg3M1tcdURDMDAtXHVERUExXHVERUIwLVx1REZGRl18XHVEODdBW1x1REMwMC1cdURGRTBdfFx1RDg3RVtcdURDMDAtXHVERTFEXXxcdURCNDBbXHVERDAwLVx1RERFRl0vfSxVPXtpc1NwYWNlU2VwYXJhdG9yOmZ1bmN0aW9uKHUpe3JldHVybiJzdHJpbmciPT10eXBlb2YgdSYmRy5TcGFjZV9TZXBhcmF0b3IudGVzdCh1KX0saXNJZFN0YXJ0Q2hhcjpmdW5jdGlvbih1KXtyZXR1cm4ic3RyaW5nIj09dHlwZW9mIHUmJih1Pj0iYSImJnU8PSJ6Inx8dT49IkEiJiZ1PD0iWiJ8fCIkIj09PXV8fCJfIj09PXV8fEcuSURfU3RhcnQudGVzdCh1KSl9LGlzSWRDb250aW51ZUNoYXI6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYodT49ImEiJiZ1PD0ieiJ8fHU+PSJBIiYmdTw9IloifHx1Pj0iMCImJnU8PSI5Inx8IiQiPT09dXx8Il8iPT09dXx8IuKAjCI9PT11fHwi4oCNIj09PXV8fEcuSURfQ29udGludWUudGVzdCh1KSl9LGlzRGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOV0vLnRlc3QodSl9LGlzSGV4RGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOUEtRmEtZl0vLnRlc3QodSl9fTtmdW5jdGlvbiBaKCl7Zm9yKFQ9ImRlZmF1bHQiLHo9IiIsSD0hMSwkPTE7Oyl7Uj1xKCk7dmFyIHU9WFtUXSgpO2lmKHUpcmV0dXJuIHV9fWZ1bmN0aW9uIHEoKXtpZihfW0ldKXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChfLmNvZGVQb2ludEF0KEkpKX1mdW5jdGlvbiBXKCl7dmFyIHU9cSgpO3JldHVybiJcbiI9PT11PyhWKyssSj0wKTp1P0orPXUubGVuZ3RoOkorKyx1JiYoSSs9dS5sZW5ndGgpLHV9dmFyIFg9e2RlZmF1bHQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJcdCI6Y2FzZSJcdiI6Y2FzZSJcZiI6Y2FzZSIgIjpjYXNlIiAiOmNhc2UiXHVmZWZmIjpjYXNlIlxuIjpjYXNlIlxyIjpjYXNlIlx1MjAyOCI6Y2FzZSJcdTIwMjkiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJjb21tZW50Iik7Y2FzZSB2b2lkIDA6cmV0dXJuIFcoKSxLKCJlb2YiKX1pZighVS5pc1NwYWNlU2VwYXJhdG9yKFIpKXJldHVybiBYW09dKCk7VygpfSxjb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiKiI6cmV0dXJuIFcoKSx2b2lkKFQ9Im11bHRpTGluZUNvbW1lbnQiKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJzaW5nbGVMaW5lQ29tbWVudCIpfXRocm93IHJ1KFcoKSl9LG11bHRpTGluZUNvbW1lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIqIjpyZXR1cm4gVygpLHZvaWQoVD0ibXVsdGlMaW5lQ29tbWVudEFzdGVyaXNrIik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCl9LG11bHRpTGluZUNvbW1lbnRBc3RlcmlzazpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIioiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJkZWZhdWx0Iik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCksVD0ibXVsdGlMaW5lQ29tbWVudCJ9LHNpbmdsZUxpbmVDb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXG4iOmNhc2UiXHIiOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSx2b2lkKFQ9ImRlZmF1bHQiKTtjYXNlIHZvaWQgMDpyZXR1cm4gVygpLEsoImVvZiIpfVcoKX0sdmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJ7IjpjYXNlIlsiOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UibiI6cmV0dXJuIFcoKSxRKCJ1bGwiKSxLKCJudWxsIixudWxsKTtjYXNlInQiOnJldHVybiBXKCksUSgicnVlIiksSygiYm9vbGVhbiIsITApO2Nhc2UiZiI6cmV0dXJuIFcoKSxRKCJhbHNlIiksSygiYm9vbGVhbiIsITEpO2Nhc2UiLSI6Y2FzZSIrIjpyZXR1cm4iLSI9PT1XKCkmJigkPS0xKSx2b2lkKFQ9InNpZ24iKTtjYXNlIi4iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImRlY2ltYWxQb2ludExlYWRpbmciKTtjYXNlIjAiOnJldHVybiB6PVcoKSx2b2lkKFQ9Inplcm8iKTtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsSW50ZWdlciIpO2Nhc2UiSSI6cmV0dXJuIFcoKSxRKCJuZmluaXR5IiksSygibnVtZXJpYyIsMS8wKTtjYXNlIk4iOnJldHVybiBXKCksUSgiYU4iKSxLKCJudW1lcmljIixOYU4pO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksej0iIix2b2lkKFQ9InN0cmluZyIpfXRocm93IHJ1KFcoKSl9LGlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmJyZWFrO2RlZmF1bHQ6aWYoIVUuaXNJZFN0YXJ0Q2hhcih1KSl0aHJvdyBudSgpfXorPXUsVD0iaWRlbnRpZmllck5hbWUifSxpZGVudGlmaWVyTmFtZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiQiOmNhc2UiXyI6Y2FzZSLigIwiOmNhc2Ui4oCNIjpyZXR1cm4gdm9pZCh6Kz1XKCkpO2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZChUPSJpZGVudGlmaWVyTmFtZUVzY2FwZSIpfWlmKCFVLmlzSWRDb250aW51ZUNoYXIoUikpcmV0dXJuIEsoImlkZW50aWZpZXIiLHopO3orPVcoKX0saWRlbnRpZmllck5hbWVFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmNhc2Ui4oCMIjpjYXNlIuKAjSI6YnJlYWs7ZGVmYXVsdDppZighVS5pc0lkQ29udGludWVDaGFyKHUpKXRocm93IG51KCl9eis9dSxUPSJpZGVudGlmaWVyTmFtZSJ9LHNpZ246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnRMZWFkaW5nIik7Y2FzZSIwIjpyZXR1cm4gej1XKCksdm9pZChUPSJ6ZXJvIik7Y2FzZSIxIjpjYXNlIjIiOmNhc2UiMyI6Y2FzZSI0IjpjYXNlIjUiOmNhc2UiNiI6Y2FzZSI3IjpjYXNlIjgiOmNhc2UiOSI6cmV0dXJuIHo9VygpLHZvaWQoVD0iZGVjaW1hbEludGVnZXIiKTtjYXNlIkkiOnJldHVybiBXKCksUSgibmZpbml0eSIpLEsoIm51bWVyaWMiLCQqKDEvMCkpO2Nhc2UiTiI6cmV0dXJuIFcoKSxRKCJhTiIpLEsoIm51bWVyaWMiLE5hTil9dGhyb3cgcnUoVygpKX0semVybzpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIi4iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnQiKTtjYXNlImUiOmNhc2UiRSI6cmV0dXJuIHorPVcoKSx2b2lkKFQ9ImRlY2ltYWxFeHBvbmVudCIpO2Nhc2UieCI6Y2FzZSJYIjpyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWwiKX1yZXR1cm4gSygibnVtZXJpYyIsMCokKX0sZGVjaW1hbEludGVnZXI6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbFBvaW50Iik7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsUG9pbnRMZWFkaW5nOmZ1bmN0aW9uKCl7aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKTt0aHJvdyBydShXKCkpfSxkZWNpbWFsUG9pbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1yZXR1cm4gVS5pc0RpZ2l0KFIpPyh6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKSk6SygibnVtZXJpYyIsJCpOdW1iZXIoeikpfSxkZWNpbWFsRnJhY3Rpb246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsRXhwb25lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIrIjpjYXNlIi0iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRTaWduIil9aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0sZGVjaW1hbEV4cG9uZW50U2lnbjpmdW5jdGlvbigpe2lmKFUuaXNEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbEV4cG9uZW50SW50ZWdlciIpO3Rocm93IHJ1KFcoKSl9LGRlY2ltYWxFeHBvbmVudEludGVnZXI6ZnVuY3Rpb24oKXtpZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxoZXhhZGVjaW1hbDpmdW5jdGlvbigpe2lmKFUuaXNIZXhEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWxJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0saGV4YWRlY2ltYWxJbnRlZ2VyOmZ1bmN0aW9uKCl7aWYoIVUuaXNIZXhEaWdpdChSKSlyZXR1cm4gSygibnVtZXJpYyIsJCpOdW1iZXIoeikpO3orPVcoKX0sc3RyaW5nOmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZCh6Kz1mdW5jdGlvbigpe3N3aXRjaChxKCkpe2Nhc2UiYiI6cmV0dXJuIFcoKSwiXGIiO2Nhc2UiZiI6cmV0dXJuIFcoKSwiXGYiO2Nhc2UibiI6cmV0dXJuIFcoKSwiXG4iO2Nhc2UiciI6cmV0dXJuIFcoKSwiXHIiO2Nhc2UidCI6cmV0dXJuIFcoKSwiXHQiO2Nhc2UidiI6cmV0dXJuIFcoKSwiXHYiO2Nhc2UiMCI6aWYoVygpLFUuaXNEaWdpdChxKCkpKXRocm93IHJ1KFcoKSk7cmV0dXJuIlwwIjtjYXNlIngiOnJldHVybiBXKCksZnVuY3Rpb24oKXt2YXIgdT0iIixEPXEoKTtpZighVS5pc0hleERpZ2l0KEQpKXRocm93IHJ1KFcoKSk7aWYodSs9VygpLEQ9cSgpLCFVLmlzSGV4RGlnaXQoRCkpdGhyb3cgcnUoVygpKTtyZXR1cm4gdSs9VygpLFN0cmluZy5mcm9tQ29kZVBvaW50KHBhcnNlSW50KHUsMTYpKX0oKTtjYXNlInUiOnJldHVybiBXKCksWSgpO2Nhc2UiXG4iOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSwiIjtjYXNlIlxyIjpyZXR1cm4gVygpLCJcbiI9PT1xKCkmJlcoKSwiIjtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpjYXNlIHZvaWQgMDp0aHJvdyBydShXKCkpfXJldHVybiBXKCl9KCkpO2Nhc2UnIic6cmV0dXJuIEg/KFcoKSxLKCJzdHJpbmciLHopKTp2b2lkKHorPVcoKSk7Y2FzZSInIjpyZXR1cm4gSD92b2lkKHorPVcoKSk6KFcoKSxLKCJzdHJpbmciLHopKTtjYXNlIlxuIjpjYXNlIlxyIjp0aHJvdyBydShXKCkpO2Nhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6IWZ1bmN0aW9uKHUpe2NvbnNvbGUud2FybigiSlNPTjU6ICciK0Z1KHUpKyInIGluIHN0cmluZ3MgaXMgbm90IHZhbGlkIEVDTUFTY3JpcHQ7IGNvbnNpZGVyIGVzY2FwaW5nIil9KFIpO2JyZWFrO2Nhc2Ugdm9pZCAwOnRocm93IHJ1KFcoKSl9eis9VygpfSxzdGFydDpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlInsiOmNhc2UiWyI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9VD0idmFsdWUifSxiZWZvcmVQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIkIjpjYXNlIl8iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7Y2FzZSJcXCI6cmV0dXJuIFcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGUiKTtjYXNlIn0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksdm9pZChUPSJzdHJpbmciKX1pZihVLmlzSWRTdGFydENoYXIoUikpcmV0dXJuIHorPVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7dGhyb3cgcnUoVygpKX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiOiI9PT1SKXJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO3Rocm93IHJ1KFcoKSl9LGJlZm9yZVByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtUPSJ2YWx1ZSJ9LGFmdGVyUHJvcGVydHlWYWx1ZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiwiOmNhc2UifSI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9dGhyb3cgcnUoVygpKX0sYmVmb3JlQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJdIj09PVIpcmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSk7VD0idmFsdWUifSxhZnRlckFycmF5VmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIsIjpjYXNlIl0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpfXRocm93IHJ1KFcoKSl9LGVuZDpmdW5jdGlvbigpe3Rocm93IHJ1KFcoKSl9fTtmdW5jdGlvbiBLKHUsRCl7cmV0dXJue3R5cGU6dSx2YWx1ZTpELGxpbmU6Vixjb2x1bW46Sn19ZnVuY3Rpb24gUSh1KXtmb3IodmFyIEQ9MCxlPXU7RDxlLmxlbmd0aDtEKz0xKXt2YXIgcj1lW0RdO2lmKHEoKSE9PXIpdGhyb3cgcnUoVygpKTtXKCl9fWZ1bmN0aW9uIFkoKXtmb3IodmFyIHU9IiIsRD00O0QtLSA+MDspe3ZhciBlPXEoKTtpZighVS5pc0hleERpZ2l0KGUpKXRocm93IHJ1KFcoKSk7dSs9VygpfXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChwYXJzZUludCh1LDE2KSl9dmFyIHV1PXtzdGFydDpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7RHUoKX0sYmVmb3JlUHJvcGVydHlOYW1lOmZ1bmN0aW9uKCl7c3dpdGNoKE0udHlwZSl7Y2FzZSJpZGVudGlmaWVyIjpjYXNlInN0cmluZyI6cmV0dXJuIGs9TS52YWx1ZSx2b2lkKE89ImFmdGVyUHJvcGVydHlOYW1lIik7Y2FzZSJwdW5jdHVhdG9yIjpyZXR1cm4gdm9pZCBldSgpO2Nhc2UiZW9mIjp0aHJvdyB0dSgpfX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO089ImJlZm9yZVByb3BlcnR5VmFsdWUifSxiZWZvcmVQcm9wZXJ0eVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTtEdSgpfSxiZWZvcmVBcnJheVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTsicHVuY3R1YXRvciIhPT1NLnR5cGV8fCJdIiE9PU0udmFsdWU/RHUoKTpldSgpfSxhZnRlclByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO3N3aXRjaChNLnZhbHVlKXtjYXNlIiwiOnJldHVybiB2b2lkKE89ImJlZm9yZVByb3BlcnR5TmFtZSIpO2Nhc2UifSI6ZXUoKX19LGFmdGVyQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7c3dpdGNoKE0udmFsdWUpe2Nhc2UiLCI6cmV0dXJuIHZvaWQoTz0iYmVmb3JlQXJyYXlWYWx1ZSIpO2Nhc2UiXSI6ZXUoKX19LGVuZDpmdW5jdGlvbigpe319O2Z1bmN0aW9uIER1KCl7dmFyIHU7c3dpdGNoKE0udHlwZSl7Y2FzZSJwdW5jdHVhdG9yIjpzd2l0Y2goTS52YWx1ZSl7Y2FzZSJ7Ijp1PXt9O2JyZWFrO2Nhc2UiWyI6dT1bXX1icmVhaztjYXNlIm51bGwiOmNhc2UiYm9vbGVhbiI6Y2FzZSJudW1lcmljIjpjYXNlInN0cmluZyI6dT1NLnZhbHVlfWlmKHZvaWQgMD09PUwpTD11O2Vsc2V7dmFyIEQ9altqLmxlbmd0aC0xXTtBcnJheS5pc0FycmF5KEQpP0QucHVzaCh1KTpPYmplY3QuZGVmaW5lUHJvcGVydHkoRCxrLHt2YWx1ZTp1LHdyaXRhYmxlOiEwLGVudW1lcmFibGU6ITAsY29uZmlndXJhYmxlOiEwfSl9aWYobnVsbCE9PXUmJiJvYmplY3QiPT10eXBlb2YgdSlqLnB1c2godSksTz1BcnJheS5pc0FycmF5KHUpPyJiZWZvcmVBcnJheVZhbHVlIjoiYmVmb3JlUHJvcGVydHlOYW1lIjtlbHNle3ZhciBlPWpbai5sZW5ndGgtMV07Tz1udWxsPT1lPyJlbmQiOkFycmF5LmlzQXJyYXkoZSk/ImFmdGVyQXJyYXlWYWx1ZSI6ImFmdGVyUHJvcGVydHlWYWx1ZSJ9fWZ1bmN0aW9uIGV1KCl7ai5wb3AoKTt2YXIgdT1qW2oubGVuZ3RoLTFdO089bnVsbD09dT8iZW5kIjpBcnJheS5pc0FycmF5KHUpPyJhZnRlckFycmF5VmFsdWUiOiJhZnRlclByb3BlcnR5VmFsdWUifWZ1bmN0aW9uIHJ1KHUpe3JldHVybiBDdSh2b2lkIDA9PT11PyJKU09ONTogaW52YWxpZCBlbmQgb2YgaW5wdXQgYXQgIitWKyI6IitKOiJKU09ONTogaW52YWxpZCBjaGFyYWN0ZXIgJyIrRnUodSkrIicgYXQgIitWKyI6IitKKX1mdW5jdGlvbiB0dSgpe3JldHVybiBDdSgiSlNPTjU6IGludmFsaWQgZW5kIG9mIGlucHV0IGF0ICIrVisiOiIrSil9ZnVuY3Rpb24gbnUoKXtyZXR1cm4gQ3UoIkpTT041OiBpbnZhbGlkIGlkZW50aWZpZXIgY2hhcmFjdGVyIGF0ICIrVisiOiIrKEotPTUpKX1mdW5jdGlvbiBGdSh1KXt2YXIgRD17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9O2lmKERbdV0pcmV0dXJuIERbdV07aWYodTwiICIpe3ZhciBlPXUuY2hhckNvZGVBdCgwKS50b1N0cmluZygxNik7cmV0dXJuIlxceCIrKCIwMCIrZSkuc3Vic3RyaW5nKGUubGVuZ3RoKX1yZXR1cm4gdX1mdW5jdGlvbiBDdSh1KXt2YXIgRD1uZXcgU3ludGF4RXJyb3IodSk7cmV0dXJuIEQubGluZU51bWJlcj1WLEQuY29sdW1uTnVtYmVyPUosRH1yZXR1cm57cGFyc2U6ZnVuY3Rpb24odSxEKXtfPVN0cmluZyh1KSxPPSJzdGFydCIsaj1bXSxJPTAsVj0xLEo9MCxNPXZvaWQgMCxrPXZvaWQgMCxMPXZvaWQgMDtkb3tNPVooKSx1dVtPXSgpfXdoaWxlKCJlb2YiIT09TS50eXBlKTtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgRD9mdW5jdGlvbiB1KEQsZSxyKXt2YXIgdD1EW2VdO2lmKG51bGwhPXQmJiJvYmplY3QiPT10eXBlb2YgdClpZihBcnJheS5pc0FycmF5KHQpKWZvcih2YXIgbj0wO248dC5sZW5ndGg7bisrKXt2YXIgRj1TdHJpbmcobiksQz11KHQsRixyKTt2b2lkIDA9PT1DP2RlbGV0ZSB0W0ZdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEYse3ZhbHVlOkMsd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1lbHNlIGZvcih2YXIgQSBpbiB0KXt2YXIgaT11KHQsQSxyKTt2b2lkIDA9PT1pP2RlbGV0ZSB0W0FdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEEse3ZhbHVlOmksd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1yZXR1cm4gci5jYWxsKEQsZSx0KX0oeyIiOkx9LCIiLEQpOkx9LHN0cmluZ2lmeTpmdW5jdGlvbih1LEQsZSl7dmFyIHIsdCxuLEY9W10sQz0iIixBPSIiO2lmKG51bGw9PUR8fCJvYmplY3QiIT10eXBlb2YgRHx8QXJyYXkuaXNBcnJheShEKXx8KGU9RC5zcGFjZSxuPUQucXVvdGUsRD1ELnJlcGxhY2VyKSwiZnVuY3Rpb24iPT10eXBlb2YgRCl0PUQ7ZWxzZSBpZihBcnJheS5pc0FycmF5KEQpKXtyPVtdO2Zvcih2YXIgaT0wLEU9RDtpPEUubGVuZ3RoO2krPTEpe3ZhciBvPUVbaV0sYT12b2lkIDA7InN0cmluZyI9PXR5cGVvZiBvP2E9bzooIm51bWJlciI9PXR5cGVvZiBvfHxvIGluc3RhbmNlb2YgU3RyaW5nfHxvIGluc3RhbmNlb2YgTnVtYmVyKSYmKGE9U3RyaW5nKG8pKSx2b2lkIDAhPT1hJiZyLmluZGV4T2YoYSk8MCYmci5wdXNoKGEpfX1yZXR1cm4gZSBpbnN0YW5jZW9mIE51bWJlcj9lPU51bWJlcihlKTplIGluc3RhbmNlb2YgU3RyaW5nJiYoZT1TdHJpbmcoZSkpLCJudW1iZXIiPT10eXBlb2YgZT9lPjAmJihlPU1hdGgubWluKDEwLE1hdGguZmxvb3IoZSkpLEE9IiAgICAgICAgICAiLnN1YnN0cigwLGUpKToic3RyaW5nIj09dHlwZW9mIGUmJihBPWUuc3Vic3RyKDAsMTApKSxjKCIiLHsiIjp1fSk7ZnVuY3Rpb24gYyh1LEQpe3ZhciBlPURbdV07c3dpdGNoKG51bGwhPWUmJigiZnVuY3Rpb24iPT10eXBlb2YgZS50b0pTT041P2U9ZS50b0pTT041KHUpOiJmdW5jdGlvbiI9PXR5cGVvZiBlLnRvSlNPTiYmKGU9ZS50b0pTT04odSkpKSx0JiYoZT10LmNhbGwoRCx1LGUpKSxlIGluc3RhbmNlb2YgTnVtYmVyP2U9TnVtYmVyKGUpOmUgaW5zdGFuY2VvZiBTdHJpbmc/ZT1TdHJpbmcoZSk6ZSBpbnN0YW5jZW9mIEJvb2xlYW4mJihlPWUudmFsdWVPZigpKSxlKXtjYXNlIG51bGw6cmV0dXJuIm51bGwiO2Nhc2UhMDpyZXR1cm4idHJ1ZSI7Y2FzZSExOnJldHVybiJmYWxzZSJ9cmV0dXJuInN0cmluZyI9PXR5cGVvZiBlP0IoZSk6Im51bWJlciI9PXR5cGVvZiBlP1N0cmluZyhlKToib2JqZWN0Ij09dHlwZW9mIGU/QXJyYXkuaXNBcnJheShlKT9mdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHI9W10sdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgbj1jKFN0cmluZyh0KSx1KTtyLnB1c2godm9pZCAwIT09bj9uOiJudWxsIil9aWYoMD09PXIubGVuZ3RoKWU9IltdIjtlbHNlIGlmKCIiPT09QSl7dmFyIGk9ci5qb2luKCIsIik7ZT0iWyIraSsiXSJ9ZWxzZXt2YXIgRT0iLFxuIitDLG89ci5qb2luKEUpO2U9IltcbiIrQytvKyIsXG4iK0QrIl0ifXJldHVybiBGLnBvcCgpLEM9RCxlfShlKTpmdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHQsbj1yfHxPYmplY3Qua2V5cyh1KSxpPVtdLEU9MCxvPW47RTxvLmxlbmd0aDtFKz0xKXt2YXIgYT1vW0VdLEI9YyhhLHUpO2lmKHZvaWQgMCE9PUIpe3ZhciBmPXMoYSkrIjoiOyIiIT09QSYmKGYrPSIgIiksZis9QixpLnB1c2goZil9fWlmKDA9PT1pLmxlbmd0aCllPSJ7fSI7ZWxzZSBpZigiIj09PUEpdD1pLmpvaW4oIiwiKSxlPSJ7Iit0KyJ9IjtlbHNle3ZhciBsPSIsXG4iK0M7dD1pLmpvaW4obCksZT0ie1xuIitDK3QrIixcbiIrRCsifSJ9cmV0dXJuIEYucG9wKCksQz1ELGV9KGUpOnZvaWQgMH1mdW5jdGlvbiBCKHUpe2Zvcih2YXIgRD17IiciOi4xLCciJzouMn0sZT17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9LHI9IiIsdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgRj11W3RdO3N3aXRjaChGKXtjYXNlIiciOmNhc2UnIic6RFtGXSsrLHIrPUY7Y29udGludWU7Y2FzZSJcMCI6aWYoVS5pc0RpZ2l0KHVbdCsxXSkpe3IrPSJcXHgwMCI7Y29udGludWV9fWlmKGVbRl0pcis9ZVtGXTtlbHNlIGlmKEY8IiAiKXt2YXIgQz1GLmNoYXJDb2RlQXQoMCkudG9TdHJpbmcoMTYpO3IrPSJcXHgiKygiMDAiK0MpLnN1YnN0cmluZyhDLmxlbmd0aCl9ZWxzZSByKz1GfXZhciBBPW58fE9iamVjdC5rZXlzKEQpLnJlZHVjZShmdW5jdGlvbih1LGUpe3JldHVybiBEW3VdPERbZV0/dTplfSk7cmV0dXJuIEErKHI9ci5yZXBsYWNlKG5ldyBSZWdFeHAoQSwiZyIpLGVbQV0pKStBfWZ1bmN0aW9uIHModSl7aWYoMD09PXUubGVuZ3RoKXJldHVybiBCKHUpO3ZhciBEPVN0cmluZy5mcm9tQ29kZVBvaW50KHUuY29kZVBvaW50QXQoMCkpO2lmKCFVLmlzSWRTdGFydENoYXIoRCkpcmV0dXJuIEIodSk7Zm9yKHZhciBlPUQubGVuZ3RoO2U8dS5sZW5ndGg7ZSsrKWlmKCFVLmlzSWRDb250aW51ZUNoYXIoU3RyaW5nLmZyb21Db2RlUG9pbnQodS5jb2RlUG9pbnRBdChlKSkpKXJldHVybiBCKHUpO3JldHVybiB1fX19fSk7`;
+async function download_file$1(_logfile, filename2, filecontents) {
+  const blob = new Blob([filecontents], { type: "text/plain" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename2;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+const loaded_time = Date.now();
+let last_eval_time = 0;
+async function client_events$1() {
+  const params = new URLSearchParams();
+  params.append("loaded_time", loaded_time.valueOf());
+  params.append("last_eval_time", last_eval_time.valueOf());
+  return (await api$1("GET", `/api/events?${params.toString()}`)).parsed;
+}
+async function eval_logs$1() {
+  const logs = await api$1("GET", `/api/logs`);
+  last_eval_time = Date.now();
+  return logs.parsed;
+}
+async function eval_log$1(file, headerOnly) {
+  if (headerOnly) {
+    return await api$1("GET", `/api/logs/${file}?header-only=true`);
+  } else {
+    return await api$1("GET", `/api/logs/${file}`);
+  }
+}
+async function eval_log_headers$1(files) {
+  const params = new URLSearchParams();
+  for (const file of files) {
+    params.append("file", file);
+  }
+  return (await api$1("GET", `/api/log-headers?${params.toString()}`)).parsed;
+}
+async function api$1(method, path, body) {
+  const headers = {
+    Accept: "application/json",
+    Pragma: "no-cache",
+    Expires: "0",
+    ["Cache-Control"]: "no-cache"
+  };
+  const response = await fetch(`${path}`, { method, headers, body });
+  if (response.ok) {
+    const text = await response.text();
+    return {
+      parsed: await asyncJsonParse(text),
+      raw: text
+    };
+  } else if (response.status !== 200) {
+    const message = await response.text() || response.statusText;
+    const error = new Error(`Error: ${response.status}: ${message})`);
+    throw error;
+  } else {
+    throw new Error(`${response.status} - ${response.statusText} `);
+  }
+}
+const browserApi = {
+  client_events: client_events$1,
+  eval_logs: eval_logs$1,
+  eval_log: eval_log$1,
+  eval_log_headers: eval_log_headers$1,
+  download_file: download_file$1
+};
+var Space_Separator = /[\u1680\u2000-\u200A\u202F\u205F\u3000]/;
+var ID_Start = /[\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u09FC\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60\u0C61\u0C80\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D54-\u0D56\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u1884\u1887-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1C80-\u1C88\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312E\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEA\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6EF\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AE\uA7B0-\uA7B7\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]|\uD800[\uDC00-\uDC0B\uDC0D-\uDC26\uDC28-\uDC3A\uDC3C\uDC3D\uDC3F-\uDC4D\uDC50-\uDC5D\uDC80-\uDCFA\uDD40-\uDD74\uDE80-\uDE9C\uDEA0-\uDED0\uDF00-\uDF1F\uDF2D-\uDF4A\uDF50-\uDF75\uDF80-\uDF9D\uDFA0-\uDFC3\uDFC8-\uDFCF\uDFD1-\uDFD5]|\uD801[\uDC00-\uDC9D\uDCB0-\uDCD3\uDCD8-\uDCFB\uDD00-\uDD27\uDD30-\uDD63\uDE00-\uDF36\uDF40-\uDF55\uDF60-\uDF67]|\uD802[\uDC00-\uDC05\uDC08\uDC0A-\uDC35\uDC37\uDC38\uDC3C\uDC3F-\uDC55\uDC60-\uDC76\uDC80-\uDC9E\uDCE0-\uDCF2\uDCF4\uDCF5\uDD00-\uDD15\uDD20-\uDD39\uDD80-\uDDB7\uDDBE\uDDBF\uDE00\uDE10-\uDE13\uDE15-\uDE17\uDE19-\uDE33\uDE60-\uDE7C\uDE80-\uDE9C\uDEC0-\uDEC7\uDEC9-\uDEE4\uDF00-\uDF35\uDF40-\uDF55\uDF60-\uDF72\uDF80-\uDF91]|\uD803[\uDC00-\uDC48\uDC80-\uDCB2\uDCC0-\uDCF2]|\uD804[\uDC03-\uDC37\uDC83-\uDCAF\uDCD0-\uDCE8\uDD03-\uDD26\uDD50-\uDD72\uDD76\uDD83-\uDDB2\uDDC1-\uDDC4\uDDDA\uDDDC\uDE00-\uDE11\uDE13-\uDE2B\uDE80-\uDE86\uDE88\uDE8A-\uDE8D\uDE8F-\uDE9D\uDE9F-\uDEA8\uDEB0-\uDEDE\uDF05-\uDF0C\uDF0F\uDF10\uDF13-\uDF28\uDF2A-\uDF30\uDF32\uDF33\uDF35-\uDF39\uDF3D\uDF50\uDF5D-\uDF61]|\uD805[\uDC00-\uDC34\uDC47-\uDC4A\uDC80-\uDCAF\uDCC4\uDCC5\uDCC7\uDD80-\uDDAE\uDDD8-\uDDDB\uDE00-\uDE2F\uDE44\uDE80-\uDEAA\uDF00-\uDF19]|\uD806[\uDCA0-\uDCDF\uDCFF\uDE00\uDE0B-\uDE32\uDE3A\uDE50\uDE5C-\uDE83\uDE86-\uDE89\uDEC0-\uDEF8]|\uD807[\uDC00-\uDC08\uDC0A-\uDC2E\uDC40\uDC72-\uDC8F\uDD00-\uDD06\uDD08\uDD09\uDD0B-\uDD30\uDD46]|\uD808[\uDC00-\uDF99]|\uD809[\uDC00-\uDC6E\uDC80-\uDD43]|[\uD80C\uD81C-\uD820\uD840-\uD868\uD86A-\uD86C\uD86F-\uD872\uD874-\uD879][\uDC00-\uDFFF]|\uD80D[\uDC00-\uDC2E]|\uD811[\uDC00-\uDE46]|\uD81A[\uDC00-\uDE38\uDE40-\uDE5E\uDED0-\uDEED\uDF00-\uDF2F\uDF40-\uDF43\uDF63-\uDF77\uDF7D-\uDF8F]|\uD81B[\uDF00-\uDF44\uDF50\uDF93-\uDF9F\uDFE0\uDFE1]|\uD821[\uDC00-\uDFEC]|\uD822[\uDC00-\uDEF2]|\uD82C[\uDC00-\uDD1E\uDD70-\uDEFB]|\uD82F[\uDC00-\uDC6A\uDC70-\uDC7C\uDC80-\uDC88\uDC90-\uDC99]|\uD835[\uDC00-\uDC54\uDC56-\uDC9C\uDC9E\uDC9F\uDCA2\uDCA5\uDCA6\uDCA9-\uDCAC\uDCAE-\uDCB9\uDCBB\uDCBD-\uDCC3\uDCC5-\uDD05\uDD07-\uDD0A\uDD0D-\uDD14\uDD16-\uDD1C\uDD1E-\uDD39\uDD3B-\uDD3E\uDD40-\uDD44\uDD46\uDD4A-\uDD50\uDD52-\uDEA5\uDEA8-\uDEC0\uDEC2-\uDEDA\uDEDC-\uDEFA\uDEFC-\uDF14\uDF16-\uDF34\uDF36-\uDF4E\uDF50-\uDF6E\uDF70-\uDF88\uDF8A-\uDFA8\uDFAA-\uDFC2\uDFC4-\uDFCB]|\uD83A[\uDC00-\uDCC4\uDD00-\uDD43]|\uD83B[\uDE00-\uDE03\uDE05-\uDE1F\uDE21\uDE22\uDE24\uDE27\uDE29-\uDE32\uDE34-\uDE37\uDE39\uDE3B\uDE42\uDE47\uDE49\uDE4B\uDE4D-\uDE4F\uDE51\uDE52\uDE54\uDE57\uDE59\uDE5B\uDE5D\uDE5F\uDE61\uDE62\uDE64\uDE67-\uDE6A\uDE6C-\uDE72\uDE74-\uDE77\uDE79-\uDE7C\uDE7E\uDE80-\uDE89\uDE8B-\uDE9B\uDEA1-\uDEA3\uDEA5-\uDEA9\uDEAB-\uDEBB]|\uD869[\uDC00-\uDED6\uDF00-\uDFFF]|\uD86D[\uDC00-\uDF34\uDF40-\uDFFF]|\uD86E[\uDC00-\uDC1D\uDC20-\uDFFF]|\uD873[\uDC00-\uDEA1\uDEB0-\uDFFF]|\uD87A[\uDC00-\uDFE0]|\uD87E[\uDC00-\uDE1D]/;
+var ID_Continue = /[\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0300-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u0483-\u0487\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u05D0-\u05EA\u05F0-\u05F2\u0610-\u061A\u0620-\u0669\u066E-\u06D3\u06D5-\u06DC\u06DF-\u06E8\u06EA-\u06FC\u06FF\u0710-\u074A\u074D-\u07B1\u07C0-\u07F5\u07FA\u0800-\u082D\u0840-\u085B\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u08D4-\u08E1\u08E3-\u0963\u0966-\u096F\u0971-\u0983\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BC-\u09C4\u09C7\u09C8\u09CB-\u09CE\u09D7\u09DC\u09DD\u09DF-\u09E3\u09E6-\u09F1\u09FC\u0A01-\u0A03\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A59-\u0A5C\u0A5E\u0A66-\u0A75\u0A81-\u0A83\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABC-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AD0\u0AE0-\u0AE3\u0AE6-\u0AEF\u0AF9-\u0AFF\u0B01-\u0B03\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3C-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B5C\u0B5D\u0B5F-\u0B63\u0B66-\u0B6F\u0B71\u0B82\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD0\u0BD7\u0BE6-\u0BEF\u0C00-\u0C03\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C58-\u0C5A\u0C60-\u0C63\u0C66-\u0C6F\u0C80-\u0C83\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBC-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CDE\u0CE0-\u0CE3\u0CE6-\u0CEF\u0CF1\u0CF2\u0D00-\u0D03\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D44\u0D46-\u0D48\u0D4A-\u0D4E\u0D54-\u0D57\u0D5F-\u0D63\u0D66-\u0D6F\u0D7A-\u0D7F\u0D82\u0D83\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DE6-\u0DEF\u0DF2\u0DF3\u0E01-\u0E3A\u0E40-\u0E4E\u0E50-\u0E59\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB9\u0EBB-\u0EBD\u0EC0-\u0EC4\u0EC6\u0EC8-\u0ECD\u0ED0-\u0ED9\u0EDC-\u0EDF\u0F00\u0F18\u0F19\u0F20-\u0F29\u0F35\u0F37\u0F39\u0F3E-\u0F47\u0F49-\u0F6C\u0F71-\u0F84\u0F86-\u0F97\u0F99-\u0FBC\u0FC6\u1000-\u1049\u1050-\u109D\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u135D-\u135F\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1714\u1720-\u1734\u1740-\u1753\u1760-\u176C\u176E-\u1770\u1772\u1773\u1780-\u17D3\u17D7\u17DC\u17DD\u17E0-\u17E9\u180B-\u180D\u1810-\u1819\u1820-\u1877\u1880-\u18AA\u18B0-\u18F5\u1900-\u191E\u1920-\u192B\u1930-\u193B\u1946-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u19D0-\u19D9\u1A00-\u1A1B\u1A20-\u1A5E\u1A60-\u1A7C\u1A7F-\u1A89\u1A90-\u1A99\u1AA7\u1AB0-\u1ABD\u1B00-\u1B4B\u1B50-\u1B59\u1B6B-\u1B73\u1B80-\u1BF3\u1C00-\u1C37\u1C40-\u1C49\u1C4D-\u1C7D\u1C80-\u1C88\u1CD0-\u1CD2\u1CD4-\u1CF9\u1D00-\u1DF9\u1DFB-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u203F\u2040\u2054\u2071\u207F\u2090-\u209C\u20D0-\u20DC\u20E1\u20E5-\u20F0\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D7F-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2DE0-\u2DFF\u2E2F\u3005-\u3007\u3021-\u302F\u3031-\u3035\u3038-\u303C\u3041-\u3096\u3099\u309A\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312E\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEA\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA62B\uA640-\uA66F\uA674-\uA67D\uA67F-\uA6F1\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AE\uA7B0-\uA7B7\uA7F7-\uA827\uA840-\uA873\uA880-\uA8C5\uA8D0-\uA8D9\uA8E0-\uA8F7\uA8FB\uA8FD\uA900-\uA92D\uA930-\uA953\uA960-\uA97C\uA980-\uA9C0\uA9CF-\uA9D9\uA9E0-\uA9FE\uAA00-\uAA36\uAA40-\uAA4D\uAA50-\uAA59\uAA60-\uAA76\uAA7A-\uAAC2\uAADB-\uAADD\uAAE0-\uAAEF\uAAF2-\uAAF6\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABEA\uABEC\uABED\uABF0-\uABF9\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE00-\uFE0F\uFE20-\uFE2F\uFE33\uFE34\uFE4D-\uFE4F\uFE70-\uFE74\uFE76-\uFEFC\uFF10-\uFF19\uFF21-\uFF3A\uFF3F\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]|\uD800[\uDC00-\uDC0B\uDC0D-\uDC26\uDC28-\uDC3A\uDC3C\uDC3D\uDC3F-\uDC4D\uDC50-\uDC5D\uDC80-\uDCFA\uDD40-\uDD74\uDDFD\uDE80-\uDE9C\uDEA0-\uDED0\uDEE0\uDF00-\uDF1F\uDF2D-\uDF4A\uDF50-\uDF7A\uDF80-\uDF9D\uDFA0-\uDFC3\uDFC8-\uDFCF\uDFD1-\uDFD5]|\uD801[\uDC00-\uDC9D\uDCA0-\uDCA9\uDCB0-\uDCD3\uDCD8-\uDCFB\uDD00-\uDD27\uDD30-\uDD63\uDE00-\uDF36\uDF40-\uDF55\uDF60-\uDF67]|\uD802[\uDC00-\uDC05\uDC08\uDC0A-\uDC35\uDC37\uDC38\uDC3C\uDC3F-\uDC55\uDC60-\uDC76\uDC80-\uDC9E\uDCE0-\uDCF2\uDCF4\uDCF5\uDD00-\uDD15\uDD20-\uDD39\uDD80-\uDDB7\uDDBE\uDDBF\uDE00-\uDE03\uDE05\uDE06\uDE0C-\uDE13\uDE15-\uDE17\uDE19-\uDE33\uDE38-\uDE3A\uDE3F\uDE60-\uDE7C\uDE80-\uDE9C\uDEC0-\uDEC7\uDEC9-\uDEE6\uDF00-\uDF35\uDF40-\uDF55\uDF60-\uDF72\uDF80-\uDF91]|\uD803[\uDC00-\uDC48\uDC80-\uDCB2\uDCC0-\uDCF2]|\uD804[\uDC00-\uDC46\uDC66-\uDC6F\uDC7F-\uDCBA\uDCD0-\uDCE8\uDCF0-\uDCF9\uDD00-\uDD34\uDD36-\uDD3F\uDD50-\uDD73\uDD76\uDD80-\uDDC4\uDDCA-\uDDCC\uDDD0-\uDDDA\uDDDC\uDE00-\uDE11\uDE13-\uDE37\uDE3E\uDE80-\uDE86\uDE88\uDE8A-\uDE8D\uDE8F-\uDE9D\uDE9F-\uDEA8\uDEB0-\uDEEA\uDEF0-\uDEF9\uDF00-\uDF03\uDF05-\uDF0C\uDF0F\uDF10\uDF13-\uDF28\uDF2A-\uDF30\uDF32\uDF33\uDF35-\uDF39\uDF3C-\uDF44\uDF47\uDF48\uDF4B-\uDF4D\uDF50\uDF57\uDF5D-\uDF63\uDF66-\uDF6C\uDF70-\uDF74]|\uD805[\uDC00-\uDC4A\uDC50-\uDC59\uDC80-\uDCC5\uDCC7\uDCD0-\uDCD9\uDD80-\uDDB5\uDDB8-\uDDC0\uDDD8-\uDDDD\uDE00-\uDE40\uDE44\uDE50-\uDE59\uDE80-\uDEB7\uDEC0-\uDEC9\uDF00-\uDF19\uDF1D-\uDF2B\uDF30-\uDF39]|\uD806[\uDCA0-\uDCE9\uDCFF\uDE00-\uDE3E\uDE47\uDE50-\uDE83\uDE86-\uDE99\uDEC0-\uDEF8]|\uD807[\uDC00-\uDC08\uDC0A-\uDC36\uDC38-\uDC40\uDC50-\uDC59\uDC72-\uDC8F\uDC92-\uDCA7\uDCA9-\uDCB6\uDD00-\uDD06\uDD08\uDD09\uDD0B-\uDD36\uDD3A\uDD3C\uDD3D\uDD3F-\uDD47\uDD50-\uDD59]|\uD808[\uDC00-\uDF99]|\uD809[\uDC00-\uDC6E\uDC80-\uDD43]|[\uD80C\uD81C-\uD820\uD840-\uD868\uD86A-\uD86C\uD86F-\uD872\uD874-\uD879][\uDC00-\uDFFF]|\uD80D[\uDC00-\uDC2E]|\uD811[\uDC00-\uDE46]|\uD81A[\uDC00-\uDE38\uDE40-\uDE5E\uDE60-\uDE69\uDED0-\uDEED\uDEF0-\uDEF4\uDF00-\uDF36\uDF40-\uDF43\uDF50-\uDF59\uDF63-\uDF77\uDF7D-\uDF8F]|\uD81B[\uDF00-\uDF44\uDF50-\uDF7E\uDF8F-\uDF9F\uDFE0\uDFE1]|\uD821[\uDC00-\uDFEC]|\uD822[\uDC00-\uDEF2]|\uD82C[\uDC00-\uDD1E\uDD70-\uDEFB]|\uD82F[\uDC00-\uDC6A\uDC70-\uDC7C\uDC80-\uDC88\uDC90-\uDC99\uDC9D\uDC9E]|\uD834[\uDD65-\uDD69\uDD6D-\uDD72\uDD7B-\uDD82\uDD85-\uDD8B\uDDAA-\uDDAD\uDE42-\uDE44]|\uD835[\uDC00-\uDC54\uDC56-\uDC9C\uDC9E\uDC9F\uDCA2\uDCA5\uDCA6\uDCA9-\uDCAC\uDCAE-\uDCB9\uDCBB\uDCBD-\uDCC3\uDCC5-\uDD05\uDD07-\uDD0A\uDD0D-\uDD14\uDD16-\uDD1C\uDD1E-\uDD39\uDD3B-\uDD3E\uDD40-\uDD44\uDD46\uDD4A-\uDD50\uDD52-\uDEA5\uDEA8-\uDEC0\uDEC2-\uDEDA\uDEDC-\uDEFA\uDEFC-\uDF14\uDF16-\uDF34\uDF36-\uDF4E\uDF50-\uDF6E\uDF70-\uDF88\uDF8A-\uDFA8\uDFAA-\uDFC2\uDFC4-\uDFCB\uDFCE-\uDFFF]|\uD836[\uDE00-\uDE36\uDE3B-\uDE6C\uDE75\uDE84\uDE9B-\uDE9F\uDEA1-\uDEAF]|\uD838[\uDC00-\uDC06\uDC08-\uDC18\uDC1B-\uDC21\uDC23\uDC24\uDC26-\uDC2A]|\uD83A[\uDC00-\uDCC4\uDCD0-\uDCD6\uDD00-\uDD4A\uDD50-\uDD59]|\uD83B[\uDE00-\uDE03\uDE05-\uDE1F\uDE21\uDE22\uDE24\uDE27\uDE29-\uDE32\uDE34-\uDE37\uDE39\uDE3B\uDE42\uDE47\uDE49\uDE4B\uDE4D-\uDE4F\uDE51\uDE52\uDE54\uDE57\uDE59\uDE5B\uDE5D\uDE5F\uDE61\uDE62\uDE64\uDE67-\uDE6A\uDE6C-\uDE72\uDE74-\uDE77\uDE79-\uDE7C\uDE7E\uDE80-\uDE89\uDE8B-\uDE9B\uDEA1-\uDEA3\uDEA5-\uDEA9\uDEAB-\uDEBB]|\uD869[\uDC00-\uDED6\uDF00-\uDFFF]|\uD86D[\uDC00-\uDF34\uDF40-\uDFFF]|\uD86E[\uDC00-\uDC1D\uDC20-\uDFFF]|\uD873[\uDC00-\uDEA1\uDEB0-\uDFFF]|\uD87A[\uDC00-\uDFE0]|\uD87E[\uDC00-\uDE1D]|\uDB40[\uDD00-\uDDEF]/;
+var unicode = {
+  Space_Separator,
+  ID_Start,
+  ID_Continue
+};
+var util = {
+  isSpaceSeparator(c2) {
+    return typeof c2 === "string" && unicode.Space_Separator.test(c2);
+  },
+  isIdStartChar(c2) {
+    return typeof c2 === "string" && (c2 >= "a" && c2 <= "z" || c2 >= "A" && c2 <= "Z" || c2 === "$" || c2 === "_" || unicode.ID_Start.test(c2));
+  },
+  isIdContinueChar(c2) {
+    return typeof c2 === "string" && (c2 >= "a" && c2 <= "z" || c2 >= "A" && c2 <= "Z" || c2 >= "0" && c2 <= "9" || c2 === "$" || c2 === "_" || c2 === "‌" || c2 === "‍" || unicode.ID_Continue.test(c2));
+  },
+  isDigit(c2) {
+    return typeof c2 === "string" && /[0-9]/.test(c2);
+  },
+  isHexDigit(c2) {
+    return typeof c2 === "string" && /[0-9A-Fa-f]/.test(c2);
+  }
+};
+let source;
+let parseState;
+let stack;
+let pos;
+let line;
+let column;
+let token;
+let key;
+let root;
+var parse = function parse2(text, reviver) {
+  source = String(text);
+  parseState = "start";
+  stack = [];
+  pos = 0;
+  line = 1;
+  column = 0;
+  token = void 0;
+  key = void 0;
+  root = void 0;
+  do {
+    token = lex();
+    parseStates[parseState]();
+  } while (token.type !== "eof");
+  if (typeof reviver === "function") {
+    return internalize({ "": root }, "", reviver);
+  }
+  return root;
+};
+function internalize(holder, name, reviver) {
+  const value = holder[name];
+  if (value != null && typeof value === "object") {
+    if (Array.isArray(value)) {
+      for (let i2 = 0; i2 < value.length; i2++) {
+        const key2 = String(i2);
+        const replacement = internalize(value, key2, reviver);
+        if (replacement === void 0) {
+          delete value[key2];
+        } else {
+          Object.defineProperty(value, key2, {
+            value: replacement,
+            writable: true,
+            enumerable: true,
+            configurable: true
+          });
+        }
+      }
+    } else {
+      for (const key2 in value) {
+        const replacement = internalize(value, key2, reviver);
+        if (replacement === void 0) {
+          delete value[key2];
+        } else {
+          Object.defineProperty(value, key2, {
+            value: replacement,
+            writable: true,
+            enumerable: true,
+            configurable: true
+          });
+        }
+      }
+    }
+  }
+  return reviver.call(holder, name, value);
+}
+let lexState;
+let buffer;
+let doubleQuote;
+let sign;
+let c;
+function lex() {
+  lexState = "default";
+  buffer = "";
+  doubleQuote = false;
+  sign = 1;
+  for (; ; ) {
+    c = peek();
+    const token2 = lexStates[lexState]();
+    if (token2) {
+      return token2;
+    }
+  }
+}
+function peek() {
+  if (source[pos]) {
+    return String.fromCodePoint(source.codePointAt(pos));
+  }
+}
+function read() {
+  const c2 = peek();
+  if (c2 === "\n") {
+    line++;
+    column = 0;
+  } else if (c2) {
+    column += c2.length;
+  } else {
+    column++;
+  }
+  if (c2) {
+    pos += c2.length;
+  }
+  return c2;
+}
+const lexStates = {
+  default() {
+    switch (c) {
+      case "	":
+      case "\v":
+      case "\f":
+      case " ":
+      case " ":
+      case "\uFEFF":
+      case "\n":
+      case "\r":
+      case "\u2028":
+      case "\u2029":
+        read();
+        return;
+      case "/":
+        read();
+        lexState = "comment";
+        return;
+      case void 0:
+        read();
+        return newToken("eof");
+    }
+    if (util.isSpaceSeparator(c)) {
+      read();
+      return;
+    }
+    return lexStates[parseState]();
+  },
+  comment() {
+    switch (c) {
+      case "*":
+        read();
+        lexState = "multiLineComment";
+        return;
+      case "/":
+        read();
+        lexState = "singleLineComment";
+        return;
+    }
+    throw invalidChar(read());
+  },
+  multiLineComment() {
+    switch (c) {
+      case "*":
+        read();
+        lexState = "multiLineCommentAsterisk";
+        return;
+      case void 0:
+        throw invalidChar(read());
+    }
+    read();
+  },
+  multiLineCommentAsterisk() {
+    switch (c) {
+      case "*":
+        read();
+        return;
+      case "/":
+        read();
+        lexState = "default";
+        return;
+      case void 0:
+        throw invalidChar(read());
+    }
+    read();
+    lexState = "multiLineComment";
+  },
+  singleLineComment() {
+    switch (c) {
+      case "\n":
+      case "\r":
+      case "\u2028":
+      case "\u2029":
+        read();
+        lexState = "default";
+        return;
+      case void 0:
+        read();
+        return newToken("eof");
+    }
+    read();
+  },
+  value() {
+    switch (c) {
+      case "{":
+      case "[":
+        return newToken("punctuator", read());
+      case "n":
+        read();
+        literal("ull");
+        return newToken("null", null);
+      case "t":
+        read();
+        literal("rue");
+        return newToken("boolean", true);
+      case "f":
+        read();
+        literal("alse");
+        return newToken("boolean", false);
+      case "-":
+      case "+":
+        if (read() === "-") {
+          sign = -1;
+        }
+        lexState = "sign";
+        return;
+      case ".":
+        buffer = read();
+        lexState = "decimalPointLeading";
+        return;
+      case "0":
+        buffer = read();
+        lexState = "zero";
+        return;
+      case "1":
+      case "2":
+      case "3":
+      case "4":
+      case "5":
+      case "6":
+      case "7":
+      case "8":
+      case "9":
+        buffer = read();
+        lexState = "decimalInteger";
+        return;
+      case "I":
+        read();
+        literal("nfinity");
+        return newToken("numeric", Infinity);
+      case "N":
+        read();
+        literal("aN");
+        return newToken("numeric", NaN);
+      case '"':
+      case "'":
+        doubleQuote = read() === '"';
+        buffer = "";
+        lexState = "string";
+        return;
+    }
+    throw invalidChar(read());
+  },
+  identifierNameStartEscape() {
+    if (c !== "u") {
+      throw invalidChar(read());
+    }
+    read();
+    const u2 = unicodeEscape();
+    switch (u2) {
+      case "$":
+      case "_":
+        break;
+      default:
+        if (!util.isIdStartChar(u2)) {
+          throw invalidIdentifier();
+        }
+        break;
+    }
+    buffer += u2;
+    lexState = "identifierName";
+  },
+  identifierName() {
+    switch (c) {
+      case "$":
+      case "_":
+      case "‌":
+      case "‍":
+        buffer += read();
+        return;
+      case "\\":
+        read();
+        lexState = "identifierNameEscape";
+        return;
+    }
+    if (util.isIdContinueChar(c)) {
+      buffer += read();
+      return;
+    }
+    return newToken("identifier", buffer);
+  },
+  identifierNameEscape() {
+    if (c !== "u") {
+      throw invalidChar(read());
+    }
+    read();
+    const u2 = unicodeEscape();
+    switch (u2) {
+      case "$":
+      case "_":
+      case "‌":
+      case "‍":
+        break;
+      default:
+        if (!util.isIdContinueChar(u2)) {
+          throw invalidIdentifier();
+        }
+        break;
+    }
+    buffer += u2;
+    lexState = "identifierName";
+  },
+  sign() {
+    switch (c) {
+      case ".":
+        buffer = read();
+        lexState = "decimalPointLeading";
+        return;
+      case "0":
+        buffer = read();
+        lexState = "zero";
+        return;
+      case "1":
+      case "2":
+      case "3":
+      case "4":
+      case "5":
+      case "6":
+      case "7":
+      case "8":
+      case "9":
+        buffer = read();
+        lexState = "decimalInteger";
+        return;
+      case "I":
+        read();
+        literal("nfinity");
+        return newToken("numeric", sign * Infinity);
+      case "N":
+        read();
+        literal("aN");
+        return newToken("numeric", NaN);
+    }
+    throw invalidChar(read());
+  },
+  zero() {
+    switch (c) {
+      case ".":
+        buffer += read();
+        lexState = "decimalPoint";
+        return;
+      case "e":
+      case "E":
+        buffer += read();
+        lexState = "decimalExponent";
+        return;
+      case "x":
+      case "X":
+        buffer += read();
+        lexState = "hexadecimal";
+        return;
+    }
+    return newToken("numeric", sign * 0);
+  },
+  decimalInteger() {
+    switch (c) {
+      case ".":
+        buffer += read();
+        lexState = "decimalPoint";
+        return;
+      case "e":
+      case "E":
+        buffer += read();
+        lexState = "decimalExponent";
+        return;
+    }
+    if (util.isDigit(c)) {
+      buffer += read();
+      return;
+    }
+    return newToken("numeric", sign * Number(buffer));
+  },
+  decimalPointLeading() {
+    if (util.isDigit(c)) {
+      buffer += read();
+      lexState = "decimalFraction";
+      return;
+    }
+    throw invalidChar(read());
+  },
+  decimalPoint() {
+    switch (c) {
+      case "e":
+      case "E":
+        buffer += read();
+        lexState = "decimalExponent";
+        return;
+    }
+    if (util.isDigit(c)) {
+      buffer += read();
+      lexState = "decimalFraction";
+      return;
+    }
+    return newToken("numeric", sign * Number(buffer));
+  },
+  decimalFraction() {
+    switch (c) {
+      case "e":
+      case "E":
+        buffer += read();
+        lexState = "decimalExponent";
+        return;
+    }
+    if (util.isDigit(c)) {
+      buffer += read();
+      return;
+    }
+    return newToken("numeric", sign * Number(buffer));
+  },
+  decimalExponent() {
+    switch (c) {
+      case "+":
+      case "-":
+        buffer += read();
+        lexState = "decimalExponentSign";
+        return;
+    }
+    if (util.isDigit(c)) {
+      buffer += read();
+      lexState = "decimalExponentInteger";
+      return;
+    }
+    throw invalidChar(read());
+  },
+  decimalExponentSign() {
+    if (util.isDigit(c)) {
+      buffer += read();
+      lexState = "decimalExponentInteger";
+      return;
+    }
+    throw invalidChar(read());
+  },
+  decimalExponentInteger() {
+    if (util.isDigit(c)) {
+      buffer += read();
+      return;
+    }
+    return newToken("numeric", sign * Number(buffer));
+  },
+  hexadecimal() {
+    if (util.isHexDigit(c)) {
+      buffer += read();
+      lexState = "hexadecimalInteger";
+      return;
+    }
+    throw invalidChar(read());
+  },
+  hexadecimalInteger() {
+    if (util.isHexDigit(c)) {
+      buffer += read();
+      return;
+    }
+    return newToken("numeric", sign * Number(buffer));
+  },
+  string() {
+    switch (c) {
+      case "\\":
+        read();
+        buffer += escape();
+        return;
+      case '"':
+        if (doubleQuote) {
+          read();
+          return newToken("string", buffer);
+        }
+        buffer += read();
+        return;
+      case "'":
+        if (!doubleQuote) {
+          read();
+          return newToken("string", buffer);
+        }
+        buffer += read();
+        return;
+      case "\n":
+      case "\r":
+        throw invalidChar(read());
+      case "\u2028":
+      case "\u2029":
+        separatorChar(c);
+        break;
+      case void 0:
+        throw invalidChar(read());
+    }
+    buffer += read();
+  },
+  start() {
+    switch (c) {
+      case "{":
+      case "[":
+        return newToken("punctuator", read());
+    }
+    lexState = "value";
+  },
+  beforePropertyName() {
+    switch (c) {
+      case "$":
+      case "_":
+        buffer = read();
+        lexState = "identifierName";
+        return;
+      case "\\":
+        read();
+        lexState = "identifierNameStartEscape";
+        return;
+      case "}":
+        return newToken("punctuator", read());
+      case '"':
+      case "'":
+        doubleQuote = read() === '"';
+        lexState = "string";
+        return;
+    }
+    if (util.isIdStartChar(c)) {
+      buffer += read();
+      lexState = "identifierName";
+      return;
+    }
+    throw invalidChar(read());
+  },
+  afterPropertyName() {
+    if (c === ":") {
+      return newToken("punctuator", read());
+    }
+    throw invalidChar(read());
+  },
+  beforePropertyValue() {
+    lexState = "value";
+  },
+  afterPropertyValue() {
+    switch (c) {
+      case ",":
+      case "}":
+        return newToken("punctuator", read());
+    }
+    throw invalidChar(read());
+  },
+  beforeArrayValue() {
+    if (c === "]") {
+      return newToken("punctuator", read());
+    }
+    lexState = "value";
+  },
+  afterArrayValue() {
+    switch (c) {
+      case ",":
+      case "]":
+        return newToken("punctuator", read());
+    }
+    throw invalidChar(read());
+  },
+  end() {
+    throw invalidChar(read());
+  }
+};
+function newToken(type, value) {
+  return {
+    type,
+    value,
+    line,
+    column
+  };
+}
+function literal(s2) {
+  for (const c2 of s2) {
+    const p2 = peek();
+    if (p2 !== c2) {
+      throw invalidChar(read());
+    }
+    read();
+  }
+}
+function escape() {
+  const c2 = peek();
+  switch (c2) {
+    case "b":
+      read();
+      return "\b";
+    case "f":
+      read();
+      return "\f";
+    case "n":
+      read();
+      return "\n";
+    case "r":
+      read();
+      return "\r";
+    case "t":
+      read();
+      return "	";
+    case "v":
+      read();
+      return "\v";
+    case "0":
+      read();
+      if (util.isDigit(peek())) {
+        throw invalidChar(read());
+      }
+      return "\0";
+    case "x":
+      read();
+      return hexEscape();
+    case "u":
+      read();
+      return unicodeEscape();
+    case "\n":
+    case "\u2028":
+    case "\u2029":
+      read();
+      return "";
+    case "\r":
+      read();
+      if (peek() === "\n") {
+        read();
+      }
+      return "";
+    case "1":
+    case "2":
+    case "3":
+    case "4":
+    case "5":
+    case "6":
+    case "7":
+    case "8":
+    case "9":
+      throw invalidChar(read());
+    case void 0:
+      throw invalidChar(read());
+  }
+  return read();
+}
+function hexEscape() {
+  let buffer2 = "";
+  let c2 = peek();
+  if (!util.isHexDigit(c2)) {
+    throw invalidChar(read());
+  }
+  buffer2 += read();
+  c2 = peek();
+  if (!util.isHexDigit(c2)) {
+    throw invalidChar(read());
+  }
+  buffer2 += read();
+  return String.fromCodePoint(parseInt(buffer2, 16));
+}
+function unicodeEscape() {
+  let buffer2 = "";
+  let count = 4;
+  while (count-- > 0) {
+    const c2 = peek();
+    if (!util.isHexDigit(c2)) {
+      throw invalidChar(read());
+    }
+    buffer2 += read();
+  }
+  return String.fromCodePoint(parseInt(buffer2, 16));
+}
+const parseStates = {
+  start() {
+    if (token.type === "eof") {
+      throw invalidEOF();
+    }
+    push();
+  },
+  beforePropertyName() {
+    switch (token.type) {
+      case "identifier":
+      case "string":
+        key = token.value;
+        parseState = "afterPropertyName";
+        return;
+      case "punctuator":
+        pop();
+        return;
+      case "eof":
+        throw invalidEOF();
+    }
+  },
+  afterPropertyName() {
+    if (token.type === "eof") {
+      throw invalidEOF();
+    }
+    parseState = "beforePropertyValue";
+  },
+  beforePropertyValue() {
+    if (token.type === "eof") {
+      throw invalidEOF();
+    }
+    push();
+  },
+  beforeArrayValue() {
+    if (token.type === "eof") {
+      throw invalidEOF();
+    }
+    if (token.type === "punctuator" && token.value === "]") {
+      pop();
+      return;
+    }
+    push();
+  },
+  afterPropertyValue() {
+    if (token.type === "eof") {
+      throw invalidEOF();
+    }
+    switch (token.value) {
+      case ",":
+        parseState = "beforePropertyName";
+        return;
+      case "}":
+        pop();
+    }
+  },
+  afterArrayValue() {
+    if (token.type === "eof") {
+      throw invalidEOF();
+    }
+    switch (token.value) {
+      case ",":
+        parseState = "beforeArrayValue";
+        return;
+      case "]":
+        pop();
+    }
+  },
+  end() {
+  }
+};
+function push() {
+  let value;
+  switch (token.type) {
+    case "punctuator":
+      switch (token.value) {
+        case "{":
+          value = {};
+          break;
+        case "[":
+          value = [];
+          break;
+      }
+      break;
+    case "null":
+    case "boolean":
+    case "numeric":
+    case "string":
+      value = token.value;
+      break;
+  }
+  if (root === void 0) {
+    root = value;
+  } else {
+    const parent = stack[stack.length - 1];
+    if (Array.isArray(parent)) {
+      parent.push(value);
+    } else {
+      Object.defineProperty(parent, key, {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+    }
+  }
+  if (value !== null && typeof value === "object") {
+    stack.push(value);
+    if (Array.isArray(value)) {
+      parseState = "beforeArrayValue";
+    } else {
+      parseState = "beforePropertyName";
+    }
+  } else {
+    const current = stack[stack.length - 1];
+    if (current == null) {
+      parseState = "end";
+    } else if (Array.isArray(current)) {
+      parseState = "afterArrayValue";
+    } else {
+      parseState = "afterPropertyValue";
+    }
+  }
+}
+function pop() {
+  stack.pop();
+  const current = stack[stack.length - 1];
+  if (current == null) {
+    parseState = "end";
+  } else if (Array.isArray(current)) {
+    parseState = "afterArrayValue";
+  } else {
+    parseState = "afterPropertyValue";
+  }
+}
+function invalidChar(c2) {
+  if (c2 === void 0) {
+    return syntaxError(`JSON5: invalid end of input at ${line}:${column}`);
+  }
+  return syntaxError(`JSON5: invalid character '${formatChar(c2)}' at ${line}:${column}`);
+}
+function invalidEOF() {
+  return syntaxError(`JSON5: invalid end of input at ${line}:${column}`);
+}
+function invalidIdentifier() {
+  column -= 5;
+  return syntaxError(`JSON5: invalid identifier character at ${line}:${column}`);
+}
+function separatorChar(c2) {
+  console.warn(`JSON5: '${formatChar(c2)}' in strings is not valid ECMAScript; consider escaping`);
+}
+function formatChar(c2) {
+  const replacements = {
+    "'": "\\'",
+    '"': '\\"',
+    "\\": "\\\\",
+    "\b": "\\b",
+    "\f": "\\f",
+    "\n": "\\n",
+    "\r": "\\r",
+    "	": "\\t",
+    "\v": "\\v",
+    "\0": "\\0",
+    "\u2028": "\\u2028",
+    "\u2029": "\\u2029"
+  };
+  if (replacements[c2]) {
+    return replacements[c2];
+  }
+  if (c2 < " ") {
+    const hexString = c2.charCodeAt(0).toString(16);
+    return "\\x" + ("00" + hexString).substring(hexString.length);
+  }
+  return c2;
+}
+function syntaxError(message) {
+  const err = new SyntaxError(message);
+  err.lineNumber = line;
+  err.columnNumber = column;
+  return err;
+}
+var stringify = function stringify2(value, replacer, space) {
+  const stack2 = [];
+  let indent = "";
+  let propertyList;
+  let replacerFunc;
+  let gap = "";
+  let quote;
+  if (replacer != null && typeof replacer === "object" && !Array.isArray(replacer)) {
+    space = replacer.space;
+    quote = replacer.quote;
+    replacer = replacer.replacer;
+  }
+  if (typeof replacer === "function") {
+    replacerFunc = replacer;
+  } else if (Array.isArray(replacer)) {
+    propertyList = [];
+    for (const v2 of replacer) {
+      let item;
+      if (typeof v2 === "string") {
+        item = v2;
+      } else if (typeof v2 === "number" || v2 instanceof String || v2 instanceof Number) {
+        item = String(v2);
+      }
+      if (item !== void 0 && propertyList.indexOf(item) < 0) {
+        propertyList.push(item);
+      }
+    }
+  }
+  if (space instanceof Number) {
+    space = Number(space);
+  } else if (space instanceof String) {
+    space = String(space);
+  }
+  if (typeof space === "number") {
+    if (space > 0) {
+      space = Math.min(10, Math.floor(space));
+      gap = "          ".substr(0, space);
+    }
+  } else if (typeof space === "string") {
+    gap = space.substr(0, 10);
+  }
+  return serializeProperty("", { "": value });
+  function serializeProperty(key2, holder) {
+    let value2 = holder[key2];
+    if (value2 != null) {
+      if (typeof value2.toJSON5 === "function") {
+        value2 = value2.toJSON5(key2);
+      } else if (typeof value2.toJSON === "function") {
+        value2 = value2.toJSON(key2);
+      }
+    }
+    if (replacerFunc) {
+      value2 = replacerFunc.call(holder, key2, value2);
+    }
+    if (value2 instanceof Number) {
+      value2 = Number(value2);
+    } else if (value2 instanceof String) {
+      value2 = String(value2);
+    } else if (value2 instanceof Boolean) {
+      value2 = value2.valueOf();
+    }
+    switch (value2) {
+      case null:
+        return "null";
+      case true:
+        return "true";
+      case false:
+        return "false";
+    }
+    if (typeof value2 === "string") {
+      return quoteString(value2);
+    }
+    if (typeof value2 === "number") {
+      return String(value2);
+    }
+    if (typeof value2 === "object") {
+      return Array.isArray(value2) ? serializeArray(value2) : serializeObject(value2);
+    }
+    return void 0;
+  }
+  function quoteString(value2) {
+    const quotes = {
+      "'": 0.1,
+      '"': 0.2
+    };
+    const replacements = {
+      "'": "\\'",
+      '"': '\\"',
+      "\\": "\\\\",
+      "\b": "\\b",
+      "\f": "\\f",
+      "\n": "\\n",
+      "\r": "\\r",
+      "	": "\\t",
+      "\v": "\\v",
+      "\0": "\\0",
+      "\u2028": "\\u2028",
+      "\u2029": "\\u2029"
+    };
+    let product = "";
+    for (let i2 = 0; i2 < value2.length; i2++) {
+      const c2 = value2[i2];
+      switch (c2) {
+        case "'":
+        case '"':
+          quotes[c2]++;
+          product += c2;
+          continue;
+        case "\0":
+          if (util.isDigit(value2[i2 + 1])) {
+            product += "\\x00";
+            continue;
+          }
+      }
+      if (replacements[c2]) {
+        product += replacements[c2];
+        continue;
+      }
+      if (c2 < " ") {
+        let hexString = c2.charCodeAt(0).toString(16);
+        product += "\\x" + ("00" + hexString).substring(hexString.length);
+        continue;
+      }
+      product += c2;
+    }
+    const quoteChar = quote || Object.keys(quotes).reduce((a2, b2) => quotes[a2] < quotes[b2] ? a2 : b2);
+    product = product.replace(new RegExp(quoteChar, "g"), replacements[quoteChar]);
+    return quoteChar + product + quoteChar;
+  }
+  function serializeObject(value2) {
+    if (stack2.indexOf(value2) >= 0) {
+      throw TypeError("Converting circular structure to JSON5");
+    }
+    stack2.push(value2);
+    let stepback = indent;
+    indent = indent + gap;
+    let keys = propertyList || Object.keys(value2);
+    let partial = [];
+    for (const key2 of keys) {
+      const propertyString = serializeProperty(key2, value2);
+      if (propertyString !== void 0) {
+        let member = serializeKey(key2) + ":";
+        if (gap !== "") {
+          member += " ";
+        }
+        member += propertyString;
+        partial.push(member);
+      }
+    }
+    let final;
+    if (partial.length === 0) {
+      final = "{}";
+    } else {
+      let properties;
+      if (gap === "") {
+        properties = partial.join(",");
+        final = "{" + properties + "}";
+      } else {
+        let separator = ",\n" + indent;
+        properties = partial.join(separator);
+        final = "{\n" + indent + properties + ",\n" + stepback + "}";
+      }
+    }
+    stack2.pop();
+    indent = stepback;
+    return final;
+  }
+  function serializeKey(key2) {
+    if (key2.length === 0) {
+      return quoteString(key2);
+    }
+    const firstChar = String.fromCodePoint(key2.codePointAt(0));
+    if (!util.isIdStartChar(firstChar)) {
+      return quoteString(key2);
+    }
+    for (let i2 = firstChar.length; i2 < key2.length; i2++) {
+      if (!util.isIdContinueChar(String.fromCodePoint(key2.codePointAt(i2)))) {
+        return quoteString(key2);
+      }
+    }
+    return key2;
+  }
+  function serializeArray(value2) {
+    if (stack2.indexOf(value2) >= 0) {
+      throw TypeError("Converting circular structure to JSON5");
+    }
+    stack2.push(value2);
+    let stepback = indent;
+    indent = indent + gap;
+    let partial = [];
+    for (let i2 = 0; i2 < value2.length; i2++) {
+      const propertyString = serializeProperty(String(i2), value2);
+      partial.push(propertyString !== void 0 ? propertyString : "null");
+    }
+    let final;
+    if (partial.length === 0) {
+      final = "[]";
+    } else {
+      if (gap === "") {
+        let properties = partial.join(",");
+        final = "[" + properties + "]";
+      } else {
+        let separator = ",\n" + indent;
+        let properties = partial.join(separator);
+        final = "[\n" + indent + properties + ",\n" + stepback + "]";
+      }
+    }
+    stack2.pop();
+    indent = stepback;
+    return final;
+  }
+};
+const JSON5 = {
+  parse,
+  stringify
+};
+var lib = JSON5;
+var kMethodEvalLogs = "eval_logs";
+var kMethodEvalLog = "eval_log";
+var kMethodEvalLogHeaders = "eval_log_headers";
+function webViewJsonRpcClient(vscode) {
+  var target = {
+    postMessage: function(data) {
+      vscode.postMessage(data);
+    },
+    onMessage: function(handler) {
+      var onMessage = function(ev) {
+        handler(ev.data);
+      };
+      window.addEventListener("message", onMessage);
+      return function() {
+        window.removeEventListener("message", onMessage);
+      };
+    }
+  };
+  var request = jsonRpcPostMessageRequestTransport(target).request;
+  return request;
+}
+function jsonRpcPostMessageRequestTransport(target) {
+  var requests = /* @__PURE__ */ new Map();
+  var disconnect = target.onMessage(function(ev) {
+    var response = asJsonRpcResponse(ev);
+    if (response) {
+      var request = requests.get(response.id);
+      if (request) {
+        requests["delete"](response.id);
+        if (response.error) {
+          request.reject(response.error);
+        } else {
+          request.resolve(response.result);
+        }
+      }
+    }
+  });
+  return {
+    request: function(method, params) {
+      return new Promise(function(resolve, reject) {
+        var requestId = Math.floor(Math.random() * 1e6);
+        requests.set(requestId, {
+          resolve,
+          reject
+        });
+        var request = {
+          jsonrpc: kJsonRpcVersion,
+          id: requestId,
+          method,
+          params
+        };
+        target.postMessage(request);
+      });
+    },
+    disconnect
+  };
+}
+var kJsonRpcVersion = "2.0";
+function isJsonRpcMessage(message) {
+  var jsMessage = message;
+  return jsMessage.jsonrpc !== void 0 && jsMessage.id !== void 0;
+}
+function asJsonRpcMessage(data) {
+  if (isJsonRpcMessage(data) && data.jsonrpc === kJsonRpcVersion) {
+    return data;
+  } else {
+    return null;
+  }
+}
+function asJsonRpcResponse(data) {
+  var message = asJsonRpcMessage(data);
+  if (message) {
+    return message;
+  } else {
+    return null;
+  }
+}
+const vscodeApi = window.acquireVsCodeApi ? window.acquireVsCodeApi() : void 0;
+const vscodeClient = webViewJsonRpcClient(vscodeApi);
+async function client_events() {
+  return [];
+}
+async function eval_logs() {
+  const response = await vscodeClient(kMethodEvalLogs, []);
+  if (response) {
+    const parsed = lib.parse(response);
+    if (Array.isArray(parsed)) {
+      return {
+        log_dir: "",
+        files: parsed
+      };
+    } else {
+      return parsed;
+    }
+  } else {
+    return void 0;
+  }
+}
+async function eval_log(file, headerOnly, capabilities) {
+  const response = await vscodeClient(kMethodEvalLog, [file, headerOnly]);
+  if (response) {
+    let json;
+    if (capabilities.webWorkers) {
+      json = await asyncJsonParse(response);
+    } else {
+      json = lib.parse(response);
+    }
+    return {
+      parsed: json,
+      raw: response
+    };
+  } else {
+    return void 0;
+  }
+}
+async function eval_log_headers(files) {
+  const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
+  if (response) {
+    return lib.parse(response);
+  } else {
+    return void 0;
+  }
+}
+async function download_file(logFile) {
+  vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
+}
+const vscodeApi$1 = {
+  client_events,
+  eval_logs,
+  eval_log,
+  eval_log_headers,
+  download_file
+};
+function singleFileHttpApi() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const fetchLogPath = urlParams.get("log_file");
+  if (fetchLogPath) {
+    const api2 = httpApiForFile(fetchLogPath);
+    return api2;
+  }
+}
+function httpApiForFile(logFile) {
+  const getContents = async () => {
+    {
+      const response = await fetch(`${logFile}`, { method: "GET" });
+      if (response.ok) {
+        const text = await response.text();
+        const log = await asyncJsonParse(text);
+        if (log.version === 1) {
+          if (log.results) {
+            log.results.scores = [];
+            log.results.scorer.scorer = log.results.scorer.name;
+            log.results.scores.push(log.results.scorer);
+            delete log.results.scorer;
+            log.results.scores[0].metrics = log.results.metrics;
+            delete log.results.metrics;
+            const scorerName = log.results.scores[0].name;
+            log.samples.forEach((sample) => {
+              sample.scores = { [scorerName]: sample.score };
+              delete sample.score;
+            });
+          }
+        }
+        return {
+          parsed: log,
+          raw: text
+        };
+      } else if (response.status !== 200) {
+        const message = await response.text() || response.statusText;
+        const error = new Error(`Error: ${response.status}: ${message})`);
+        throw error;
+      } else {
+        throw new Error(`${response.status} - ${response.statusText} `);
+      }
+    }
+  };
+  return {
+    client_events: async () => {
+      return Promise.resolve([]);
+    },
+    eval_logs: async () => {
+      const contents = await getContents();
+      const files = [
+        {
+          name: logFile,
+          task: contents.parsed.eval.task,
+          task_id: contents.parsed.eval.task_id
+        }
+      ];
+      return Promise.resolve({
+        files
+      });
+    },
+    eval_log: async () => {
+      return await getContents();
+    },
+    eval_log_headers: async () => {
+      const contents = await getContents();
+      return Promise.resolve([contents.parsed]);
+    },
+    download_file: download_file$1
+  };
+}
+const api = window.acquireVsCodeApi ? vscodeApi$1 : singleFileHttpApi() || browserApi;
+const DownloadButton = ({ logFile, label, fileName, fileContents }) => {
+  return m$1`<button
+    class="btn btn-outline-primary"
+    style=${{ fontSize: FontSize.small, marginTop: "3em" }}
+    onclick=${async () => {
+    await api.download_file(logFile, fileName, fileContents);
+  }}
+  >
+    ${label}
+  </button>`;
+};
+const DownloadPanel = ({
+  message,
+  buttonLabel,
+  logFile,
+  fileName,
+  fileContents
+}) => {
+  return m$1`<div
+    style=${{
+    display: "grid",
+    gridTemplateRows: "content content",
+    paddingTop: "3em",
+    justifyItems: "center"
+  }}
+  >
+    <div style=${{ fontSize: FontSize.small }}>${message}</div>
+    <${DownloadButton}
+      label=${buttonLabel}
+      logFile=${logFile}
+      fileName=${fileName}
+      fileContents=${fileContents}
+    />
+  </div>`;
 };
 const TaskErrorCard = ({ evalError }) => {
   return m$1`
     <${Card}>
-      <${CardHeader} icon=${icons.error} label="Task Failed: ${evalError.message}"></${CardHeader}>
-      <${CardBody} style=${{ fontSize: "0.8em" }}>
+      <${CardHeader} icon=${ApplicationIcons.error} label="Task Failed: ${evalError.message}"></${CardHeader}>
+      <${CardBody} style=${{ fontSize: FontSize.smaller }}>
         <${ANSIDisplay} output=${evalError.traceback_ansi}/>
       </${CardBody}>
     </${Card}>
@@ -18011,7 +21495,6 @@ const TaskErrorCard = ({ evalError }) => {
 };
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
-const kLoggingTabId = "logging-tab";
 const kInfoTabId = "plan-tab";
 const kPrismRenderMaxSize = 25e4;
 const kJsonMaxSize = 1e7;
@@ -18168,21 +21651,6 @@ const WorkSpace = (props) => {
         </div>`;
       }
     };
-    resolvedTabs.logging = {
-      id: kLoggingTabId,
-      label: "Logging",
-      scrollable: true,
-      content: () => {
-        var _a3;
-        return m$1`<${LoggingPanel}
-          logFile=${workspaceLog.name}
-          logging=${(_a3 = workspaceLog.contents) == null ? void 0 : _a3.logging}
-          capabilities=${props.capabilities}
-          context=${context}
-        />`;
-      },
-      tools: () => []
-    };
     resolvedTabs.json = {
       id: kJsonTabId,
       label: "JSON",
@@ -18203,9 +21671,9 @@ const WorkSpace = (props) => {
         } else {
           if (codeRef.current && !renderedCode) {
             if (workspaceLog.raw.length < kPrismRenderMaxSize) {
-              codeRef.current.innerHTML = Prism.highlight(
+              codeRef.current.innerHTML = Prism$1.highlight(
                 workspaceLog.raw,
-                Prism.languages.javascript,
+                Prism$1.languages.javascript,
                 "javacript"
               );
             } else {
@@ -18218,7 +21686,7 @@ const WorkSpace = (props) => {
           renderedContent.push(
             m$1`<pre>
             <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: "0.9em",
+              fontSize: FontSize.small,
               whiteSpace: "pre-wrap",
               wordWrap: "anywhere"
             }}>
@@ -18229,7 +21697,7 @@ const WorkSpace = (props) => {
         return m$1` <div
           style=${{
           padding: "1rem",
-          fontSize: "0.9rem",
+          fontSize: FontSize.small,
           width: "100%"
         }}
         >
@@ -18243,7 +21711,7 @@ const WorkSpace = (props) => {
           return [
             m$1`<${ToolButton}
               name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
-              icon="${icons.copy}"
+              icon="${ApplicationIcons.copy}"
               classes="task-btn-json-copy clipboard-button"
               data-clipboard-target="#task-json-contents"
               onclick="${copyFeedback}"
@@ -18273,7 +21741,7 @@ const WorkSpace = (props) => {
         const oldText = textEl.innerText;
         const oldIconClz = iconEl.className;
         textEl.innerText = "Copied!";
-        iconEl.className = `${icons.confirm}`;
+        iconEl.className = `${ApplicationIcons.confirm}`;
         setTimeout(() => {
           window.getSelection().removeAllRanges();
         }, 50);
@@ -18303,43 +21771,43 @@ const WorkSpace = (props) => {
     tabs=${tabs}
     tabTools=${tabTools}
     log=${workspaceLog}
+    logs=${props.logs}
     selectedTab=${selectedTab}
     fullScreen=${props.fullScreen}
     offcanvas=${props.offcanvas}
-    context=${context}
     setSelectedTab=${setSelectedTab}
     afterBodyElements=${afterBodyElements}
   />`;
 };
 const WorkspaceDisplay = ({
   log,
+  logs,
   selectedTab,
   tabs,
   tabTools,
   setSelectedTab,
   divRef,
-  context,
-  afterBodyElements
+  afterBodyElements,
+  offcanvas
 }) => {
-  var _a, _b, _c;
   if (log.contents === void 0) {
     return m$1`<${EmptyPanel} />`;
   } else {
-    return m$1`<div ref=${divRef} class="workspace" style=${{
+    return m$1`
+    
+    <${Navbar}
+      file=${log.name}
+      logs=${logs}
+      log=${log.contents}
+      offcanvas=${offcanvas}
+    />    
+    <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
       overflowY: "hidden"
     }}>
-            <${TitleBlock}
-              created=${(_a = log.contents) == null ? void 0 : _a.eval.created}
-              stats=${(_b = log.contents) == null ? void 0 : _b.stats}
-              log=${log.contents}
-              context=${context}
-              status=${(_c = log.contents) == null ? void 0 : _c.status}
-            />
             <div
               class="log-detail"
               style=${{
-      borderTop: "solid 1px var(--bs-border-color)",
       padding: "0",
       flex: 1,
       display: "flex",
@@ -18349,16 +21817,20 @@ const WorkspaceDisplay = ({
             >
             <${TabSet} id="log-details" tools="${tabTools}" type="pills" styles=${{
       tabSet: {
-        fontSize: "0.8rem",
+        fontSize: FontSize.smaller,
         flexWrap: "nowrap",
         padding: "0.5em 1em 0.5em 1em",
-        borderBottom: "solid 1px var(--bs-border-color)"
+        borderBottom: "solid 1px var(--bs-border-color)",
+        background: "var(--bs-light)"
       },
       tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
       tabs: {
         padding: ".3rem 0.3rem .3rem 0.3rem",
-        width: "5em",
-        fontSize: "0.7rem"
+        width: "5rem",
+        fontSize: FontSize.smaller,
+        textTransform: "uppercase",
+        borderRadius: "3px",
+        fontWeight: 600
       }
     }} >
               ${Object.keys(tabs).map((key2) => {
@@ -18367,8 +21839,8 @@ const WorkspaceDisplay = ({
                 id=${tab.id}
                 title="${tab.label}"
                 onSelected=${(e2) => {
-        const id2 = e2.currentTarget.id;
-        setSelectedTab(id2);
+        const id = e2.currentTarget.id;
+        setSelectedTab(id);
       }}
                 selected=${selectedTab === tab.id}
                 scrollable=${!!tab.scrollable}>
@@ -18459,9 +21931,9 @@ const FindBand = ({ hideBand }) => {
       type="text"
       ref=${searchBoxRef}
       style=${{
-    height: "1.5em",
+    height: "2em",
     fontSize: "0.9em",
-    marginTop: "0.1rem",
+    margin: "0.1rem",
     outline: "none",
     border: "solid 1px var(--inspect-input-border)",
     color: "var(--inspect-input-foreground)",
@@ -18479,50 +21951,50 @@ const FindBand = ({ hideBand }) => {
     <span
       id="inspect-find-no-results"
       style=${{
-    fontSize: "0.8rem",
+    fontSize: FontSize.base,
     opacity: 0,
-    marginTop: "0.1rem",
+    marginTop: "auto",
+    marginBottom: "auto",
     marginRight: "0.5em"
   }}
       >No results</span
     >
     <button
       title="Previous match"
-      style=${{ padding: 0, fontSize: "0.7rem" }}
+      style=${{ padding: 0, fontSize: FontSize.larger }}
       class="btn"
       onclick=${() => {
     search(searchTerm(), true);
   }}
     >
-      <i class=${icons.arrows.up}></i>
+      <i class=${ApplicationIcons.arrows.up}></i>
     </button>
     <button
       title="Next match"
-      style=${{ padding: 0, fontSize: "0.8rem" }}
+      style=${{ padding: 0, fontSize: FontSize.larger }}
       class="btn"
       onclick=${() => {
     search(searchTerm());
   }}
     >
-      <i class=${icons.arrows.down}></i>
+      <i class=${ApplicationIcons.arrows.down}></i>
     </button>
     <button
       title="Close"
       style=${{
     padding: 0,
-    fontSize: "1rem",
+    fontSize: FontSize["title-secondary"],
     marginTop: "-0.1rem",
     marginBottom: "-0.1rem"
   }}
       class="btn"
       onclick=${() => hideBand()}
     >
-      <i class=${icons.close}></i>
+      <i class=${ApplicationIcons.close}></i>
     </button>
   </div>`;
 };
 function App({ api: api2, pollForLogs = true }) {
-  var _a, _b, _c, _d, _e, _f, _g;
   const [selected, setSelected] = h(-1);
   const [pendingLog, setPendingLog] = h(void 0);
   const [logs, setLogs] = h({ log_dir: "", files: [] });
@@ -18721,16 +22193,6 @@ function App({ api: api2, pollForLogs = true }) {
     }
   }, []);
   const fullScreen = filteredLogs.files.length === 1 && !filteredLogs.log_dir;
-  const navbar = m$1` <${Navbar}
-    file=${currentLog.name}
-    logs=${filteredLogs}
-    task=${(_b = (_a = currentLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.task}
-    model=${(_d = (_c = currentLog.contents) == null ? void 0 : _c.eval) == null ? void 0 : _d.model}
-    results=${(_e = currentLog.contents) == null ? void 0 : _e.results}
-    samples=${(_f = currentLog.contents) == null ? void 0 : _f.samples}
-    status=${(_g = currentLog.contents) == null ? void 0 : _g.status}
-    offcanvas=${offcanvas}
-  />`;
   const sidebar = !fullScreen && currentLog.contents ? m$1`
           <${Sidebar}
             logs=${filteredLogs}
@@ -18789,7 +22251,6 @@ function App({ api: api2, pollForLogs = true }) {
     }
   }}>
       ${showFind ? m$1`<${FindBand} hideBand=${hideFind} />` : ""}
-      ${navbar}
       <${ProgressBar} animating=${status.loading} />
       ${workspace}
     </div>
@@ -18797,3 +22258,4 @@ function App({ api: api2, pollForLogs = true }) {
   `;
 }
 B$1(m$1`<${App} api=${api} />`, document.getElementById("app"));
+//# sourceMappingURL=index.js.map

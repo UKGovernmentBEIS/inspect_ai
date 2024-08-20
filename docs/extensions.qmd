@@ -16,7 +16,7 @@ For each of these, you can create an extension within a Python package, and then
 
 You can add a model provider by deriving a new class from `ModelAPI` and then creating a function decorated by `@modelapi` that returns the class. These are typically implemented in separate files (for reasons described below):
 
-```{.python filename="custom.py"}
+``` {.python filename="custom.py"}
 class CustomModelAPI(ModelAPI):
     def __init__(
         self, 
@@ -39,7 +39,7 @@ class CustomModelAPI(ModelAPI):
         ...
 ```
 
-```{.python filename="providers.py"}
+``` {.python filename="providers.py"}
 @modelapi(name="custom")
 def custom():
     from .custom import CustomModelAPI
@@ -47,16 +47,17 @@ def custom():
     return CustomModelAPI
 ```
 
-
 The layer of indirection (creating a function that returns a ModelAPI class) is done so that you can separate the registration of models from the importing of libraries they require (important for limiting dependencies). You can see this used within Inspect to make all model package dependencies optional [here](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_providers/providers.py). With this scheme, pacakges required to interace with models (e.g. `openai`, `anthropic`, `vllm`, etc.) are only imported when their model API type is actually used.
 
 The `__init__()` method *must* call the `super().__init__()` method, and typically instantiates the model client library.
 
-The `__init__()` method receive a `**model_args` parameter that will carry any custom `model_args` (or `-M` arguments from the CLI) specified by the user. You can then pass these on to the approriate place in your model initialisation code (for example, here is what many of the built-in providers do with `model_args` passed to them: <https://inspect.ai-safety-institute.org.uk/models.html#model-args>).
+The `__init__()` method receive a `**model_args` parameter that will carry any custom `model_args` (or `-M` arguments from the CLI) specified by the user. You can then pass these on to the appropriate place in your model initialisation code (for example, here is what many of the built-in providers do with `model_args` passed to them: <https://inspect.ai-safety-institute.org.uk/models.html#model-args>).
 
-The `generate()` method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. In addition, there are some optional properties you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, whether to collapse consecutive user and/or assistant messages, etc.).
+The `generate()` method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. Note that the generate method may optionally return a `tuple[ModelOutput,ModelCall]` in order to record the raw request and response to the model within the sample transcript.
 
-See the [ModelAPI](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_model.py) source code for further documentation on these properties. See the implementation of the [built-in model providers](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_providers) for additional insight on building a custom provider.
+In addition, there are some optional properties you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, whether to collapse consecutive user and/or assistant messages, etc.). See the [ModelAPI](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_model.py) source code for further documentation on these properties.
+
+See the implementation of the [built-in model providers](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_providers) for additional insight on building a custom provider.
 
 ### Model Registration
 
@@ -104,12 +105,12 @@ eval(math, model = "custom/my-model")
 
 [Sandbox Environments](#sec-sandbox-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
 
-| Environment Type | Description                                                                                                                                                               |
+| Environment Type | Description |
 |----------------------------|--------------------------------------------|
-| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker`         | Run `sandbox()` methods within a Docker container                                                                                                                |
+| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `sandbox()` methods within a Docker container |
 
-To create a custom sandbox environment, derive a class from `SandboxEnvironment`, implement the required static and instance methods, and add the `@sandboxenv` decorator to it. 
+To create a custom sandbox environment, derive a class from `SandboxEnvironment`, implement the required static and instance methods, and add the `@sandboxenv` decorator to it.
 
 The static class methods control the lifecycle of containers and other computing resources associated with the `SandboxEnvironment`:
 
@@ -157,13 +158,13 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
 
 The class methods take care of various stages of initialisation, setup, and teardown:
 
-| Method             | Lifecycle                                                                                          | Purpose                                                                               |
+| Method | Lifecycle | Purpose |
 |-------------------|-------------------|----------------------------------|
-| `task_init()`      | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images)                 |
-| `sample_init()`    | Called at the beginning of each `Sample`.                                                          | Create `SandboxEnvironment` instances for the sample.                                    |
-| `sample_cleanup()` | Called at the end of each `Sample`                                                                 | Cleanup `SandboxEnvironment` instances for the sample.                                   |
-| `task_cleanup()`   | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run.  | Last chance handler for any resources not yet cleaned up (see also discussion below). |
-| `cli_cleanup()`    | Called via `inspect sandbox cleanup`                                                               | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`.            |
+| `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
+| `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
+| `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
+| `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`. |
 
 In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique sandbox environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
 
@@ -186,7 +187,6 @@ The `task_cleanup()` function will typically print out the information required 
 The `SandboxEnvironment` instance methods provide access to process execution and file input/output within the environment.
 
 {{< include _sandboxenv-interface.md >}}
-
 
 The best way to learn about writing sandbox environments is to look at the source code for the built in environments, [LocalSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/local.py) and [DockerSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/docker/docker.py).
 

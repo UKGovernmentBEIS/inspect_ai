@@ -1,7 +1,9 @@
 import { html } from "htm/preact";
 import { useEffect, useMemo } from "preact/hooks";
 
-import { sharedStyles } from "../Constants.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
+import { TextStyle } from "../appearance/Fonts.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 
 import { shortenCompletion, arrayToString } from "../utils/Format.mjs";
@@ -9,8 +11,8 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
 import { inputString } from "../utils/Format.mjs";
 
-const kSampleHeight = 82;
-const kSeparatorHeight = 20;
+const kSampleHeight = 88;
+const kSeparatorHeight = 24;
 
 // Convert samples to a datastructure which contemplates grouping, etc...
 export const SampleList = (props) => {
@@ -102,7 +104,6 @@ export const SampleList = (props) => {
       return html`
         <${SeparatorRow}
           id=${`sample-group${item.number}`}
-          class="cool"
           title=${item.data}
           height=${kSeparatorHeight}
         />
@@ -138,13 +139,15 @@ export const SampleList = (props) => {
     style=${{
       display: "grid",
       ...gridColumnStyles(sampleDescriptor),
-      fontSize: "0.7rem",
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary,
       paddingBottom: "0.3em",
       paddingTop: "0.3em",
       borderBottom: "solid var(--bs-light-border-subtle) 1px",
     }}
   >
-    <div>#</div>
+    <div>Id</div>
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
@@ -171,11 +174,10 @@ const SeparatorRow = ({ id, title, height }) => {
   return html`<div
     id=${id}
     style=${{
-      backgroundColor: "var(--bs-secondary-bg)",
       padding: ".25em 1em .25em 1em",
       textTransform: "uppercase",
-      color: "var(--bs-secondary)",
-      fontSize: "0.6rem",
+      ...TextStyle.secondary,
+      fontSize: FontSize.smaller,
       fontWeight: 600,
       borderBottom: "solid 1px var(--bs-border-color)",
       height: `${height}px`,
@@ -225,7 +227,7 @@ const SampleRow = ({
         paddingTop: "1em",
         paddingBottom: "1em",
         gridTemplateRows: `${height - 28}px`,
-        fontSize: "0.8em",
+        fontSize: FontSize.base,
         borderBottom: "solid var(--bs-border-color) 1px",
         cursor: "pointer",
         ...selectedStyle,
@@ -236,7 +238,7 @@ const SampleRow = ({
       <div
         class="sample-input"
         style=${{
-          ...sharedStyles.threeLineClamp,
+          ...ApplicationStyles.threeLineClamp,
           wordWrap: "anywhere",
           ...cellStyle,
         }}
@@ -246,7 +248,7 @@ const SampleRow = ({
       <div
         class="sample-target"
         style=${{
-          ...sharedStyles.threeLineClamp,
+          ...ApplicationStyles.threeLineClamp,
           ...cellStyle,
         }}
       >
@@ -259,7 +261,7 @@ const SampleRow = ({
       <div
         class="sample-answer"
         style=${{
-          ...sharedStyles.threeLineClamp,
+          ...ApplicationStyles.threeLineClamp,
           ...cellStyle,
         }}
       >
@@ -278,7 +280,7 @@ const SampleRow = ({
 
       <div
         style=${{
-          fontSize: "0.8rem",
+          fontSize: FontSize.small,
           ...cellStyle,
           display: "flex",
         }}

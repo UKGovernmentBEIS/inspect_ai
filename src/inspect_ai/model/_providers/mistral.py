@@ -36,6 +36,7 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
     ChatCompletionChoice,
+    ModelCall,
     ModelOutput,
     ModelUsage,
     StopReason,
@@ -104,20 +105,27 @@ class MistralAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
-        # send request
-        response = await self.client.chat.complete_async(
+    ) -> tuple[ModelOutput, ModelCall]:
+        # build request
+        request: dict[str, Any] = dict(
             model=self.model_name,
             messages=[mistral_chat_message(message) for message in input],
-            temperature=config.temperature,
-            top_p=config.top_p,
-            max_tokens=config.max_tokens,
-            random_seed=config.seed,
             tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
             tool_choice=(
                 mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
             ),
         )
+        if config.temperature is not None:
+            request["temperature"] = config.temperature
+        if config.top_p is not None:
+            request["top_p"] = config.top_p
+        if config.max_tokens is not None:
+            request["max_tokens"] = config.max_tokens
+        if config.seed is not None:
+            request["random_seed"] = config.seed
+
+        # send request
+        response = await self.client.chat.complete_async(**request)
 
         if response is None:
             raise RuntimeError("Mistral model did not return a response from generate.")
@@ -136,7 +144,7 @@ class MistralAPI(ModelAPI):
                 ),
                 total_tokens=response.usage.total_tokens,
             ),
-        )
+        ), mistral_model_call(request, response)
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -145,6 +153,16 @@ class MistralAPI(ModelAPI):
     @override
     def connection_key(self) -> str:
         return str(self.api_key)
+
+
+def mistral_model_call(
+    request: dict[str, Any], response: MistralChatCompletionResponse
+) -> ModelCall:
+    request = request.copy()
+    request.update(messages=[message.model_dump() for message in request["messages"]])
+    if request.get("tools", None) is not None:
+        request["tools"] = [tool.model_dump() for tool in request["tools"]]
+    return ModelCall(request=request, response=response.model_dump())
 
 
 def mistral_chat_tools(tools: list[ToolInfo]) -> list[MistralTool]:

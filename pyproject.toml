@@ -133,6 +133,7 @@ dev = [
     "types-beautifulsoup4",
     "types-boto3",
     "types-botocore",
+    "types-jsonpatch",
     "types-jsonschema",
     "types-protobuf",
     "types-psutil",
