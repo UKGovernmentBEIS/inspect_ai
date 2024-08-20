@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.54">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Agents API – Inspect</title>
+<title>Inspect – Agents API</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -300,7 +300,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#sec-subtasks" id="toc-sec-subtasks" class="nav-link" data-scroll-target="#sec-subtasks">Subtasks</a>
   <ul class="collapse">
-  <li><a href="#tool-subtasks" id="toc-tool-subtasks" class="nav-link" data-scroll-target="#tool-subtasks">Tool Subtasks</a></li>
+  <li><a href="#parallel-execution" id="toc-parallel-execution" class="nav-link" data-scroll-target="#parallel-execution">Parallel Execution</a></li>
   </ul></li>
   <li><a href="#sandboxing" id="toc-sandboxing" class="nav-link" data-scroll-target="#sandboxing">Sandboxing</a></li>
   </ul>
@@ -338,8 +338,8 @@ Note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The Agents API described in this article is currently available only on the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/feature/subtasks">feature/subtasks</a> branch of the development version of Inspect. You can install this branch with:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/ukgovernmentbeis/inspect_ai@feature/subtasks</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The Agents API described in this article is currently available only in the development version of Inspect. You can install the development version with:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/ukgovernmentbeis/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 <section id="overview" class="level2">
@@ -517,29 +517,19 @@ Note
 <li><p>A <code>SubtaskEvent</code> will be added to the current transcript. The event will include the name of the subtask, its input and results, and a transcript of all events that occur within the subtask.</p></li>
 </ul>
 <p>You can also include one or more steps within a subtask.</p>
-<section id="tool-subtasks" class="level3">
-<h3 class="anchored" data-anchor-id="tool-subtasks">Tool Subtasks</h3>
-<p>If a tool is entirely independent of other tools (i.e.&nbsp;it is not coordinating with other tools via changes to the <code>store</code>) you can make the tool itself a subtask. This would be beneficial if the tool had interactions (e.g.&nbsp;model calls, store changes, etc.) you want to record in a distinct transcript.</p>
-<p>To enclose a tool in a subtask, just add the <code>@subtask</code> decorator to the tool’s execute function. For example, let’s adapt the <code>web_search()</code> function above into a tool that also defines a subtask (note we also add a <code>model</code> parameter to customise what model is used for summarisation):</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(prompt<span class="op">=</span><span class="st">"Use the web search tool to find information online"</span>)</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_search(model: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>):</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># resolve model used for summarisation</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> get_model(model)</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">@subtask</span>(name<span class="op">=</span><span class="st">"web_search"</span>)</span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> execute(keywords: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># get links for these keywords</span></span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>        links <span class="op">=</span> <span class="cf">await</span> search_links(keywords)</span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>        <span class="co"># add links to the store so they end up in the transcript</span></span>
-<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>        store().<span class="bu">set</span>(<span class="st">"links"</span>, links)</span>
-<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># summarise the links</span></span>
-<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cf">await</span> fetch_and_summarise(links, model)</span>
-<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that we’ve added the <code>name="web_search"</code> argument to <code>@subtask</code>—this is because we’ve declared our function using the generic name <code>execute()</code> and want to provide an alternative that is more readily understandable.</p>
+<section id="parallel-execution" class="level3">
+<h3 class="anchored" data-anchor-id="parallel-execution">Parallel Execution</h3>
+<p>You can execute subtasks in parallel using <code>asyncio.gather()</code>. For example, to run 3 <code>web_search()</code> subtasks in parallel:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> asyncio</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>searches <span class="op">=</span> [</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  web_search(keywords<span class="op">=</span><span class="st">"solar power"</span>),</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>  web_search(keywords<span class="op">=</span><span class="st">"wind power"</span>),</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>  web_search(keywords<span class="op">=</span><span class="st">"hydro power"</span>),</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>searches)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that we don’t <code>await</code> the subtasks when building up our list of <code>searches</code>. Rather, we let <code>asyncio.gather()</code> await all of them, returning only when all of the results are available.</p>
 </section>
 </section>
 <section id="sandboxing" class="level2">

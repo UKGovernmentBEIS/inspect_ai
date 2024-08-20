@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.54">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Agents – Inspect</title>
+<title>Inspect – Agents</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -294,6 +294,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#sec-tool-calls" id="toc-sec-tool-calls" class="nav-link" data-scroll-target="#sec-tool-calls">Tool Calls</a></li>
   <li><a href="#tool-filtering" id="toc-tool-filtering" class="nav-link" data-scroll-target="#tool-filtering">Tool Filtering</a></li>
+  <li><a href="#agents-api" id="toc-agents-api" class="nav-link" data-scroll-target="#agents-api">Agents API</a></li>
   </ul></li>
   <li><a href="#sec-agent-libraries" id="toc-sec-agent-libraries" class="nav-link" data-scroll-target="#sec-agent-libraries">Agent Libraries</a>
   <ul class="collapse">
@@ -434,7 +435,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="sec-tool-calls" class="level3">
 <h3 class="anchored" data-anchor-id="sec-tool-calls">Tool Calls</h3>
 <p>When you call the <code>generate()</code> function from a solver, use the <code>tool_calls</code> parameter to customise how tool calls made by the model are handled:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 80%">
@@ -521,6 +522,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    </span>
 <span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>In this example we rely on the default <code>generate()</code> tool calling behaviour (<code>"loop"</code>). However, you can also imaging combining tool filtering with the more tailored tool calling logic described in <a href="#sec-tool-calls">Tool Calls</a>.</p>
+</section>
+<section id="agents-api" class="level3">
+<h3 class="anchored" data-anchor-id="agents-api">Agents API</h3>
+<p>For more sophisticated agents, Inspect offers several additional advanced APIs for state management, sub-agents, and fine granined logging. See the <a href="./agents-api.html">Agents API</a> article for additional details.</p>
 </section>
 </section>
 <section id="sec-agent-libraries" class="level2">
@@ -772,7 +777,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="environment-binding" class="level3">
 <h3 class="anchored" data-anchor-id="environment-binding">Environment Binding</h3>
 <p>There are two sandbox environments built in to Inspect:</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Environment Type</th>
@@ -825,7 +830,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Before using Docker sandbox environments, please be sure to install <a href="https://docs.docker.com/engine/install/">Docker Engine</a> (version 24.0.7 or greater).</p>
 <p>You can use the Docker sandbox enviornment without any special configuration, however most commonly you’ll provide explicit configuration via either a <code>Dockerfile</code> or a <a href="https://docs.docker.com/compose/compose-file/">Docker Compose</a> configuration file (<code>compose.yaml</code>).</p>
 <p>Here is how Docker sandbox environments are created based on the presence of <code>Dockerfile</code> and/or <code>compose.yml</code> in the task directory:</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Config Files</th>
