@@ -1,12 +1,16 @@
 import { html } from "htm/preact";
-import { useEffect, useMemo } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { TextStyle } from "../appearance/Fonts.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 
-import { shortenCompletion, arrayToString } from "../utils/Format.mjs";
+import {
+  shortenCompletion,
+  arrayToString,
+  formatNoDecimal,
+} from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
 import { inputString } from "../utils/Format.mjs";
@@ -164,14 +168,21 @@ export const SampleList = (props) => {
       return previous;
     }
   }, 0);
+  const sampleCount = items?.length;
+  const percentError = (errorCount / sampleCount) * 100;
+  const warningMessage =
+    errorCount > 0
+      ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
+      : undefined;
 
-  const errorRow =
-    errorCount > 0 ? html`<${ErrorRow} errorCount=${errorCount} />` : "";
+  const warningRow = warningMessage
+    ? html`<${WarningRow} message=${warningMessage} />`
+    : "";
 
   return html` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
-    ${errorRow} ${headerRow}
+    ${warningRow} ${headerRow}
     <${VirtualList}
       ref=${listRef}
       data=${items}
@@ -184,18 +195,39 @@ export const SampleList = (props) => {
   </div>`;
 };
 
-const ErrorRow = ({ errorCount }) => {
+const WarningRow = ({ message }) => {
+  const [hidden, setHidden] = useState(false);
+
   return html`
     <div
       style=${{
+        gridTemplateColumns: "max-content auto max-content",
+        columnGap: "0.5em",
         fontSize: FontSize.small,
         background: "var(--bs-warning-bg-subtle)",
         borderBottom: "solid 1px var(--bs-light-border-subtle)",
         padding: "0.3em 1em",
+        display: hidden ? "none" : "grid",
       }}
     >
-      <i class=${ApplicationIcons.error} /> ${errorCount} sample errors occurred
-      during this evaluation.
+      <i class=${ApplicationIcons.logging.warning} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+          fontSize: FontSize["title-secondary"],
+          margin: "0",
+          padding: "0",
+          height: FontSize["title-secondary"],
+          lineHeight: FontSize["title-secondary"],
+        }}
+        class="btn"
+        onclick=${() => {
+          setHidden(true);
+        }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
     </div>
   `;
 };

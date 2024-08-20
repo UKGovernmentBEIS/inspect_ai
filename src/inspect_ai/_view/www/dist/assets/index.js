@@ -6209,6 +6209,13 @@ function formatDecimalNoTrailingZeroes(num) {
 function toTitleCase(str) {
   return str.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
 }
+function formatNoDecimal(num) {
+  if (typeof num !== "number") {
+    return num;
+  }
+  const rounded = Math.round(num);
+  return rounded.toFixed(0);
+}
 const filename = (path) => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
@@ -18698,11 +18705,14 @@ const SampleList = (props) => {
       return previous;
     }
   }, 0);
-  const errorRow = errorCount > 0 ? m$1`<${ErrorRow} errorCount=${errorCount} />` : "";
+  const sampleCount = items == null ? void 0 : items.length;
+  const percentError = errorCount / sampleCount * 100;
+  const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
+  const warningRow = warningMessage ? m$1`<${WarningRow} message=${warningMessage} />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
-    ${errorRow} ${headerRow}
+    ${warningRow} ${headerRow}
     <${VirtualList}
       ref=${listRef}
       data=${items}
@@ -18714,18 +18724,38 @@ const SampleList = (props) => {
     />
   </div>`;
 };
-const ErrorRow = ({ errorCount }) => {
+const WarningRow = ({ message }) => {
+  const [hidden, setHidden] = h(false);
   return m$1`
     <div
       style=${{
+    gridTemplateColumns: "max-content auto max-content",
+    columnGap: "0.5em",
     fontSize: FontSize.small,
     background: "var(--bs-warning-bg-subtle)",
     borderBottom: "solid 1px var(--bs-light-border-subtle)",
-    padding: "0.3em 1em"
+    padding: "0.3em 1em",
+    display: hidden ? "none" : "grid"
   }}
     >
-      <i class=${ApplicationIcons.error} /> ${errorCount} sample errors occurred
-      during this evaluation.
+      <i class=${ApplicationIcons.logging.warning} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+    fontSize: FontSize["title-secondary"],
+    margin: "0",
+    padding: "0",
+    height: FontSize["title-secondary"],
+    lineHeight: FontSize["title-secondary"]
+  }}
+        class="btn"
+        onclick=${() => {
+    setHidden(true);
+  }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
     </div>
   `;
 };
