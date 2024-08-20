@@ -15,7 +15,7 @@ import { ANSIDisplay } from "../../components/AnsiDisplay.mjs";
  */
 export const ErrorEventView = ({ id, depth, event }) => {
   return html`
-  <${EventPanel} id=${id} depth=${depth} title="Error" titleColor="var(--bs-danger)" icon=${ApplicationIcons.error}>
+  <${EventPanel} id=${id} depth=${depth} title="Error" icon=${ApplicationIcons.error}>
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ margin: "1em 0" }}/>
   </${EventPanel}>`;
 };

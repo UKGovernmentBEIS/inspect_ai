@@ -15671,7 +15671,7 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
 };
 const ErrorEventView = ({ id, depth, event }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Error" titleColor="var(--bs-danger)" icon=${ApplicationIcons.error}>
+  <${EventPanel} id=${id} depth=${depth} title="Error" icon=${ApplicationIcons.error}>
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
@@ -17003,10 +17003,18 @@ const SampleList = (props) => {
     <div>Answer</div>
     <div>Score</div>
   </div>`;
+  const errorCount = items == null ? void 0 : items.reduce((previous, item) => {
+    if (item.data.error) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
+  const errorRow = errorCount > 0 ? m$1`<${ErrorRow} errorCount=${errorCount} />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
-    ${headerRow}
+    ${errorRow} ${headerRow}
     <${VirtualList}
       ref=${listRef}
       data=${items}
@@ -17017,6 +17025,21 @@ const SampleList = (props) => {
       style=${listStyle}
     />
   </div>`;
+};
+const ErrorRow = ({ errorCount }) => {
+  return m$1`
+    <div
+      style=${{
+    fontSize: FontSize.small,
+    background: "var(--bs-warning-bg-subtle)",
+    borderBottom: "solid 1px var(--bs-light-border-subtle)",
+    padding: "0.3em 1em"
+  }}
+    >
+      <i class=${ApplicationIcons.error} /> ${errorCount} sample errors occurred
+      during this evaluation.
+    </div>
+  `;
 };
 const SeparatorRow = ({ id, title, height }) => {
   return m$1`<div
@@ -17125,7 +17148,9 @@ const SampleRow = ({
     display: "flex"
   }}
       >
-        ${sample.error ? m$1`<i class=${ApplicationIcons.error} style=${{ color: "var(--bs-danger)" }}></i>` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
+        ${sample.error ? m$1`<div style=${{ color: "var(--bs-danger)" }}>
+              <i class=${ApplicationIcons.error} /> Error
+            </div>` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
       </div>
     </div>
   `;

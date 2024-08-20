@@ -155,10 +155,23 @@ export const SampleList = (props) => {
     <div>Score</div>
   </div>`;
 
+  // Count any sample errors and display a bad alerting the user
+  // to any errors
+  const errorCount = items?.reduce((previous, item) => {
+    if (item.data.error) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
+
+  const errorRow =
+    errorCount > 0 ? html`<${ErrorRow} errorCount=${errorCount} />` : "";
+
   return html` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
-    ${headerRow}
+    ${errorRow} ${headerRow}
     <${VirtualList}
       ref=${listRef}
       data=${items}
@@ -169,6 +182,22 @@ export const SampleList = (props) => {
       style=${listStyle}
     />
   </div>`;
+};
+
+const ErrorRow = ({ errorCount }) => {
+  return html`
+    <div
+      style=${{
+        fontSize: FontSize.small,
+        background: "var(--bs-warning-bg-subtle)",
+        borderBottom: "solid 1px var(--bs-light-border-subtle)",
+        padding: "0.3em 1em",
+      }}
+    >
+      <i class=${ApplicationIcons.error} /> ${errorCount} sample errors occurred
+      during this evaluation.
+    </div>
+  `;
 };
 
 const SeparatorRow = ({ id, title, height }) => {
@@ -287,10 +316,9 @@ const SampleRow = ({
         }}
       >
         ${sample.error
-          ? html`<i
-              class=${ApplicationIcons.error}
-              style=${{ color: "var(--bs-danger)" }}
-            ></i>`
+          ? html`<div style=${{ color: "var(--bs-danger)" }}>
+              <i class=${ApplicationIcons.error} /> Error
+            </div>`
           : sampleDescriptor?.selectedScore(sample).render()}
       </div>
     </div>
