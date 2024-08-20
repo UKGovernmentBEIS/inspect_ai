@@ -14817,13 +14817,20 @@ const EventPanel = ({
         >
           ${icon ? m$1`<i
                 class=${icon || ApplicationIcons.metadata}
-                style=${{ ...TextStyle.secondary, color: titleColor ? titleColor : "" }}
+                style=${{
+    ...TextStyle.secondary,
+    color: titleColor ? titleColor : ""
+  }}
                 onclick=${() => {
     setCollapsed(!collapsed);
   }}
               />` : ""}
           <div
-            style=${{ ...TextStyle.label, ...TextStyle.secondary, color: titleColor ? titleColor : "" }}
+            style=${{
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    color: titleColor ? titleColor : ""
+  }}
             onclick=${() => {
     setCollapsed(!collapsed);
   }}
@@ -15664,7 +15671,7 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
 };
 const ErrorEventView = ({ id, depth, event }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Error" titleColor="red" icon=${ApplicationIcons.error}>
+  <${EventPanel} id=${id} depth=${depth} title="Error" titleColor="var(--bs-danger)" icon=${ApplicationIcons.error}>
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
@@ -17118,7 +17125,7 @@ const SampleRow = ({
     display: "flex"
   }}
       >
-        ${sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
+        ${sample.error ? m$1`<i class=${ApplicationIcons.error} style=${{ color: "var(--bs-danger)" }}></i>` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
       </div>
     </div>
   `;
