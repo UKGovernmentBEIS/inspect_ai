@@ -18235,6 +18235,7 @@ const SampleDisplay = ({
   const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
+  const errorTabId = `${baseId}-error`;
   y(() => {
     if (sample.transcript && sample.transcript.events.length > 0) {
       setSelectedTab(transcriptTabId);
@@ -18299,6 +18300,21 @@ const SampleDisplay = ({
           selected=${selectedTab === metdataTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
         ${sampleMetadatas}
+        </div>
+      </${TabPanel}>`
+    );
+  }
+  if (sample.error) {
+    tabs.push(
+      m$1`
+      <${TabPanel} 
+          id=${errorTabId} 
+          title="Error" 
+          icon=${ApplicationIcons.metadata}
+          onSelected=${onSelectedTab} 
+          selected=${selectedTab === errorTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+          <${ANSIDisplay} output=${sample.error.traceback_ansi} style=${{ fontSize: FontSize.small, margin: "1em 0" }}/>
         </div>
       </${TabPanel}>`
     );
