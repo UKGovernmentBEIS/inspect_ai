@@ -198,7 +198,7 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
 @click.option(
     "--cache-prompt",
     type=click.Choice(["auto", "true", "false"]),
-    help='Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tool calls or assistant messages.',
+    help='Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.',
 )
 @common_options
 def eval_command(

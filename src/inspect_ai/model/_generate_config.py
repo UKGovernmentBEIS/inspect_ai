@@ -66,7 +66,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Whether to enable parallel function calling during tool use. OpenAI and Groq only."""
 
     cache_prompt: Literal["auto"] | bool
-    """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tool calls or assistant messages. Anthropic only."""
+    """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
 
 class GenerateConfig(BaseModel):
@@ -130,7 +130,7 @@ class GenerateConfig(BaseModel):
     """Whether to enable parallel function calling during tool use. OpenAI and Groq only."""
 
     cache_prompt: Literal["auto"] | bool = Field(default=None)
-    """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tool calls or assistant messages. Anthropic only."""
+    """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]
