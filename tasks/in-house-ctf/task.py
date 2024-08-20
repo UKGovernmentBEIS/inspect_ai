@@ -51,3 +51,15 @@ def in_house_ctf_task_template(task_name: str) -> Task:
 # @task
 # def grafana():
 #     return in_house_ctf_task_template("grafana")
+
+# @task
+# def idor():
+#     return in_house_ctf_task_template("idor")
+
+# @task
+# def spray():
+#     return in_house_ctf_task_template("spray")
+
+# @task
+# def ssh():
+#     return in_house_ctf_task_template("ssh")
