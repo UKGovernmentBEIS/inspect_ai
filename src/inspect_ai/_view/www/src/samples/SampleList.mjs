@@ -10,6 +10,7 @@ import { shortenCompletion, arrayToString } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
 import { inputString } from "../utils/Format.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
@@ -285,7 +286,12 @@ const SampleRow = ({
           display: "flex",
         }}
       >
-        ${sampleDescriptor?.selectedScore(sample).render()}
+        ${sample.error
+          ? html`<i
+              class=${ApplicationIcons.error}
+              style=${{ color: "var(--bs-danger)" }}
+            ></i>`
+          : sampleDescriptor?.selectedScore(sample).render()}
       </div>
     </div>
   `;

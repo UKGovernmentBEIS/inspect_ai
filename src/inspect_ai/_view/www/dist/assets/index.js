@@ -6635,7 +6635,7 @@ const prettyDir = (path) => {
   }
 };
 const EvalStatus = ({ logHeader }) => {
-  var _a;
+  var _a, _b;
   switch (logHeader.status) {
     case "error":
       return m$1`<${StatusError} message="Error" />`;
@@ -6644,7 +6644,7 @@ const EvalStatus = ({ logHeader }) => {
     case "started":
       return m$1`<${StatusRunning} message="Running" />`;
     default:
-      if (((_a = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a.scores) && logHeader.results.scores.length > 0) {
+      if (((_a = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a.scores) && ((_b = logHeader.results) == null ? void 0 : _b.scores.length) > 0) {
         if (logHeader.results.scores.length === 1) {
           return m$1`<${SidebarScore}
             scorer=${logHeader.results.scores[0]}
@@ -9128,11 +9128,11 @@ e = r, t = function(e2, t2) {
   };
 }(0, r.exports), void 0 !== t && (e.exports = t);
 var n = r.exports;
-const ANSIDisplay = ({ output }) => {
+const ANSIDisplay = ({ output, style }) => {
   const ansiOutput = new n.ANSIOutput();
   ansiOutput.processOutput(output);
   let firstOutput = false;
-  return m$1`<div class="ansi-display">
+  return m$1`<div class="ansi-display" style=${{ ...style }}>
     ${ansiOutput.outputLines.map((line2) => {
     firstOutput = firstOutput || !!line2.outputRuns.length;
     return m$1`<div class="ansi-display-line">
@@ -14792,6 +14792,7 @@ const EventPanel = ({
   title,
   text,
   icon,
+  titleColor,
   depth = 0,
   collapse,
   style,
@@ -14816,13 +14817,20 @@ const EventPanel = ({
         >
           ${icon ? m$1`<i
                 class=${icon || ApplicationIcons.metadata}
-                style=${{ ...TextStyle.secondary }}
+                style=${{
+    ...TextStyle.secondary,
+    color: titleColor ? titleColor : ""
+  }}
                 onclick=${() => {
     setCollapsed(!collapsed);
   }}
               />` : ""}
           <div
-            style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+            style=${{
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    color: titleColor ? titleColor : ""
+  }}
             onclick=${() => {
     setCollapsed(!collapsed);
   }}
@@ -15142,9 +15150,11 @@ const Tools = ({ toolDefinitions }) => {
 };
 const Tool = ({ toolName, toolArgs }) => {
   const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
-  return m$1`<div><code style=${{ fontSize: FontSize.small, padding: "0" }}
-    >${functionCall}</code
-  ></div>`;
+  return m$1`<div>
+    <code style=${{ fontSize: FontSize.small, padding: "0" }}
+      >${functionCall}</code
+    >
+  </div>`;
 };
 const StateDiffView = ({ changes, style }) => {
   const mutations = changes.map((change) => {
@@ -15659,6 +15669,12 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
         />` : ""}
   </${EventPanel}>`;
 };
+const ErrorEventView = ({ id, depth, event }) => {
+  return m$1`
+  <${EventPanel} id=${id} depth=${depth} title="Error" titleColor="var(--bs-danger)" icon=${ApplicationIcons.error}>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ margin: "1em 0" }}/>
+  </${EventPanel}>`;
+};
 const TranscriptView = ({ id, events, stateManager }) => {
   const resolvedEvents = fixupEventStream(events);
   let depth = 0;
@@ -15752,6 +15768,13 @@ const renderNode = (id, event, depth, stateManager) => {
       />`;
     case "tool":
       return m$1`<${ToolEventView}
+        depth=${depth}
+        id=${id}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
+    case "error":
+      return m$1`<${ErrorEventView}
         depth=${depth}
         id=${id}
         event=${event}
@@ -17102,7 +17125,7 @@ const SampleRow = ({
     display: "flex"
   }}
       >
-        ${sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
+        ${sample.error ? m$1`<i class=${ApplicationIcons.error} style=${{ color: "var(--bs-danger)" }}></i>` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
       </div>
     </div>
   `;
@@ -18227,7 +18250,8 @@ const RunningPanel = () => {
   </div>`;
 };
 const ResultsPanel = ({ results }) => {
-  if (results.scores.length === 1) {
+  var _a, _b;
+  if (((_a = results == null ? void 0 : results.scores) == null ? void 0 : _a.length) === 1) {
     const scorers = {};
     results.scores.map((score) => {
       scorers[score.name] = Object.keys(score.metrics).map((key2) => {
@@ -18267,7 +18291,7 @@ const ResultsPanel = ({ results }) => {
       rowGap: "1em"
     }}
     >
-      ${results.scores.map((score, index) => {
+      ${(_b = results == null ? void 0 : results.scores) == null ? void 0 : _b.map((score, index) => {
       return m$1`<${MultiScorerMetric}
           scorer=${score}
           isFirst=${index === 0}
@@ -19842,12 +19866,12 @@ const WorkSpace = (props) => {
     }
   }, [workspaceLog, divRef, currentTaskId, setSelectedTab]);
   y(() => {
-    var _a2, _b2, _c, _d;
+    var _a2, _b2, _c, _d, _e, _f;
     const scorer = ((_b2 = (_a2 = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a2.results) == null ? void 0 : _b2.scores[0]) ? {
-      name: workspaceLog.contents.results.scores[0].name,
-      scorer: workspaceLog.contents.results.scores[0].scorer
+      name: (_c = workspaceLog.contents.results) == null ? void 0 : _c.scores[0].name,
+      scorer: (_d = workspaceLog.contents.results) == null ? void 0 : _d.scores[0].scorer
     } : void 0;
-    const scorers = (((_d = (_c = workspaceLog.contents) == null ? void 0 : _c.results) == null ? void 0 : _d.scores) || []).map((score2) => {
+    const scorers = (((_f = (_e = workspaceLog.contents) == null ? void 0 : _e.results) == null ? void 0 : _f.scores) || []).map((score2) => {
       return {
         name: score2.name,
         scorer: score2.scorer
