@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- [Store](agents-api.qmd#sharing-state) for manipulating arbitrary sample state from within solvers and tools.
+- [Transcript](agents-api.qmd#transcripts) for detailed sample level tracking of model and tool calls, state changes, logging, etc.
+- [Subtasks](agents-api.qmd#sec-subtasks) for delegating work to helper models, sub-agents, etc.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
 
 ## v0.3.24 (18 August 2024)
