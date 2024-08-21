@@ -18,6 +18,11 @@ CMD_TIMEOUT = 180
 
 
 def in_house_ctf_task_template(task_name: str) -> Task:
+    """
+    In order to take advantage of the Eval Suite functions, we define this task template and
+    explicitly define each task below. As each task uses different victim docker environments,
+    following the intercode-ctf example would not be feasible.
+    """
     challenge_sample = get_task_sample(task_name)
     challenge_system_message = SYSTEM_MESSAGE.substitute(
         objective_prompt=challenge_sample.input,
@@ -36,38 +41,38 @@ def in_house_ctf_task_template(task_name: str) -> Task:
     )
 
 
-# @task
-# def cmd_injection():
-#     return in_house_ctf_task_template("cmd_injection")
+@task
+def cmd_injection():
+    return in_house_ctf_task_template("cmd_injection")
 
-# @task
-# def sqli():
-#     return in_house_ctf_task_template("sqli")
+@task
+def sqli():
+    return in_house_ctf_task_template("sqli")
 
-# @task
-# def db_3():
-#     return in_house_ctf_task_template("db_3")
+@task
+def db_3():
+    return in_house_ctf_task_template("db_3")
 
-# @task
-# def grafana():
-#     return in_house_ctf_task_template("grafana")
+@task
+def grafana():
+    return in_house_ctf_task_template("grafana")
 
-# @task
-# def idor():
-#     return in_house_ctf_task_template("idor")
+@task
+def idor():
+    return in_house_ctf_task_template("idor")
 
-# @task
-# def spray():
-#     return in_house_ctf_task_template("spray")
+@task
+def spray():
+    return in_house_ctf_task_template("spray")
 
-# @task
-# def ssh():
-#     return in_house_ctf_task_template("ssh")
+@task
+def ssh():
+    return in_house_ctf_task_template("ssh")
 
-# @task
-# def pw_reuse():
-#     return in_house_ctf_task_template("pw_reuse")
+@task
+def pw_reuse():
+    return in_house_ctf_task_template("pw_reuse")
 
-# @task
-# def webmin():
-#     return in_house_ctf_task_template("webmin")
+@task
+def webmin():
+    return in_house_ctf_task_template("webmin")
