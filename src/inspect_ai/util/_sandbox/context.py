@@ -136,7 +136,7 @@ async def setup_sandbox_environment(
                 f"Failed to execute setup script for sample: {result.stderr}"
             )
 
-    setup_file = f"./tmp/{setup_file}"
+    setup_file = f"/tmp/{setup_file}"
     await exec(["chmod", "+x", setup_file])
     await exec([setup_file])
     env.exec(["rm", setup_file])
