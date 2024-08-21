@@ -13755,7 +13755,7 @@ const contentRenderers = {
       return typeof entry.value === "number";
     },
     render: (id, entry) => {
-      entry.value = entry.value.toString();
+      entry.value = formatNumber(entry.value);
       return contentRenderers.String.render(id, entry);
     }
   },
@@ -15138,7 +15138,7 @@ const EventPanel = ({
           style=${{
     paddingLeft: "0.5em",
     display: "grid",
-    gridTemplateColumns: "max-content minmax(0, max-content) auto minmax(0, max-content) auto",
+    gridTemplateColumns: "max-content minmax(0, max-content) auto minmax(0, max-content) minmax(0, max-content)",
     columnGap: "0.5em",
     fontSize: FontSize.small,
     cursor: hasCollapse ? "pointer" : void 0
@@ -15212,7 +15212,7 @@ const EventPanel = ({
     ${titleEl}
     ${!hasCollapse || !collapsed ? m$1` <div
           class="card-body tab-content"
-          style=${{ padding: 0, marginLeft: "2em" }}
+          style=${{ padding: 0, marginLeft: "0.5em" }}
         >
           ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
     return m$1`<div
@@ -17298,7 +17298,7 @@ const duration = (stats) => {
 const ModelEventView = ({ id, depth, event }) => {
   var _a, _b;
   const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
-  const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
+  const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
   const outputMessages = (_b = event.output.choices) == null ? void 0 : _b.map((choice) => {
     return choice.message;
   });

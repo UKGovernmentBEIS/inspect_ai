@@ -14,6 +14,7 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 import { ModelUsagePanel } from "../../usage/UsageCard.mjs";
+import { formatNumber } from "../../utils/Format.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -27,7 +28,7 @@ import { ModelUsagePanel } from "../../usage/UsageCard.mjs";
  */
 export const ModelEventView = ({ id, depth, event }) => {
   const totalUsage = event.output.usage?.total_tokens;
-  const subtitle = totalUsage ? `(${totalUsage} tokens)` : "";
+  const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined

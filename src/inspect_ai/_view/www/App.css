@@ -7,6 +7,8 @@
   --inspect-input-background: var(--bs-body-bg);
   --inspect-input-foreground: var(--bs-body-color);
   --inspect-input-border: var(--bs-light-border-subtle);
+  --inspect-diff-add-color: #dafbe1;
+  --inspect-diff-remove-color: #ffebe9;
 }
 
 body:not([class^="vscode-"]) button {
@@ -65,6 +67,8 @@ body[class^="vscode-"] {
   --inspect-input-background: var(--vscode-input-background);
   --inspect-input-foreground: var(--vscode-input-foreground);
   --inspect-input-border: var(--vscode-input-border);
+  --inspect-diff-add-color: var(--vscode-diffEditor-insertedTextBackground);
+  --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
 }
 
 html.vscode {
@@ -725,14 +729,14 @@ ul.jsondiffpatch-delta {
 .jsondiffpatch-added,
 .jsondiffpatch-modified .jsondiffpatch-right-value pre,
 .jsondiffpatch-textdiff-added {
-  background: #dafbe1;
+  background: var(--inspect-diff-add-color);
 }
 
 .jsondiffpatch-deleted .jsondiffpatch-property-name,
 .jsondiffpatch-deleted pre,
 .jsondiffpatch-modified .jsondiffpatch-left-value pre,
 .jsondiffpatch-textdiff-deleted {
-  background: #ffebe9;
+  background: var(--inspect-diff-remove-color);
   text-decoration: line-through;
 }
 .jsondiffpatch-unchanged,
