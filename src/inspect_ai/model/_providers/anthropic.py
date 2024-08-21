@@ -484,15 +484,23 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
 
     # return ModelOutput
     usage = message.usage.model_dump()
+    input_tokens_cache_write = usage.get("cache_creation_input_tokens", None)
+    input_tokens_cache_read = usage.get("cache_read_input_tokens", None)
+    total_tokens = (
+        message.usage.input_tokens
+        + (input_tokens_cache_write or 0)
+        + (input_tokens_cache_read or 0)
+        + message.usage.output_tokens
+    )
     return ModelOutput(
         model=message.model,
         choices=[choice],
         usage=ModelUsage(
             input_tokens=message.usage.input_tokens,
             output_tokens=message.usage.output_tokens,
-            total_tokens=message.usage.input_tokens + message.usage.output_tokens,
-            input_tokens_cache_write=usage.get("cache_creation_input_tokens", None),
-            input_tokens_cache_read=usage.get("cache_read_input_tokens", None),
+            total_tokens=total_tokens,
+            input_tokens_cache_write=input_tokens_cache_write,
+            input_tokens_cache_read=input_tokens_cache_read,
         ),
     )
 
