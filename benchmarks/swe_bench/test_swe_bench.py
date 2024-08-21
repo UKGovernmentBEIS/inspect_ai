@@ -56,20 +56,15 @@ def test_golden_patch_succeeds() -> None:
                 model="mockllm/model",
                 tool_name="bash",
                 tool_arguments={
-                    "code": f"echo {shlex.quote(golden_patch)} >patch.diff"
+                    "cmd": f"echo {shlex.quote(golden_patch)} >patch.diff"
                 },  # Used to confirm that code is executed
             ),
             ModelOutput.for_tool_call(
                 model="mockllm/model",
                 tool_name="bash",
                 tool_arguments={
-                    "code": "cd /testbed/;git apply /root/patch.diff"
+                    "cmd": "cd /testbed/;git apply /root/patch.diff"
                 },  # Use to confirm that state is maintained
-            ),
-            ModelOutput.for_tool_call(
-                model="mockllm/model",
-                tool_name="submit_answer",
-                tool_arguments={"submission": "N/A"},  # Used to finish the task
             ),
         ],
     )
@@ -94,12 +89,7 @@ def test_incorrect_edit_fails() -> None:
                 model="mockllm/model",
                 tool_name="bash",
                 tool_arguments={
-                    "code": "rm /testbed/README.md"}),
-            ModelOutput.for_tool_call(
-                model="mockllm/model",
-                tool_name="submit_answer",
-                tool_arguments={"submission": "N/A"},  # Used to finish the task
-            ),
+                    "cmd": "rm /testbed/README.md"}),
         ],
     )
 

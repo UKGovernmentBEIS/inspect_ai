@@ -1,19 +1,17 @@
-import docker
-from swebench.harness.docker_build import build_env_images
-from swebench.harness.utils import load_swebench_dataset
-from swebench.harness.test_spec import get_test_specs_from_dataset
-from docker.client import DockerClient
 import argparse
-from swebench.harness.constants import SWEbenchInstance
-from swe_bench import COMPOSE_FILE_DIR, SAMPLE_TO_IMAGE_PATH
 import json
-from datasets import load_dataset
 import os
 
+from datasets import load_dataset
+from docker.client import DockerClient
+from swe_bench import SAMPLE_TO_IMAGE_PATH
+from swebench.harness.docker_build import build_env_images
+from swebench.harness.test_spec import get_test_specs_from_dataset
+from swebench.harness.utils import load_swebench_dataset
+
+
 def build_docker_images(dataset_name : str , split : str | None = None, max_workers : int = 4, force_rebuild=False) -> None:
-    """
-    This function uses the swe_bench library to build docker images for the environment of the SWE-bench dataset. It also creates a mapping from the information contained in the dataset itself ( in particular, the "instance_id" and env_image_key) to the name of the docker images. This mapping lets us find the images directly from the dataset entries, rather than relying on objects created in the swe_bench code.
-    """
+    """This function uses the swe_bench library to build docker images for the environment of the SWE-bench dataset. It also creates a mapping from the information contained in the dataset itself ( in particular, the "instance_id" and env_image_key) to the name of the docker images. This mapping lets us find the images directly from the dataset entries, rather than relying on objects created in the swe_bench code."""
     #Code copied from the swe_bench repository
     docker_client = DockerClient.from_env()
 
@@ -36,18 +34,10 @@ def build_docker_images(dataset_name : str , split : str | None = None, max_work
             if swebench_instance["environment_setup_commit"]  in environment_name_mapping[swebench_instance["instance_id"]]:
                 assert environment_name_mapping[swebench_instance["instance_id"]][swebench_instance["environment_setup_commit"] ] == spec.env_image_key, f"Image {spec.env_image_key} already mapped to a different image"
             else:
-    # We build the image
-    build_docker_images(
-        dataset_name= str(TEST_DATASET),
-        split="train",
-        max_workers=1
-    )
                 environment_name_mapping[swebench_instance["instance_id"]][swebench_instance["environment_setup_commit"] ] = spec.env_image_key
 
     # Add the mappings to a file
     json.dump(environment_name_mapping, open(SAMPLE_TO_IMAGE_PATH, "w+"))
-    
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build environment images for SWE-bench")
 

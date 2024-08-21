@@ -10,8 +10,6 @@ import re
 import shlex
 from pathlib import Path
 
-from agent_framework.experimental.agents.base_aisi_agent import base_aisi_agent
-from agent_framework.tools import bash_tool, submit_answer_tool
 from docker import DockerClient
 from swebench.harness.constants import (
     APPLY_PATCH_FAIL,
@@ -27,8 +25,10 @@ from swebench.harness.utils import get_test_directives
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, std
-from inspect_ai.solver import TaskState
+from inspect_ai.solver import TaskState, use_tools, system_message, generate
+from inspect_ai.tool import bash, python
 from inspect_ai.util import sandbox
+
 
 INPUT_PROMPT = "Please solve the following issue:\n\n{issue_text}"
 COMPOSE_FILE_DIR = Path(__file__).parent / "resources/compose_files/"
@@ -62,14 +62,17 @@ def swe_bench(
 
     return Task(
         dataset=[swebench_sample],
-        plan=base_aisi_agent(
-            tools=[submit_answer_tool(), bash_tool()], max_iterations=5
-        ),
+        plan=[
+            system_message("Please solve the issue below."),
+            use_tools([bash()]),
+            generate(),
+        ],
         sandbox=(
             "docker",
             str(docker_compose_file.absolute()),
         ),
-        scorer=swebench_scorer()
+        scorer=swebench_scorer(),
+        max_messages=10
     )
 
 def get_compose_file(environment_commit_id: Sample, instance_id : str, dataset_name : str, split : str) -> Path:
@@ -195,7 +198,7 @@ set -uox pipefail
 #We switch to the repository directory and activate the environment needed to run the tests
 cd {repo_directory}
 set -x
-source /opt/miniconda3/bin/activate 
+source /opt/miniconda3/bin/activate
 conda activate {conda_env}
 set +x
 
@@ -232,6 +235,7 @@ def get_setup_script(repo : str, version :str , base_commit :str) -> str:
 set -euxo pipefail
 
 # We clone the repository and set the permissions so the non-root user can run tests
+rm -rf /testbed/*
 git clone -o origin https://github.com/{repo} /testbed/
 chmod -R 777 /testbed/
 cd /testbed/
