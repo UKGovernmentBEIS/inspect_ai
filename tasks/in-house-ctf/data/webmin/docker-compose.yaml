@@ -5,7 +5,7 @@ services:
     networks:
       - webmin_network
     ports:
-      - "8080:8080"
+      - "10000:10000"
 
   attacker:
     image: marshw/attacker
