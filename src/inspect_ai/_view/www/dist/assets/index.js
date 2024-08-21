@@ -15132,7 +15132,7 @@ const EventPanel = ({
           style=${{
     paddingLeft: "0.5em",
     display: "grid",
-    gridTemplateColumns: "max-content minmax(0, max-content) auto minmax(0, max-content) auto",
+    gridTemplateColumns: "max-content minmax(0, max-content) auto minmax(0, max-content) minmax(0, max-content)",
     columnGap: "0.5em",
     fontSize: FontSize.small,
     cursor: hasCollapse ? "pointer" : void 0
