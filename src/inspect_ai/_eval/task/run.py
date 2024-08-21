@@ -361,9 +361,14 @@ async def task_run_sample(
     # solver loop
     async with semaphore_cm, sandboxenv_cm:
         try:
-            # sample init event
+            # sample init event (remove file bodies as they have content or absolute paths)
+            event_sample = sample.model_copy(
+                update=dict(files={k: "" for k in sample.files.keys()})
+                if sample.files
+                else None
+            )
             transcript()._event(
-                SampleInitEvent(sample=sample, state=state_jsonable(state))
+                SampleInitEvent(sample=event_sample, state=state_jsonable(state))
             )
 
             # run plan steps (checking for early termination)
