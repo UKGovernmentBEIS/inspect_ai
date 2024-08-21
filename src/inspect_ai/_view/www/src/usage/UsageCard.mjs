@@ -147,7 +147,7 @@ export const ModelUsagePanel = ({ usage }) => {
           >
             ${row.label}
           </div>
-          <div style=${{ gridColumn: "3" }}>${row.value}</div>
+          <div style=${{ gridColumn: "3" }}>${formatNumber(row.value)}</div>
         `;
       }
     })}
