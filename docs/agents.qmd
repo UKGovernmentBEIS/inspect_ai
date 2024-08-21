@@ -16,7 +16,7 @@ We'll cover the basics of all of these approaches below.
 
 An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Sandbox Environments](#sec-sandbox-environments) section goes into more depth on this.
 
-## Tool Use Loop
+## Tool Use Loop {#sec-tool-use-loop}
 
 A basic agent can be implemented by providing tools to the model with `use_tools()` and then calling `generate()`. Every time the model calls a tool, the appropriate Python function is called and then the model is re-prompted to generate based on the output of the function. This is typically combined with a ReAct prompt that urges the model to reason about each action it takes. For example:
 
@@ -165,7 +165,11 @@ def generate_ctf():
 
 In this example we rely on the default `generate()` tool calling behaviour (`"loop"`). However, you can also imaging combining tool filtering with the more tailored tool calling logic described in [Tool Calls](#sec-tool-calls).
 
-## Agent Libraries
+### Agents API
+
+For more sophisticated agents, Inspect offers several additional advanced APIs for state management, sub-agents, and fine granined logging. See the [Agents API](agents-api.qmd) article for additional details.
+
+## Agent Libraries {#sec-agent-libraries}
 
 You can also adapt code from a research paper or 3rd party agent library to run within an Inspect solver. Below we'll provide an example of doing this for a [LangChain Agent](https://python.langchain.com/v0.2/docs/tutorials/agents/).
 

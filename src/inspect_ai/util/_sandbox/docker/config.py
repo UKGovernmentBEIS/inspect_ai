@@ -74,6 +74,7 @@ services:
   default:
     image: "python:3.12-bookworm"
     command: "tail -f /dev/null"
+    init: true
     network_mode: none
     stop_grace_period: 1s
 """
@@ -84,6 +85,7 @@ services:
     build:
       context: "."
     command: "tail -f /dev/null"
+    init: true
     network_mode: none
     stop_grace_period: 1s
 """

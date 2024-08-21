@@ -199,12 +199,11 @@ async def eval_async(
         List of EvalLog (one for each task)
     """
     # only a single call to eval_async can be active at a time, this is
-    # because when running a task a chdir to the task's directory (and a
+    # because when running a task a chdir to the task's directory (and
     # similar mutation of the Python sys.path) occurs. since this is a
     # change to global process state it cannot occur in parallel. for
-    # task parallelism, use eval_gather, which enforces the appropriate
-    # constraints on task parallelism and schedules multiple tasks for
-    # optimal concurrency
+    # task parallelism, pass multiple tasks to eval or eval_async (which
+    # will enforce the appropriate constraints on task parallelism)
     global _eval_async_running
     if _eval_async_running:
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
@@ -220,9 +219,8 @@ async def eval_async(
         init_eval_context(max_subprocesses)
 
         # resolve models
-        models = resolve_models(
-            model, model_base_url, model_args, GenerateConfig(**kwargs)
-        )
+        generate_config = GenerateConfig(**kwargs)
+        models = resolve_models(model, model_base_url, model_args, generate_config)
 
         # resolve epochs
         if isinstance(epochs, int):
@@ -232,7 +230,7 @@ async def eval_async(
         # 'default' model in tools, solvers, and scorers)
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
-            init_active_model(m)
+            init_active_model(m, generate_config)
             resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
         # warn and return empty string if we resolved no tasks

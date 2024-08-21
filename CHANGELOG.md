@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- [Store](agents-api.qmd#sharing-state) for manipulating arbitrary sample state from within solvers and tools.
+- [Transcript](agents-api.qmd#transcripts) for detailed sample level tracking of model and tool calls, state changes, logging, etc.
+- [Subtasks](agents-api.qmd#sec-subtasks) for delegating work to helper models, sub-agents, etc.
+- Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
+
+## v0.3.24 (18 August 2024)
+
+- Support for tool calling for Llama 3.1 models on Bedrock.
+- Report JSON schema validation errors to model in tool response.
+- Support for `strict` mode in OpenAI tool calls (update to v1.40.0 of `openai` package required).
+
 ## v0.3.23 (16 August 2024)
 
 - Support for tool calling for Llama 3.1 models on Azure AI and CloudFlare.

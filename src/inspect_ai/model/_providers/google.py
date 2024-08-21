@@ -2,6 +2,7 @@ import json
 from copy import copy
 from typing import Any, cast
 
+import proto  # type: ignore
 from google.ai.generativelanguage import (
     Blob,
     Candidate,
@@ -24,10 +25,11 @@ from google.generativeai import (  # type: ignore
 from google.generativeai.types import (  # type: ignore
     AsyncGenerateContentResponse,
     ContentDict,
-    ContentsType,
     HarmBlockThreshold,
     HarmCategory,
     PartDict,
+    PartType,
+    SafetySettingDict,
     Tool,
 )
 from google.protobuf.json_format import MessageToDict, ParseDict
@@ -49,6 +51,7 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
     ChatCompletionChoice,
+    ModelCall,
     ModelOutput,
     ModelUsage,
     StopReason,
@@ -57,7 +60,7 @@ from .util import model_base_url
 
 SAFETY_SETTINGS = "safety_settings"
 
-DEFAULT_SAFETY_SETTINGS = {
+DEFAULT_SAFETY_SETTINGS: SafetySettingDict = {
     HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -109,7 +112,7 @@ class GoogleAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> tuple[ModelOutput, ModelCall]:
         parameters = GenerationConfig(
             candidate_count=config.num_choices,
             temperature=config.temperature,
@@ -120,31 +123,47 @@ class GoogleAPI(ModelAPI):
         )
 
         # google-native messages
-        messages = await as_chat_messages(input)
+        contents = await as_chat_messages(input)
+
+        # tools
+        gemini_tools = chat_tools(tools) if len(tools) > 0 else None
+        gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
 
         # cast to AsyncGenerateContentResponse since we passed stream=False
         response = cast(
             AsyncGenerateContentResponse,
             await self.model.generate_content_async(
-                contents=messages,
+                contents=contents,
                 safety_settings=self.safety_settings,
                 generation_config=parameters,
-                tools=chat_tools(tools) if len(tools) > 0 else None,
-                tool_config=chat_tool_config(tool_choice) if len(tools) > 0 else None,
-                stream=False,
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
             ),
         )
-        choices = completion_choices_from_candidates(response.candidates)
-        choice = choices[0]
-        return ModelOutput(
+
+        # build output
+        output = ModelOutput(
             model=self.model_name,
-            choices=[choice],
+            choices=completion_choices_from_candidates(response.candidates),
             usage=ModelUsage(
                 input_tokens=response.usage_metadata.prompt_token_count,
                 output_tokens=response.usage_metadata.candidates_token_count,
                 total_tokens=response.usage_metadata.total_token_count,
             ),
         )
+
+        # build call
+        call = model_call(
+            contents=contents,
+            safety_settings=self.safety_settings,
+            generation_config=parameters,
+            tools=gemini_tools,
+            tool_config=gemini_tool_config,
+            response=response,
+        )
+
+        # return
+        return output, call
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -156,7 +175,50 @@ class GoogleAPI(ModelAPI):
         return self.model_name
 
 
-async def as_chat_messages(messages: list[ChatMessage]) -> list[ContentsType]:
+def model_call(
+    contents: list[ContentDict],
+    generation_config: GenerationConfig,
+    safety_settings: SafetySettingDict,
+    tools: list[Tool] | None,
+    tool_config: ToolConfig | None,
+    response: AsyncGenerateContentResponse,
+) -> ModelCall:
+    return ModelCall.create(
+        request=dict(
+            contents=[model_call_content(content) for content in contents],
+            generation_config=generation_config,
+            safety_settings=safety_settings,
+            tools=[MessageToDict(tool._proto._pb) for tool in tools]
+            if tools is not None
+            else None,
+            tool_config=MessageToDict(tool_config._pb)
+            if tool_config is not None
+            else None,
+        ),
+        response=response.to_dict(),
+    )
+
+
+def model_call_content(content: ContentDict) -> ContentDict:
+    return ContentDict(
+        role=content["role"], parts=[model_call_part(part) for part in content["parts"]]
+    )
+
+
+def model_call_part(part: PartType) -> PartType:
+    if isinstance(part, proto.Message):
+        return MessageToDict(part._pb)
+    elif isinstance(part, dict):
+        part = part.copy()
+        keys = list(part.keys())
+        for key in keys:
+            part[key] = model_call_part(part[key])
+        return part
+    else:
+        return part
+
+
+async def as_chat_messages(messages: list[ChatMessage]) -> list[ContentDict]:
     # google does not support system messages so filter them out to start with
     system_messages = [message for message in messages if message.role == "system"]
     supported_messages = [message for message in messages if message.role != "system"]

@@ -210,3 +210,33 @@ export function toTitleCase(str) {
     .map((w) => w[0].toUpperCase() + w.substr(1).toLowerCase())
     .join(" ");
 }
+
+/**
+ * Formats a number to a string without trailing zeroes after the decimal point.
+ *
+ * @param {number} num - The number to format.
+ * @returns {string|number} - The formatted number as a string, or the original input if it's not a number.
+ */
+export function formatNoDecimal(num) {
+  // This isn't a number, continue
+  if (typeof num !== "number") {
+    return num;
+  }
+
+  // Round to a whole number
+  const rounded = Math.round(num);
+  return rounded.toFixed(0);
+}
+
+/**
+ * Formats a number to a string without trailing zeroes after the decimal point.
+ *
+ * @param {number} num - The number to format.
+ * @returns {string} - The formatted number as a string
+ */
+export function formatNumber(num) {
+  return num.toLocaleString(navigator.language, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 5,
+  });
+}
