@@ -13,6 +13,7 @@ import { EventSection } from "./EventSection.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { ModelUsagePanel } from "../../usage/UsageCard.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -63,7 +64,7 @@ export const ModelEventView = ({ id, depth, event }) => {
       </${EventSection}>
 
       <${EventSection} title="Usage" style=${tableSectionStyle}>
-        <${MetaDataGrid} entries=${event.output.usage} plain=${true}/>
+        <${ModelUsagePanel} usage=${event.output.usage}/>
       </${EventSection}>
 
       <${EventSection} title="Tools" style=${{ gridColumn: "-1/1", ...tableSectionStyle }}>
