@@ -16,15 +16,18 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import (
     ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageSystem,
-    ChatMessageTool,
-    ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI, simple_input_messages
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
-from .util import as_stop_reason, model_base_url
+from .._model import ModelAPI
+from .._model_output import ChatCompletionChoice, ModelCall, ModelOutput, ModelUsage
+from .util import (
+    ChatAPIHandler,
+    ChatAPIMessage,
+    Llama31Handler,
+    as_stop_reason,
+    chat_api_input,
+    model_base_url,
+)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
@@ -64,8 +67,10 @@ class BedrockAPI(ModelAPI):
             self.handler: BedrockChatHandler = MistralChatHandler(
                 model_name, base_url, config
             )
-        elif is_llama(model_name):
+        elif is_llama2(model_name):
             self.handler = Llama2ChatHandler(model_name, base_url, config)
+        elif is_llama3(model_name):
+            self.handler = Llama3ChatHandler(model_name, base_url, config)
         else:
             raise ValueError(f"Unsupported Bedrock model: {model_name}")
 
@@ -75,11 +80,11 @@ class BedrockAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         if self.model_api:
             return await self.model_api.generate(input, tools, tool_choice, config)
         else:
-            return await self.handler.generate(input, config)
+            return await self.handler.generate(input, tools, tool_choice, config)
 
     @override
     def max_tokens(self) -> int | None:
@@ -142,13 +147,17 @@ class BedrockChatHandler(abc.ABC):
             raise pip_dependency_error("Bedrock API", ["boto3"])
 
     async def generate(
-        self, input: list[ChatMessage], config: GenerateConfig
-    ) -> ModelOutput:
-        # convert to compatible message list (no system, no consec user, etc.)
-        input = simple_input_messages(input, self.fold_system_message)
-
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> tuple[ModelOutput, ModelCall]:
+        formatted_input_with_tools: list[ChatAPIMessage] = chat_api_input(
+            input, tools, self.chat_api_handler()
+        )
         # create the body
-        body = self.request_body(input, config)
+        body = self.request_body(formatted_input_with_tools, config)
         if config.temperature is not None:
             body["temperature"] = config.temperature
         if config.top_p is not None:
@@ -166,14 +175,20 @@ class BedrockChatHandler(abc.ABC):
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(None, invoke_model)
         response_body = json.loads((await response).get("body").read())
-
-        choice = self.completion_choice(response_body)
-
-        return ModelOutput(
+        choice = self.completion_choice(response_body, tools, self.chat_api_handler())
+        output = ModelOutput(
             model=self.model_name,
             choices=[choice],
             usage=self.model_usage(response_body),
         )
+
+        # record call
+        call = ModelCall.create(
+            request=dict(modelId=self.model_name, **body), response=response_body
+        )
+
+        # return
+        return output, call
 
     def is_rate_limit(self, ex: BaseException) -> bool:
         from boto3.exceptions import RetriesExceededError
@@ -190,12 +205,23 @@ class BedrockChatHandler(abc.ABC):
     @abc.abstractmethod
     def request_body(
         self,
-        input: list[ChatMessage],
+        input: list[ChatAPIMessage],
         config: GenerateConfig,
     ) -> dict[str, Any]: ...
 
     @abc.abstractmethod
-    def completion_choice(self, response: dict[str, Any]) -> ChatCompletionChoice: ...
+    def completion_choice(
+        self,
+        response: dict[str, Any],
+        tools: list[ToolInfo],
+        handler: ChatAPIHandler,
+    ) -> ChatCompletionChoice: ...
+
+    def chat_api_handler(self) -> ChatAPIHandler:
+        if "llama" in self.model_name.lower():
+            return Llama31Handler()
+        else:
+            return ChatAPIHandler()
 
     # optional hook to provide a system message folding template
     def fold_system_message(self, user: str, system: str) -> str:
@@ -209,13 +235,20 @@ class BedrockChatHandler(abc.ABC):
     def max_tokens(self) -> int | None:
         return DEFAULT_MAX_TOKENS
 
+    def custom_remove_end_token(self, prompt: str) -> str:
+        return remove_end_token(prompt)
+
+    @abc.abstractmethod
+    def chat_message_str(self, message: ChatAPIMessage) -> str:
+        pass
+
 
 # https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-mistral.html
 class MistralChatHandler(BedrockChatHandler):
     @override
     def request_body(
         self,
-        input: list[ChatMessage],
+        input: list[ChatAPIMessage],
         config: GenerateConfig,
     ) -> dict[str, Any]:
         # https://docs.mistral.ai/models/#chat-template
@@ -224,7 +257,7 @@ class MistralChatHandler(BedrockChatHandler):
         # build prompt
         prompt = "<s>" + " ".join([self.chat_message_str(message) for message in input])
 
-        body: dict[str, Any] = dict(prompt=remove_end_token(prompt))
+        body: dict[str, Any] = dict(prompt=self.custom_remove_end_token(prompt))
         if config.stop_seqs is not None:
             body["stop"] = config.stop_seqs
         if config.max_tokens is not None:
@@ -235,54 +268,56 @@ class MistralChatHandler(BedrockChatHandler):
         return body
 
     @override
-    def completion_choice(self, response: dict[str, Any]) -> ChatCompletionChoice:
+    def completion_choice(
+        self,
+        response: dict[str, Any],
+        tools: list[ToolInfo],
+        handler: ChatAPIHandler,
+    ) -> ChatCompletionChoice:
         outputs: list[dict[str, str]] = response.get("outputs", [])
         return ChatCompletionChoice(
-            message=ChatMessageAssistant(
-                content="\n".join([output.get("text", "") for output in outputs]),
-                source="generate",
+            message=handler.parse_assistent_response(
+                response="\n".join([output.get("text", "") for output in outputs]),
+                tools=tools,
             ),
             stop_reason=as_stop_reason(response.get("stop_reason")),
         )
 
-    def chat_message_str(self, message: ChatMessage) -> str:
-        if isinstance(message, ChatMessageUser | ChatMessageSystem):
-            return f"[INST] {message.text} [/INST] "
-        elif isinstance(message, ChatMessageAssistant):
-            return f"{message.text}</s>"
-        elif isinstance(message, ChatMessageTool):
+    def chat_message_str(self, message: ChatAPIMessage) -> str:
+        role = message["role"]
+        content = message["content"]
+        if role in ("user", "system"):
+            return f"[INST] {content} [/INST] "
+        elif role == "assistant":
+            return f"{content}</s>"
+        elif role == "tool":
             return ""
+        return f"{content}"
 
 
-# https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-meta.html
-class Llama2ChatHandler(BedrockChatHandler):
+class BaseLlamaChatHandler(BedrockChatHandler):
     @override
     def request_body(
         self,
-        input: list[ChatMessage],
+        input: list[ChatAPIMessage],
         config: GenerateConfig,
     ) -> dict[str, Any]:
-        # https://huggingface.co/blog/llama2#how-to-prompt-llama-2
-
         prompt = " ".join([self.chat_message_str(message) for message in input])
-        body: dict[str, Any] = dict(prompt=remove_end_token(prompt))
+        body: dict[str, Any] = dict(prompt=self.custom_remove_end_token(prompt))
         if config.max_tokens:
             body["max_gen_len"] = config.max_tokens
         return body
 
     @override
-    def completion_choice(self, response: dict[str, Any]) -> ChatCompletionChoice:
+    def completion_choice(
+        self, response: dict[str, Any], tools: list[ToolInfo], handler: ChatAPIHandler
+    ) -> ChatCompletionChoice:
         return ChatCompletionChoice(
-            message=ChatMessageAssistant(
-                content=response.get("generation", ""),
-                source="generate",
+            message=handler.parse_assistent_response(
+                response.get("generation", ""), tools
             ),
             stop_reason=as_stop_reason(response.get("stop_reason")),
         )
-
-    @override
-    def fold_system_message(self, user: str, system: str) -> str:
-        return f"<SYS>\n{system}\n<</SYS>\n\n{user}"
 
     @override
     def model_usage(self, response: dict[str, Any]) -> ModelUsage | None:
@@ -297,13 +332,47 @@ class Llama2ChatHandler(BedrockChatHandler):
         else:
             return None
 
-    def chat_message_str(self, message: ChatMessage) -> str:
-        if isinstance(message, ChatMessageUser | ChatMessageSystem):
-            return f"<s>[INST] {message.text} [/INST] "
-        elif isinstance(message, ChatMessageAssistant):
-            return f"{message.text} </s>"
-        elif isinstance(message, ChatMessageTool):
+
+# https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-meta.html
+class Llama2ChatHandler(BaseLlamaChatHandler):
+    @override
+    def fold_system_message(self, user: str, system: str) -> str:
+        return f"<SYS>\n{system}\n<</SYS>\n\n{user}"
+
+    def chat_message_str(self, message: ChatAPIMessage) -> str:
+        role = message["role"]
+        content = message["content"]
+        if role in ("user", "system"):
+            return f"<s>[INST] {content} [/INST] "
+        elif role == "assistant":
+            return f"{content} </s>"
+        elif role == "tool":
             return ""
+        return f"{content}"
+
+
+class Llama3ChatHandler(BaseLlamaChatHandler):
+    @override
+    def custom_remove_end_token(self, prompt: str) -> str:
+        return remove_end_token(prompt, end_token="<|end_of_text|>")
+
+    @override
+    def fold_system_message(self, user: str, system: str) -> str:
+        return f"<|start_header_id|>system<|end_header_id|>\n{system}\n<|eot_id|>\n<|start_header_id|>user<|end_header_id|>\n\n{user}<|eot_id|>"
+
+    def chat_message_str(self, message: ChatAPIMessage) -> str:
+        role = message["role"]
+        content = message["content"]
+        if role == "user":
+            return f"<|start_header_id|>user<|end_header_id|>{content}<|eot_id|>"
+        if role == "system":
+            return f"<|start_header_id|>system<|end_header_id|>{content}<|eot_id|>"
+        if role == "assistant":
+            return f"<|start_header_id|>assistant<|end_header_id|>{content}<|eot_id|>"
+
+        elif role == "tool":
+            return f"<|start_header_id|>assistant<|end_header_id|>Tool Response: {content}<|eot_id|>"
+        return f"{content}"
 
 
 def is_anthropic(model_name: str) -> bool:
@@ -314,13 +383,16 @@ def is_mistral(model_name: str) -> bool:
     return model_name.startswith("mistral.")
 
 
-def is_llama(model_name: str) -> bool:
-    return model_name.startswith("meta.llama")
+def is_llama2(model_name: str) -> bool:
+    return model_name.startswith("meta.llama2")
 
 
-def remove_end_token(prompt: str) -> str:
+def is_llama3(model_name: str) -> bool:
+    return model_name.startswith("meta.llama3")
+
+
+def remove_end_token(prompt: str, end_token: str = "</s>") -> str:
     # pull off </s> at end so putting words in mouth is supported
-    end_token = "</s>"
     if prompt.endswith(end_token):
         index = prompt.rfind(end_token)
         prompt = prompt[:index]

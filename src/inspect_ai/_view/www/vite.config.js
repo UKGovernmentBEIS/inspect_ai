@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  base: '', // Set base to an empty string for relative paths
   build: {
     // It's important we don't minify, as we check the bundled code into git so
     // that users don't need to bundle themselves. If we minify, that balloons
@@ -16,5 +17,6 @@ export default defineConfig({
         assetFileNames: `assets/[name].[ext]`,
       },
     },
+    sourcemap: true,
   },
 });

@@ -43,14 +43,11 @@ from .._model import ModelAPI
 from .._model_output import (
     ChatCompletionChoice,
     Logprobs,
+    ModelCall,
     ModelOutput,
     ModelUsage,
 )
-from .util import (
-    as_stop_reason,
-    model_base_url,
-    parse_tool_call,
-)
+from .util import as_stop_reason, model_base_url, parse_tool_call
 
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
@@ -138,9 +135,7 @@ class OpenAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
-        # resolve max tokens (ignore type check so NotGiven is valid)
-        config.max_tokens = config.max_tokens if config.max_tokens else NOT_GIVEN  # type: ignore
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         # unlike text models, vision models require a max_tokens (and set it to a very low
         # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
         OPENAI_IMAGE_DEFAULT_TOKENS = 4096
@@ -150,19 +145,24 @@ class OpenAIAPI(ModelAPI):
             else:
                 config.max_tokens = OPENAI_IMAGE_DEFAULT_TOKENS
 
-        # normalize to openai messages
-        messages = await as_openai_chat_messages(input)
+        # prepare request (we do this so we can log the ModelCall)
+        request = dict(
+            messages=await as_openai_chat_messages(input),
+            tools=chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
+            tool_choice=chat_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN,
+            **self.completion_params(config, len(tools) > 0),
+        )
+
         try:
             # generate completion
             response: ChatCompletion = await self.client.chat.completions.create(
-                messages=messages,
-                tools=chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
-                tool_choice=(
-                    chat_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN
-                ),
-                **self.completion_params(config, len(tools) > 0),
+                **request
             )
+
+            # parse out choices
             choices = self._chat_choices_from_response(response, tools)
+
+            # return output and call
             return ModelOutput(
                 model=response.model,
                 choices=choices,
@@ -175,7 +175,7 @@ class OpenAIAPI(ModelAPI):
                     if response.usage
                     else None
                 ),
-            )
+            ), ModelCall.create(request=request, response=response.model_dump())
         except APIStatusError as e:
             completion, error = handle_content_filter_error(e)
             return ModelOutput.from_content(
@@ -212,42 +212,36 @@ class OpenAIAPI(ModelAPI):
         return str(self.api_key)
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        params = dict(
+        params: dict[str, Any] = dict(
             model=self.model_name,
-            stream=False,  # Code below assumes this is not a streaming response
-            frequency_penalty=(
-                config.frequency_penalty
-                if config.frequency_penalty is not None
-                else NOT_GIVEN
-            ),
-            stop=config.stop_seqs if config.stop_seqs is not None else NOT_GIVEN,
-            max_tokens=config.max_tokens,
-            presence_penalty=(
-                config.presence_penalty
-                if config.presence_penalty is not None
-                else NOT_GIVEN
-            ),
-            logit_bias=config.logit_bias if config.logit_bias else NOT_GIVEN,
-            seed=config.seed if config.seed is not None else NOT_GIVEN,
-            temperature=(
-                config.temperature
-                if config.temperature is not None
-                else (
-                    1  # TogetherAPI requires temperature w/ num_choices
-                    if config.num_choices is not None
-                    else NOT_GIVEN
-                )
-            ),
-            top_p=config.top_p if config.top_p is not None else NOT_GIVEN,
-            timeout=(
-                float(config.timeout) if config.timeout is not None else NOT_GIVEN
-            ),
-            n=config.num_choices if config.num_choices is not None else NOT_GIVEN,
-            logprobs=config.logprobs if config.logprobs is not None else NOT_GIVEN,
-            top_logprobs=(
-                config.top_logprobs if config.top_logprobs is not None else NOT_GIVEN
-            ),
         )
+        if config.max_tokens is not None:
+            params["max_tokens"] = config.max_tokens
+        if config.frequency_penalty is not None:
+            params["frequency_penalty"] = config.frequency_penalty
+        if config.stop_seqs is not None:
+            params["stop"] = config.stop_seqs
+        if config.presence_penalty is not None:
+            params["presence_penalty"] = config.presence_penalty
+        if config.logit_bias is not None:
+            params["logit_bias"] = config.logit_bias
+        if config.seed is not None:
+            params["seed"] = config.seed
+        if config.temperature is not None:
+            params["temperature"] = config.temperature
+        # TogetherAPI requires temperature w/ num_choices
+        elif config.num_choices is not None:
+            params["temperature"] = 1
+        if config.top_p is not None:
+            params["top_p"] = config.top_p
+        if config.timeout is not None:
+            params["timeout"] = float(config.timeout)
+        if config.num_choices is not None:
+            params["n"] = config.num_choices
+        if config.logprobs is not None:
+            params["logprobs"] = config.logprobs
+        if config.top_logprobs is not None:
+            params["top_logprobs"] = config.top_logprobs
         if tools and config.parallel_tool_calls is not None:
             params["parallel_tool_calls"] = config.parallel_tool_calls
 
@@ -309,13 +303,17 @@ def chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
 
 
 def chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    return [
-        ChatCompletionToolParam(
-            type="function",
-            function=cast(FunctionDefinition, tool.model_dump(exclude_none=True)),
-        )
-        for tool in tools
-    ]
+    return [chat_tool_param(tool) for tool in tools]
+
+
+def chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
+    function = FunctionDefinition(
+        name=tool.name,
+        description=tool.description,
+        parameters=tool.parameters.model_dump(exclude_none=True),
+        strict=True,
+    )
+    return ChatCompletionToolParam(type="function", function=function)
 
 
 def chat_tool_choice(tool_choice: ToolChoice) -> ChatCompletionToolChoiceOptionParam:

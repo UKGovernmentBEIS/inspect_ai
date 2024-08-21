@@ -9,21 +9,25 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
     ChatCompletionChoice,
+    ModelCall,
     ModelOutput,
     ModelUsage,
     StopReason,
 )
-from .._util import (
+from .util import (
+    Llama31Handler,
+    as_stop_reason,
     chat_api_input,
     chat_api_request,
     is_chat_api_rate_limit,
+    model_base_url,
 )
-from .util import as_stop_reason, model_base_url
+from .util.chatapi import ChatAPIHandler
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
@@ -91,7 +95,7 @@ class AzureAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> tuple[ModelOutput, ModelCall]:
         # There are two different model APIs on Azure AI. The first is associated
         # with 'realtime' deployments of llama (and maps closely to other llama
         # inference apis):
@@ -126,7 +130,7 @@ class AzureAIAPI(ModelAPI):
             # build payload
             json = dict(
                 input_data=dict(
-                    input_string=chat_api_input(input),
+                    input_string=chat_api_input(input, tools, self.chat_api_handler()),
                     parameters=parameters,
                 )
             )
@@ -143,7 +147,10 @@ class AzureAIAPI(ModelAPI):
                 parameters["n"] = config.num_choices
 
             # request payload
-            json = dict(messages=chat_api_input(input)) | parameters
+            json = (
+                dict(messages=chat_api_input(input, tools, self.chat_api_handler()))
+                | parameters
+            )
 
             # endpoint
             endpoint_url = f"{self.endpoint_url}/v1/chat/completions"
@@ -161,14 +168,21 @@ class AzureAIAPI(ModelAPI):
             config=config,
         )
 
+        # record call
+        call = ModelCall.create(
+            request=dict(model_name=self.model_name, **json), response=response
+        )
+
         # return result
         if self.is_llama_score_api():
             return ModelOutput.from_content(
                 model=self.model_name, content=response["output"]
-            )
+            ), call
         else:
             model = response.get("model", "")
-            choices = chat_completion_choices(response["choices"])
+            choices = chat_completion_choices(
+                response["choices"], tools, self.chat_api_handler()
+            )
             model_usage = response.get("usage", None)
             if model_usage:
                 usage = ModelUsage(
@@ -178,7 +192,7 @@ class AzureAIAPI(ModelAPI):
                 )
             else:
                 usage = None
-            return ModelOutput(model=model, choices=choices, usage=usage)
+            return ModelOutput(model=model, choices=choices, usage=usage), call
 
     @override
     def max_tokens(self) -> int | None:
@@ -217,18 +231,25 @@ class AzureAIAPI(ModelAPI):
     def is_mistral(self) -> bool:
         return "mistral" in self.model_name.lower()
 
+    def chat_api_handler(self) -> ChatAPIHandler:
+        if "llama" in self.model_name.lower():
+            return Llama31Handler()
+        else:
+            return ChatAPIHandler()
+
 
 def chat_completion_choices(
-    choices: list[dict[str, Any]],
+    choices: list[dict[str, Any]], tools: list[ToolInfo], handler: ChatAPIHandler
 ) -> list[ChatCompletionChoice]:
-    return [chat_completion_choice(choice) for choice in choices]
+    return [chat_completion_choice(choice, tools, handler) for choice in choices]
 
 
-def chat_completion_choice(choice: dict[str, Any]) -> ChatCompletionChoice:
+def chat_completion_choice(
+    choice: dict[str, Any], tools: list[ToolInfo], handler: ChatAPIHandler
+) -> ChatCompletionChoice:
+    content = choice["message"]["content"]
     return ChatCompletionChoice(
-        message=ChatMessageAssistant(
-            content=choice["message"]["content"], source="generate"
-        ),
+        message=handler.parse_assistent_response(content, tools),
         stop_reason=choice_stop_reason(choice),
     )
 

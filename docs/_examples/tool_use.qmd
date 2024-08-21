@@ -4,7 +4,7 @@
 
 This example illustrates how to define and use tools with model evaluations. Tools are Python functions that you provide for the model to call for assistance with various tasks (e.g. looking up information). Note that tools are actually *executed* on the client system, not on the system where the model is running.
 
-Note that tool use is not supported for every model provider. Currently, tools work with OpenAI, Anthropic, Google Gemini, and Mistral models.
+Note that tool use is not supported for every model provider. Currently, tools work with OpenAI, Anthropic, Google Gemini, Mistral, and Groq models.
 
 If you want to use tools in your evals it's worth taking some time to learn how to provide good tool definitions. Here are some resources you may find helpful:
 
@@ -13,7 +13,7 @@ If you want to use tools in your evals it's worth taking some time to learn how 
 
 ### Addition {.unlisted}
 
-We'll demostrate with a simple tool that adds two numbers, using the `@tool` decorator to register it with the system:
+We'll demonstrate with a simple tool that adds two numbers, using the `@tool` decorator to register it with the system:
 
 ```{python}
 from inspect_ai import Task, eval, task

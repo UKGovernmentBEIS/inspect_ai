@@ -1,6 +1,6 @@
 ## Benchmarks
 
-This directory contains evals for several benchmarks. Datasets for evals are not embedded in the repository but are rather ether downloaded either directly from their source URL or via Hugging Face datasets. To use Hugging Face datasets please install the datasets package with `pip install datasets`.
+This directory contains evals for several benchmarks. Datasets for evals are not embedded in the repository but are rather either downloaded either directly from their source URL or via Hugging Face datasets. To use Hugging Face datasets please install the datasets package with `pip install datasets`.
 
 | Benchmark                                                              | Reference                            |                             Code | Dataset      |
 |-------------------------|----------------|---------------:|----------------|
@@ -14,3 +14,5 @@ This directory contains evals for several benchmarks. Datasets for evals are not
 | BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions | <https://arxiv.org/abs/1905.10044>   |             [boolq.py](boolq.py) | Hugging Face |
 | TruthfulQA: Measuring How Models Mimic Human Falsehoods                | <https://arxiv.org/abs/2109.07958v2> |   [truthfulqa.py](truthfulqa.py) | Hugging Face |
 | HumanEval: Evaluating Large Language Models Trained on Code               | <https://arxiv.org/pdf/2107.03374> |   [humaneval.py](humaneval/humaneval.py) | Hugging Face |
+| DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs               | <https://arxiv.org/pdf/1903.00161> |   [drop.py](drop/drop.py) | Hugging Face |
+| WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale               | <https://arxiv.org/pdf/1907.10641> |   [winogrande.py](winogrande/winogrande.py) | Hugging Face |

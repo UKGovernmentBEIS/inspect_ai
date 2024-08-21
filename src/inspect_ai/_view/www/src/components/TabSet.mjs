@@ -69,8 +69,7 @@ const Tabs = ({ tabs, type, style }) => {
 const Tab = ({ type, tab, index, style }) => {
   // TODO: If there's no tab.props.id, this is just a string of "-1", "-2" per
   // index because there's no `id`, what should this really be?
-  // eslint-disable-next-line no-undef
-  const tabId = tab.props.id || computeTabId(id, index);
+  const tabId = tab.props.id || computeTabId("tabset", index);
   const tabContentsId = computeTabContentsId(tab.props.id, index);
   const isActive = tab.props.selected;
   const tabStyle = {
@@ -82,7 +81,7 @@ const Tab = ({ type, tab, index, style }) => {
     ...style,
   };
   return html`
-    <li class="nav-item" role="presentation">
+    <li class="nav-item" role="presentation" style=${{ alignSelf: "end" }}>
       <button
         id="${tabId}"
         style=${type === "tabs" ? tabStyle : pillStyle}
