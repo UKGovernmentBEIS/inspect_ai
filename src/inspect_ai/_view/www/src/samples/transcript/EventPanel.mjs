@@ -77,7 +77,7 @@ export const EventPanel = ({
                   setCollapsed(!collapsed);
                 }}
               />`
-            : ""}
+            : html`<div></div>`}
           <div
             style=${{
               ...TextStyle.label,

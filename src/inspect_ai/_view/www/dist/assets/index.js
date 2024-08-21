@@ -15170,7 +15170,7 @@ const EventPanel = ({
                 onclick=${() => {
     setCollapsed(!collapsed);
   }}
-              />` : ""}
+              />` : m$1`<div></div>`}
           <div
             style=${{
     ...TextStyle.label,
@@ -15370,10 +15370,6 @@ const MetaDataGrid = ({
     ${entryEls}
   </div>`;
 };
-const isBase64 = (str) => {
-  const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-  return base64Pattern.test(str);
-};
 const EventSection = ({ title, style, children }) => {
   return m$1`<div
     style=${{
@@ -15399,12 +15395,10 @@ const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   stateManager.setState(stateObj);
   const sections = [];
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
-    const filesTable = {};
-    Object.keys(event.sample.files).forEach((key2) => {
-      filesTable[key2] = isBase64(event.sample.files[key2]) ? `<Base64 string>` : event.sample.files[key2];
-    });
     sections.push(m$1`<${EventSection} title="Files">
-      <${MetaDataGrid} entries=${filesTable}/>
+      ${Object.keys(event.sample.files).map((file) => {
+      return m$1`<pre style=${{ marginBottom: "0" }}>${file}</pre>`;
+    })}
       </${EventSection}>
   `);
   }
