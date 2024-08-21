@@ -71,9 +71,11 @@ book:
         chapters:
            - caching.qmd
            - parallelism.qmd
+           - agents-api.qmd
            - eval-logs.qmd
            - eval-suites.qmd
            - extensions.qmd
+
 
 toc-depth: 2
 number-sections: true
