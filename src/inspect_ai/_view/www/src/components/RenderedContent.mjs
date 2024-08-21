@@ -6,6 +6,7 @@ import { FontSize } from "../appearance/Fonts.mjs";
 import { ANSIDisplay } from "./AnsiDisplay.mjs";
 import { MetaDataView } from "./MetaDataView.mjs";
 import { ChatView } from "./ChatView.mjs";
+import { formatNumber } from "../utils/Format.mjs";
 
 export const RenderedContent = ({
   id,
@@ -96,7 +97,7 @@ const contentRenderers = {
       return typeof entry.value === "number";
     },
     render: (id, entry) => {
-      entry.value = entry.value.toString();
+      entry.value = formatNumber(entry.value);
       return contentRenderers.String.render(id, entry);
     },
   },
