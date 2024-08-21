@@ -518,9 +518,23 @@ def task_stats(profile: TaskProfile, stats: EvalStats) -> RenderableType:
 
     # token usage
     for model, usage in stats.model_usage.items():
+        if (
+            usage.input_tokens_cache_read is not None
+            or usage.input_tokens_cache_write is not None
+        ):
+            input_tokens_cache_read = usage.input_tokens_cache_read or 0
+            input_tokens_cache_write = usage.input_tokens_cache_write or 0
+            total_tokens = (
+                usage.total_tokens + input_tokens_cache_read + input_tokens_cache_write
+            )
+            input_tokens = f"{usage.input_tokens:,} + {input_tokens_cache_write:,} + {input_tokens_cache_read:,}"
+        else:
+            total_tokens = usage.total_tokens
+            input_tokens = f"{usage.input_tokens:,}"
+
         table.add_row(
             Text(model, style="bold"),
-            f"  {usage.total_tokens:,} tokens [{usage.input_tokens:,} + {usage.output_tokens:,}]",
+            f"  {total_tokens:,} tokens [{input_tokens} + {usage.output_tokens:,}]",
             style=theme.light,
         )
 
