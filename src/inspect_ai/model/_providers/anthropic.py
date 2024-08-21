@@ -117,18 +117,31 @@ class AnthropicAPI(ModelAPI):
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         # generate
         try:
-            (system_param, tools_param, messages) = await resolve_chat_input(
-                input, tools, config
-            )
+            (
+                system_param,
+                tools_param,
+                messages,
+                cache_prompt,
+            ) = await resolve_chat_input(input, tools, config)
 
             # prepare request params (assembed this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
+
+            # system messages and tools
             if system_param is not None:
                 request["system"] = system_param
             request["tools"] = tools_param
             if len(tools) > 0:
                 request["tool_choice"] = message_tool_choice(tool_choice)
+
+            # additional options
             request = request | self.completion_params(config)
+
+            # caching header
+            if cache_prompt:
+                request["extra_headers"] = {
+                    "anthropic-beta": "prompt-caching-2024-07-31"
+                }
 
             # call model
             message = await self.client.messages.create(**request, stream=False)
@@ -219,7 +232,7 @@ async def resolve_chat_input(
     input: list[ChatMessage],
     tools: list[ToolInfo],
     config: GenerateConfig,
-) -> Tuple[list[TextBlockParam] | None, list[ToolParam], list[MessageParam]]:
+) -> Tuple[list[TextBlockParam] | None, list[ToolParam], list[MessageParam], bool]:
     # extract system message
     system_messages, messages = split_system_messages(input, config)
 
@@ -260,7 +273,40 @@ async def resolve_chat_input(
     else:
         system_param = None
 
-    return system_param, tools_params, message_params
+    # add caching directives if necessary
+    cache_prompt = (
+        config.cache_prompt
+        if isinstance(config.cache_prompt, bool)
+        else True
+        if len(tools_params)
+        else False
+    )
+    if cache_prompt:
+        # system
+        if system_param:
+            add_cache_control(system_param[-1])
+        # tools
+        if tools_params:
+            add_cache_control(tools_params[-1])
+        # last 2 user messages
+        user_message_params = list(
+            filter(lambda m: m["role"] == "user", reversed(message_params))
+        )
+        for message in user_message_params[:2]:
+            if isinstance(message["content"], str):
+                text_param = TextBlockParam(type="text", text=message["content"])
+                add_cache_control(text_param)
+                message["content"] = [text_param]
+            else:
+                content = list(message["content"])
+                add_cache_control(cast(dict[str, Any], content[-1]))
+
+    # return chat input
+    return system_param, tools_params, message_params, cache_prompt
+
+
+def add_cache_control(param: TextBlockParam | ToolParam | dict[str, Any]) -> None:
+    cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
 
 
 def consecutive_user_message_reducer(
@@ -437,6 +483,7 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
     )
 
     # return ModelOutput
+    usage = message.usage.model_dump()
     return ModelOutput(
         model=message.model,
         choices=[choice],
@@ -444,6 +491,8 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
             input_tokens=message.usage.input_tokens,
             output_tokens=message.usage.output_tokens,
             total_tokens=message.usage.input_tokens + message.usage.output_tokens,
+            input_tokens_cache_write=usage.get("cache_creation_input_tokens", None),
+            input_tokens_cache_read=usage.get("cache_read_input_tokens", None),
         ),
     )
 
