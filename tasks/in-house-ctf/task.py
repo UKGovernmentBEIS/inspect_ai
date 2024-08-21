@@ -63,3 +63,7 @@ def in_house_ctf_task_template(task_name: str) -> Task:
 # @task
 # def ssh():
 #     return in_house_ctf_task_template("ssh")
+
+# @task
+# def pw_reuse():
+#     return in_house_ctf_task_template("pw_reuse")
