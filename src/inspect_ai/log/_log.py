@@ -2,17 +2,14 @@ import abc
 import asyncio
 import logging
 import os
-import re
 import sys
 import traceback
-from logging import LogRecord
 from types import TracebackType
-from typing import Any, Literal, Type, cast
+from typing import Any, Literal, Type
 
 import click
 import tenacity
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
-from pydantic_core import to_jsonable_python
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
@@ -26,6 +23,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.solver._subtask.transcript import EvalEvents
 
 SCORER_PLACEHOLDER = "88F74D2C"
 
@@ -100,6 +98,12 @@ class EvalSample(BaseModel):
 
     metadata: dict[str, Any]
     """Additional sample metadata."""
+
+    store: dict[str, Any] = Field(default={})
+    """State at end of sample execution."""
+
+    transcript: EvalEvents = Field(default_factory=EvalEvents)
+    """Transcript of sample events."""
 
     @model_validator(mode="before")
     @classmethod
@@ -388,79 +392,6 @@ class EvalStats(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-LoggingLevel = Literal[
-    "debug", "http", "sandbox", "info", "warning", "error", "critical"
-]
-"""Logging level."""
-
-
-class LoggingMessage(BaseModel):
-    name: str | None = Field(default=None)
-    """Logger name (e.g. 'httpx')"""
-
-    level: LoggingLevel
-    """Logging level."""
-
-    message: str
-    """Log message."""
-
-    created: float
-    """Message created time."""
-
-    filename: str = Field(default="unknown")
-    """Logged from filename."""
-
-    module: str = Field(default="unknown")
-    """Logged from module."""
-
-    lineno: int = Field(default=0)
-    """Logged from line number."""
-
-    args: JsonValue = Field(default=None)
-    """Extra arguments passed to log function."""
-
-    @staticmethod
-    def from_log_record(record: LogRecord) -> "LoggingMessage":
-        """Create a LoggingMesssage from a LogRecord.
-
-        Args:
-          record (LogRecord): LogRecord to convert.
-
-        Returns:
-          LoggingMessage for LogRecord
-
-        """
-        return LoggingMessage(
-            # don't include full file paths (as the filename is also below),
-            # we just want to use this to capture e.g. 'httpx', 'openai', etc.
-            name=record.name
-            if re.match(r"^[\w_]+$", record.name) is not None
-            else None,
-            level=cast(LoggingLevel, record.levelname.lower()),
-            message=record.getMessage(),
-            created=record.created * 1000,
-            filename=str(record.filename),
-            module=str(record.module),
-            lineno=record.lineno or 0,
-            # serialize anything we can from the additional arguments
-            args=to_jsonable_python(record.args, fallback=lambda _x: None)
-            if record.args
-            else None,
-        )
-
-    @model_validator(mode="before")
-    @classmethod
-    def convert_log_levels(
-        cls: Type["LoggingMessage"], values: dict[str, Any]
-    ) -> dict[str, Any]:
-        if "level" in values:
-            level = values["level"]
-            if level == "tools":
-                values["level"] = "sandbox"
-
-        return values
-
-
 class EvalLog(BaseModel):
     version: int = Field(default=2)
     """Eval log file format version."""
@@ -488,9 +419,6 @@ class EvalLog(BaseModel):
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
 
-    logging: list[LoggingMessage] = Field(default=[])
-    """Logging message captured during eval."""
-
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:
@@ -503,7 +431,7 @@ class EvalLog(BaseModel):
         return self
 
 
-LogEvent = Literal["plan", "sample", "score", "results", "scorer", "logging"]
+LogType = Literal["plan", "sample", "score", "results", "scorer"]
 
 
 class Recorder(abc.ABC):
@@ -511,11 +439,11 @@ class Recorder(abc.ABC):
     def log_start(self, eval: EvalSpec) -> str: ...
 
     @abc.abstractmethod
-    def log_event(
+    def log(
         self,
         spec: EvalSpec,
-        type: LogEvent,
-        data: EvalSample | EvalPlan | EvalResults | LoggingMessage,
+        type: LogType,
+        data: EvalSample | EvalPlan | EvalResults,
         flush: bool = False,
     ) -> None:
         pass

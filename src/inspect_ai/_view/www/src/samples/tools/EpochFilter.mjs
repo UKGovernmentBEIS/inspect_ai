@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
 export const EpochFilter = ({ epochs, epoch, setEpoch }) => {
   const options = ["all"];
@@ -7,13 +8,22 @@ export const EpochFilter = ({ epochs, epoch, setEpoch }) => {
   }
   return html`
     <div style=${{ display: "flex" }}>
-      <span class="epoch-filter-label" style=${{ alignSelf: "center" }}
+      <span
+        class="epoch-filter-label"
+        style=${{
+          alignSelf: "center",
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+          marginRight: "0.3em",
+          marginLeft: "0.2em",
+        }}
         >Epochs:</span
       >
       <select
         class="form-select form-select-sm"
         aria-label=".epoch-filter-label"
-        style=${{ fontSize: "0.7rem" }}
+        style=${{ fontSize: FontSize.smaller }}
         value=${epoch}
         onChange=${(e) => {
           setEpoch(e.target.value);

@@ -18,7 +18,11 @@ from inspect_ai._display._display import (
     TaskSuccess,
 )
 from inspect_ai._eval.task.util import sample_messages
-from inspect_ai._util.constants import DEFAULT_EPOCHS, DEFAULT_MAX_CONNECTIONS
+from inspect_ai._util.constants import (
+    DEFAULT_EPOCHS,
+    DEFAULT_MAX_CONNECTIONS,
+    SAMPLE_SUBTASK,
+)
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.file import file, filesystem
@@ -52,11 +56,18 @@ from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
-from inspect_ai.util import SandboxEnvironment
+from inspect_ai.solver._subtask.subtask import init_subtask
+from inspect_ai.solver._subtask.transcript import (
+    SampleInitEvent,
+    ScoreEvent,
+    transcript,
+)
+from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.util._sandbox.context import (
     cleanup_sandbox_environments_sample,
     init_sandbox_environments_sample,
 )
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from ..context import init_task_context
 from ..task import Task
@@ -64,6 +75,7 @@ from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
+from .transcript import solver_transcript
 
 py_logger = getLogger(__name__)
 
@@ -100,8 +112,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     sample_semaphore = options.sample_semaphore
     kwargs = options.kwargs
 
+    # resolve default generate_config for task
+    generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
+
     # init task context
-    init_task_context(model)
+    init_task_context(model, generate_config)
 
     # track stats and error
     stats = EvalStats(started_at=iso_now())
@@ -114,7 +129,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     sandbox_cleanup = config.sandbox_cleanup is not False
     log_images = config.log_images is True
     log_samples = config.log_samples is not False
-    generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
     # resolve dataset
     _, samples, states = await resolve_dataset(
@@ -209,7 +223,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         sandbox=sandbox,
                         sandbox_cleanup=sandbox_cleanup,
                         plan=plan,
-                        max_messages=config.max_messages,
                         scorers=scorers,
                         generate=generate,
                         progress=progress,
@@ -299,7 +312,6 @@ async def task_run_sample(
     sandbox: tuple[str, str | None] | None,
     sandbox_cleanup: bool,
     plan: Plan,
-    max_messages: int | None,
     scorers: list[Scorer] | None,
     generate: Generate,
     progress: Callable[..., None],
@@ -317,7 +329,7 @@ async def task_run_sample(
                 progress()
             # log if requested
             if logger:
-                logger.log_event("sample", previous_sample, False)
+                logger.log("sample", previous_sample, False)
 
             # return score
             if previous_sample.scores:
@@ -336,7 +348,10 @@ async def task_run_sample(
         semaphore if semaphore else contextlib.nullcontext()
     )
 
-    # use sandboxenv if provided
+    # initialise subtask
+    init_subtask(SAMPLE_SUBTASK, state.store)
+
+    # use toolenv if provided
     sandboxenv_cm = (
         sandboxenv_context(task_name, sandbox, sandbox_cleanup, sample)
         if sandbox
@@ -346,10 +361,22 @@ async def task_run_sample(
     # solver loop
     async with semaphore_cm, sandboxenv_cm:
         try:
+            # sample init event (remove file bodies as they have content or absolute paths)
+            event_sample = sample.model_copy(
+                update=dict(files={k: "" for k in sample.files.keys()})
+                if sample.files
+                else None
+            )
+            transcript()._event(
+                SampleInitEvent(sample=event_sample, state=state_jsonable(state))
+            )
+
             # run plan steps (checking for early termination)
             for index, solver in enumerate(plan.steps):
                 # run the solver
-                state = await solver(state, generate)
+                with solver_transcript(solver, state) as st:
+                    state = await solver(state, generate)
+                    st.complete(state)
                 progress()
 
                 # check for early termination (tick remaining progress)
@@ -360,7 +387,9 @@ async def task_run_sample(
 
             # run finishing step them mark completed
             if plan.finish:
-                state = await plan.finish(state, generate)
+                with solver_transcript(plan.finish, state) as st:
+                    state = await plan.finish(state, generate)
+                    st.complete(state)
                 progress()
             state.completed = True
 
@@ -380,18 +409,20 @@ async def task_run_sample(
         if scorers:
             for scorer in scorers:
                 scorer_name = unique_scorer_name(scorer, list(results.keys()))
-                score_result = (
-                    await scorer(state, Target(sample.target)) if scorer else None
-                )
-                if score_result is not None:
-                    sample_score = SampleScore(
-                        value=score_result.value,
-                        answer=score_result.answer,
-                        explanation=score_result.explanation,
-                        metadata=score_result.metadata,
-                        sample_id=sample.id,
+                with transcript().step(name=scorer_name, type="scorer"):
+                    score_result = (
+                        await scorer(state, Target(sample.target)) if scorer else None
                     )
-                    results[scorer_name] = sample_score
+                    if score_result is not None:
+                        sample_score = SampleScore(
+                            value=score_result.value,
+                            answer=score_result.answer,
+                            explanation=score_result.explanation,
+                            metadata=score_result.metadata,
+                            sample_id=sample.id,
+                        )
+                        transcript()._event(ScoreEvent(score=score_result))
+                        results[scorer_name] = sample_score
         progress()
 
         # log it

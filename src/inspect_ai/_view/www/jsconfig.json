@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "checkJs": true,
+    "allowJs": true, // Allow JavaScript files to be compiled.
+    "strict": true,
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["node_modules/*"]
+    },
+    "lib": ["es6", "dom"]
+  },
+  "include": ["**/src/*.mjs", "**/src/*.js", "src/types/*.d.ts"],
+  "exclude": ["node_modules"]
+}

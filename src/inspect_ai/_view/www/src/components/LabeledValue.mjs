@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 
 export const LabeledValue = ({
   label,
@@ -18,15 +19,14 @@ export const LabeledValue = ({
   >
     <div
       style=${{
-        fontSize: "0.5rem",
-        textTransform: "uppercase",
-        fontWeight: "600",
+        fontSize: FontSize.smaller,
         marginBottom: "-0.2rem",
-        color: "var(--bs-secondary)",
+        ...TextStyle.secondary,
+        ...TextStyle.label,
       }}
     >
       ${label}
     </div>
-    <div style=${{ fontSize: "0.8rem", ...valueStyle }}>${children}</div>
+    <div style=${{ fontSize: FontSize.base, ...valueStyle }}>${children}</div>
   </div>`;
 };

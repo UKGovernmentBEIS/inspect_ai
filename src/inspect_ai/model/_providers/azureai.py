@@ -14,6 +14,7 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
     ChatCompletionChoice,
+    ModelCall,
     ModelOutput,
     ModelUsage,
     StopReason,
@@ -94,7 +95,7 @@ class AzureAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> tuple[ModelOutput, ModelCall]:
         # There are two different model APIs on Azure AI. The first is associated
         # with 'realtime' deployments of llama (and maps closely to other llama
         # inference apis):
@@ -167,11 +168,16 @@ class AzureAIAPI(ModelAPI):
             config=config,
         )
 
+        # record call
+        call = ModelCall.create(
+            request=dict(model_name=self.model_name, **json), response=response
+        )
+
         # return result
         if self.is_llama_score_api():
             return ModelOutput.from_content(
                 model=self.model_name, content=response["output"]
-            )
+            ), call
         else:
             model = response.get("model", "")
             choices = chat_completion_choices(
@@ -186,7 +192,7 @@ class AzureAIAPI(ModelAPI):
                 )
             else:
                 usage = None
-            return ModelOutput(model=model, choices=choices, usage=usage)
+            return ModelOutput(model=model, choices=choices, usage=usage), call
 
     @override
     def max_tokens(self) -> int | None:
