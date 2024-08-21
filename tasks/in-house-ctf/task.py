@@ -67,3 +67,7 @@ def in_house_ctf_task_template(task_name: str) -> Task:
 # @task
 # def pw_reuse():
 #     return in_house_ctf_task_template("pw_reuse")
+
+# @task
+# def webmin():
+#     return in_house_ctf_task_template("webmin")
