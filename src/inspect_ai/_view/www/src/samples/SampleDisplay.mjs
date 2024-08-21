@@ -7,11 +7,14 @@ import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/Format.mjs";
 
-import { icons, sharedStyles } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { arrayToString, shortenCompletion } from "../utils/Format.mjs";
 
 import { SampleScoreView } from "./SampleScoreView.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { SampleTranscript } from "./SampleTranscript.mjs";
 
 export const InlineSampleDisplay = ({
   index,
@@ -43,13 +46,18 @@ export const SampleDisplay = ({
   // Tab ids
   const baseId = `sample-${index}`;
   const msgTabId = `${baseId}-messages`;
+  const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
 
   // Upon sample update
   useEffect(() => {
     // reset tabs when sample changes
-    setSelectedTab(msgTabId);
+    if (sample.transcript && sample.transcript.events.length > 0) {
+      setSelectedTab(transcriptTabId);
+    } else {
+      setSelectedTab(msgTabId);
+    }
   }, [sample]);
 
   // Tab selection
@@ -63,19 +71,28 @@ export const SampleDisplay = ({
   // The core tabs
   const tabs = [
     html`
-    <${TabPanel} id=${msgTabId} title="Messages" icon=${icons.messages} onSelected=${onSelectedTab} selected=${
-      selectedTab === msgTabId || selectedTab === undefined
+    <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${
+      selectedTab === msgTabId
     }>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
         sample.messages
-      }/>
+      } style=${{ paddingLeft: ".8em", paddingTop: "1em" }}/>
     </${TabPanel}>`,
   ];
+
+  if (sample.transcript && sample.transcript.events.length > 0) {
+    tabs.unshift(html`
+      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
+        selectedTab === transcriptTabId || selectedTab === undefined
+      } scrollable=${false}>
+        <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
+      </${TabPanel}>`);
+  }
 
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(html`
-      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${
+      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${
         selectedTab === scoringTabId
       }>
         <${SampleScoreView}
@@ -83,13 +100,14 @@ export const SampleDisplay = ({
           context=${context}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
+          style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
         />
       </${TabPanel}>`);
   } else {
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(html`
-        <${TabPanel} id="${tabId}" title="${scorer}" icon=${icons.scorer} onSelected=${onSelectedTab} selected=${
+        <${TabPanel} id="${tabId}" title="${scorer}" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${
           selectedTab === tabId
         }>
           <${SampleScoreView}
@@ -97,6 +115,7 @@ export const SampleDisplay = ({
             context=${context}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
+            style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
         </${TabPanel}>`);
     }
@@ -109,10 +128,12 @@ export const SampleDisplay = ({
       <${TabPanel} 
           id=${metdataTabId} 
           title="Metadata" 
-          icon=${icons.metadata}
+          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
         ${sampleMetadatas}
+        </div>
       </${TabPanel}>`,
     );
   }
@@ -124,12 +145,9 @@ export const SampleDisplay = ({
 
   <${TabSet} id="task-sample-details-tab-${id}" styles=${{
     tabs: {
-      fontSize: "0.8em",
+      fontSize: FontSize.base,
     },
-    tabBody: {
-      paddingLeft: ".4em",
-      marginTop: "0.5rem",
-    },
+    tabBody: {},
   }}>
     ${tabs}
   </${TabSet}>`;
@@ -166,7 +184,7 @@ const metadataViewsForSample = (id, sample, context) => {
   return sampleMetadatas;
 };
 
-const SampleSummary = ({ id, sample, sampleDescriptor }) => {
+const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input =
     sampleDescriptor?.messageShape.input > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.input)
@@ -195,7 +213,7 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
   columns.push({
     label: "Id",
     value: id,
-    size: "minmax(2em, 25%)",
+    size: "minmax(min-content, max-content)",
   });
 
   columns.push({
@@ -255,26 +273,28 @@ const SampleSummary = ({ id, sample, sampleDescriptor }) => {
           })
           .join(" ")}`,
         gridColumnGap: "0.5em",
-        fontSize: "0.8em",
+        fontSize: FontSize.base,
         borderBottom: "solid var(--bs-border-color) 1px",
         marginBottom: "1em",
         padding: "0em 1em 1em 1em",
+        ...style,
       }}
     >
       ${columns.map((col) => {
         const style = {
-          textTransform: "uppercase",
-          fontSize: "0.6rem",
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+          fontSize: FontSize.base,
         };
         if (col.center) {
-          style.display = "flex";
-          style.justifyContent = "center";
+          style["display"] = "flex";
+          style["justifyContent"] = "center";
         }
         return html`<div style=${{ ...style }}>${col.label}</div>`;
       })}
       ${columns.map((col) => {
         const style = {
-          ...(col.clamp ? sharedStyles.threeLineClamp : {}),
+          ...(col.clamp ? ApplicationStyles.threeLineClamp : {}),
         };
         if (col.center) {
           style.display = "flex";

@@ -17,7 +17,7 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-from inspect_ai.solver import TaskState
+from inspect_ai.solver._task_state import TaskState
 
 from ._metric import Metric, Score
 from ._target import Target

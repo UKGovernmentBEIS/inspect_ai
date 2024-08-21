@@ -3,12 +3,8 @@ import { html } from "htm/preact";
 import { LabeledValue } from "../components/LabeledValue.mjs";
 import { formatDataset } from "../utils/Format.mjs";
 
-export const TitleBlock = ({ log, status }) => {
-  if (!log) {
-    return "";
-  }
-
-  if (status !== "success") {
+export const SecondaryBar = ({ log, status, style }) => {
+  if (!log || status !== "success") {
     return "";
   }
 
@@ -22,32 +18,33 @@ export const TitleBlock = ({ log, status }) => {
     ...log.eval.task_args,
   };
 
+  const hasConfig = Object.keys(hyperparameters).length > 0;
+
   const values = [];
   values.push({
-    size: "auto",
+    size: "minmax(12%, auto)",
     value: html`<${LabeledValue} label="Dataset" style=${staticColStyle}>
     <${DatasetSummary}
       dataset=${log.eval?.dataset}
       samples=${log.samples}
-      epochs=${epochs}
-      style=${{ fontSize: "0.8rem" }} />
+      epochs=${epochs} />
   </${LabeledValue}>
 `,
   });
 
   const label = log?.results?.scores.length > 1 ? "Scorers" : "Scorer";
   values.push({
-    size: "auto",
-    value: html`<${LabeledValue} label="${label}" style=${staticColStyle}>
+    size: "minmax(12%, auto)",
+    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
     <${ScorerSummary} 
       scorers=${log?.results?.scores} />
   </${LabeledValue}>`,
   });
 
-  if (Object.keys(hyperparameters).length > 0) {
+  if (hasConfig) {
     values.push({
-      size: "auto",
-      value: html`<${LabeledValue} label="Config">
+      size: "minmax(12%, auto)",
+      value: html`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
       <${ParamSummary} params=${hyperparameters}/>
     </${LabeledValue}>`,
     });
@@ -60,12 +57,13 @@ export const TitleBlock = ({ log, status }) => {
         padding: "0.2em 1em 0.2em 1em",
         display: "grid",
         gridColumnGap: "1em",
-        paddingTop: "0.5em",
+        borderTop: "1px solid var(--bs-border-color)",
         gridTemplateColumns: `${values
           .map((val) => {
             return val.size;
           })
           .join(" ")}`,
+        ...style,
       }}
     >
       ${values.map((val) => {
@@ -83,9 +81,7 @@ const DatasetSummary = ({ dataset, samples, epochs, style }) => {
   return html`
     <div style=${style}>
       ${dataset.name}${samples?.length
-        ? html` <span style=${{ fontSize: "0.9em" }}>
-            ${formatDataset(dataset.name, samples.length, epochs)}
-          </span>`
+        ? html`${formatDataset(dataset.name, samples.length, epochs)}`
         : ""}
     </div>
   `;

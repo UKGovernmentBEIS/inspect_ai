@@ -219,9 +219,8 @@ async def eval_async(
         init_eval_context(max_subprocesses)
 
         # resolve models
-        models = resolve_models(
-            model, model_base_url, model_args, GenerateConfig(**kwargs)
-        )
+        generate_config = GenerateConfig(**kwargs)
+        models = resolve_models(model, model_base_url, model_args, generate_config)
 
         # resolve epochs
         if isinstance(epochs, int):
@@ -231,7 +230,7 @@ async def eval_async(
         # 'default' model in tools, solvers, and scorers)
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
-            init_active_model(m)
+            init_active_model(m, generate_config)
             resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
         # warn and return empty string if we resolved no tasks

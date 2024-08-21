@@ -8,7 +8,7 @@ from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from ...model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
-from .._model_output import ChatCompletionChoice
+from .._model_output import ChatCompletionChoice, ModelCall
 from .util import (
     ChatAPIHandler,
     Llama31Handler,
@@ -62,7 +62,7 @@ class CloudFlareAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> tuple[ModelOutput, ModelCall]:
         # chat url
         chat_url = f"{self.base_url}/{self.account_id}/ai/run/@cf"
 
@@ -84,8 +84,9 @@ class CloudFlareAPI(ModelAPI):
 
         # handle response
         if response["success"]:
+            # extract output
             content = response["result"]["response"]
-            return ModelOutput(
+            output = ModelOutput(
                 model=self.model_name,
                 choices=[
                     ChatCompletionChoice(
@@ -96,6 +97,14 @@ class CloudFlareAPI(ModelAPI):
                     )
                 ],
             )
+
+            # record call
+            call = ModelCall.create(
+                request=dict(model_name=self.model_name, **json), response=response
+            )
+
+            # return
+            return output, call
         else:
             error = str(response.get("errors", "Unknown"))
             raise RuntimeError(f"Error calling {self.model_name}: {error}")

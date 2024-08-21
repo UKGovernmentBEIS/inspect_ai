@@ -11,7 +11,6 @@ from anthropic import (
     InternalServerError,
     RateLimitError,
 )
-from anthropic._types import NOT_GIVEN
 from anthropic.types import (
     ImageBlockParam,
     Message,
@@ -43,6 +42,7 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import (
     ChatCompletionChoice,
+    ModelCall,
     ModelOutput,
     ModelUsage,
     StopReason,
@@ -114,47 +114,53 @@ class AnthropicAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         # generate
         try:
             (system_message, tools_param, messages) = await resolve_chat_input(
                 input, tools, config
             )
 
-            message = await self.client.messages.create(
-                stream=False,
-                messages=messages,
-                system=system_message if system_message is not None else NOT_GIVEN,
-                stop_sequences=(
-                    config.stop_seqs if config.stop_seqs is not None else NOT_GIVEN
-                ),
-                tools=tools_param,
-                tool_choice=(
-                    message_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN
-                ),
-                **self.completion_params(config),
-            )
+            # prepare request params (assembed this way so we can log the raw model call)
+            request: dict[str, Any] = dict(messages=messages)
+            if system_message is not None:
+                request["system"] = system_message
+            request["tools"] = tools_param
+            if len(tools) > 0:
+                request["tool_choice"] = message_tool_choice(tool_choice)
+            request = request | self.completion_params(config)
 
-            return model_output_from_message(message, tools)
+            # call model
+            message = await self.client.messages.create(**request, stream=False)
+
+            # extract output
+            output = model_output_from_message(message, tools)
+
+            # return output and call
+            call = ModelCall.create(request=request, response=message.model_dump())
+
+            return output, call
 
         except BadRequestError as ex:
-            output = self.handle_bad_request(ex)
-            if output:
-                return output
+            error_output = self.handle_bad_request(ex)
+            if error_output is not None:
+                return error_output
             else:
                 raise ex
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
-        return dict(
-            model=self.model_name,
-            max_tokens=cast(int, config.max_tokens),
-            temperature=(
-                config.temperature if config.temperature is not None else NOT_GIVEN
-            ),
-            top_p=config.top_p if config.top_p is not None else NOT_GIVEN,
-            top_k=config.top_k if config.top_k is not None else NOT_GIVEN,
-            timeout=float(config.timeout) if config.timeout is not None else NOT_GIVEN,
-        )
+        params = dict(model=self.model_name, max_tokens=cast(int, config.max_tokens))
+        if config.temperature is not None:
+            params["temperature"] = config.temperature
+        if config.top_p is not None:
+            params["top_p"] = config.top_p
+        if config.top_k is not None:
+            params["top_k"] = config.top_k
+        if config.timeout is not None:
+            params["timeout"] = float(config.timeout)
+        if config.stop_seqs is not None:
+            params["stop_sequences"] = config.stop_seqs
+        return params
 
     @override
     def max_tokens(self) -> int | None:
