@@ -87,13 +87,14 @@ def test_incorrect_edit_fails() -> None:
     assert result.results.scores[0].metrics["mean"].value == 0.0, "SWE-bench should mark an incorrect application as a failure."
 
 TEST_DATASET = INFRASTRUCTURE_DIR / "swebench_one_sample.hf"
-TEST_IMAGE_NAME = 
 def test_build_docker() -> None:
     build_docker_images(
         dataset_name=TEST_DATASET,
         max_workers=1,
         force_rebuild=True
     )
+
+
 
 
 
