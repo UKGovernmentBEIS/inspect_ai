@@ -527,14 +527,14 @@ def task_stats(profile: TaskProfile, stats: EvalStats) -> RenderableType:
             total_tokens = (
                 usage.total_tokens + input_tokens_cache_read + input_tokens_cache_write
             )
-            input_tokens = f"{usage.input_tokens:,} + {input_tokens_cache_write:,} + {input_tokens_cache_read:,}"
+            input_tokens = f"[bold]I: [/bold]{usage.input_tokens:,}, [bold]CW: [/bold]{input_tokens_cache_write:,}, [bold]CR: [/bold]{input_tokens_cache_read:,}"
         else:
             total_tokens = usage.total_tokens
-            input_tokens = f"{usage.input_tokens:,}"
+            input_tokens = f"[bold]I: [/bold]{usage.input_tokens:,}"
 
         table.add_row(
             Text(model, style="bold"),
-            f"  {total_tokens:,} tokens [{input_tokens} + {usage.output_tokens:,}]",
+            f"  {total_tokens:,} tokens [{input_tokens}, [bold]O: [/bold]{usage.output_tokens:,}]",
             style=theme.light,
         )
 
