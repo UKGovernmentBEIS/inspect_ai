@@ -31,6 +31,7 @@
     "fast-json-patch": "^3.1.1",
     "htm": "^3.1.1",
     "json": "^11.0.0",
+    "json-schema-to-typescript": "^15.0.1",
     "json5": "^2.2.3",
     "jsondiffpatch": "^0.6.0",
     "postcss-url": "^10.1.3",
