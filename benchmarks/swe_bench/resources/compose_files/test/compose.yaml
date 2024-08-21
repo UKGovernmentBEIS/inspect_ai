@@ -1,7 +1,0 @@
-x-environment-commit: 6072e0982c3c0236f532ddfa48fbf461180d834e 
-services:
-  default:
-    image: sweb.eval.x86_64.pvlib__pvlib-python-1854
-    command: "tail -f /dev/null"
-    working_dir: /testbed
-    x-local: true
