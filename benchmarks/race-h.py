@@ -16,15 +16,6 @@ from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
-
-def record_to_sample(record):
-    return Sample(
-        input=record["article"] + "\n\nQuestion:\n" + record["question"],
-        target=record["answer"],
-        choices=record["options"],
-    )
-
-
 TEMPLATE = r"""
 Answer the following multiple-choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
 
@@ -53,4 +44,12 @@ def race_h():
         plan=[multiple_choice(template=TEMPLATE)],
         scorer=choice(),
         config=GenerateConfig(temperature=0.0),
+    )
+
+
+def record_to_sample(record):
+    return Sample(
+        input=record["article"] + "\n\nQuestion:\n" + record["question"],
+        target=record["answer"],
+        choices=record["options"],
     )
