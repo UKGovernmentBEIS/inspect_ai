@@ -172,3 +172,6 @@ thumbs.db
 node_modules/
 
 /.luarc.json
+
+# swe-bench benchmark
+benchmarks/swe_bench/resources/compose_files/* 

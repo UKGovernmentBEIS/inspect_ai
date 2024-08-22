@@ -39,29 +39,16 @@ SAMPLE_TO_IMAGE_PATH = COMPOSE_FILE_DIR / "sample_to_image.json"
 @task
 def swe_bench(
     instance_id : str,
-    split: str | None = "dev",
     dataset_name : str ="princeton-nlp/SWE-bench_Lite",
+    split: str | None = "dev",
 ) -> Task:
+    
+    sample = swebench_sample_from_id(instance_id,dataset_name, split)
 
-    dataset = hf_dataset(
-        dataset_name,
-        split=split,
-        sample_fields=FieldSpec(
-            input="problem_statement",
-            id="instance_id",
-            metadata=["base_commit","patch","test_patch","version","repo","environment_setup_commit","PASS_TO_PASS","FAIL_TO_PASS"],
-        )
-    )
-
-    swebench_sample = next(sample for sample in dataset if sample.id == instance_id)
-    docker_compose_file = get_compose_file(swebench_sample.metadata["environment_setup_commit"], instance_id, dataset_name, split)
-
-    # Put the input in context
-    swebench_sample.input = INPUT_PROMPT.format(issue_text=dataset[0].input)
-    swebench_sample.setup = get_setup_script(repo=swebench_sample.metadata["repo"],version=swebench_sample.metadata["version"],base_commit=swebench_sample.metadata["base_commit"])
+    docker_compose_file = get_compose_file(sample.metadata["environment_setup_commit"], instance_id, dataset_name, split)
 
     return Task(
-        dataset=[swebench_sample],
+        dataset=[sample],
         plan=[
             system_message("Please solve the issue below."),
             use_tools([bash()]),
@@ -74,6 +61,27 @@ def swe_bench(
         scorer=swebench_scorer(),
         max_messages=10
     )
+
+def swebench_sample_from_id(instance_id : str, dataset_name : str, split : str| None) -> Sample:
+
+    dataset = hf_dataset(
+        dataset_name,
+        split=split,
+        sample_fields=FieldSpec(
+            input="problem_statement",
+            id="instance_id",
+            metadata=["base_commit","patch","test_patch","version","repo","environment_setup_commit","PASS_TO_PASS","FAIL_TO_PASS"],
+        )
+    )
+
+    swebench_sample = next(sample for sample in dataset if sample.id == instance_id)
+
+    # Put the input in context
+    swebench_sample.input = INPUT_PROMPT.format(issue_text=dataset[0].input)
+    swebench_sample.setup = get_setup_script(repo=swebench_sample.metadata["repo"],version=swebench_sample.metadata["version"],base_commit=swebench_sample.metadata["base_commit"])
+
+    return swebench_sample
+
 
 def get_setup_script(repo : str, version :str , base_commit :str) -> str:
     """
