@@ -1,3 +1,4 @@
+"""This is a utility script which installs all of the environment images for the SWE-bench dataset. These images contain all of the dependencies required to run the tests in the dataset."""
 import argparse
 import json
 import os
@@ -12,6 +13,7 @@ from swebench.harness.utils import load_swebench_dataset
 
 def build_docker_images(dataset_name : str , split : str | None = None, max_workers : int = 4, force_rebuild=False) -> None:
     """This function uses the swe_bench library to build docker images for the environment of the SWE-bench dataset. It also creates a mapping from the information contained in the dataset itself ( in particular, the "instance_id" and env_image_key) to the name of the docker images. This mapping lets us find the images directly from the dataset entries, rather than relying on objects created in the swe_bench code."""
+
     #Code copied from the swe_bench repository
     docker_client = DockerClient.from_env()
 
@@ -32,9 +34,12 @@ def build_docker_images(dataset_name : str , split : str | None = None, max_work
         if swebench_instance["instance_id"] not in environment_name_mapping:
             environment_name_mapping[swebench_instance["instance_id"]] = {}
             if swebench_instance["environment_setup_commit"]  in environment_name_mapping[swebench_instance["instance_id"]]:
-                assert environment_name_mapping[swebench_instance["instance_id"]][swebench_instance["environment_setup_commit"] ] == spec.env_image_key, f"Image {spec.env_image_key} already mapped to a different image"
+                assert environment_name_mapping[swebench_instance["instance_id"]][swebench_instance["environment_setup_commit"]]["image_key"] == spec.env_image_key, f"Image {spec.env_image_key} already mapped to a different image"
             else:
-                environment_name_mapping[swebench_instance["instance_id"]][swebench_instance["environment_setup_commit"] ] = spec.env_image_key
+                environment_name_mapping[swebench_instance["instance_id"]][swebench_instance["environment_setup_commit"]] = {
+                    "image_key": spec.env_image_key,
+                    "env_setup_script": "\n".join(spec.env_script_list)}
+
 
     # Add the mappings to a file
     json.dump(environment_name_mapping, open(SAMPLE_TO_IMAGE_PATH, "w+"))

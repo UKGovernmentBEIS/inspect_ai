@@ -35,11 +35,13 @@ def test_build_docker() -> None:
         if CORRECT_IMAGE_NAME in image.tags:
             docker_client.images.remove(image.id, force=True)
             print(f"Removed image {CORRECT_IMAGE_NAME}.")
+    
+    build_test_image()
 
     # We check that the image has been built
-    image_name = json.load(open(SAMPLE_TO_IMAGE_PATH))[INSTANCE_ID][ENVIRONMENT_COMMIT]
+    image_name = json.load(open(SAMPLE_TO_IMAGE_PATH))[INSTANCE_ID][ENVIRONMENT_COMMIT]["image_name"]
     assert image_name == CORRECT_IMAGE_NAME, "Image name should match the ground truth image name."
-    assert image_name in [image.tags[0] for image in DockerClient.from_env().images.list()], "Image name should be in the list of built images."
+    assert image_name in [image_tag for image in DockerClient.from_env().images.list() for image_tag in image.tags], f"Image name {image_name} should be in the list of built images after running build_docker_images.py."
 
 
 def test_golden_patch_succeeds() -> None:
@@ -49,25 +51,38 @@ def test_golden_patch_succeeds() -> None:
     swe_bench_task = swe_bench(instance_id="pvlib__pvlib-python-1854",dataset_name=str(TEST_DATASET), split=TEST_DATASET_SPLIT)
     golden_patch = swe_bench_task.dataset[0].metadata["patch"]
 
+    def custom_model_outputs():
+        yield ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name="bash",
+            tool_arguments={
+                "cmd": f"echo {shlex.quote(golden_patch)} >patch.diff"
+            },  # Used to confirm that code is executed
+        )
+        yield ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name="bash",
+            tool_arguments={
+                "cmd": "cd /testbed/;git apply /root/patch.diff"
+            },  # Use to confirm that state is maintained
+        )
+        while True:
+            yield ModelOutput.from_content(model="mockllm/model", content="I've already finished, please stop calling me!", stop_reason="stop")
+
     model = get_model(
         "mockllm/model",
-        custom_outputs=[
-            ModelOutput.for_tool_call(
-                model="mockllm/model",
-                tool_name="bash",
-                tool_arguments={
-                    "cmd": f"echo {shlex.quote(golden_patch)} >patch.diff"
-                },  # Used to confirm that code is executed
-            ),
-            ModelOutput.for_tool_call(
-                model="mockllm/model",
-                tool_name="bash",
-                tool_arguments={
-                    "cmd": "cd /testbed/;git apply /root/patch.diff"
-                },  # Use to confirm that state is maintained
-            ),
-        ],
+        custom_outputs=custom_model_outputs(),
     )
+
+
+    result = eval(
+        swe_bench_task,
+        model,
+        log_level="INFO",
+        max_messages=4
+    )[0]
+
+    assert result.results.scores[0].metrics["mean"].value == 1.0, "SWE-bench should mark a correct application successfully."
 
     result = eval(
         swe_bench_task,
@@ -78,25 +93,37 @@ def test_golden_patch_succeeds() -> None:
     result.results.scores[0].metrics["mean"].value == 1.0, "SWE-bench should mark a correct application successfully."
 
 
-def test_incorrect_edit_fails() -> None:
+def test_incorrect_patch_fails() -> None:
 
     build_test_image()
 
+    def custom_model_outputs():
+
+        yield ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name="bash",
+            tool_arguments={
+                "cmd": "rm /testbed/README.md"
+            }
+        )
+
+        while True:
+            yield ModelOutput.from_content(
+                model="mockllm/model",
+                content="I've already finished, please stop calling me!",
+                stop_reason="stop"
+            )
+
     model = get_model(
         "mockllm/model",
-        custom_outputs=[
-            ModelOutput.for_tool_call(
-                model="mockllm/model",
-                tool_name="bash",
-                tool_arguments={
-                    "cmd": "rm /testbed/README.md"}),
-        ],
+        custom_outputs=custom_model_outputs()
     )
 
     result = eval(
         swe_bench(instance_id="pvlib__pvlib-python-1854",dataset_name=str(TEST_DATASET),split=TEST_DATASET_SPLIT),
         model,
         log_level="INFO",
+        max_messages=2
     )[0]
 
     assert result.results.scores[0].metrics["mean"].value == 0.0, "SWE-bench should mark an incorrect application as a failure."
