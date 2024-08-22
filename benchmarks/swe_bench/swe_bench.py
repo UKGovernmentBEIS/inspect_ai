@@ -35,7 +35,6 @@ from inspect_ai.solver import Plan, Solver
 from typing import Callable
 
 
-
 INPUT_PROMPT = "Please solve the following issue:\n\n{issue_text}"
 COMPOSE_FILE_DIR = Path(__file__).parent / "resources/compose_files/"
 os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)

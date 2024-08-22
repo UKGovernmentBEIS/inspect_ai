@@ -42,7 +42,7 @@ def build_docker_images(dataset_name : str , split : str | None = None, max_work
 
 
     # Add the mappings to a file
-    json.dump(environment_name_mapping, open(SAMPLE_TO_IMAGE_PATH, "w+"))
+    json.dump(environment_name_mapping, open(SAMPLE_TO_IMAGE_PATH, "w+"),indent=4)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build environment images for SWE-bench")
 
