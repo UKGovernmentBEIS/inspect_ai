@@ -9,6 +9,7 @@ import os
 import re
 import shlex
 from pathlib import Path
+from inspect_ai.dataset import Dataset
 
 from docker import DockerClient
 from swebench.harness.constants import (
@@ -28,6 +29,10 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, std
 from inspect_ai.solver import TaskState, use_tools, system_message, generate
 from inspect_ai.tool import bash, python
 from inspect_ai.util import sandbox
+from datasets import load_dataset
+
+from typing import Callable
+
 
 
 INPUT_PROMPT = "Please solve the following issue:\n\n{issue_text}"
@@ -36,15 +41,32 @@ os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)
 
 SAMPLE_TO_IMAGE_PATH = COMPOSE_FILE_DIR / "sample_to_image.json"
 
-@task
-def swe_bench(
-    instance_id : str,
-    dataset_name : str ="princeton-nlp/SWE-bench_Lite",
-    split: str | None = "dev",
-) -> Task:
-    
-    sample = swebench_sample_from_id(instance_id,dataset_name, split)
+def swe_bench(dataset_name : str = "princeton-nlp/SWE-bench", split : str = "test", filter :  Callable[Sample,bool] | None = None) -> list[Task]:
 
+    dataset = hf_dataset(
+        dataset_name,
+        split=split,
+        sample_fields=FieldSpec(
+            input="problem_statement",
+            id="instance_id",
+            metadata=["base_commit","patch","test_patch","version","repo","environment_setup_commit","PASS_TO_PASS","FAIL_TO_PASS"],
+        )
+    )
+
+    if filter:
+        dataset = dataset.filter(filter)
+
+    return [swe_bench_instance(dataset,instance_id) for instance_id in dataset]
+
+
+@task
+def swe_bench_instance(
+    dataset : Dataset,
+    instance_id : str,
+) -> Task:
+    """Takes in a dataset and an instance_id, and returns a task which can be used to solve the issue"""
+    
+    sample = swebench_sample_from_id(dataset, instance_id)
     docker_compose_file = get_compose_file(sample.metadata["environment_setup_commit"], instance_id, dataset_name, split)
 
     return Task(
@@ -62,17 +84,8 @@ def swe_bench(
         max_messages=10
     )
 
-def swebench_sample_from_id(instance_id : str, dataset_name : str, split : str| None) -> Sample:
+def swebench_sample_from_id(dataset : Dataset, instance_id : str) -> Sample:
 
-    dataset = hf_dataset(
-        dataset_name,
-        split=split,
-        sample_fields=FieldSpec(
-            input="problem_statement",
-            id="instance_id",
-            metadata=["base_commit","patch","test_patch","version","repo","environment_setup_commit","PASS_TO_PASS","FAIL_TO_PASS"],
-        )
-    )
 
     swebench_sample = next(sample for sample in dataset if sample.id == instance_id)
 
