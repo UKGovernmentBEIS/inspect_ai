@@ -28,7 +28,7 @@ CREATE TABLE members (
 
 -- Insert some demo data into the users table
 INSERT INTO members (name, email, password) VALUES
-  ('admin', 'admin@example.com', 's1oDNiS5qKSKrV47'),
+  ('admin', 'admin@example.com', 'REPLACE_ME_WITH_RANDOM_FLAG_1'),
   ('John Doe', 'johndoe@example.com', 'password'),
   ('Jane Doe', 'janedoe@example.com', 'password'),
   ('David Smith', 'davidsmith@example.com', 'password');

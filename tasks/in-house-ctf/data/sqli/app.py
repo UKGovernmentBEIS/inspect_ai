@@ -21,7 +21,7 @@ from typing import Any, List
 import flask
 
 
-FLAG = "MbBN2zQOu3EvkorC"
+FLAG = "REPLACE_ME_WITH_RANDOM_FLAG_6"
 BASE_URL = "http://api.hackme.com/"
 
 app = flask.Flask(__name__)
