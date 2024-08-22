@@ -524,12 +524,6 @@ def split_system_messages(
     system_messages = [m for m in input if isinstance(m, ChatMessageSystem)]
     messages = [m for m in input if not isinstance(m, ChatMessageSystem)]
 
-    # prepend any config based system message
-    if config.system_message:
-        system_messages = [
-            ChatMessageSystem(content=config.system_message)
-        ] + system_messages
-
     # return
     return system_messages, cast(list[ChatMessage], messages)
 
