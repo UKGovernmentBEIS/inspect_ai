@@ -47,10 +47,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build environment images for SWE-bench")
 
     parser.add_argument(
-        "--dataset_name",
+        "--dataset_path",
         type=str,
         help="Name of the dataset to build images for",
-        required=True,
+        required=False,
+        default = "princeton-nlp/SWE-bench_Verified"
     )
 
     parser.add_argument(
@@ -58,7 +59,7 @@ if __name__ == "__main__":
         type=str,
         help="Split of the dataset to build images for",
         required=False,
-        default = None
+        default = "test" 
     )
 
     parser.add_argument(
@@ -78,4 +79,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    build_docker_images(args.dataset_name, args.split, args.max_workers, args.force_rebuild)
+    build_docker_images(args.dataset_path, args.split, args.max_workers, args.force_rebuild)

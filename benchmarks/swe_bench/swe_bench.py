@@ -30,6 +30,7 @@ from inspect_ai.solver import TaskState, use_tools, system_message, generate
 from inspect_ai.tool import bash, python
 from inspect_ai.util import sandbox
 from datasets import load_dataset
+from inspect_ai.solver import Plan, Solver
 
 from typing import Callable
 
@@ -41,7 +42,15 @@ os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)
 
 SAMPLE_TO_IMAGE_PATH = COMPOSE_FILE_DIR / "sample_to_image.json"
 
-def swe_bench(dataset_name : str = "princeton-nlp/SWE-bench", split : str = "test", filter :  Callable[Sample,bool] | None = None) -> list[Task]:
+DEFAULT_PLAN = [
+    system_message("Please solve the task below."),
+    use_tools([bash()]),
+    generate(),
+]
+DEFAULT_MAX_MESSAGES = 10
+
+def swe_bench(dataset_name : str = "princeton-nlp/SWE-bench_Verified", split : str = "test", filter :  Callable[Sample,bool] | None = None, plan : Plan | list[Solver] = DEFAULT_PLAN,
+max_messages : int = DEFAULT_MAX_MESSAGES) -> list[Task]:
 
     dataset = hf_dataset(
         dataset_name,
@@ -56,36 +65,33 @@ def swe_bench(dataset_name : str = "princeton-nlp/SWE-bench", split : str = "tes
     if filter:
         dataset = dataset.filter(filter)
 
-    return [swe_bench_instance(dataset,instance_id) for instance_id in dataset]
+    return [swe_bench_instance(dataset,sample.id,plan,max_messages) for sample in dataset]
 
 
 @task
 def swe_bench_instance(
     dataset : Dataset,
     instance_id : str,
+    plan: Plan | list[Solver] = DEFAULT_PLAN,
+    max_messages : int = DEFAULT_MAX_MESSAGES
 ) -> Task:
     """Takes in a dataset and an instance_id, and returns a task which can be used to solve the issue"""
     
     sample = swebench_sample_from_id(dataset, instance_id)
-    docker_compose_file = get_compose_file(sample.metadata["environment_setup_commit"], instance_id, dataset_name, split)
+    docker_compose_file = get_compose_file(sample.metadata["environment_setup_commit"], instance_id)
 
     return Task(
         dataset=[sample],
-        plan=[
-            system_message("Please solve the issue below."),
-            use_tools([bash()]),
-            generate(),
-        ],
+        plan=plan,
         sandbox=(
             "docker",
             str(docker_compose_file.absolute()),
         ),
         scorer=swebench_scorer(),
-        max_messages=10
+        max_messages=max_messages
     )
 
 def swebench_sample_from_id(dataset : Dataset, instance_id : str) -> Sample:
-
 
     swebench_sample = next(sample for sample in dataset if sample.id == instance_id)
 
@@ -94,7 +100,6 @@ def swebench_sample_from_id(dataset : Dataset, instance_id : str) -> Sample:
     swebench_sample.setup = get_setup_script(repo=swebench_sample.metadata["repo"],version=swebench_sample.metadata["version"],base_commit=swebench_sample.metadata["base_commit"])
 
     return swebench_sample
-
 
 def get_setup_script(repo : str, version :str , base_commit :str) -> str:
     """
@@ -114,13 +119,13 @@ git remote remove origin
 # We then do any repo-specific install scripts
 {MAP_REPO_TO_INSTALL.get(repo,"")}
 {'\n'.join(MAP_REPO_VERSION_TO_SPECS[repo][version].get('pre_install',[]))}
-{MAP_REPO_VERSION_TO_SPECS[repo][version].get('install','')}
+{MAP_REPO_VERSION_TO_SPECS[repo][version].get('install','')}"""
 
 # We then do a pip install, in case the environment missed any installs (NOTE: This is due to swe-bench being bugged)
-set +x
-source /opt/miniconda3/bin/activate
-conda activate testbed
-pip install -e . || true""" #TODO: Should fix the issue, it seems to be in pvlib. Need to also check how much slower this makes things.
+# set +x
+# source /opt/miniconda3/bin/activate
+# conda activate testbed
+# pip install -e . || true""" #TODO: Should fix the issue, it seems to be in pvlib. Need to also check how much slower this makes things.
 
     return setup_script
 
@@ -241,16 +246,16 @@ def swebench_scorer() -> Scorer:
 
     return scorer
 
-def get_compose_file(environment_commit_id: Sample, instance_id : str, dataset_name : str, split : str) -> Path:
+def get_compose_file(environment_commit_id: Sample, instance_id : str) -> Path:
 
     if not os.path.exists(SAMPLE_TO_IMAGE_PATH):
-        raise ValueError(f"No sample to image mapping found. Please run 'build_docker_images.py {dataset_name} {split} to build the images")
+        raise ValueError(f"No sample to image mapping found. Please run  to build the images")
 
     sample_to_image = json.load(open(SAMPLE_TO_IMAGE_PATH))
     if instance_id in sample_to_image and environment_commit_id in sample_to_image[instance_id]:
         environment_image_name = sample_to_image[instance_id][environment_commit_id]["image_key"]
     else:
-        raise ValueError(f"No image found for instance_id {instance_id}. Please run 'build_docker_images.py {dataset_name} {split} to build the images")
+        raise ValueError(f"No image found for instance_id {instance_id}. Please run 'build_docker_images.py --dataset_location DATASET_LOCATION --split SPLIT' to build the images")
 
     compose_file_path = f"{COMPOSE_FILE_DIR}/{environment_commit_id}.yaml"
     if os.path.exists(compose_file_path):
@@ -258,7 +263,7 @@ def get_compose_file(environment_commit_id: Sample, instance_id : str, dataset_n
 
     images = DockerClient.from_env().images.list()
     if environment_image_name not in [image_name for image in images for image_name in image.tags]:
-        raise ValueError(f"Image {environment_image_name} not found in docker images. Please run 'build_docker_images.py {dataset_name} {split} to build the images")
+        raise ValueError(f"Image {environment_image_name} not found in docker images. Please run 'build_docker_images.py --dataset_location DATASET_LOCATION --split SPLIT' to build the images")
 
     # If the image is found, we can now create the compose file.
     compose_file_path = COMPOSE_FILE_DIR / f"{environment_image_name}.yaml"
