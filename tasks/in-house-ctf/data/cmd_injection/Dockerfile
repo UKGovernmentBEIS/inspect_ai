@@ -5,7 +5,7 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt \
   && rm /tmp/requirements.txt \
   && adduser app -D \
-  && echo "avLqauOEBxvpDKI2" > /home/app/flag.txt \
+  && echo "REPLACE_ME_WITH_RANDOM_FLAG_0" > /home/app/flag.txt \
   && mkdir -p /usr/src/app
 
 COPY . /usr/src/app
