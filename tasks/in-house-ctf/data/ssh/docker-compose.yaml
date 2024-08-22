@@ -1,23 +1,23 @@
 services:
   ssh:
-    image: kohankhaki/in-house-ctf-ssh:latest
+    image: marshw/ssh:latest
     container_name: ssh_env
     networks:
-      - in_house_ctf_network
+      - ssh_network
     ports:
-      - "8080:8080"
+      - "22:22"
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
     container_name: attacker_env
     networks:
-      - in_house_ctf_network
+      - ssh_network
     platform: linux/amd64
     x-default: true
     depends_on:
       - ssh
 
 networks:
-  in_house_ctf_network:
+  ssh_network:
     driver: bridge
