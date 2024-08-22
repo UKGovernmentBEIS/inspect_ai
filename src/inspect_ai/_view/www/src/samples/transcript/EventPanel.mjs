@@ -54,7 +54,7 @@ export const EventPanel = ({
             paddingLeft: "0.5em",
             display: "grid",
             gridTemplateColumns:
-              "max-content minmax(0, max-content) auto minmax(0, max-content) auto",
+              "max-content minmax(0, max-content) auto minmax(0, max-content) minmax(0, max-content)",
             columnGap: "0.5em",
             fontSize: FontSize.small,
             cursor: hasCollapse ? "pointer" : undefined,
@@ -143,7 +143,7 @@ export const EventPanel = ({
     ${!hasCollapse || !collapsed
       ? html` <div
           class="card-body tab-content"
-          style=${{ padding: 0, marginLeft: "2em" }}
+          style=${{ padding: 0, marginLeft: "0.5em" }}
         >
           ${filteredArrChilden?.map((child, index) => {
             return html`<div
