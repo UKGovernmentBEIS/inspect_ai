@@ -233,6 +233,18 @@
           "default": null,
           "title": "Tool Call Id"
         },
+        "function": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Function"
+        },
         "error": {
           "anyOf": [
             {
@@ -250,6 +262,7 @@
         "source",
         "role",
         "tool_call_id",
+        "function",
         "error"
       ],
       "title": "ChatMessageTool",
@@ -2955,10 +2968,14 @@
               "$ref": "#/$defs/ToolParam"
             },
             {
+              "type": "boolean"
+            },
+            {
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "title": "Additionalproperties"
         },
         "anyOf": {
           "anyOf": [
@@ -3030,6 +3047,11 @@
           },
           "title": "Required",
           "type": "array"
+        },
+        "additionalProperties": {
+          "default": false,
+          "title": "Additionalproperties",
+          "type": "boolean"
         }
       },
       "title": "ToolParams",
@@ -3037,7 +3059,8 @@
       "required": [
         "type",
         "properties",
-        "required"
+        "required",
+        "additionalProperties"
       ],
       "additionalProperties": false
     },

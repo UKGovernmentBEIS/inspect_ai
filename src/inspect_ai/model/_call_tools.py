@@ -112,6 +112,7 @@ async def call_tools(
             return ChatMessageTool(
                 content=content,
                 tool_call_id=call.id,
+                function=call.function,
                 error=tool_error,
             ), event
 
