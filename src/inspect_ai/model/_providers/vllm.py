@@ -161,7 +161,7 @@ class VLLMAPI(ModelAPI):
 
         if config.temperature is not None:
             # for some reason vllm doesn't generate anything for 0 < temperature < 0.02
-            if 0 < config.temperature > 0.02:
+            if 0 < config.temperature < 0.02:
                 config.temperature = 0.02
             kwargs["temperature"] = config.temperature
         if config.top_p is not None:
