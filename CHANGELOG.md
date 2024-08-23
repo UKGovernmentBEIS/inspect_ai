@@ -7,6 +7,7 @@
 - [Subtasks](agents-api.qmd#sec-subtasks) for delegating work to helper models, sub-agents, etc.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
 - Add `function` field to `ChatMessageTool` to indicate the name of the function called.
+- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/race-h/) benchmark.
 
 ## v0.3.24 (18 August 2024)
 
