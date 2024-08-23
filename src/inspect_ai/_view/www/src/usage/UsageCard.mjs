@@ -1,21 +1,29 @@
+//@ts-check
 import { html } from "htm/preact";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { formatTime } from "../utils/Format.mjs";
+import { formatNumber, formatTime } from "../utils/Format.mjs";
 import { Card, CardHeader, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { ModelTokenTable } from "./ModelTokenTable.mjs";
 
 const kUsageCardBodyId = "usage-card-body";
 
+/**
+ * Renders the UsageCard component.
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../types/log").EvalStats} props.stats - The identifier for this view
+ * @param {Object} props.context - The
+ * @returns {import("preact").JSX.Element | string} The UsageCard component.
+ */
 export const UsageCard = ({ stats, context }) => {
   if (!stats) {
     return "";
   }
 
   const totalDuration = duration(stats);
-
   const usageMetadataStyle = {
     fontSize: FontSize.smaller,
   };
@@ -57,6 +65,93 @@ export const UsageCard = ({ stats, context }) => {
       </${CardBody}>
     </${Card}>
   `;
+};
+
+/**
+ * Renders the ModelUsagePanel component.
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../types/log").ModelUsage1} props.usage - The identifier for this view
+ * @param {Object} props.context - The
+ * @returns {import("preact").JSX.Element | string} The ModelUsagePanel component.
+ */
+export const ModelUsagePanel = ({ usage }) => {
+  const rows = [
+    {
+      label: "input",
+      value: usage.input_tokens,
+      secondary: false,
+    },
+  ];
+
+  if (usage.input_tokens_cache_read) {
+    rows.push({
+      label: "cache_read",
+      value: usage.input_tokens_cache_read,
+      secondary: true,
+    });
+  }
+
+  if (usage.input_tokens_cache_write) {
+    rows.push({
+      label: "cache_write",
+      value: usage.input_tokens_cache_write,
+      secondary: true,
+    });
+  }
+
+  rows.push({
+    label: "Output",
+    value: usage.output_tokens,
+    secondary: false,
+    bordered: true,
+  });
+
+  rows.push({
+    label: "---",
+    value: undefined,
+    secondary: false,
+  });
+
+  rows.push({
+    label: "Total",
+    value: usage.total_tokens,
+    secondary: false,
+  });
+
+  return html` <div
+    style=${{
+      display: "grid",
+      gridTemplateColumns: "0 auto auto",
+      columnGap: "0.5em",
+      fontSize: FontSize.small,
+    }}
+  >
+    ${rows.map((row) => {
+      if (row.label === "---") {
+        return html`<div
+          style=${{
+            gridColumn: "-1/1",
+            height: "1px",
+            backgroundColor: "var(--bs-light-border-subtle)",
+          }}
+        ></div>`;
+      } else {
+        return html`
+          <div
+            style=${{
+              ...TextStyle.label,
+              ...TextStyle.secondary,
+              gridColumn: row.secondary ? "2" : "1/3",
+            }}
+          >
+            ${row.label}
+          </div>
+          <div style=${{ gridColumn: "3" }}>${formatNumber(row.value)}</div>
+        `;
+      }
+    })}
+  </div>`;
 };
 
 const duration = (stats) => {

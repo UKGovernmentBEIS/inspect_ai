@@ -59,6 +59,7 @@ export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
+export type CachePrompt = "auto" | boolean | null;
 export type Name2 = string;
 export type Scorer = string;
 export type Reducer = string | null;
@@ -89,6 +90,8 @@ export type CompletedAt = string;
 export type InputTokens = number;
 export type OutputTokens = number;
 export type TotalTokens = number;
+export type InputTokensCacheWrite = number | null;
+export type InputTokensCacheRead = number | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
@@ -398,6 +401,7 @@ export interface GenerateConfig {
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
+  cache_prompt: CachePrompt;
 }
 export interface EvalResults {
   scores: Scores;
@@ -453,6 +457,8 @@ export interface ModelUsage1 {
   input_tokens: InputTokens;
   output_tokens: OutputTokens;
   total_tokens: TotalTokens;
+  input_tokens_cache_write: InputTokensCacheWrite;
+  input_tokens_cache_read: InputTokensCacheRead;
 }
 export interface EvalError {
   message: Message;

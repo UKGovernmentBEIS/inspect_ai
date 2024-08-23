@@ -17110,6 +17110,191 @@ const Rendered = ({ values }) => {
     return values;
   }
 };
+const ModelTokenTable = ({ model_usage }) => {
+  return m$1`
+  <${TokenTable}>
+    <${TokenHeader}/>
+    <tbody>
+    ${Object.keys(model_usage).map((key2) => {
+    return m$1`<${TokenRow} model=${key2} usage=${model_usage[key2]} />`;
+  })}
+    </tbody>
+  </${TokenTable}>
+  `;
+};
+const TokenTable = ({ children }) => {
+  return m$1`<table
+    class="table table-sm"
+    style=${{ width: "100%", fontSize: FontSize.smaller, marginTop: "0.7rem" }}
+  >
+    ${children}
+  </table>`;
+};
+const thStyle = {
+  padding: 0,
+  fontWeight: 300,
+  fontSize: FontSize.small,
+  ...TextStyle.label,
+  ...TextStyle.secondary
+};
+const TokenHeader = () => {
+  return m$1`<thead>
+    <tr>
+      <td></td>
+      <td
+        colspan="3"
+        align="center"
+        class="card-subheading"
+        style=${{
+    paddingBottom: "0.7rem",
+    fontSize: FontSize.small,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        Tokens
+      </td>
+    </tr>
+    <tr>
+      <th style=${thStyle}>Model</th>
+      <th style=${thStyle}>Usage</th>
+    </tr>
+  </thead>`;
+};
+const TokenRow = ({ model, usage }) => {
+  return m$1`<tr>
+    <td>${model}</td>
+    <td>
+      <${ModelUsagePanel} usage=${usage} />
+    </td>
+  </tr>`;
+};
+const kUsageCardBodyId = "usage-card-body";
+const UsageCard = ({ stats, context }) => {
+  if (!stats) {
+    return "";
+  }
+  const totalDuration = duration(stats);
+  const usageMetadataStyle = {
+    fontSize: FontSize.smaller
+  };
+  return m$1`
+
+    <${Card}>
+      <${CardHeader} icon=${ApplicationIcons.usage} label="Usage"/>
+      <${CardBody} id=${kUsageCardBodyId} style=${{
+    paddingTop: "0",
+    paddingBottom: "0",
+    borderTop: "solid var(--bs-border-color) 1px"
+  }}>
+        <div style=${{
+    paddingTop: "0",
+    paddingBottom: "1em",
+    marginLeft: "0",
+    display: "flex"
+  }}>
+
+          <div style=${{ flex: "1 1 40%", marginRight: "1em" }}>
+          <div style=${{ marginTop: "1em", fontSize: FontSize.smaller, ...TextStyle.label, ...TextStyle.secondary }}>Duration</div>
+          <${MetaDataView}
+            entries="${{
+    ["Start"]: new Date(stats.started_at).toLocaleString(),
+    ["End"]: new Date(stats.completed_at).toLocaleString(),
+    ["Duration"]: totalDuration
+  }}"
+            tableOptions="borderless,sm"
+            context=${context}
+            style=${usageMetadataStyle}
+          />
+          </div>
+
+          <div style=${{ flex: "1 1 60%" }}>
+            <${ModelTokenTable} model_usage=${stats.model_usage}/>
+          </div>
+        </div>
+      </${CardBody}>
+    </${Card}>
+  `;
+};
+const ModelUsagePanel = ({ usage }) => {
+  const rows = [
+    {
+      label: "input",
+      value: usage.input_tokens,
+      secondary: false
+    }
+  ];
+  if (usage.input_tokens_cache_read) {
+    rows.push({
+      label: "cache_read",
+      value: usage.input_tokens_cache_read,
+      secondary: true
+    });
+  }
+  if (usage.input_tokens_cache_write) {
+    rows.push({
+      label: "cache_write",
+      value: usage.input_tokens_cache_write,
+      secondary: true
+    });
+  }
+  rows.push({
+    label: "Output",
+    value: usage.output_tokens,
+    secondary: false,
+    bordered: true
+  });
+  rows.push({
+    label: "---",
+    value: void 0,
+    secondary: false
+  });
+  rows.push({
+    label: "Total",
+    value: usage.total_tokens,
+    secondary: false
+  });
+  return m$1` <div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "0 auto auto",
+    columnGap: "0.5em",
+    fontSize: FontSize.small
+  }}
+  >
+    ${rows.map((row) => {
+    if (row.label === "---") {
+      return m$1`<div
+          style=${{
+        gridColumn: "-1/1",
+        height: "1px",
+        backgroundColor: "var(--bs-light-border-subtle)"
+      }}
+        ></div>`;
+    } else {
+      return m$1`
+          <div
+            style=${{
+        ...TextStyle.label,
+        ...TextStyle.secondary,
+        gridColumn: row.secondary ? "2" : "1/3"
+      }}
+          >
+            ${row.label}
+          </div>
+          <div style=${{ gridColumn: "3" }}>${formatNumber(row.value)}</div>
+        `;
+    }
+  })}
+  </div>`;
+};
+const duration = (stats) => {
+  const start2 = new Date(stats.started_at);
+  const end2 = new Date(stats.completed_at);
+  const durationMs = end2.getTime() - start2.getTime();
+  const durationSec = durationMs / 1e3;
+  return formatTime(durationSec);
+};
 const ModelEventView = ({ id, depth, event }) => {
   var _a, _b;
   const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
@@ -17144,7 +17329,7 @@ const ModelEventView = ({ id, depth, event }) => {
       </${EventSection}>
 
       <${EventSection} title="Usage" style=${tableSectionStyle}>
-        <${MetaDataGrid} entries=${event.output.usage} plain=${true}/>
+        <${ModelUsagePanel} usage=${event.output.usage}/>
       </${EventSection}>
 
       <${EventSection} title="Tools" style=${{ gridColumn: "-1/1", ...tableSectionStyle }}>
@@ -19483,122 +19668,6 @@ const SampleTools = (props) => {
     />`
   );
   return tools;
-};
-const ModelTokenTable = ({ model_usage }) => {
-  return m$1`
-  <${TokenTable}>
-    <${TokenHeader}/>
-    <tbody>
-    ${Object.keys(model_usage).map((key2) => {
-    const vals = Object.values(model_usage[key2]);
-    return m$1`<${TokenRow} model=${key2} values=${vals} />`;
-  })}
-    </tbody>
-  </${TokenTable}>
-  `;
-};
-const TokenTable = ({ children }) => {
-  return m$1`<table
-    class="table table-sm"
-    style=${{ width: "100%", fontSize: FontSize.smaller, marginTop: "0.7rem" }}
-  >
-    ${children}
-  </table>`;
-};
-const thStyle = {
-  padding: 0,
-  fontWeight: 300,
-  fontSize: FontSize.small,
-  ...TextStyle.label,
-  ...TextStyle.secondary
-};
-const TokenHeader = () => {
-  return m$1`<thead>
-    <tr>
-      <td></td>
-      <td
-        colspan="3"
-        align="center"
-        class="card-subheading"
-        style=${{
-    paddingBottom: "0.7rem",
-    fontSize: FontSize.small,
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-      >
-        Tokens
-      </td>
-    </tr>
-    <tr>
-      <th style=${thStyle}>Model</th>
-      <th style=${thStyle}>Input</th>
-      <th style=${thStyle}>Output</th>
-      <th style=${thStyle}>Total</th>
-    </tr>
-  </thead>`;
-};
-const TokenRow = ({ model, values }) => {
-  return m$1`<tr>
-    <td>${model}</td>
-    ${values.map((val) => {
-    return m$1`<td>${val.toLocaleString()}</td>`;
-  })}
-  </tr>`;
-};
-const kUsageCardBodyId = "usage-card-body";
-const UsageCard = ({ stats, context }) => {
-  if (!stats) {
-    return "";
-  }
-  const totalDuration = duration(stats);
-  const usageMetadataStyle = {
-    fontSize: FontSize.smaller
-  };
-  return m$1`
-
-    <${Card}>
-      <${CardHeader} icon=${ApplicationIcons.usage} label="Usage"/>
-      <${CardBody} id=${kUsageCardBodyId} style=${{
-    paddingTop: "0",
-    paddingBottom: "0",
-    borderTop: "solid var(--bs-border-color) 1px"
-  }}>
-        <div style=${{
-    paddingTop: "0",
-    paddingBottom: "1em",
-    marginLeft: "0",
-    display: "flex"
-  }}>
-
-          <div style=${{ flex: "1 1 40%", marginRight: "1em" }}>
-          <div style=${{ marginTop: "1em", fontSize: FontSize.smaller, ...TextStyle.label, ...TextStyle.secondary }}>Duration</div>
-          <${MetaDataView}
-            entries="${{
-    ["Start"]: new Date(stats.started_at).toLocaleString(),
-    ["End"]: new Date(stats.completed_at).toLocaleString(),
-    ["Duration"]: totalDuration
-  }}"
-            tableOptions="borderless,sm"
-            context=${context}
-            style=${usageMetadataStyle}
-          />
-          </div>
-
-          <div style=${{ flex: "1 1 60%" }}>
-            <${ModelTokenTable} model_usage=${stats.model_usage}/>
-          </div>
-        </div>
-      </${CardBody}>
-    </${Card}>
-  `;
-};
-const duration = (stats) => {
-  const start2 = new Date(stats.started_at);
-  const end2 = new Date(stats.completed_at);
-  const durationMs = end2.getTime() - start2.getTime();
-  const durationSec = durationMs / 1e3;
-  return formatTime(durationSec);
 };
 const CopyButton = ({ value }) => {
   return m$1`<button
