@@ -261,7 +261,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
     config,
     metadata,
   );
-  const configColumnStyle = cols.length === 1 ? oneColumnStyle : twoColumnStyle;
+  const configColumnStyle = cols === 1 ? oneColumnStyle : twoColumnStyle;
 
   metadataColumns.push({
     title: "Task Information",

@@ -6209,6 +6209,13 @@ function formatDecimalNoTrailingZeroes(num) {
 function toTitleCase(str) {
   return str.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
 }
+function formatNoDecimal(num) {
+  if (typeof num !== "number") {
+    return num;
+  }
+  const rounded = Math.round(num);
+  return rounded.toFixed(0);
+}
 function formatNumber(num) {
   return num.toLocaleString(navigator.language, {
     minimumFractionDigits: 0,
@@ -6641,7 +6648,7 @@ const prettyDir = (path) => {
   }
 };
 const EvalStatus = ({ logHeader }) => {
-  var _a;
+  var _a, _b;
   switch (logHeader.status) {
     case "error":
       return m$1`<${StatusError} message="Error" />`;
@@ -6650,7 +6657,7 @@ const EvalStatus = ({ logHeader }) => {
     case "started":
       return m$1`<${StatusRunning} message="Running" />`;
     default:
-      if (((_a = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a.scores) && logHeader.results.scores.length > 0) {
+      if (((_a = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a.scores) && ((_b = logHeader.results) == null ? void 0 : _b.scores.length) > 0) {
         if (logHeader.results.scores.length === 1) {
           return m$1`<${SidebarScore}
             scorer=${logHeader.results.scores[0]}
@@ -9134,11 +9141,11 @@ e = r, t = function(e2, t2) {
   };
 }(0, r.exports), void 0 !== t && (e.exports = t);
 var n = r.exports;
-const ANSIDisplay = ({ output }) => {
+const ANSIDisplay = ({ output, style }) => {
   const ansiOutput = new n.ANSIOutput();
   ansiOutput.processOutput(output);
   let firstOutput = false;
-  return m$1`<div class="ansi-display">
+  return m$1`<div class="ansi-display" style=${{ ...style }}>
     ${ansiOutput.outputLines.map((line2) => {
     firstOutput = firstOutput || !!line2.outputRuns.length;
     return m$1`<div class="ansi-display-line">
@@ -13920,12 +13927,17 @@ const MetaDataView = ({
   const tblClz = (tableOptions || "").split(",").map((option) => {
     return `table-${option}`;
   });
-  if (entries && !Array.isArray(entries)) {
-    entries = Object.entries(entries || {}).map(([key2, value]) => {
-      return { name: key2, value };
-    });
+  let coercedEntries;
+  if (entries) {
+    if (Array.isArray(entries)) {
+      coercedEntries = entries;
+    } else {
+      coercedEntries = Object.entries(entries || {}).map(([key2, value]) => {
+        return { name: key2, value };
+      });
+    }
   }
-  const entryEls = (entries || []).map((entry, index) => {
+  const entryEls = (coercedEntries || []).map((entry, index) => {
     const id2 = `${baseId}-value-${index}`;
     return m$1`<tr class="${baseId}-row">
       <td
@@ -14182,7 +14194,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
     config,
     metadata
   );
-  const configColumnStyle = cols.length === 1 ? oneColumnStyle : twoColumnStyle;
+  const configColumnStyle = cols === 1 ? oneColumnStyle : twoColumnStyle;
   metadataColumns.push({
     title: "Task Information",
     style: configColumnStyle,
@@ -15122,6 +15134,7 @@ const EventPanel = ({
   title,
   text,
   icon,
+  titleColor,
   depth = 0,
   collapse,
   style,
@@ -15131,6 +15144,10 @@ const EventPanel = ({
   const filteredArrChilden = arrChildren.filter((child) => !!child);
   const hasCollapse = collapse !== void 0;
   const [collapsed, setCollapsed] = h(!!collapse);
+  const [selectedNav, setSelectedNav] = h("");
+  y(() => {
+    setSelectedNav(pillId(0));
+  }, []);
   const pillId = (index) => {
     return `${id}-nav-pill-${index}`;
   };
@@ -15146,13 +15163,20 @@ const EventPanel = ({
         >
           ${icon ? m$1`<i
                 class=${icon || ApplicationIcons.metadata}
-                style=${{ ...TextStyle.secondary }}
+                style=${{
+    ...TextStyle.secondary,
+    color: titleColor ? titleColor : ""
+  }}
                 onclick=${() => {
     setCollapsed(!collapsed);
   }}
               />` : m$1`<div></div>`}
           <div
-            style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+            style=${{
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    color: titleColor ? titleColor : ""
+  }}
             onclick=${() => {
     setCollapsed(!collapsed);
   }}
@@ -15190,6 +15214,8 @@ const EventPanel = ({
       target: pillId(index)
     };
   })}
+                  selectedNav=${selectedNav}
+                  setSelectedNav=${setSelectedNav}
                 />` : ""}
             ${hasCollapse ? m$1`<i
                   onclick=${() => {
@@ -15215,9 +15241,10 @@ const EventPanel = ({
           style=${{ padding: 0, marginLeft: "0.5em" }}
         >
           ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
+    const id2 = pillId(index);
     return m$1`<div
-              id=${pillId(index)}
-              class="tab-pane show ${index === 0 ? "active" : ""}"
+              id=${id2}
+              class="tab-pane show ${id2 === selectedNav ? "active" : ""}"
             >
               ${child}
             </div>`;
@@ -15226,14 +15253,10 @@ const EventPanel = ({
   </div>`;
   return card;
 };
-const EventNavs = ({ navs }) => {
+const EventNavs = ({ navs, selectedNav, setSelectedNav }) => {
   return m$1`<ul
     class="nav nav-pills card-header-pills"
-    style=${{
-    marginRight: "0",
-    alignItems: "flex-start",
-    justifyContent: "flex-end"
-  }}
+    style=${{ marginRight: "0" }}
     role="tablist"
     aria-orientation="horizontal"
   >
@@ -15243,15 +15266,16 @@ const EventNavs = ({ navs }) => {
         id=${nav.id}
         target=${nav.target}
         title=${nav.title}
+        selectedNav=${selectedNav}
+        setSelectedNav=${setSelectedNav}
       />`;
   })}
   </ul>`;
 };
-const EventNav = ({ target, title, active }) => {
+const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
+  const active = target === selectedNav;
   return m$1`<li class="nav-item">
     <button
-      data-bs-toggle="pill"
-      data-bs-target="#${target}"
       type="button"
       role="tab"
       aria-controls=${target}
@@ -15264,6 +15288,9 @@ const EventNav = ({ target, title, active }) => {
     borderRadius: "3px"
   }}
       class="nav-link ${active ? "active " : ""}"
+      onclick=${() => {
+    setSelectedNav(target);
+  }}
     >
       ${title}
     </button>
@@ -17538,6 +17565,12 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
   </div>
   </${EventPanel}>`;
 };
+const ErrorEventView = ({ id, depth, event }) => {
+  return m$1`
+  <${EventPanel} id=${id} depth=${depth} title="Error" icon=${ApplicationIcons.error}>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
+  </${EventPanel}>`;
+};
 const TranscriptView = ({ id, events, stateManager }) => {
   const resolvedEvents = fixupEventStream(events);
   let depth = 0;
@@ -17570,6 +17603,7 @@ const TranscriptView = ({ id, events, stateManager }) => {
   });
   return m$1`<div
     id=${id}
+    key=${id}
     style=${{
     fontSize: FontSize.small,
     display: "grid",
@@ -17631,6 +17665,13 @@ const renderNode = (id, event, depth, stateManager) => {
       />`;
     case "tool":
       return m$1`<${ToolEventView}
+        depth=${depth}
+        id=${id}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
+    case "error":
+      return m$1`<${ErrorEventView}
         depth=${depth}
         id=${id}
         event=${event}
@@ -18365,6 +18406,58 @@ const resolveValue = (value, evalEvents) => {
   }
   return value;
 };
+const SampleError = ({ align, style }) => {
+  align = align || "center";
+  return m$1`<div
+    style=${{
+    color: "var(--bs-danger)",
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    alignContent: align,
+    justifyItems: "center",
+    ...style
+  }}
+  >
+    <i
+      class=${ApplicationIcons.error}
+      style=${{
+    fontSize: FontSize.small,
+    lineHeight: FontSize.small,
+    height: FontSize.small
+  }}
+    />
+    <div>Error</div>
+  </div>`;
+};
+const FlatSampleError = ({ style }) => {
+  return m$1`<div
+    style=${{
+    color: "var(--bs-danger)",
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "0.2em",
+    ...style
+  }}
+  >
+    <i
+      class=${ApplicationIcons.error}
+      style=${{
+    fontSize: FontSize.base,
+    lineHeight: FontSize.base,
+    height: FontSize.base
+  }}
+    />
+    <div
+      style=${{
+    fontSize: FontSize.base,
+    lineHeight: FontSize.base,
+    height: FontSize.base
+  }}
+    >
+      Error
+    </div>
+  </div>`;
+};
 const InlineSampleDisplay = ({
   index,
   id,
@@ -18396,6 +18489,7 @@ const SampleDisplay = ({
   const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
+  const errorTabId = `${baseId}-error`;
   y(() => {
     if (sample.transcript && sample.transcript.events.length > 0) {
       setSelectedTab(transcriptTabId);
@@ -18460,6 +18554,21 @@ const SampleDisplay = ({
           selected=${selectedTab === metdataTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
         ${sampleMetadatas}
+        </div>
+      </${TabPanel}>`
+    );
+  }
+  if (sample.error) {
+    tabs.push(
+      m$1`
+      <${TabPanel} 
+          id=${errorTabId} 
+          title="Error" 
+          icon=${ApplicationIcons.metadata}
+          onSelected=${onSelectedTab} 
+          selected=${selectedTab === errorTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+          <${ANSIDisplay} output=${sample.error.traceback_ansi} style=${{ fontSize: FontSize.small, margin: "1em 0" }}/>
         </div>
       </${TabPanel}>`
     );
@@ -18557,7 +18666,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   }
   columns.push({
     label: "Score",
-    value: sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render(),
+    value: sample.error ? m$1`<${FlatSampleError} style=${{ marginTop: "0.4rem" }} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render(),
     size: "minmax(2em, auto)",
     center: true
   });
@@ -18859,10 +18968,21 @@ const SampleList = (props) => {
     <div>Answer</div>
     <div>Score</div>
   </div>`;
+  const errorCount = items == null ? void 0 : items.reduce((previous, item) => {
+    if (item.data.error) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
+  const sampleCount = items == null ? void 0 : items.length;
+  const percentError = errorCount / sampleCount * 100;
+  const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
+  const warningRow = warningMessage ? m$1`<${WarningRow} message=${warningMessage} />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
-    ${headerRow}
+    ${warningRow} ${headerRow}
     <${VirtualList}
       ref=${listRef}
       data=${items}
@@ -18873,6 +18993,41 @@ const SampleList = (props) => {
       style=${listStyle}
     />
   </div>`;
+};
+const WarningRow = ({ message }) => {
+  const [hidden, setHidden] = h(false);
+  return m$1`
+    <div
+      style=${{
+    gridTemplateColumns: "max-content auto max-content",
+    columnGap: "0.5em",
+    fontSize: FontSize.small,
+    background: "var(--bs-warning-bg-subtle)",
+    borderBottom: "solid 1px var(--bs-light-border-subtle)",
+    padding: "0.3em 1em",
+    display: hidden ? "none" : "grid"
+  }}
+    >
+      <i class=${ApplicationIcons.logging.warning} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+    fontSize: FontSize["title-secondary"],
+    margin: "0",
+    padding: "0",
+    height: FontSize["title-secondary"],
+    lineHeight: FontSize["title-secondary"]
+  }}
+        class="btn"
+        onclick=${() => {
+    setHidden(true);
+  }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
+    </div>
+  `;
 };
 const SeparatorRow = ({ id, title, height }) => {
   return m$1`<div
@@ -18981,7 +19136,7 @@ const SampleRow = ({
     display: "flex"
   }}
       >
-        ${sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
+        ${sample.error ? m$1`<${SampleError} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
       </div>
     </div>
   `;
@@ -19017,8 +19172,14 @@ const SamplesTab = (props) => {
   const [selectedIndex, setSelectedIndex] = h(0);
   const [filteredSamples, setFilteredSamples] = h([]);
   const [items, setItems] = h([]);
-  const sampleListRef = A();
-  const sampleDialogRef = A();
+  const sampleListRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
+  const sampleDialogRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
   y(() => {
     setFilteredSamples(
       (samples || []).filter((sample) => {
@@ -19990,7 +20151,8 @@ const RunningPanel = () => {
   </div>`;
 };
 const ResultsPanel = ({ results }) => {
-  if (results.scores.length === 1) {
+  var _a, _b;
+  if (((_a = results == null ? void 0 : results.scores) == null ? void 0 : _a.length) === 1) {
     const scorers = {};
     results.scores.map((score) => {
       scorers[score.name] = Object.keys(score.metrics).map((key2) => {
@@ -20030,7 +20192,7 @@ const ResultsPanel = ({ results }) => {
       rowGap: "1em"
     }}
     >
-      ${results.scores.map((score, index) => {
+      ${(_b = results == null ? void 0 : results.scores) == null ? void 0 : _b.map((score, index) => {
       return m$1`<${MultiScorerMetric}
           scorer=${score}
           isFirst=${index === 0}
@@ -21569,8 +21731,14 @@ const kPrismRenderMaxSize = 25e4;
 const kJsonMaxSize = 1e7;
 const WorkSpace = (props) => {
   var _a, _b;
-  const divRef = A();
-  const codeRef = A();
+  const divRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
+  const codeRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
   const workspaceLog = props.log;
   const [currentTaskId, setCurrentTaskId] = h(
     (_b = (_a = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.run_id
@@ -21605,12 +21773,12 @@ const WorkSpace = (props) => {
     }
   }, [workspaceLog, divRef, currentTaskId, setSelectedTab]);
   y(() => {
-    var _a2, _b2, _c, _d;
+    var _a2, _b2, _c, _d, _e, _f;
     const scorer = ((_b2 = (_a2 = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a2.results) == null ? void 0 : _b2.scores[0]) ? {
-      name: workspaceLog.contents.results.scores[0].name,
-      scorer: workspaceLog.contents.results.scores[0].scorer
+      name: (_c = workspaceLog.contents.results) == null ? void 0 : _c.scores[0].name,
+      scorer: (_d = workspaceLog.contents.results) == null ? void 0 : _d.scores[0].scorer
     } : void 0;
-    const scorers = (((_d = (_c = workspaceLog.contents) == null ? void 0 : _c.results) == null ? void 0 : _d.scores) || []).map((score2) => {
+    const scorers = (((_f = (_e = workspaceLog.contents) == null ? void 0 : _e.results) == null ? void 0 : _f.scores) || []).map((score2) => {
       return {
         name: score2.name,
         scorer: score2.scorer

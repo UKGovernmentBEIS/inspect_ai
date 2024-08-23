@@ -69,6 +69,8 @@ book:
 
       - part: "Advanced"
         chapters:
+           - text: "Errors & Limits"
+             href: errors-and-limits.qmd
            - caching.qmd
            - parallelism.qmd
            - agents-api.qmd

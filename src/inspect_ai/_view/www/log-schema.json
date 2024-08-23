@@ -387,6 +387,36 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ErrorEvent": {
+      "description": "Event with sample error.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "error",
+          "default": "error",
+          "enum": [
+            "error"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/$defs/EvalError"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "error"
+      ],
+      "title": "ErrorEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "EvalConfig": {
       "properties": {
         "limit": {
@@ -440,6 +470,21 @@
           ],
           "default": null,
           "title": "Epochs Reducer"
+        },
+        "fail_on_error": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fail On Error"
         },
         "max_messages": {
           "anyOf": [
@@ -544,6 +589,7 @@
         "limit",
         "epochs",
         "epochs_reducer",
+        "fail_on_error",
         "max_messages",
         "max_samples",
         "max_tasks",
@@ -662,6 +708,9 @@
               },
               {
                 "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ErrorEvent"
               },
               {
                 "$ref": "#/$defs/LoggerEvent"
@@ -829,6 +878,16 @@
     },
     "EvalResults": {
       "properties": {
+        "total_samples": {
+          "default": 0,
+          "title": "Total Samples",
+          "type": "integer"
+        },
+        "completed_samples": {
+          "default": 0,
+          "title": "Completed Samples",
+          "type": "integer"
+        },
         "scores": {
           "default": [],
           "items": {
@@ -868,6 +927,8 @@
       "title": "EvalResults",
       "type": "object",
       "required": [
+        "total_samples",
+        "completed_samples",
         "scores",
         "metadata",
         "sample_reductions"
@@ -1024,6 +1085,17 @@
         },
         "transcript": {
           "$ref": "#/$defs/EvalEvents"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvalError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1037,7 +1109,8 @@
         "scores",
         "metadata",
         "store",
-        "transcript"
+        "transcript",
+        "error"
       ],
       "title": "EvalSample",
       "type": "object",
@@ -2674,6 +2747,9 @@
                 "$ref": "#/$defs/ScoreEvent"
               },
               {
+                "$ref": "#/$defs/ErrorEvent"
+              },
+              {
                 "$ref": "#/$defs/LoggerEvent"
               },
               {
@@ -2878,6 +2954,9 @@
               },
               {
                 "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ErrorEvent"
               },
               {
                 "$ref": "#/$defs/LoggerEvent"

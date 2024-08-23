@@ -26,13 +26,16 @@ from inspect_ai.scorer._scorer import (
 
 
 def eval_results(
+    samples: int,
     scores: list[dict[str, SampleScore]],
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
     metrics: list[Metric] = [],
 ) -> EvalResults:
+    # initialise results
+    results = EvalResults(total_samples=samples, completed_samples=len(scores))
+
     # record scorer
-    results = EvalResults()
     if scorers:
         result_scores: list[EvalScore] = []
         sample_reductions: list[EvalSampleReductions] = []
