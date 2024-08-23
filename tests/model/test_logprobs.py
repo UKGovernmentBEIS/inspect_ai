@@ -1,8 +1,10 @@
 import pytest
 from test_helpers.utils import (
     skip_if_github_action,
+    skip_if_no_accelerate,
     skip_if_no_openai,
     skip_if_no_together,
+    skip_if_no_transformers,
     skip_if_no_vllm,
 )
 
@@ -44,6 +46,8 @@ async def test_together_logprobs() -> None:
 
 @pytest.mark.asyncio
 @skip_if_github_action
+@skip_if_no_transformers
+@skip_if_no_accelerate
 async def test_hf_logprobs() -> None:
     response = await generate_with_logprobs(
         "hf/EleutherAI/pythia-70m",

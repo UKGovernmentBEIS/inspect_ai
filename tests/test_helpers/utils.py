@@ -35,6 +35,10 @@ def skip_if_no_transformers(func):
     return skip_if_no_package("transformers")(func)
 
 
+def skip_if_no_accelerate(func):
+    return skip_if_no_package("accelerate")(func)
+
+
 def skip_if_no_openai(func):
     return skip_if_env_var("OPENAI_API_KEY", exists=False)(func)
 
