@@ -209,6 +209,11 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     type=bool,
     help="Whether to enable parallel function calling during tool use. OpenAI and Groq only.",
 )
+@click.option(
+    "--cache-prompt",
+    type=click.Choice(["auto", "true", "false"]),
+    help='Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.',
+)
 @common_options
 def eval_command(
     tasks: tuple[str] | None,
@@ -240,6 +245,7 @@ def eval_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    cache_prompt: str | None,
     max_messages: int | None,
     max_samples: int | None,
     max_tasks: int | None,
@@ -262,6 +268,11 @@ def eval_command(
                 value = value.split(",")
             if key == "logprobs" and value is False:
                 value = None
+            if key == "cache_prompt":
+                if value.lower() == "true":
+                    value = True
+                elif value.lower() == "false":
+                    value = False
             config[key] = value  # type: ignore
     # resolve common options
     (log_dir, log_level) = resolve_common_options(kwargs)

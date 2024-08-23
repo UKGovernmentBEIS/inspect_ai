@@ -60,6 +60,7 @@ export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
+export type CachePrompt = "auto" | boolean | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
 export type Name2 = string;
@@ -92,6 +93,8 @@ export type CompletedAt = string;
 export type InputTokens = number;
 export type OutputTokens = number;
 export type TotalTokens = number;
+export type InputTokensCacheWrite = number | null;
+export type InputTokensCacheRead = number | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
@@ -129,6 +132,7 @@ export type Content3 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate" | "cache") | null;
 export type Role3 = "tool";
 export type ToolCallId = string | null;
+export type Function1 = string | null;
 export type Type4 =
   | "parsing"
   | "timeout"
@@ -240,7 +244,7 @@ export type Timestamp4 = string;
 export type Event4 = "tool";
 export type Type7 = "function";
 export type Id3 = string;
-export type Function1 = string;
+export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Timestamp5 = string;
 export type Event5 = "score";
@@ -406,6 +410,7 @@ export interface GenerateConfig {
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
+  cache_prompt: CachePrompt;
 }
 export interface EvalResults {
   total_samples: TotalSamples;
@@ -463,6 +468,8 @@ export interface ModelUsage1 {
   input_tokens: InputTokens;
   output_tokens: OutputTokens;
   total_tokens: TotalTokens;
+  input_tokens_cache_write: InputTokensCacheWrite;
+  input_tokens_cache_read: InputTokensCacheRead;
 }
 export interface EvalError {
   message: Message;
@@ -521,6 +528,7 @@ export interface ChatMessageTool {
   source: Source3;
   role: Role3;
   tool_call_id: ToolCallId;
+  function: Function1;
   error: ToolCallError | null;
 }
 export interface ToolCallError {
@@ -738,7 +746,7 @@ export interface ToolEvent {
   event: Event4;
   type: Type7;
   id: Id3;
-  function: Function1;
+  function: Function2;
   arguments: Arguments1;
   result: Result;
   error: ToolCallError | null;

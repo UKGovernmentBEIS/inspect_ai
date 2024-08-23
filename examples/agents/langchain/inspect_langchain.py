@@ -164,10 +164,13 @@ def as_inspect_message(message: BaseMessage) -> ChatMessage:
         return ChatMessageTool(
             content=as_inspect_content(message.content),
             tool_call_id=message.tool_call_id,
+            function=message.name,
         )
     elif isinstance(message, FunctionMessage):
         return ChatMessageTool(
-            content=as_inspect_content(message.content), tool_call_id=message.name
+            content=as_inspect_content(message.content),
+            tool_call_id=message.name,
+            function=message.name,
         )
     else:
         raise ValueError(f"Unexpected message type: {type(message)}")
