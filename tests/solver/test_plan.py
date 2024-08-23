@@ -30,7 +30,7 @@ async def test_plan_cleanup():
 
     cleaned_up = False
 
-    def cleanup(state):
+    async def cleanup(state):
         nonlocal cleaned_up
         cleaned_up = True
 

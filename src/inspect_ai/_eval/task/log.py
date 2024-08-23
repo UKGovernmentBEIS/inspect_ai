@@ -94,15 +94,15 @@ class TaskLogger:
         self._location = self.recorder.log_start(self.eval)
 
         # number of samples logged
-        self._samples_logged = 0
+        self._samples_completed = 0
 
     @property
     def location(self) -> str:
         return self._location
 
     @property
-    def samples_logged(self) -> int:
-        return self._samples_logged
+    def samples_completed(self) -> int:
+        return self._samples_completed
 
     def log(
         self,
@@ -112,9 +112,11 @@ class TaskLogger:
     ) -> None:
         self.recorder.log(self.eval, type, data, flush)
 
-        # track samples logged
+        # track sucessful samples logged
         if type == "sample":
-            self._samples_logged += 1
+            sample = cast(EvalSample, data)
+            if sample.error is None:
+                self._samples_completed += 1
 
     def log_sample(
         self,
@@ -122,6 +124,7 @@ class TaskLogger:
         sample: Sample,
         state: TaskState,
         scores: dict[str, SampleScore],
+        error: EvalError | None,
         flush: bool = False,
     ) -> None:
         # log
@@ -139,6 +142,7 @@ class TaskLogger:
                 scores=cast(dict[str, Score], scores),
                 store=dict(state.store.items()),
                 transcript=eval_events(transcript().events),
+                error=error,
             ),
             flush,
         )

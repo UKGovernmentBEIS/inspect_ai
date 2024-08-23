@@ -19,8 +19,7 @@ export const readLogFile = (filename, text) => {
     return adapter.read(text);
   } catch (e) {
     throw new Error(
-      `Failed to parse the file ${filename}. Please check the file exists and that the format is valid.`,
-      e,
+      `Failed to parse the file ${filename}. Please check the file exists and that the format is valid.\n\n${e.message}`,
     );
   }
 };
