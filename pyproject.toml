@@ -99,20 +99,17 @@ Documentation = "https://inspect.ai-safety-institute.org.uk/"
 inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
-models = [
+dev = [
     "anthropic", 
     "boto3", 
     "google-cloud-aiplatform",
     "google-generativeai", 
     "groq", 
-    "mistralai",
-    "openai"
-]
-dev = [
-    "inspect_ai[models]",
     "ipython",
+    "mistralai",
     "mypy",
     "nbformat",
+    "openai",
     "pre-commit",
     "pytest",
     "pytest-asyncio",
