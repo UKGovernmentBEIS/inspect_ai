@@ -129,6 +129,7 @@ export type Content3 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate" | "cache") | null;
 export type Role3 = "tool";
 export type ToolCallId = string | null;
+export type Function1 = string | null;
 export type Type4 =
   | "parsing"
   | "timeout"
@@ -240,7 +241,7 @@ export type Timestamp4 = string;
 export type Event4 = "tool";
 export type Type7 = "function";
 export type Id3 = string;
-export type Function1 = string;
+export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Timestamp5 = string;
 export type Event5 = "score";
@@ -515,6 +516,7 @@ export interface ChatMessageTool {
   source: Source3;
   role: Role3;
   tool_call_id: ToolCallId;
+  function: Function1;
   error: ToolCallError | null;
 }
 export interface ToolCallError {
@@ -732,7 +734,7 @@ export interface ToolEvent {
   event: Event4;
   type: Type7;
   id: Id3;
-  function: Function1;
+  function: Function2;
   arguments: Arguments1;
   result: Result;
   error: ToolCallError | null;

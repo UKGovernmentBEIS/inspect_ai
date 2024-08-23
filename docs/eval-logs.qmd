@@ -49,7 +49,7 @@ If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file, then its lo
 If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a `.env` file. This is because the VS Code Python extension also [reads variables](https://code.visualstudio.com/docs/python/environments#_environment-variables) from `.env` files, and your updated `INSPECT_LOG_DIR` won't be re-read by VS Code until after a restart.
 :::
 
-See the [Amazon S3](#amazon-s3) section below for details on logging evaluations to Amazon S3 buckets.
+See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets.
 
 ## EvalLog
 
