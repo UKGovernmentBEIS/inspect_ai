@@ -1,3 +1,5 @@
+from inspect_ai._util.error import EvalError
+
 from ._file import (
     EvalLogInfo,
     list_eval_logs,
@@ -7,7 +9,6 @@ from ._file import (
 from ._log import (
     EvalConfig,
     EvalDataset,
-    EvalError,
     EvalLog,
     EvalMetric,
     EvalPlan,

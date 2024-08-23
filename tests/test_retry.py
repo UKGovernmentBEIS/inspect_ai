@@ -30,8 +30,7 @@ def failing_task():
 
 def test_eval_retry():
     # run eval with a solver that fails 2/3 times
-    failing_eval = f"{__file__}@failing_task"
-    log = eval(tasks=failing_eval, limit=1, model="mockllm/model")[0]
+    log = eval(failing_task, limit=1, model="mockllm/model")[0]
 
     # note the task id so we can be certain it remains the same
     task_id = log.eval.task_id
@@ -45,8 +44,7 @@ def test_eval_retry():
 def test_eval_retryable():
     with tempfile.TemporaryDirectory() as log_dir:
         # run eval with a solver that fails 2/3 of the time
-        failing_eval = f"{__file__}@failing_task"
-        log = eval(tasks=failing_eval, limit=1, model="mockllm/model", log_dir=log_dir)[
+        log = eval(tasks=failing_task, limit=1, model="mockllm/model", log_dir=log_dir)[
             0
         ]
 

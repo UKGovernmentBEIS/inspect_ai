@@ -64,13 +64,19 @@ export const MetaDataView = ({
   // entries can be either a Record<string, stringable>
   // or an array of record with name/value on way in
   // but coerce to array of records for order
-  if (entries && !Array.isArray(entries)) {
-    entries = Object.entries(entries || {}).map(([key, value]) => {
-      return { name: key, value };
-    });
+  /** @type {Array | undefined } */
+  let coercedEntries;
+  if (entries) {
+    if (Array.isArray(entries)) {
+      coercedEntries = entries;
+    } else {
+      coercedEntries = Object.entries(entries || {}).map(([key, value]) => {
+        return { name: key, value };
+      });
+    }
   }
 
-  const entryEls = (entries || []).map((entry, index) => {
+  const entryEls = (coercedEntries || []).map((entry, index) => {
     const id = `${baseId}-value-${index}`;
     return html`<tr class="${baseId}-row">
       <td

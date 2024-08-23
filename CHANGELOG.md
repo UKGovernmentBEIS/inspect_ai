@@ -6,6 +6,7 @@
 - [Transcript](https://inspect.ai-safety-institute.org.uk/agents-api.html#transcripts) for detailed sample level tracking of model and tool calls, state changes, logging, etc.
 - [Subtasks](https://inspect.ai-safety-institute.org.uk/agents-api.html#sec-subtasks) for delegating work to helper models, sub-agents, etc.
 - Integration with Anthropic [prompt caching](https://inspect.ai-safety-institute.org.uk/caching.html#sec-provider-caching).
+- [fail_on_error](errors-and-limits.qmd#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
 - Add `function` field to `ChatMessageTool` to indicate the name of the function called.
 - Added [RACE](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/race-h/) benchmark.

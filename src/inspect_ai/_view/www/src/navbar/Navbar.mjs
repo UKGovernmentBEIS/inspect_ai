@@ -195,7 +195,7 @@ const RunningPanel = () => {
 
 const ResultsPanel = ({ results }) => {
   // Map the scores into a list of key/values
-  if (results.scores.length === 1) {
+  if (results?.scores?.length === 1) {
     const scorers = {};
     results.scores.map((score) => {
       scorers[score.name] = Object.keys(score.metrics).map((key) => {
@@ -236,7 +236,7 @@ const ResultsPanel = ({ results }) => {
         rowGap: "1em",
       }}
     >
-      ${results.scores.map((score, index) => {
+      ${results?.scores?.map((score, index) => {
         return html`<${MultiScorerMetric}
           scorer=${score}
           isFirst=${index === 0}
