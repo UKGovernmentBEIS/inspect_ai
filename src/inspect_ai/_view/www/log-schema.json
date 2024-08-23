@@ -792,7 +792,8 @@
             "num_choices": null,
             "logprobs": null,
             "top_logprobs": null,
-            "parallel_tool_calls": null
+            "parallel_tool_calls": null,
+            "cache_prompt": null
           }
         }
       },
@@ -1561,6 +1562,25 @@
           ],
           "default": null,
           "title": "Parallel Tool Calls"
+        },
+        "cache_prompt": {
+          "anyOf": [
+            {
+              "const": "auto",
+              "enum": [
+                "auto"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Prompt"
         }
       },
       "title": "GenerateConfig",
@@ -1584,7 +1604,8 @@
         "num_choices",
         "logprobs",
         "top_logprobs",
-        "parallel_tool_calls"
+        "parallel_tool_calls",
+        "cache_prompt"
       ],
       "additionalProperties": false
     },
@@ -2021,6 +2042,30 @@
           "default": 0,
           "title": "Total Tokens",
           "type": "integer"
+        },
+        "input_tokens_cache_write": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Tokens Cache Write"
+        },
+        "input_tokens_cache_read": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Tokens Cache Read"
         }
       },
       "title": "ModelUsage",
@@ -2028,7 +2073,9 @@
       "required": [
         "input_tokens",
         "output_tokens",
-        "total_tokens"
+        "total_tokens",
+        "input_tokens_cache_write",
+        "input_tokens_cache_read"
       ],
       "additionalProperties": false
     },
@@ -3133,6 +3180,7 @@
         "finish": null,
         "config": {
           "best_of": null,
+          "cache_prompt": null,
           "frequency_penalty": null,
           "logit_bias": null,
           "logprobs": null,

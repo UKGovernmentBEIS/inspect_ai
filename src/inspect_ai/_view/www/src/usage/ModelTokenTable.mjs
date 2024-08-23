@@ -1,5 +1,6 @@
 import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { ModelUsagePanel } from "./UsageCard.mjs";
 
 export const ModelTokenTable = ({ model_usage }) => {
   return html`
@@ -7,8 +8,7 @@ export const ModelTokenTable = ({ model_usage }) => {
     <${TokenHeader}/>
     <tbody>
     ${Object.keys(model_usage).map((key) => {
-      const vals = Object.values(model_usage[key]);
-      return html`<${TokenRow} model=${key} values=${vals} />`;
+      return html`<${TokenRow} model=${key} usage=${model_usage[key]} />`;
     })}
     </tbody>
   </${TokenTable}>
@@ -52,18 +52,16 @@ const TokenHeader = () => {
     </tr>
     <tr>
       <th style=${thStyle}>Model</th>
-      <th style=${thStyle}>Input</th>
-      <th style=${thStyle}>Output</th>
-      <th style=${thStyle}>Total</th>
+      <th style=${thStyle}>Usage</th>
     </tr>
   </thead>`;
 };
 
-const TokenRow = ({ model, values }) => {
+const TokenRow = ({ model, usage }) => {
   return html`<tr>
     <td>${model}</td>
-    ${values.map((val) => {
-      return html`<td>${val.toLocaleString()}</td>`;
-    })}
+    <td>
+      <${ModelUsagePanel} usage=${usage} />
+    </td>
   </tr>`;
 };

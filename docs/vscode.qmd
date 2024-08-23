@@ -60,7 +60,7 @@ There are two ways to debug tasks within VS Code:
 ![](images/inspect-vscode-run-task.png){.border .lightbox fig-alt="Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them."}
 :::::
 
-Note that when debugging a task, the Insepct extension will automatically limit the eval to a single sample (`--limit 1` on the command line). If you prefer to debug with many samples, there is a setting that can disable the default behavior (search settings for "inspect debug").
+Note that when debugging a task, the Inspect extension will automatically limit the eval to a single sample (`--limit 1` on the command line). If you prefer to debug with many samples, there is a setting that can disable the default behavior (search settings for "inspect debug").
 
 ## Activity Bar
 
