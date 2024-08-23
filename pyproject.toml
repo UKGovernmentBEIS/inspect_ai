@@ -68,11 +68,6 @@ disallow_untyped_decorators = true
 extra_checks = true
 disable_error_code = "unused-ignore"
 
-[[tool.mypy.overrides]]
-module = "pandas-stubs.*"
-ignore_errors = true
-
-
 [project]
 name = "inspect_ai"
 description = "Framework for large language model evaluations"
@@ -104,21 +99,9 @@ inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
 dev = [
-    "accelerate",
-    "anthropic",
-    "boto3",
-    "datasets",
-    "google-cloud-aiplatform",
-    "google-generativeai",
     "ipython",
-    "ipywidgets",
-    "langchain",
-    "langchainhub",
-    "mistralai",
     "mypy",
     "nbformat",
-    "openai",
-    "pandas-stubs",
     "pre-commit",
     "pytest",
     "pytest-asyncio",
@@ -126,8 +109,6 @@ dev = [
     "pytest-dotenv",
     "pytest-xdist",
     "ruff",
-    "torch",
-    "transformers",
     "types-PyYAML",
     "types-aiofiles",
     "types-beautifulsoup4",
@@ -137,10 +118,16 @@ dev = [
     "types-jsonschema",
     "types-protobuf",
     "types-psutil",
-    "types-python-dateutil",
-    "wikipedia",
-    "groq",
-    "wikipedia",
+    "types-python-dateutil"
+]
+models = [
+    "anthropic", 
+    "boto3", 
+    "google-cloud-aiplatform",
+    "google-generativeai", 
+    "groq", 
+    "mistralai",
+    "openai"
 ]
 doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]
