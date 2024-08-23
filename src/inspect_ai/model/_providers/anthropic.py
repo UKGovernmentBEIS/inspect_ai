@@ -122,7 +122,7 @@ class AnthropicAPI(ModelAPI):
                 tools_param,
                 messages,
                 cache_prompt,
-            ) = await resolve_chat_input(input, tools, config)
+            ) = await resolve_chat_input(self.model_name, input, tools, config)
 
             # prepare request params (assembed this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
@@ -229,6 +229,7 @@ class AnthropicAPI(ModelAPI):
 
 
 async def resolve_chat_input(
+    model: str,
     input: list[ChatMessage],
     tools: list[ToolInfo],
     config: GenerateConfig,
@@ -281,6 +282,16 @@ async def resolve_chat_input(
         if len(tools_params)
         else False
     )
+
+    # only certain claude models qualify
+    if cache_prompt:
+        if (
+            "claude-3-sonnet" in model
+            or "claude-2" in model
+            or "claude-instant" in model
+        ):
+            cache_prompt = False
+
     if cache_prompt:
         # system
         if system_param:
