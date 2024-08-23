@@ -90,6 +90,9 @@ class ChatMessageTool(ChatMessageBase):
     tool_call_id: str | None = Field(default=None)
     """ID of tool call."""
 
+    function: str | None = Field(default=None)
+    """Name of function called."""
+
     error: ToolCallError | None = Field(default=None)
     """Error which occurred during tool call."""
 
