@@ -7,8 +7,8 @@ from threading import Thread
 from typing import Any, Literal, Protocol, cast
 
 import numpy as np
-import torch
-from torch import Tensor
+import torch  # type: ignore
+from torch import Tensor  # type: ignore
 from transformers import (  # type: ignore
     AutoModelForCausalLM,
     AutoTokenizer,

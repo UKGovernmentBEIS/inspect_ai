@@ -1,3 +1,5 @@
+# type: ignore
+
 from typing import Any, cast
 
 from inspect_langchain import langchain_solver
