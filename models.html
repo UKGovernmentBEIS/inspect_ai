@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.32">
+<meta name="generator" content="quarto-1.5.54">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Models</title>
+<title>Models – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,7 +64,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./caching.html" rel="next">
+<link href="./errors-and-limits.html" rel="next">
 <link href="./datasets.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -245,6 +245,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Errors &amp; Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./caching.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Caching</span></a>
   </div>
 </li>
@@ -335,7 +340,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>Inspect has built in support for a variety of language model API providers and can be extended to support arbitrary additions ones. Built-in model API providers, their dependencies, and environment variables required to use them are as follows:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 18%">
 <col style="width: 45%">
@@ -430,7 +435,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="using-models" class="level2">
 <h2 class="anchored" data-anchor-id="using-models">Using Models</h2>
 <p>To select a model for use in an evaluation task you specify it using a <em>model name</em>. Model names include their API provider and the specific model to use (e.g.&nbsp;<code>openai/gpt-4</code>) Here are the supported providers along with example model names and links to documentation on all available models:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 18%">
 <col style="width: 45%">
@@ -532,7 +537,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="model-base-url" class="level3">
 <h3 class="anchored" data-anchor-id="model-base-url">Model Base URL</h3>
 <p>Each model also can use a different base URL than the default (e.g.&nbsp;if running through a proxy server). The base URL can be specified with the same prefix as the <code>API_KEY</code>, for example, the following are all valid base URLs:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
 <col style="width: 50%">
@@ -587,7 +592,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>In addition, there are separate base URL variables for running various frontier models on Azure and Bedrock:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
 <col style="width: 50%">
@@ -705,7 +710,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="google" class="level3">
 <h3 class="anchored" data-anchor-id="google">Google</h3>
 <p>Google models make available <a href="https://ai.google.dev/gemini-api/docs/safety-settings">safety settings</a> that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 35%">
 <col style="width: 65%">
@@ -736,7 +741,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>For each category, the following block thresholds are available:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 35%">
 <col style="width: 65%">
@@ -900,7 +905,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The section above illustrates passing model specific arguments to local models on the command line, in <code>eval()</code>, and in <code>get_model()</code>. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn’t covered by the <code>GenerateConfig</code>, you can use this method to do it. For example, here we specify the <code>transport</code> option for a Google Gemini model:</p>
 <div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity <span class="at">--model</span> google/gemini-1.0-pro <span class="at">-M</span> transport:grpc</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The additional <code>model_args</code> are forwarded as follows for the various providers:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 30%">
 <col style="width: 70%">
@@ -1436,8 +1441,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./caching.html" class="pagination-link" aria-label="Caching">
-        <span class="nav-page-text"><span class="chapter-title">Caching</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./errors-and-limits.html" class="pagination-link" aria-label="Errors &amp; Limits">
+        <span class="nav-page-text"><span class="chapter-title">Errors &amp; Limits</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

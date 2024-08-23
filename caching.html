@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.32">
+<meta name="generator" content="quarto-1.5.54">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Caching</title>
+<title>Caching – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -65,7 +65,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
 <link href="./parallelism.html" rel="next">
-<link href="./models.html" rel="prev">
+<link href="./errors-and-limits.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -127,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html"><span class="chapter-title">Caching</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./errors-and-limits.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html"><span class="chapter-title">Caching</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -245,6 +245,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Errors &amp; Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./caching.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Caching</span></a>
   </div>
 </li>
@@ -295,13 +300,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#cache-directory" id="toc-cache-directory" class="nav-link" data-scroll-target="#cache-directory">Cache Directory</a></li>
   </ul></li>
+  <li><a href="#sec-provider-caching" id="toc-sec-provider-caching" class="nav-link" data-scroll-target="#sec-provider-caching">Provider Caching</a>
+  <ul class="collapse">
+  <li><a href="#cache-scope" id="toc-cache-scope" class="nav-link" data-scroll-target="#cache-scope">Cache Scope</a></li>
+  <li><a href="#usage-reporting" id="toc-usage-reporting" class="nav-link" data-scroll-target="#usage-reporting">Usage Reporting</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./caching.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html"><span class="chapter-title">Caching</span></a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./errors-and-limits.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html"><span class="chapter-title">Caching</span></a></li></ol></nav>
 <div class="quarto-title">
 <h1 class="title"><span id="sec-caching" class="quarto-section-identifier"><span class="chapter-title">Caching</span></span></h1>
 </div>
@@ -323,6 +333,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense. Caching is also often useful during development—for example, when you are iterating on a scorer you may want the model outputs served from a cache to both save time as well as for increased determinism.</p>
+<p>There are two types of caching available: Inspect local caching and provider level caching. We’ll first describe local caching (which works for all models) then cover <a href="sec-provider-caching">provider caching</a> which currently works only for Anthropic models.</p>
 </section>
 <section id="caching-basics" class="level2">
 <h2 class="anchored" data-anchor-id="caching-basics">Caching Basics</h2>
@@ -407,6 +418,62 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="cache-directory">Cache Directory</h3>
 <p>By default the model generation cache is stored in the system default location for user cache files (e.g.&nbsp;<code>XDG_CACHE_HOME</code> on Linux). You can override this and specify a different directory for cache files using the <code>INSPECT_CACHE_DIR</code> environment variable. For example:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export INSPECT_CACHE_DIR=/tmp/inspect-cache</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="sec-provider-caching" class="level2">
+<h2 class="anchored" data-anchor-id="sec-provider-caching">Provider Caching</h2>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The provider caching feature described below is currently available only in the development version of Inspect. You can install the development version with:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/ukgovernmentbeis/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+<p>Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. Currently, Inspect includes support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching">Anthropic Prompt Caching</a> and will extend this support to other providers over time as they add caching to their APIs.</p>
+<p>Provider prompt caching is controlled by the <code>cache-prompt</code> generation config option. The default value for <code>cache-prompt</code> is <code>"auto"</code>, which enables prompt caching automatically if tool definitions are included in the request. Use <code>true</code> and <code>false</code> to force caching on or off. For example:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>auto  <span class="co"># enable if tools defined</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>true  <span class="co"># force caching on</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>false <span class="co"># force caching off</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or with the <code>eval()</code> function:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"ctf.py"</span>, cache_prompt<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="cache-scope" class="level3">
+<h3 class="anchored" data-anchor-id="cache-scope">Cache Scope</h3>
+<p>Providers will typically provide various means of customising the scope of cache usage. The Inspect <code>cache-prompt</code> option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).</p>
+<p>Currently there is no way to customise the Anthropic cache lifetime (it defaults to 5 minutes)—once this becomes possible this will also be exposed in the Inspect API.</p>
+</section>
+<section id="usage-reporting" class="level3">
+<h3 class="anchored" data-anchor-id="usage-reporting">Usage Reporting</h3>
+<p>When using provider caching, model token usage will be reported with 4 distinct values rather than the normal input and output. For example:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>13,684 tokens [I: 22, CW: 1,711, CR: 11,442, O: 509]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Where the prefixes on reported token counts stand for:</p>
+<table class="caption-top table">
+<tbody>
+<tr class="odd">
+<td><strong>I</strong></td>
+<td>Input tokens</td>
+</tr>
+<tr class="even">
+<td><strong>CW</strong></td>
+<td>Input token cache writes</td>
+</tr>
+<tr class="odd">
+<td><strong>CR</strong></td>
+<td>Input token cache reads</td>
+</tr>
+<tr class="even">
+<td><strong>O</strong></td>
+<td>Output tokens</td>
+</tr>
+</tbody>
+</table>
+<p>Input token cache writes will typically cost more (in the case of Anthropic roughly 25% more) but cache reads substantially less (for Anthropic 90% less) so for the example above there would have been a substantial savings in cost and execution time. See the <a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching">Anthropic Documentation</a> for additional details.</p>
 
 
 </section>
@@ -876,8 +943,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./models.html" class="pagination-link" aria-label="Models">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Models</span></span>
+      <a href="./errors-and-limits.html" class="pagination-link" aria-label="Errors &amp; Limits">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Errors &amp; Limits</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
