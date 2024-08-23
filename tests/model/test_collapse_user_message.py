@@ -89,7 +89,9 @@ async def test_anthropic_user_tool_messages() -> None:
                     ],
                 ),
                 ChatMessageTool(
-                    content="2", tool_call_id="toolu_01AhP9RozXEJSnuxMLcY8Xaf"
+                    content="2",
+                    tool_call_id="toolu_01AhP9RozXEJSnuxMLcY8Xaf",
+                    function="addition",
                 ),
                 ChatMessageUser(content="Keep going!"),
             ],

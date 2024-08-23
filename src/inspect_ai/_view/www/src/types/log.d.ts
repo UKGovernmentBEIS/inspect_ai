@@ -126,6 +126,7 @@ export type Content3 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate" | "cache") | null;
 export type Role3 = "tool";
 export type ToolCallId = string | null;
+export type Function1 = string | null;
 export type Type4 =
   | "parsing"
   | "timeout"
@@ -225,9 +226,11 @@ export type Description1 = string | null;
 export type Properties1 = {
   [k: string]: ToolParam;
 } | null;
+export type Additionalproperties = ToolParam | boolean | null;
 export type Anyof = ToolParam[] | null;
 export type Required = string[] | null;
 export type Required1 = string[];
+export type Additionalproperties1 = boolean;
 export type Tools = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name5 = string;
@@ -235,7 +238,7 @@ export type Timestamp4 = string;
 export type Event4 = "tool";
 export type Type7 = "function";
 export type Id3 = string;
-export type Function1 = string;
+export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Timestamp5 = string;
 export type Event5 = "score";
@@ -507,6 +510,7 @@ export interface ChatMessageTool {
   source: Source3;
   role: Role3;
   tool_call_id: ToolCallId;
+  function: Function1;
   error: ToolCallError | null;
 }
 export interface ToolCallError {
@@ -679,6 +683,7 @@ export interface ToolParams {
   type: Type5;
   properties: Properties;
   required: Required1;
+  additionalProperties: Additionalproperties1;
 }
 export interface Properties {
   [k: string]: ToolParam;
@@ -692,7 +697,7 @@ export interface ToolParam {
   default: Default;
   items: ToolParam | null;
   properties: Properties1;
-  additionalProperties: ToolParam | null;
+  additionalProperties: Additionalproperties;
   anyOf: Anyof;
   required: Required;
 }
@@ -723,7 +728,7 @@ export interface ToolEvent {
   event: Event4;
   type: Type7;
   id: Id3;
-  function: Function1;
+  function: Function2;
   arguments: Arguments1;
   result: Result;
   error: ToolCallError | null;
