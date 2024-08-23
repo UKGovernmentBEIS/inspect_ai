@@ -41,6 +41,7 @@ norecursedirs = [
 log_level = "warning"
 
 [tool.mypy]
+exclude = "examples/agents/"
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
@@ -98,7 +99,17 @@ Documentation = "https://inspect.ai-safety-institute.org.uk/"
 inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
+models = [
+    "anthropic", 
+    "boto3", 
+    "google-cloud-aiplatform",
+    "google-generativeai", 
+    "groq", 
+    "mistralai",
+    "openai"
+]
 dev = [
+    "inspect_ai[models]",
     "ipython",
     "mypy",
     "nbformat",
@@ -119,15 +130,6 @@ dev = [
     "types-protobuf",
     "types-psutil",
     "types-python-dateutil"
-]
-models = [
-    "anthropic", 
-    "boto3", 
-    "google-cloud-aiplatform",
-    "google-generativeai", 
-    "groq", 
-    "mistralai",
-    "openai"
 ]
 doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]
