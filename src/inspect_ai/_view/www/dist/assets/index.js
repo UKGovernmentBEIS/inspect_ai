@@ -17244,6 +17244,9 @@ const UsageCard = ({ stats, context }) => {
   `;
 };
 const ModelUsagePanel = ({ usage }) => {
+  if (!usage) {
+    return "";
+  }
   const rows = [
     {
       label: "input",
