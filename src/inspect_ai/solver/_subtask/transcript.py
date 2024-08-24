@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, JsonValue, field_serializer
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
@@ -152,6 +153,16 @@ class InfoEvent(BaseEvent):
     """Data provided with event."""
 
 
+class ErrorEvent(BaseEvent):
+    """Event with sample error."""
+
+    event: Literal["error"] = Field(default="error")
+    """Event type."""
+
+    error: EvalError
+    """Sample error"""
+
+
 class ScoreEvent(BaseEvent):
     """Event with sample score."""
 
@@ -204,6 +215,7 @@ Event: TypeAlias = Union[
     | ModelEvent
     | ToolEvent
     | ScoreEvent
+    | ErrorEvent
     | LoggerEvent
     | InfoEvent
     | StepEvent

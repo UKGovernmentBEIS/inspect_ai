@@ -25,8 +25,8 @@ export const SamplesTab = (props) => {
   const [filteredSamples, setFilteredSamples] = useState([]);
   const [items, setItems] = useState([]);
 
-  const sampleListRef = useRef();
-  const sampleDialogRef = useRef();
+  const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));
+  const sampleDialogRef = useRef(/** @type {HTMLElement|null} */ (null));
 
   // Re-filter the samples
   useEffect(() => {

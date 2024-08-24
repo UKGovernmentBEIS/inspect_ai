@@ -43,6 +43,10 @@ class Task:
            environment type (or optionally a tuple with type and config file)
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
            reducer function(s) used to combine sample scores (defaults to "mean")
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
         max_messages (int | None): Limit on total messages in the conversation.
         name: (str | None): Task name. If not specified is automatically
           determined based on the name of the task directory (or "task")
@@ -61,6 +65,7 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         sandbox: str | tuple[str, str] | None = None,
         epochs: int | Epochs | None = None,
+        fail_on_error: bool | float | None = None,
         max_messages: int | None = None,
         name: str | None = None,
         version: int = 0,
@@ -103,6 +108,7 @@ class Task:
         self.sandbox = (sandbox, None) if isinstance(sandbox, str) else sandbox
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
+        self.fail_on_error = fail_on_error
         self.max_messages = max_messages
         self.version = version
         self._name = name

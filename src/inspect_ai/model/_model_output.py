@@ -19,6 +19,12 @@ class ModelUsage(BaseModel):
     total_tokens: int = Field(default=0)
     """Total tokens used."""
 
+    input_tokens_cache_write: int | None = Field(default=None)
+    """Number of tokens written to the cache."""
+
+    input_tokens_cache_read: int | None = Field(default=None)
+    """Number of tokens retrieved from the cache."""
+
 
 StopReason = Literal["stop", "length", "tool_calls", "content_filter", "unknown"]
 """Reason that the model stopped generating."""

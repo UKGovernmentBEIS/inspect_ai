@@ -33,7 +33,7 @@ class TaskProfile:
 
 @dataclass
 class TaskError:
-    samples_logged: int
+    samples_completed: int
     exc_type: Type[Any]
     exc_value: BaseException
     traceback: TracebackType | None
@@ -41,12 +41,13 @@ class TaskError:
 
 @dataclass
 class TaskCancelled:
-    samples_logged: int
+    samples_completed: int
     stats: EvalStats
 
 
 @dataclass
 class TaskSuccess:
+    samples_completed: int
     stats: EvalStats
     results: EvalResults
 

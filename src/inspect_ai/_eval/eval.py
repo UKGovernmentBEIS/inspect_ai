@@ -45,6 +45,7 @@ def eval(
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
+    fail_on_error: bool | float | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -81,6 +82,10 @@ def eval(
            (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
            reducer function(s) used to combine sample scores (defaults to "mean")
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
         max_messages (int | None): Maximum number of messages to allow
            in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -117,6 +122,7 @@ def eval(
             log_dir=log_dir,
             limit=limit,
             epochs=epochs,
+            fail_on_error=fail_on_error,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -143,6 +149,7 @@ async def eval_async(
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
+    fail_on_error: bool | float | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -179,6 +186,9 @@ async def eval_async(
             (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+            (default); `False` to never fail on sample errors; Value between 0 and 1
+            to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
         max_messages (int | None): Maximum number of messages to allow
             in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -251,6 +261,7 @@ async def eval_async(
             epochs_reducer=reducer_log_names(epochs_reducer)
             if epochs_reducer
             else None,
+            fail_on_error=fail_on_error,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -486,6 +497,7 @@ async def eval_retry_async(
         task_args = eval_log.eval.task_args
         limit = eval_log.eval.config.limit
         epochs = eval_log.eval.config.epochs
+        fail_on_error = eval_log.eval.config.fail_on_error
         max_messages = eval_log.eval.config.max_messages
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
@@ -524,6 +536,7 @@ async def eval_retry_async(
                 log_dir=log_dir,
                 limit=limit,
                 epochs=epochs,
+                fail_on_error=fail_on_error,
                 max_messages=max_messages,
                 max_samples=max_samples,
                 max_tasks=max_tasks,

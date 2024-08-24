@@ -103,6 +103,20 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     type=int,
     help="Maximum number of messages to allow in a task conversation.",
 )
+@click.option(
+    "--fail-on-error",
+    type=float,
+    is_flag=False,
+    flag_value=0.0,
+    help="Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.",
+)
+@click.option(
+    "--no-fail-on-error",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Do not fail the eval if errors occur within samples (instead, continue running other samples)",
+)
 @click.option("--no-log-samples", type=bool, is_flag=True, help=NO_LOG_SAMPLES_HELP)
 @click.option(
     "--log-images/--no-log-images",
@@ -195,6 +209,11 @@ TIMEOUT_HELP = "Request timeout (in seconds)."
     type=bool,
     help="Whether to enable parallel function calling during tool use. OpenAI and Groq only.",
 )
+@click.option(
+    "--cache-prompt",
+    type=click.Choice(["auto", "true", "false"]),
+    help='Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.',
+)
 @common_options
 def eval_command(
     tasks: tuple[str] | None,
@@ -226,10 +245,13 @@ def eval_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    cache_prompt: str | None,
     max_messages: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
+    fail_on_error: bool | float | None,
+    no_fail_on_error: bool | None,
     no_log_samples: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
@@ -246,6 +268,11 @@ def eval_command(
                 value = value.split(",")
             if key == "logprobs" and value is False:
                 value = None
+            if key == "cache_prompt":
+                if value.lower() == "true":
+                    value = True
+                elif value.lower() == "false":
+                    value = False
             config[key] = value  # type: ignore
     # resolve common options
     (log_dir, log_level) = resolve_common_options(kwargs)
@@ -267,6 +294,12 @@ def eval_command(
     # resolve logit_bias
     config["logit_bias"] = parse_logit_bias(logit_bias)
 
+    # resolve fail_on_error
+    if no_fail_on_error is True:
+        fail_on_error = False
+    elif fail_on_error == 0.0:
+        fail_on_error = True
+
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
@@ -286,6 +319,7 @@ def eval_command(
         log_dir=log_dir,
         limit=eval_limit,
         epochs=eval_epochs,
+        fail_on_error=fail_on_error,
         max_messages=max_messages,
         max_samples=max_samples,
         max_tasks=max_tasks,

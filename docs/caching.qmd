@@ -4,6 +4,8 @@
 
 Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense. Caching is also often useful during development---for example, when you are iterating on a scorer you may want the model outputs served from a cache to both save time as well as for increased determinism.
 
+There are two types of caching available: Inspect local caching and provider level caching. We'll first describe local caching (which works for all models) then cover [provider caching](sec-provider-caching) which currently works only for Anthropic models.
+
 ## Caching Basics
 
 Use the `cache` parameter on calls to `generate()` to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
@@ -129,3 +131,54 @@ By default the model generation cache is stored in the system default location f
 ``` bash
 $ export INSPECT_CACHE_DIR=/tmp/inspect-cache
 ```
+
+## Provider Caching {#sec-provider-caching}
+
+::: callout-note
+The provider caching feature described below is currently available only in the development version of Inspect. You can install the development version with:
+
+``` {.bash .code-overflow-wrap}
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. Currently, Inspect includes support for [Anthropic Prompt Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) and will extend this support to other providers over time as they add caching to their APIs.
+
+Provider prompt caching is controlled by the `cache-prompt` generation config option. The default value for `cache-prompt` is `"auto"`, which enables prompt caching automatically if tool definitions are included in the request. Use `true` and `false` to force caching on or off. For example:
+
+``` bash
+inspect eval ctf.py --cache-prompt=auto  # enable if tools defined
+inspect eval ctf.py --cache-prompt=true  # force caching on
+inspect eval ctf.py --cache-prompt=false # force caching off
+```
+
+Or with the `eval()` function:
+
+``` python
+eval("ctf.py", cache_prompt=True)
+```
+
+### Cache Scope
+
+Providers will typically provide various means of customising the scope of cache usage. The Inspect `cache-prompt` option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).
+
+Currently there is no way to customise the Anthropic cache lifetime (it defaults to 5 minutes)---once this becomes possible this will also be exposed in the Inspect API.
+
+### Usage Reporting
+
+When using provider caching, model token usage will be reported with 4 distinct values rather than the normal input and output. For example:
+
+``` default
+13,684 tokens [I: 22, CW: 1,711, CR: 11,442, O: 509]
+```
+
+Where the prefixes on reported token counts stand for:
+
+|        |                          |
+|--------|--------------------------|
+| **I**  | Input tokens             |
+| **CW** | Input token cache writes |
+| **CR** | Input token cache reads  |
+| **O**  | Output tokens            |
+
+Input token cache writes will typically cost more (in the case of Anthropic roughly 25% more) but cache reads substantially less (for Anthropic 90% less) so for the example above there would have been a substantial savings in cost and execution time. See the [Anthropic Documentation](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) for additional details.

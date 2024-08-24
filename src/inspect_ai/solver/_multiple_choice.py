@@ -211,7 +211,7 @@ def multiple_choice(
             "The template must contain '{question}' and '{choices}' placeholders for string substitution."
         )
 
-    if not template:
+    if template is None:
         if multiple_correct:
             template = MULTIPLE_ANSWER_TEMPLATE
         else:
@@ -226,7 +226,7 @@ def multiple_choice(
         if not state.choices:
             raise ValueError("The multiple_choice solver requires samples with choices")
 
-        if shuffle:
+        if isinstance(shuffle, Random):
             state.choices.shuffle(shuffle)
 
         # Memoise the current prompt (which is the raw "question" part of the
@@ -237,7 +237,7 @@ def multiple_choice(
         state.user_prompt.text = prompt(
             question=state.user_prompt.text,
             choices=state.choices,
-            template=template,
+            template=str(template),
         )
 
         state = await generate(state)
@@ -253,7 +253,7 @@ def multiple_choice(
                 pretend_we_didnt_shuffle(
                     state=state,
                     original_question=original_question,
-                    template=template,
+                    template=str(template),
                 )
 
         return state

@@ -9,6 +9,7 @@ import { LoggerEventView } from "./LoggerEventView.mjs";
 import { InfoEventView } from "./InfoEventView.mjs";
 import { ScoreEventView } from "./ScoreEventView.mjs";
 import { ToolEventView } from "./ToolEventView.mjs";
+import { ErrorEventView } from "./ErrorEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 
 /**
@@ -57,6 +58,7 @@ export const TranscriptView = ({ id, events, stateManager }) => {
 
   return html`<div
     id=${id}
+    key=${id}
     style=${{
       fontSize: FontSize.small,
       display: "grid",
@@ -72,7 +74,7 @@ export const TranscriptView = ({ id, events, stateManager }) => {
  * Renders the event based on its type.
  *
  * @param {string} id - The id for this event.
- * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent} event - This event.
+ * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").ErrorEvent } event - This event.
  * @param {number} depth - How deeply nested this node is
  * @param {import("./TranscriptState.mjs").StateManager} stateManager State manager to track state as diffs are applied
  * @returns {import("preact").JSX.Element} The rendered event.
@@ -137,6 +139,14 @@ export const renderNode = (id, event, depth, stateManager) => {
 
     case "tool":
       return html`<${ToolEventView}
+        depth=${depth}
+        id=${id}
+        event=${event}
+        stateManager=${stateManager}
+      />`;
+
+    case "error":
+      return html`<${ErrorEventView}
         depth=${depth}
         id=${id}
         event=${event}

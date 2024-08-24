@@ -3,8 +3,20 @@ from importlib.metadata import version
 from types import TracebackType
 from typing import Callable
 
+from pydantic import BaseModel
 from rich import print
 from rich.console import RenderableType
+
+
+class EvalError(BaseModel):
+    message: str
+    """Error message."""
+
+    traceback: str
+    """Error traceback."""
+
+    traceback_ansi: str
+    """Error traceback with ANSI color codes."""
 
 
 def pip_dependency_error(feature: str, dependencies: list[str]) -> Exception:
