@@ -119,9 +119,6 @@ def _model_graded_qa_single(
     instructions = (
         instructions if instructions else default_instructions(partial_credit)
     )
-    grade_pattern = (
-        grade_pattern if grade_pattern is not None else DEFAULT_GRADE_PATTERN
-    )
 
     async def score(state: TaskState, target: Target) -> Score:
         # metadata without grading template variables
@@ -141,7 +138,7 @@ def _model_graded_qa_single(
         result = await grader_model.generate(score_prompt)
 
         # extract the grade
-        match = re.search(grade_pattern, result.completion)
+        match = re.search(grade_pattern or DEFAULT_GRADE_PATTERN, result.completion)
         if match:
             return Score(
                 value=match.group(1),
