@@ -1,4 +1,5 @@
 from ._concurrency import concurrency
+from ._console import console_input
 from ._resource import resource
 from ._sandbox import (
     SandboxEnvironment,
@@ -15,6 +16,7 @@ from ._subprocess import (
 __all__ = [
     "ExecResult",
     "concurrency",
+    "console_input",
     "resource",
     "subprocess",
     "SandboxEnvironment",

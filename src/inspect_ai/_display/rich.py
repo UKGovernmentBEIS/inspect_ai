@@ -34,6 +34,7 @@ from ._display import (
     TaskError,
     TaskProfile,
     TaskResult,
+    TaskScreen,
     TaskSuccess,
 )
 
@@ -77,13 +78,18 @@ class RichDisplay(Display):
 
     @override
     @contextlib.contextmanager
-    def live_task_status(self, total_tasks: int, parallel: bool) -> Iterator[None]:
+    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
         self.total_tasks = total_tasks
         self.tasks = []
         self.progress_ui = rich_progress()
         self.parallel = parallel
         try:
-            with Live(None, console=rich_console(), auto_refresh=False) as live:
+            with Live(
+                None,
+                console=rich_console(),
+                transient=True,
+                auto_refresh=False,
+            ) as live:
                 # save reference to live
                 self.live = live
 
@@ -93,9 +99,10 @@ class RichDisplay(Display):
                 )
 
                 # yield
-                yield
+                yield RichTaskScreen(live)
 
                 # render task results
+                live.transient = False
                 live.update(tasks_results(self.tasks), refresh=True)
         finally:
             # clear tasks and progress
@@ -138,6 +145,26 @@ class RichDisplay(Display):
             self.live.update(r, refresh=True)
 
         self.timer_handle = asyncio.get_event_loop().call_later(1, self._update_display)
+
+
+class RichTaskScreen(TaskScreen):
+    def __init__(self, live: Live) -> None:
+        self.live = live
+
+    @override
+    @contextlib.contextmanager
+    def console_input(self) -> Iterator[Console]:
+        self.live.stop()
+
+        try:
+            style = f"{rich_theme().meta} bold"
+            self.live.console.clear()
+            self.live.console.rule(f"[{style}]Input Request[/{style}]", style=style)
+            self.live.console.print("")
+            yield self.live.console
+        finally:
+            self.live.console.clear()
+            self.live.start()
 
 
 class RichTaskDisplay(TaskDisplay):

@@ -1,7 +1,5 @@
----
-title: "Agents API"
-format: html
----
+# Agents API {#sec-agents-api}
+
 
 ::: callout-note
 The Agents API described in this article is currently available only in the development version of Inspect. You can install the development version with:
