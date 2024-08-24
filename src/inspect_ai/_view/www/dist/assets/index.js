@@ -17495,16 +17495,42 @@ const LoggerEventView = ({ id, depth, event }) => {
   </div>
   </${EventRow}>`;
 };
+const JSONPanel = ({ data, style }) => {
+  const sourceCode = JSON.stringify(data, void 0, 2);
+  const codeRef = A();
+  if (codeRef.current) {
+    codeRef.current.innerHTML = Prism$1.highlight(
+      sourceCode,
+      Prism$1.languages.javascript,
+      "javacript"
+    );
+  }
+  return m$1`<div>
+    <pre
+      style=${{
+    background: "var(--bs-light)",
+    width: "100%",
+    padding: "0.5em",
+    borderRadius: "3px",
+    ...style
+  }}
+    >
+    <code 
+      ref=${codeRef}
+      class="sourceCode-json" 
+      style=${{
+    fontSize: FontSize.small,
+    whiteSpace: "pre-wrap",
+    wordWrap: "anywhere"
+  }}>
+    </code>
+    </pre>
+  </div>`;
+};
 const InfoEventView = ({ id, depth, event }) => {
   return m$1`
   <${EventPanel} id=${id} depth=${depth} title="Info" icon=${ApplicationIcons.info}>
-  <div
-    style=${{ display: "grid", gridTemplateColumns: "auto auto" }}
-  >
-    <div><i class=${ApplicationIcons.logging.info} /></div>
-    <div>${event.message}</div>
-    <div></div>
-  </div>
+    <${JSONPanel} data=${event.data} style=${{ margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, depth, event }) => {
