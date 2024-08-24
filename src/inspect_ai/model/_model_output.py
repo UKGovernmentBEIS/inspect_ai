@@ -140,7 +140,7 @@ class ModelOutput(BaseModel):
 
     @staticmethod
     def for_tool_call(
-        model: str, tool_name: str, tool_arguments: dict[str, str]
+        model: str, tool_name: str, tool_arguments: dict[str, Any]
     ) -> "ModelOutput":
         """
         Returns a ModelOutput for requesting a tool call.
