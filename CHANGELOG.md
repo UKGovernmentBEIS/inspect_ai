@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Sandbox environments can now be specified [per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
+
 ## v0.3.25 (25 August 2024)
 
 - [Store](https://inspect.ai-safety-institute.org.uk/agents-api.html#sharing-state) for manipulating arbitrary sample state from within solvers and tools.
