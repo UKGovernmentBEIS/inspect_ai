@@ -107,8 +107,6 @@ class RichDisplay(Display):
                 yield RichTaskScreen(live)
 
                 # render task results
-                if not live.is_started:
-                    live.start()
                 live.transient = False
                 live.update(tasks_results(self.tasks), refresh=True)
         finally:
