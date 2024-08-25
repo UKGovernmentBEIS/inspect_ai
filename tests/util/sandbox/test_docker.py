@@ -1,4 +1,5 @@
 import asyncio
+import pytest
 from inspect_ai.util._sandbox.docker.util import ComposeProject
 
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
