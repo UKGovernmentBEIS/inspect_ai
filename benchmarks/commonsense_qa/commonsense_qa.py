@@ -1,7 +1,9 @@
 """
 CommonSenseQA (CSQA): A Question Answering Challenge Targeting Commonsense Knowledge
+
 Alon Talmor, Jonathan Herzig, Nicholas Lourie, Jonathan Berant
 https://arxiv.org/pdf/1811.00937v2
+
 # eval w/ 500 randomly selected samples
 inspect eval csqa.py --limit 500
 """
@@ -36,7 +38,7 @@ def csqa():
         trust=True,
         shuffle=True,
     )
-
+    
     return Task(
         dataset=dataset,
         plan=multiple_choice(),
