@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Callable
 
 from inspect_ai._util.content import Content, ContentImage
