@@ -1,4 +1,4 @@
-# CommonSenseQA (CSQA): A Question Answering Challenge Targeting Commonsense Knowledge
+# CommonsenseQA (CSQA): A Question Answering Challenge Targeting Commonsense Knowledge
 
 [CommonsenseQA](https://arxiv.org/pdf/1811.00937) is a dataset designed to evaluate commonsense reasoning capabilities in natural language processing models. It consists of 12,247 multiple-choice questions that require background knowledge and commonsense to answer correctly. The dataset was constructed using CONCEPTNET, a graph-based knowledge base, where crowd-workers authored questions with complex semantics to challenge existing AI models.
 
