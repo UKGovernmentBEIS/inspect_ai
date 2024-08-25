@@ -43,6 +43,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         cwd: str | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
+        user: str | None = None,
     ) -> ExecResult[str]:
         return await subprocess(
             args=cmd,

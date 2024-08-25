@@ -173,6 +173,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         cwd: str | None = None,
         env: dict[str, str] = {},
         timeout: int | None = None,
+        user: str | None = None,
     ) -> ExecResult[str]:
         # additional args
         args = []
