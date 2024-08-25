@@ -110,8 +110,8 @@ class SandboxEnvironment(abc.ABC):
           input (str | bytes | None): Standard input (optional).
           cwd (str | None): Current working dir (optional).
           env (dict[str,str]): Environment variables for execution.
-          user (str | None): Optional user to execute the command as.
           timeout (int | None): Optional execution timeout (seconds).
+          user (str | None): Optional username or UID to run the command as.
 
         Returns:
           Execution result (status code, stderr/stdout, etc.)
@@ -142,10 +142,12 @@ class SandboxEnvironment(abc.ABC):
         ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(self, file: str, text: Literal[True] = True) -> str:
+        ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(self, file: str, text: Literal[False]) -> bytes:
+        ...
 
     @abc.abstractmethod
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
