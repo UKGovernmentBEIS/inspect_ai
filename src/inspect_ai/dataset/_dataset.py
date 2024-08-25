@@ -165,7 +165,9 @@ class FieldSpec(BaseModel):
         choices (str): Optional. Name of field containing the list of answer choices.
         id (str): Optional. Unique identifier for the sample.
         metadata (list[str] | None): List of additional field names that should be read as metadata.
+        sandbox (str): Optional. Sandbox type along with optional config file
         files (str): Optional. Files that go along with the sample.
+        setup (str): Optional. Setup script to run for sample .
     """
 
     input: str = Field(default="input")
@@ -182,6 +184,9 @@ class FieldSpec(BaseModel):
 
     metadata: list[str] | None = Field(default=None)
     """List of additional field names that should be read as metadata."""
+
+    sandbox: str = Field(default="sandbox")
+    """Sandbox type along with optional config file."""
 
     files: str = Field(default="files")
     """Files that go along wtih the sample."""

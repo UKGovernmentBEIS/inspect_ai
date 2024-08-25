@@ -25,10 +25,7 @@ def resolve_sample_files(dataset: Dataset) -> None:
         try:
             target_file = f"{parent_dir}{fs.sep}{file}"
             if fs.exists(target_file):
-                if fs.is_local():
-                    return Path(target_file).resolve().as_posix()
-                else:
-                    return target_file
+                return target_file
             else:
                 return file
         except OSError:
