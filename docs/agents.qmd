@@ -455,13 +455,14 @@ Here's an example of a `compose.yaml` file that sets container resource limits a
 services:
   default: 
     build: .
+    init: true
     command: tail -f /dev/null
     cpus: 1.0
     mem_limit: 0.5gb
     network_mode: none
 ```
 
-The `command` is provided to prevent the container from exiting.
+The `init: true` entry enables the container to respond to shutdown requests. The `command` is provided to prevent the container from exiting after it starts.
 
 Here is what a simple `compose.yaml` would look like for a local pre-built image named `ctf-agent-environment` (resource and network limits excluded for brevity):
 
@@ -470,6 +471,7 @@ services:
   default: 
     image: ctf-agent-environment
     x-local: true
+    init: true
     command: tail -f /dev/null
 ```
 
@@ -479,6 +481,7 @@ The `ctf-agent-environment` is not an image that exists on a remote registry, so
 services:
   default: 
     image: ctf-agent-environment:1.0.0
+    init: true
     command: tail -f /dev/null
 ```
 
@@ -488,6 +491,7 @@ If we are using an image from a remote registry we similarly don't need to inclu
 services:
   default:
     image: python:3.12-bookworm
+    init: true
     command: tail -f /dev/null
 ```
 
@@ -502,11 +506,13 @@ services:
   default:
     image: ctf-agent-environment
     x-local: true
+    init: true
     cpus: 1.0
     mem_limit: 0.5gb
   victim:
     image: ctf-victim-environment
     x-local: true
+    init: true
     cpus: 1.0
     mem_limit: 1gb
 ```
@@ -531,12 +537,14 @@ services:
   default: 
     image: ctf-agent-environment
     x-local: true
+    init: true
     volumes:
       - ctf-challenge-volume:/shared-data
     
   writer:
     image: ctf-challenge-writer
     x-local: true
+    init: true
     volumes:
       - ctf-challenge-volume:/shared-data
 volumes:
@@ -554,6 +562,7 @@ services:
   default:
     image: ctf-agent-environment
     x-local: true
+    init: true
     cpus: 1.0
     mem_limit: ${SAMPLE_METDATA_MEMORY_LIMIT-0.5gb}
 ```
