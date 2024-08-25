@@ -139,6 +139,7 @@ class RichDisplay(Display):
             and self.tasks
             and self.progress_ui is not None
             and self.live is not None
+            and self.live.is_started
         ):
             if self.parallel:
                 r = tasks_live_status(self.total_tasks, self.tasks, self.progress_ui)
