@@ -387,6 +387,10 @@ async def task_run_sample(
                 # run the solver
                 with solver_transcript(solver, state) as st:
                     state = await solver(state, generate)
+                    if state is None:
+                        raise RuntimeError(
+                            f"Solver '{st.name}' did not return a TaskState"
+                        )
                     st.complete(state)
                 progress()
 
