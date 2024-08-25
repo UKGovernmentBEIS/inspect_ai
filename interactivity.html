@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Eval Logs</title>
+<title>Inspect – Interactivity</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./eval-suites.html" rel="next">
-<link href="./interactivity.html" rel="prev">
+<link href="./eval-logs.html" rel="next">
+<link href="./agents-api.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -75,9 +75,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -130,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./errors-and-limits.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-logs.html"><span class="chapter-title">Eval Logs</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./errors-and-limits.html">Advanced</a></li><li class="breadcrumb-item"><a href="./interactivity.html"><span class="chapter-title">Interactivity</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -268,12 +265,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./interactivity.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Interactivity</span></a>
+  <a href="./interactivity.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Interactivity</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Eval Logs</span></a>
+  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -299,27 +296,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#log-location" id="toc-log-location" class="nav-link" data-scroll-target="#log-location">Log Location</a></li>
-  <li><a href="#evallog" id="toc-evallog" class="nav-link" data-scroll-target="#evallog">EvalLog</a></li>
-  <li><a href="#sec-errors-and-retries" id="toc-sec-errors-and-retries" class="nav-link" data-scroll-target="#sec-errors-and-retries">Errors and Retries</a>
-  <ul class="collapse">
-  <li><a href="#sec-sample-preservation" id="toc-sec-sample-preservation" class="nav-link" data-scroll-target="#sec-sample-preservation">Sample Preservation</a></li>
-  </ul></li>
-  <li><a href="#sec-amazon-s3" id="toc-sec-amazon-s3" class="nav-link" data-scroll-target="#sec-amazon-s3">Amazon S3</a></li>
-  <li><a href="#log-cli-commands" id="toc-log-cli-commands" class="nav-link" data-scroll-target="#log-cli-commands">Log CLI Commands</a>
-  <ul class="collapse">
-  <li><a href="#listing-logs" id="toc-listing-logs" class="nav-link" data-scroll-target="#listing-logs">Listing Logs</a></li>
-  <li><a href="#reading-logs" id="toc-reading-logs" class="nav-link" data-scroll-target="#reading-logs">Reading Logs</a></li>
-  </ul></li>
+  <li><a href="#input-screen" id="toc-input-screen" class="nav-link" data-scroll-target="#input-screen">Input Screen</a></li>
+  <li><a href="#prompts" id="toc-prompts" class="nav-link" data-scroll-target="#prompts">Prompts</a></li>
+  <li><a href="#header" id="toc-header" class="nav-link" data-scroll-target="#header">Header</a></li>
+  <li><a href="#formatting" id="toc-formatting" class="nav-link" data-scroll-target="#formatting">Formatting</a></li>
+  <li><a href="#sec-layout" id="toc-sec-layout" class="nav-link" data-scroll-target="#sec-layout">Layout</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./errors-and-limits.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-logs.html"><span class="chapter-title">Eval Logs</span></a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./errors-and-limits.html">Advanced</a></li><li class="breadcrumb-item"><a href="./interactivity.html"><span class="chapter-title">Interactivity</span></a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title"><span id="sec-eval-logs" class="quarto-section-identifier"><span class="chapter-title">Eval Logs</span></span></h1>
+<h1 class="title"><span id="sec-interactivity" class="quarto-section-identifier"><span class="chapter-title">Interactivity</span></span></h1>
 </div>
 
 
@@ -336,237 +326,91 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The interactivity features described in this article is currently available only in the development version of Inspect. You can install the development version with:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/ukgovernmentbeis/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Every time you use <code>inspect eval</code> or call the <code>eval()</code> function, an evaluation log is written for each task evaluated. By default, logs are written to the <code>./logs</code> sub-directory of the current working directory (we’ll cover how to change this below). You will find a link to the log at the bottom of the results for each task:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval security_guide.py <span class="at">--model</span> openai/gpt-4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></p>
-<p>You can also use the Inspect log viewer for interactive exploration of logs. Run this command once at the beginning of a working session (the view will update automatically when new evaluations are run):</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><a href="images/inspect-view-main.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-main.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."></a></p>
-<p>This section won’t cover using <code>inspect view</code> though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the <a href="log-viewer.html">Log Viewer</a> section for details on interactively exploring logs.</p>
+<p>In some cases you may wish to introduce user interaction into the implementation of solvers, scorers, or tools. For example, you may wish to:</p>
+<ul>
+<li>Confirm consequential actions like requests made to web services</li>
+<li>Prompt the model dynamically based on the trajectory of the evaluation</li>
+<li>Score model output with human judges</li>
+</ul>
+<p>The <code>input_screen()</code> function provides a context manager that temporarily clears the task display for user input. Note that prompting the user is a synchronous operation that pauses other activity within the evaluation (pending model requests or subprocesses will continue to execute, but their results won’t be processed until the input is complete).</p>
 </section>
-<section id="log-location" class="level2">
-<h2 class="anchored" data-anchor-id="log-location">Log Location</h2>
-<p>By default, logs are written to the <code>./logs</code> sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity.py <span class="at">--model</span> openai/gpt-4 <span class="at">--log-dir</span> ./experiment-log</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>, log_dir <span class="op">=</span> <span class="st">"./experiment-log"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that in addition to logging the <code>eval()</code> function also returns an <code>EvalLog</code> object for programmatic access to the details of the evaluation. We’ll talk more about how to use this object below.</p>
-<p>The <code>INSPECT_LOG_DIR</code> environment variable can also be specified to override the default <code>./logs</code> location. You may find it convenient to define this in a <code>.env</code> file from the location where you run your evals:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode ini code-with-copy"><code class="sourceCode ini"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_DIR</span><span class="ot">=</span><span class="st">./experiment-log</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_LEVEL</span><span class="ot">=</span><span class="st">warning</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you define a relative path to <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file, then its location will always be resolved as <em>relative to</em> that <code>.env</code> file (rather than relative to whatever your current working directory is when you run <code>inspect eval</code>).</p>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file. This is because the VS Code Python extension also <a href="https://code.visualstudio.com/docs/python/environments#_environment-variables">reads variables</a> from <code>.env</code> files, and your updated <code>INSPECT_LOG_DIR</code> won’t be re-read by VS Code until after a restart.</p>
-</div>
-</div>
-</div>
-<p>See the <a href="#sec-amazon-s3">Amazon S3</a> section below for details on logging evaluations to Amazon S3 buckets.</p>
+<section id="input-screen" class="level2">
+<h2 class="anchored" data-anchor-id="input-screen">Input Screen</h2>
+<p>You can prompt the user for input at any point in an evaluation using the <code>input_screen()</code> context manager, which clears the normal task display and provides access to a <a href="https://rich.readthedocs.io/en/stable/console.html">Console</a> object for presenting content and asking for user input. For example:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"Some preamble text"</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>console</code> object provided by the context manager is from the <a href="https://rich.readthedocs.io/">Rich</a> Python library used by Inspect, and has many other capabilities beyond simple text input. Read on to learn more.</p>
 </section>
-<section id="evallog" class="level2">
-<h2 class="anchored" data-anchor-id="evallog">EvalLog</h2>
-<p>The <code>EvalLog</code> object returned from <code>eval()</code> provides programmatic interface to the contents of log files:</p>
-<p><strong>Class</strong> <code>inspect_ai.log.EvalLog</code></p>
-<table class="table">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 27%">
-<col style="width: 47%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>status</code></td>
-<td><code>str</code></td>
-<td>Status of evaluation (<code>"started"</code>, <code>"success"</code>, or <code>"error"</code>).</td>
-</tr>
-<tr class="even">
-<td><code>eval</code></td>
-<td><code>EvalSpec</code></td>
-<td>Top level eval details including task, model, creation time, etc.</td>
-</tr>
-<tr class="odd">
-<td><code>plan</code></td>
-<td><code>EvalPlan</code></td>
-<td>List of solvers and model generation config used for the eval.</td>
-</tr>
-<tr class="even">
-<td><code>samples</code></td>
-<td><code>list[EvalSample]</code></td>
-<td>Each sample evaluated, including its input, output, target, and score.</td>
-</tr>
-<tr class="odd">
-<td><code>results</code></td>
-<td><code>EvalResults</code></td>
-<td>Aggregate results computed by scorer metrics.</td>
-</tr>
-<tr class="even">
-<td><code>stats</code></td>
-<td><code>EvalStats</code></td>
-<td>Model usage statistics (input and output tokens)</td>
-</tr>
-<tr class="odd">
-<td><code>logging</code></td>
-<td><code>list[LoggingMessage]</code></td>
-<td>Logging messages (e.g.&nbsp;from <code>log.info()</code>, <code>log.debug()</code>, etc.</td>
-</tr>
-<tr class="even">
-<td><code>error</code></td>
-<td><code>EvalError</code></td>
-<td>Error information (if <code>status == "error</code>) including traceback.</td>
-</tr>
-</tbody>
-</table>
-<p>Before analysing results from a log, you should always check their status to ensure they represent a successful run:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">==</span> <span class="st">"success"</span>:</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>   ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In the section below we’ll talk more about how to deal with logs from failed evaluations (e.g.&nbsp;retrying the eval).</p>
-<p>You can enumerate, read, and write <code>EvalLog</code> objects using the following helper functions from the <code>inspect_ai.log</code> module:</p>
-<table class="table">
-<colgroup>
-<col style="width: 43%">
-<col style="width: 56%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Function</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>list_eval_logs()</code></td>
-<td>List all of the eval logs at a given location.</td>
-</tr>
-<tr class="even">
-<td><code>read_eval_log(log_file)</code></td>
-<td>Read an <code>EvalLog</code> from a log file path.</td>
-</tr>
-<tr class="odd">
-<td><code>write_eval_log(log, log_file)</code></td>
-<td>Write an <code>EvalLog</code> to a log file path.</td>
-</tr>
-</tbody>
-</table>
-<p>A common workflow is to define an <code>INSPECT_LOG_DIR</code> for running a set of evaluations, then calling <code>list_eval_logs()</code> to analyse the results when all the work is done:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># setup log dir context</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>os.environ[<span class="st">"INSPECT_LOG_DIR"</span>] <span class="op">=</span> <span class="st">"./experiment-logs"</span></span>
+<section id="prompts" class="level2">
+<h2 class="anchored" data-anchor-id="prompts">Prompts</h2>
+<p>Rich includes <a href="https://rich.readthedocs.io/en/stable/prompt.html">Prompt</a> and <a href="https://rich.readthedocs.io/en/stable/reference/prompt.html#rich.prompt.Confirm">Confirm</a> classes with additional capabilities including default values, choice lists, and re-prompting. For example:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.prompt <span class="im">import</span> Prompt</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    name <span class="op">=</span> Prompt.ask(</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Enter your name"</span>, </span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        choices<span class="op">=</span>[<span class="st">"Paul"</span>, <span class="st">"Jessica"</span>, <span class="st">"Duncan"</span>], </span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        default<span class="op">=</span><span class="st">"Paul"</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>Prompt</code> class is designed to be subclassed for more specialized inputs. The <code>IntPrompt</code> and <code>FloatPrompt</code> classes are built-in, but you can also create your own more customised prompts (the <code>Confirm</code> class is another example of this). See the <a href="https://github.com/Textualize/rich/blob/master/rich/prompt.py">prompt.py</a> source code for additional details.</p>
+</section>
+<section id="header" class="level2">
+<h2 class="anchored" data-anchor-id="header">Header</h2>
+<p>You can add a header to your console input via the <code>header</code> parameter. For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(<span class="st">"Input Request"</span>) <span class="im">as</span> console:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>header</code> option is a useful way to delineate user input requests (especially when switching between input display and the normal task display). You might also prefer to create your own heading treatments–under the hood, the <code>header</code> option calls <code>console.rule()</code> with a blue bold treatment:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>console.rule(<span class="ss">f"[blue bold]</span><span class="sc">{</span>header<span class="sc">}</span><span class="ss">[/blue bold]"</span>, style<span class="op">=</span><span class="st">"blue bold"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also use the <a href="#sec-layout">Layout</a> primitives (columns, panels, and tables) to present your input user interface.</p>
+</section>
+<section id="formatting" class="level2">
+<h2 class="anchored" data-anchor-id="formatting">Formatting</h2>
+<p>The <code>console.print()</code> method supports <a href="(https://rich.readthedocs.io/en/stable/console.html)">formatting</a> using simple markup. For example:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"[bold red]alert![/bold red] Something happened"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>See the documentation on <a href="https://rich.readthedocs.io/en/stable/markup.html">console markup</a> for additional details.</p>
+<p>You can also render <a href="https://rich.readthedocs.io/en/stable/markdown.html">markdown</a> directly, for example:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.markdown <span class="im">import</span> Markdown</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># do a bunch of evals</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(security_guide, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the results in the logs</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> list_eval_logs()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that <code>list_eval_logs()</code> lists log files recursively. Pass <code>recursive=False</code> to list only the log files at the root level.</p>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(Markdown(<span class="st">'The _quick_ brown **fox**'</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="sec-errors-and-retries" class="level2">
-<h2 class="anchored" data-anchor-id="sec-errors-and-retries">Errors and Retries</h2>
-<p>When an evaluation task fails due to an error or is otherwise interrupted (e.g.&nbsp;by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g.&nbsp;due to network connectivity or a rate limit) and can be subsequently <em>retried</em>.</p>
-<p>For these cases, Inspect includes an <code>eval-retry</code> command and <code>eval_retry()</code> function that you can use to resume tasks interrupted by errors (including <a href="./eval-logs.html#sec-sample-preservation">preserving samples</a> already completed within the original task). For example, if you had a failing task with log file <code>logs/2024-05-29T12-38-43_math_Gprr29Mv.json</code>, you could retry it from the shell with:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from Python with:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>eval_retry(<span class="st">"logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that retry only works for tasks that are created from <code>@task</code> decorated functions (as if a <code>Task</code> is created dynamically outside of an <code>@task</code> function Inspect does not know how to reconstruct it for the retry).</p>
-<p>Note also that <code>eval_retry()</code> does not overwrite the previous log file, but rather creates a new one (preserving the <code>task_id</code> from the original file).</p>
-<p>Here’s an example of retrying a failed eval with a lower number of <code>max_connections</code> (the theory being that too many concurrent connections may have caused a rate limit error):</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(my_task)[<span class="dv">0</span>]</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">!=</span> <span class="st">"success"</span>:</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  eval_retry(log, max_connections <span class="op">=</span> <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="sec-sample-preservation" class="level3">
-<h3 class="anchored" data-anchor-id="sec-sample-preservation">Sample Preservation</h3>
-<p>When retrying a log file, Inspect will attempt to re-use completed samples from the original task. This can result in substantial time and cost savings compared to starting over from the beginning.</p>
-<section id="ids-and-shuffling" class="level4">
-<h4 class="anchored" data-anchor-id="ids-and-shuffling">IDs and Shuffling</h4>
-<p>An important constraint on the ability to re-use completed samples is matching them up correctly with samples in the new task. To do this, Inspect requires stable unique identifiers for each sample. This can be achieved in 1 of 2 ways:</p>
-<ol type="1">
-<li><p>Samples can have an explicit <code>id</code> field which contains the unique identifier; or</p></li>
-<li><p>You can rely on Inspect’s assignment of an auto-incrementing <code>id</code> for samples, however this <em>will not work correctly</em> if your dataset is shuffled. Inspect will log a warning and not re-use samples if it detects that the <code>dataset.shuffle()</code> method was called, however if you are shuffling by some other means this automatic safeguard won’t be applied.</p></li>
-</ol>
-<p>If dataset shuffling is important to your evaluation and you want to preserve samples for retried tasks, then you should include an explicit <code>id</code> field in your dataset.</p>
-</section>
-<section id="max-samples" class="level4">
-<h4 class="anchored" data-anchor-id="max-samples">Max Samples</h4>
-<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
-<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code>, ensuring that the model API is always fully saturated (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
-<div class="callout callout-style-simple callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Eval Suites
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>We’ve discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on retrying tasks within <a href="./eval-suites.html#sec-errors-and-retries">Eval Suites</a></p>
-</div>
-</div>
-</section>
-</section>
-</section>
-<section id="sec-amazon-s3" class="level2">
-<h2 class="anchored" data-anchor-id="sec-amazon-s3">Amazon S3</h2>
-<p>Storing evaluation logs on S3 provides a more permanent and secure store than using the local filesystem. While the <code>inspect eval</code> command has a <code>--log-dir</code> argument which accepts an S3 URL, the most convenient means of directing inspect to an S3 bucket is to add the <code>INSPECT_LOG_DIR</code> environment variable to the <code>.env</code> file (potentially alongside your S3 credentials). For example:</p>
-<pre class="env"><code>INSPECT_LOG_DIR=s3://my-s3-inspect-log-bucket
-AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-AWS_DEFAULT_REGION=eu-west-2</code></pre>
-<p>One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a <a href="https://github.com/s3fs-fuse/s3fs-fuse">FUSE filesystem</a> so you can easily browse the S3 logs locally.</p>
-</section>
-<section id="log-cli-commands" class="level2">
-<h2 class="anchored" data-anchor-id="log-cli-commands">Log CLI Commands</h2>
-<p>We’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g.&nbsp;TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.</p>
-<section id="listing-logs" class="level3">
-<h3 class="anchored" data-anchor-id="listing-logs">Listing Logs</h3>
-<p>You can use the <code>inspect list logs</code> command to enumerate all of the logs for a given log directory. This command will utilise the <code>INSPECT_LOG_DIR</code> if it is set (alternatively you can specify a <code>--log-dir</code> directly). You’ll likely also want to use the <code>--json</code> flag to get more granular and structured information on the log files. For example:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--status</span> success</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--status</span> error</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can use the <code>--retryable</code> option to list only logs that are <a href="#sec-errors-and-retries">retryable</a></p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--retryable</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="reading-logs" class="level3">
-<h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>
-<p>The <code>inspect list logs</code> command will return set of URIs to log files which will use a variety of protocols (e.g.&nbsp;<code>file://</code>, <code>s3://</code>, <code>gcs://</code>, etc.). You might be tempted to try to read these URIs directly, however you should always do so using the <code>inspect info log-file</code> command. This is because log files can be located on remote storage systems (e.g.&nbsp;Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.</p>
-<p>For example, here we read a local log file and a log file on Amazon S3:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-file file:///home/user/log/logfile.json</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-file s3://my-evals-bucket/logfile.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Log files are stored in JSON. You can get the JSON schema and TypeScript type definitions for the log file format with the following calls to <code>inspect info</code>:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-schema</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-types</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="callout callout-style-simple callout-important callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-NaN and Inf
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Because evaluation logs contain lots of numerical data and calculations, it is possible that some <code>number</code> values will be <code>NaN</code> or <code>Inf</code>. These numeric values are supported natively by Python’s JSON parser, however are not supported by the JSON parsers built in to browsers and Node JS.</p>
-<p>To correctly read <code>Nan</code> and <code>Inf</code> values from eval logs in JavaScript, we recommend that you use the <a href="https://github.com/json5/json5">JSON5 Parser</a>. For other languages, <code>Nan</code> and <code>Inf</code> may be natively supported (if not, see these JSON 5 implementations for <a href="https://github.com/json5/json5/wiki/In-the-Wild">other languages</a>).</p>
-</div>
-</div>
+<section id="sec-layout" class="level2">
+<h2 class="anchored" data-anchor-id="sec-layout">Layout</h2>
+<p>Rich includes <a href="https://rich.readthedocs.io/en/stable/columns.html">Columns</a>, <a href="https://rich.readthedocs.io/en/stable/tables.html">Table</a> and <a href="https://rich.readthedocs.io/en/stable/panel.html">Panel</a> classes for more advanced layout. For example, here is a simple table:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.table <span class="im">import</span> Table</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    table <span class="op">=</span> Table(title<span class="op">=</span><span class="st">"Tool Calls"</span>)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    table.add_column(<span class="st">"Function"</span>, justify<span class="op">=</span><span class="st">"left"</span>, style<span class="op">=</span><span class="st">"cyan"</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    table.add_column(<span class="st">"Parameters"</span>, style<span class="op">=</span><span class="st">"magenta"</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"bash"</span>, <span class="st">"ls /usr/bin"</span>)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"python"</span>, <span class="st">"print('foo')"</span>)</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(table)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
-</section>
 </section>
 
 </main> <!-- /main -->
@@ -1033,13 +877,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./interactivity.html" class="pagination-link" aria-label="Interactivity">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Interactivity</span></span>
+      <a href="./agents-api.html" class="pagination-link" aria-label="Agents API">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Agents API</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./eval-suites.html" class="pagination-link" aria-label="Eval Suites">
-        <span class="nav-page-text"><span class="chapter-title">Eval Suites</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./eval-logs.html" class="pagination-link" aria-label="Eval Logs">
+        <span class="nav-page-text"><span class="chapter-title">Eval Logs</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1097,31 +941,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"selector":".lightbox","descPosition":"bottom","openEffect":"zoom","closeEffect":"zoom"});
-window.onload = () => {
-  lightboxQuarto.on('slide_before_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    const href = trigger.getAttribute('href');
-    if (href !== null) {
-      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-      if (imgEl !== null) {
-        const srcAttr = imgEl.getAttribute("src");
-        if (srcAttr && srcAttr.startsWith("data:")) {
-          slideConfig.href = srcAttr;
-        }
-      }
-    } 
-  });
-
-  lightboxQuarto.on('slide_after_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    if (window.Quarto?.typesetMath) {
-      window.Quarto.typesetMath(slideNode);
-    }
-  });
-
-};
-          </script>
 
 
 
