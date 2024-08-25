@@ -50,7 +50,7 @@ def in_house_ctf_task_template(task_name: str) -> Task:
         ],
         scorer=includes(),
         max_messages=MAX_MESSAGES,
-        sandbox=("docker", f"{DATA_DIR}/{task_name}/docker-compose.yaml"),
+        sandbox=("docker", f"{DATA_DIR}/{task_name}/compose.yaml"),
     )
 
 

@@ -12,7 +12,7 @@ done
 
 ```
 
-Note that the bash commands are executed inside Docker containers, so you will need to install [Docker Engine](https://docs.docker.com/engine/install/) in order to run the evaluation. Each task runs an attacker container and one or more challenge enviroment containers using the task-specific `docker-compose.yaml` files, and the Dockerfiles for these tasks
+Note that the bash commands are executed inside Docker containers, so you will need to install [Docker Engine](https://docs.docker.com/engine/install/) in order to run the evaluation. Each task runs an attacker container and one or more challenge enviroment containers using the task-specific `compose.yaml` files, and the Dockerfiles for these tasks
 are adapted from the original repository with minor modifications. 
 
 To evaluate against various models:
@@ -24,9 +24,9 @@ $ inspect eval task.py --model google/gemini-1.5-pro
 $ inspect eval task.py --model mistral/mistral-large-latest
 ```
 
-If you are experiementing, you might find it useful to evaluate only a random subset of the samples by commenting out the other tasks in [`task.py`](task.py). To add a new task, create a task directory under [`data`](data) that includes a `docker-compose.yaml` file and a `task.json` file (originl Dockerfiles are optional), and add a task function in [`task.py`](task.py) using the provided task template function.
+If you are experiementing, you might find it useful to evaluate only a random subset of the samples by commenting out the other tasks in [`task.py`](task.py). To add a new task, create a task directory under [`data`](data) that includes a `compose.yaml` file and a `task.json` file (originl Dockerfiles are optional), and add a task function in [`task.py`](task.py) using the provided task template function.
 
-`docker-compose.yaml` format:
+`compose.yaml` format:
 ```
 services:
   task:
