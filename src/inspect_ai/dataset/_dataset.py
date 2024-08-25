@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai.model import ChatMessage
+from inspect_ai.util import SandboxEnvironmentSpec
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
@@ -31,9 +32,11 @@ class Sample(BaseModel):
             or narrative text to be used by a model grader.
         id (int | str | None): Optional. Unique identifier for sample.
         metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
+        sandbox (SandboxEnvironmentSpec | None): Optional. Sandbox environment
+          type and optional config file.
         files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
           SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
-        setup: (str | None): Optional. Setup script to run for sample (run
+        setup (str | None): Optional. Setup script to run for sample (run
           within default SandboxEnvironment).
     """
 
@@ -51,6 +54,9 @@ class Sample(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Arbitrary metadata associated with the sample."""
+
+    sandbox: SandboxEnvironmentSpec | None = Field(default=None)
+    """Sandbox environment type and optional config file."""
 
     files: dict[str, str] | None = Field(default=None)
     """Files that go along with the sample (copied to SandboxEnvironment)"""

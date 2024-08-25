@@ -36,6 +36,10 @@ def resolve_sample_files(dataset: Dataset) -> None:
 
     # for each sample
     for sample in dataset:
+        # check for sandbox config file
+        if isinstance(sample.sandbox, tuple) and sample.sandbox[1] is not None:
+            sample.sandbox = (sample.sandbox[0], resolve_file(sample.sandbox[1]))
+
         # check for files
         if sample.files is not None:
             for path in sample.files.keys():

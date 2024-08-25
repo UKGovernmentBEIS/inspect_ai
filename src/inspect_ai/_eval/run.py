@@ -7,6 +7,7 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
+from inspect_ai._eval.task.sandbox import resolve_sandbox
 from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir_python
@@ -255,8 +256,11 @@ async def startup_sandbox_environments(
     # find unique sandboxenvs
     sandboxenvs: Set[tuple[str, str | None]] = set()
     for task in tasks:
-        if task.sandbox is not None and task.sandbox not in sandboxenvs:
-            sandboxenvs.add(task.sandbox)
+        # resolve each sample and add to sandboxenvs
+        for sample in task.task.dataset:
+            sandbox = resolve_sandbox(task.sandbox, sample)
+            if sandbox is not None and sandbox not in sandboxenvs:
+                sandboxenvs.add(sandbox)
 
     # initialiase sandboxenvs (track cleanups)
     cleanups: list[tuple[TaskCleanup, str | None]] = []
