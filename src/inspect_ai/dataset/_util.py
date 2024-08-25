@@ -146,7 +146,11 @@ def read_setup(setup: Any | None) -> str | None:
 def read_sandbox(sandbox: Any | None) -> SandboxEnvironmentSpec | None:
     if sandbox is not None:
         if isinstance(sandbox, str):
-            return (sandbox, None)
+            if sandbox.strip().startswith("["):
+                sandbox = json.loads(sandbox)
+            else:
+                return (sandbox, None)
+
         if isinstance(sandbox, list):
             if len(sandbox) == 2:
                 return str(sandbox[0]), str(sandbox[1])
