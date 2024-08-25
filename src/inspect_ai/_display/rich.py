@@ -102,6 +102,8 @@ class RichDisplay(Display):
                 yield RichTaskScreen(live)
 
                 # render task results
+                if not live.is_started:
+                    live.start()
                 live.transient = False
                 live.update(tasks_results(self.tasks), refresh=True)
         finally:
@@ -153,18 +155,24 @@ class RichTaskScreen(TaskScreen):
 
     @override
     @contextlib.contextmanager
-    def console_input(self) -> Iterator[Console]:
-        self.live.stop()
+    def console_input(
+        self, header: str | None = None, transient: bool = True
+    ) -> Iterator[Console]:
+        if self.live.is_started:
+            self.live.stop()
+            if transient:
+                self.live.console.clear()
 
         try:
-            style = f"{rich_theme().meta} bold"
-            self.live.console.clear()
-            self.live.console.rule(f"[{style}]Input Request[/{style}]", style=style)
-            self.live.console.print("")
+            if header:
+                style = f"{rich_theme().meta} bold"
+                self.live.console.rule(f"[{style}]Input Request[/{style}]", style=style)
+                self.live.console.print("")
             yield self.live.console
         finally:
-            self.live.console.clear()
-            self.live.start()
+            if transient:
+                self.live.console.clear()
+                self.live.start()
 
 
 class RichTaskDisplay(TaskDisplay):

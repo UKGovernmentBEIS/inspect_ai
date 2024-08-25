@@ -51,6 +51,28 @@ with console_input() as console:
 
 Note that we pass the `console` from the context manager to `Prompt.ask`---it's important that you do this so that the prompt is rendered correctly in the input frame.
 
+## Display Options
+
+The `console_input()` function has two optional parameters that control display behavior:
+
+| Parameter             | Description                                                                         |
+|-----------------------|-------------------------------------------------------------------------------------|
+| `header (str | None)` | Print a header line above console content (defaults to printing no header)          |
+| `transient (bool)`    | Return the console to the task display after input is provided (defaults to `True`) |
+
+: {tbl-colwidths=\[40,60\]}
+
+For example:
+
+``` python
+with console_input("Input Request", transient = False) as console:
+    input = console.input("Please enter your name: ")
+```
+
+The `header` option is a useful way to delineate user input requests (especially when switching between input display and the normal task display).
+
+The `transient` option is useful if you have a series of input requests that will occur in rapid progression. Setting `transient = False` enables the user to see all of their previous input. In this case task progress is not shown until the very end, but if the eval is dominated by user input this isn't generally a problem.
+
 ## Formatting
 
 The `console.print()` method supports [formatting]((https://rich.readthedocs.io/en/stable/console.html)) using simple markup. For example:
