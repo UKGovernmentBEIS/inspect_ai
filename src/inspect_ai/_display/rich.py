@@ -159,7 +159,7 @@ class RichTaskScreen(TaskScreen):
 
     @override
     @contextlib.contextmanager
-    def console_input(self, header: str | None = None) -> Iterator[Console]:
+    def input_screen(self, header: str | None = None) -> Iterator[Console]:
         # clear live task status
         self.live.update("", refresh=True)
 

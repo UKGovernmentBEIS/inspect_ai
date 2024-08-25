@@ -6,11 +6,11 @@ from rich.console import Console
 
 
 @contextmanager
-def console_input(header: str | None = None) -> Iterator[Console]:
-    """Console for receiving user input.
+def input_screen(header: str | None = None) -> Iterator[Console]:
+    """Input screen for receiving user input.
 
     Context manager that clears the task display and provides a
-    console for receiving user input.
+    screen for receiving console input.
 
     Args:
        header (str | None): Header line to print above console
@@ -21,5 +21,5 @@ def console_input(header: str | None = None) -> Iterator[Console]:
     """
     from inspect_ai._display._display import task_screen
 
-    with task_screen().console_input(header=header) as console:
+    with task_screen().input_screen(header=header) as console:
         yield console

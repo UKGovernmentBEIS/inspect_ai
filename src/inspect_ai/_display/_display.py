@@ -61,7 +61,7 @@ TaskResult = Union[TaskError, TaskCancelled, TaskSuccess]
 class TaskScreen(abc.ABC):
     @abc.abstractmethod
     @contextlib.contextmanager
-    def console_input(self, header: str | None = None) -> Iterator[Console]: ...
+    def input_screen(self, header: str | None = None) -> Iterator[Console]: ...
 
 
 class TaskDisplay(abc.ABC):

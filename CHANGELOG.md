@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- [console_input()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to prompt for user input.
+- [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporairly clear task display for user input.
 - Raise error when a Solver does not return a TaskState.
 
 ## v0.3.25 (25 August 2024)

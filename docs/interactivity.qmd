@@ -16,16 +16,16 @@ In some cases you may wish to introduce user interaction into the implementation
 -   Prompt the model dynamically based on the trajectory of the evaluation
 -   Score model output with human judges
 
-Note that prompting the user is a synchronous operation that pauses other activity within the evaluation (pending model requests or subprocesses will continue to execute, but their results won't be processed until the input is complete).
+The `input_screen()` function provides a context manager that temporarily clears the task display for user input. Note that prompting the user is a synchronous operation that pauses other activity within the evaluation (pending model requests or subprocesses will continue to execute, but their results won't be processed until the input is complete).
 
-## Console Input
+## Input Screen
 
-You can prompt the user for input at any point in an evaluation using the `console_input()` context manager, which clears the normal task display and provides access to a [Console](https://rich.readthedocs.io/en/stable/console.html) object for presenting content and asking for user input. For example:
+You can prompt the user for input at any point in an evaluation using the `input_screen()` context manager, which clears the normal task display and provides access to a [Console](https://rich.readthedocs.io/en/stable/console.html) object for presenting content and asking for user input. For example:
 
 ``` python
-from inspect_ai.util import console_input
+from inspect_ai.util import input_screen
 
-with console_input() as console:
+with input_screen() as console:
     console.print("Some preamble text")
     input = console.input("Please enter your name: ")
 ```
@@ -37,10 +37,10 @@ The `console` object provided by the context manager is from the [Rich](https://
 Rich includes [Prompt](https://rich.readthedocs.io/en/stable/prompt.html) and [Confirm](https://rich.readthedocs.io/en/stable/reference/prompt.html#rich.prompt.Confirm) classes with additional capabilities including default values, choice lists, and re-prompting. For example:
 
 ``` python
-from inspect_ai.util import console_input
+from inspect_ai.util import input_screen
 from rich.prompt import Prompt
 
-with console_input() as console:
+with input_screen() as console:
     name = Prompt.ask(
         "Enter your name", 
         choices=["Paul", "Jessica", "Duncan"], 
@@ -55,7 +55,7 @@ The `Prompt` class is designed to be subclassed for more specialized inputs. The
 You can add a header to your console input via the `header` parameter. For example:
 
 ``` python
-with console_input("Input Request") as console:
+with input_screen("Input Request") as console:
     input = console.input("Please enter your name: ")
 ```
 
@@ -72,7 +72,7 @@ You can also use the [Layout](#sec-layout) primitives (columns, panels, and tabl
 The `console.print()` method supports [formatting]((https://rich.readthedocs.io/en/stable/console.html)) using simple markup. For example:
 
 ``` python
-with console_input() as console:
+with input_screen() as console:
     console.print("[bold red]alert![/bold red] Something happened")
 ```
 
@@ -81,10 +81,10 @@ See the documentation on [console markup](https://rich.readthedocs.io/en/stable/
 You can also render [markdown](https://rich.readthedocs.io/en/stable/markdown.html) directly, for example:
 
 ``` python
-from inspect_ai.util import console_input
+from inspect_ai.util import input_screen
 from rich.markdown import Markdown
 
-with console_input() as console:
+with input_screen() as console:
     console.print(Markdown('The _quick_ brown **fox**'))
 ```
 
@@ -93,10 +93,10 @@ with console_input() as console:
 Rich includes [Columns](https://rich.readthedocs.io/en/stable/columns.html), [Table](https://rich.readthedocs.io/en/stable/tables.html) and [Panel](https://rich.readthedocs.io/en/stable/panel.html) classes for more advanced layout. For example, here is a simple table:
 
 ``` python
-from inspect_ai.util import console_input
+from inspect_ai.util import input_screen
 from rich.table import Table
 
-with console_input() as console:
+with input_screen() as console:
     table = Table(title="Tool Calls")
     table.add_column("Function", justify="left", style="cyan")
     table.add_column("Parameters", style="magenta")
