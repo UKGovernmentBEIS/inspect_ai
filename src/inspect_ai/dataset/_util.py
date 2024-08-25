@@ -8,6 +8,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from ._dataset import (
     DatasetRecord,
@@ -53,6 +54,7 @@ def record_to_sample_fn(
                 choices=read_choices(record.get(sample_fields.choices)),
                 id=record.get(sample_fields.id, None),
                 metadata=metadata,
+                sandbox=read_sandbox(record.get(sample_fields.sandbox)),
                 files=read_files(record.get(sample_fields.files)),
                 setup=read_setup(record.get(sample_fields.setup)),
             )
@@ -137,6 +139,28 @@ def read_choices(obj: Any | None) -> list[str] | None:
 def read_setup(setup: Any | None) -> str | None:
     if setup is not None:
         return str(setup)
+    else:
+        return None
+
+
+def read_sandbox(sandbox: Any | None) -> SandboxEnvironmentSpec | None:
+    if sandbox is not None:
+        if isinstance(sandbox, str):
+            if sandbox.strip().startswith("["):
+                sandbox = json.loads(sandbox)
+            else:
+                return (sandbox, None)
+
+        if isinstance(sandbox, list):
+            if len(sandbox) == 2:
+                return str(sandbox[0]), str(sandbox[1])
+            else:
+                raise ValueError(
+                    f"Invalid 'sandbox' value: '{str(sandbox)}'. Sandbox must be string or 2-item list"
+                )
+
+        # didn't find the right type
+        raise ValueError(f"Unexpected type for 'sandbox' field: {type(sandbox)}")
     else:
         return None
 

@@ -38,6 +38,15 @@ class ResolvedTask:
     id: str | None = field(default=None)
     sample_source: EvalSampleSource | None = field(default=None)
 
+    @property
+    def has_sandbox(self) -> bool:
+        if self.sandbox:
+            return True
+        else:
+            return any(
+                [True if sample.sandbox else False for sample in self.task.dataset]
+            )
+
 
 def resolve_tasks(
     tasks: Tasks,

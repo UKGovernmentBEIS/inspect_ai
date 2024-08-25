@@ -1,12 +1,11 @@
 import asyncio
-import base64
 import contextlib
 import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import PurePath
-from typing import AsyncGenerator, Callable, Literal
+from typing import Callable, Literal
 
 from typing_extensions import Unpack
 
@@ -24,13 +23,11 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
-from inspect_ai._util.url import data_uri_to_base64, is_data_uri
 from inspect_ai._view.view import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -63,11 +60,6 @@ from inspect_ai.solver._subtask.transcript import (
     transcript,
 )
 from inspect_ai.solver._task_state import state_jsonable
-from inspect_ai.util._sandbox.context import (
-    cleanup_sandbox_environments_sample,
-    init_sandbox_environments_sample,
-)
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from ..context import init_task_context
 from ..task import Task
@@ -76,6 +68,7 @@ from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
+from .sandbox import sandboxenv_context
 from .transcript import solver_transcript
 from .util import sample_messages
 
@@ -361,10 +354,10 @@ async def task_run_sample(
     # initialise subtask
     init_subtask(SAMPLE_SUBTASK, state.store)
 
-    # use toolenv if provided
+    # use sandbox if provided
     sandboxenv_cm = (
         sandboxenv_context(task_name, sandbox, sandbox_cleanup, sample)
-        if sandbox
+        if sandbox or sample.sandbox is not None
         else contextlib.nullcontext()
     )
 
@@ -602,77 +595,3 @@ def create_sample_semaphore(
 
     # return the semaphore
     return asyncio.Semaphore(max_samples)
-
-
-@contextlib.asynccontextmanager
-async def sandboxenv_context(
-    task_name: str,
-    sandbox: tuple[str, str | None],
-    cleanup: bool,
-    sample: Sample,
-) -> AsyncGenerator[None, None]:
-    # read files from sample
-    files: dict[str, bytes] = {}
-    if sample.files:
-        for path, contents in sample.files.items():
-            files[path] = read_sandboxenv_file(contents)
-
-    # read setup script from sample (add bash shebang if necessary)
-    setup: bytes | None = None
-    if sample.setup:
-        setup = read_sandboxenv_file(sample.setup)
-        setup_str = setup.decode(encoding="utf-8")
-        if not setup_str.strip().startswith("#!"):
-            setup_str = f"#!/usr/bin/env bash\n\n{setup_str}"
-            setup = setup_str.encode(encoding="utf-8")
-
-    interrupted = False
-    environments: dict[str, SandboxEnvironment] | None = None
-    try:
-        # initialize sandbox environment,
-        environments = await init_sandbox_environments_sample(
-            type=sandbox[0],
-            task_name=task_name,
-            config=sandbox[1],
-            files=files,
-            setup=setup,
-            metadata=sample.metadata if sample.metadata else {},
-        )
-
-        # run sample
-        yield
-
-    except BaseException as ex:
-        interrupted = True
-        raise ex
-
-    finally:
-        # cleanup sandbox environment
-        if environments and cleanup:
-            await cleanup_sandbox_environments_sample(
-                type=sandbox[0],
-                task_name=task_name,
-                config=sandbox[1],
-                environments=environments,
-                interrupted=interrupted,
-            )
-
-
-def read_sandboxenv_file(contents: str) -> bytes:
-    if is_data_uri(contents):
-        contents_base64 = data_uri_to_base64(contents)
-        file_bytes = base64.b64decode(contents_base64)
-    else:
-        # try to read as a file (if it doesn't exist or has a path not cool w/
-        # the fileystem then we fall back to contents)
-        try:
-            fs = filesystem(contents)
-            if fs.exists(contents):
-                with file(contents, "rb") as f:
-                    file_bytes = f.read()
-            else:
-                file_bytes = contents.encode("utf-8")
-        except Exception:
-            file_bytes = contents.encode("utf-8")
-
-    return file_bytes

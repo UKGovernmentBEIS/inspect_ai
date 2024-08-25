@@ -1,2 +1,2 @@
-input,target,label,extra
-"Say 'Hello, World'","Hello, World","Hello, World","data"
+input,target,label,extra,sandbox
+"Say 'Hello, World'","Hello, World","Hello, World","data","[""docker"",""compose.yaml""]"

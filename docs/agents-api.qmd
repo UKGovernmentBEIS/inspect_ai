@@ -294,4 +294,4 @@ def list_files():
     return execute
 ```
 
-See the section on [Sandbox Environments](agents.qmd##sec-sandbox-environments) for further details on using sandboxes with Inspect.
+See the section on [Sandbox Environments](agents.qmd#sec-sandbox-environments) for further details on using sandboxes with Inspect.
