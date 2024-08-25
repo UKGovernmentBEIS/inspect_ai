@@ -183,6 +183,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             args.append("--workdir")
             args.append(cwd)
 
+        if user:
+            args.append("--user")
+            args.append(user)
+
         # Forward environment commands to docker compose exec so they
         # will be available to the bash command
         if len(env.items()) > 0:
