@@ -1,7 +1,5 @@
----
-title: "Agents API"
-format: html
----
+# Agents API {#sec-agents-api}
+
 
 ## Overview
 

@@ -7,6 +7,7 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
+from inspect_ai._display._display import clear_task_screen, init_task_screen
 from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir_python
@@ -153,8 +154,10 @@ async def eval_run(
 # executable tasks if we are evaluating against multiple models)
 async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
     # https://discuss.python.org/t/asyncio-cancel-a-cancellation-utility-as-a-coroutine-this-time-with-feeling/26304/3
-    asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
-    with display().live_task_status(total_tasks=len(tasks), parallel=False):
+
+    with display().task_screen(total_tasks=len(tasks), parallel=False) as screen:
+        init_task_screen(screen)
+        asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
         try:
             return await asyncio.gather(*asyncio_tasks)
         except asyncio.CancelledError:
@@ -166,6 +169,8 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
                     task.cancel()
                     await task
                     results.append(task.result())
+        finally:
+            clear_task_screen()
         return results
 
 
@@ -228,7 +233,10 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 break
 
     # with task display
-    with display().live_task_status(total_tasks=len(tasks), parallel=True):
+    with display().task_screen(total_tasks=len(tasks), parallel=True) as screen:
+        # set screen
+        init_task_screen(screen)
+
         # start worker tasks
         workers = [asyncio.create_task(worker()) for _ in range(0, parallel)]
 
@@ -241,6 +249,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             await queue.join()
         except asyncio.CancelledError:
             pass
+        finally:
+            clear_task_screen()
 
         # cancel worker tasks
         for w in workers:
