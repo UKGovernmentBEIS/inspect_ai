@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Sandbox environments can now be specified [per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
+- [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporairly clear task display for user input.
+- Raise error when a Solver does not return a TaskState.
 
 ## v0.3.25 (25 August 2024)
 
