@@ -11,6 +11,7 @@ inspect eval csqa.py --limit 500
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.hf import hf_dataset
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
@@ -30,7 +31,7 @@ def record_to_sample(record):
     )
 
 @task
-def csqa():
+def commonsense_qa():
     dataset = hf_dataset(
         path="tau/commonsense_qa",
         split="validation",
@@ -43,4 +44,5 @@ def csqa():
         dataset=dataset,
         plan=multiple_choice(),
         scorer=choice(),
+        config=GenerateConfig(temperature=0),
     )
