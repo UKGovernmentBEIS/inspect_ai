@@ -43,35 +43,29 @@ from rich.prompt import Prompt
 with console_input() as console:
     name = Prompt.ask(
         "Enter your name", 
-        console=console,
         choices=["Paul", "Jessica", "Duncan"], 
         default="Paul"
     )
 ```
 
-Note that we pass the `console` from the context manager to `Prompt.ask`---it's important that you do this so that the prompt is rendered correctly in the input frame.
+The `Prompt` class is designed to be subclassed for more specialized inputs. The `IntPrompt` and `FloatPrompt` classes are built-in, but you can also create your own more customised prompts (the `Confirm` class is another example of this). See the [prompt.py](https://github.com/Textualize/rich/blob/master/rich/prompt.py) source code for additional details.
 
-## Display Options
+## Header
 
-The `console_input()` function has two optional parameters that control display behavior:
-
-| Parameter             | Description                                                                         |
-|-----------------------|-------------------------------------------------------------------------------------|
-| `header (str | None)` | Print a header line above console content (defaults to printing no header)          |
-| `transient (bool)`    | Return the console to the task display after input is provided (defaults to `True`) |
-
-: {tbl-colwidths=\[40,60\]}
-
-For example:
+You can add a header to your console input via the `header` parameter. For example:
 
 ``` python
-with console_input("Input Request", transient = False) as console:
+with console_input("Input Request") as console:
     input = console.input("Please enter your name: ")
 ```
 
-The `header` option is a useful way to delineate user input requests (especially when switching between input display and the normal task display).
+The `header` option is a useful way to delineate user input requests (especially when switching between input display and the normal task display). You might also prefer to create your own heading treatments--under the hood, the `header` option calls `console.rule()` with a blue bold treatment:
 
-The `transient` option is useful if you have a series of input requests that will occur in rapid progression. Setting `transient = False` enables the user to see all of their previous input. In this case task progress is not shown until the very end, but if the eval is dominated by user input this isn't generally a problem.
+```python
+console.rule(f"[blue bold]{header}[/blue bold]", style="blue bold")
+```
+
+You can also use the [Layout](#sec-layout) primitives (columns, panels, and tables) to present your input user interface.
 
 ## Formatting
 
@@ -94,7 +88,7 @@ with console_input() as console:
     console.print(Markdown('The _quick_ brown **fox**'))
 ```
 
-## Layout
+## Layout {#sec-layout}
 
 Rich includes [Columns](https://rich.readthedocs.io/en/stable/columns.html), [Table](https://rich.readthedocs.io/en/stable/tables.html) and [Panel](https://rich.readthedocs.io/en/stable/panel.html) classes for more advanced layout. For example, here is a simple table:
 

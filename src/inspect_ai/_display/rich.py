@@ -4,6 +4,7 @@ import datetime
 from dataclasses import dataclass
 from typing import Callable, Iterator, Set
 
+import rich
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
 from rich.panel import Panel
@@ -79,6 +80,10 @@ class RichDisplay(Display):
     @override
     @contextlib.contextmanager
     def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
+        # reconfigure the default global console
+        use_color = is_running_in_vscode() and not is_running_in_jupyterlab()
+        rich.reconfigure(no_color=not use_color)
+
         self.total_tasks = total_tasks
         self.tasks = []
         self.progress_ui = rich_progress()
@@ -156,24 +161,24 @@ class RichTaskScreen(TaskScreen):
 
     @override
     @contextlib.contextmanager
-    def console_input(
-        self, header: str | None = None, transient: bool = True
-    ) -> Iterator[Console]:
-        if self.live.is_started:
-            self.live.stop()
-            if transient:
-                self.live.console.clear()
+    def console_input(self, header: str | None = None) -> Iterator[Console]:
+        # clear live task status
+        self.live.update("", refresh=True)
+
+        # show cursor for input
+        self.live.console.show_cursor(True)
 
         try:
+            # print header if requested
             if header:
                 style = f"{rich_theme().meta} bold"
-                self.live.console.rule(f"[{style}]Input Request[/{style}]", style=style)
+                self.live.console.rule(f"[{style}]{header}[/{style}]", style=style)
                 self.live.console.print("")
+
+            # yield the console
             yield self.live.console
         finally:
-            if transient:
-                self.live.console.clear()
-                self.live.start()
+            self.live.console.show_cursor(False)
 
 
 class RichTaskDisplay(TaskDisplay):
@@ -610,13 +615,7 @@ def rich_theme() -> Theme:
 
 
 def rich_console() -> Console:
-    global _console
-    if _console is None:
-        # only use color in vscode (other terminals are too
-        # variable in their color contrast levels to rely on)
-        use_color = is_running_in_vscode() and not is_running_in_jupyterlab()
-        _console = Console(no_color=not use_color)
-    return _console
+    return rich.get_console()
 
 
 def rich_display() -> RichDisplay:
@@ -642,5 +641,4 @@ def rich_progress() -> RProgress:
 
 
 _theme: Theme | None = None
-_console: Console | None = None
 _display: RichDisplay | None = None
