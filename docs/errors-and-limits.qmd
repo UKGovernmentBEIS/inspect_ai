@@ -17,14 +17,6 @@ This article covers various techniques for dealing with unexpected errors and se
 
 ## Failure Threshold
 
-::: callout-note
-The `fail_on_error` option described in this section is currently available only in the development version of Inspect. You can install this version with:
-
-``` {.bash .code-overflow-wrap}
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 In some cases you might wish to tolerate some number of errors without failing the evaluation. This might be during development when errors are more commonplace, or could be to deal with a particularly unreliable API used in the evaluation. Add the `fail_on_error` option to your `Task` definition to establish this threshold. For example, here we indicate that we'll tolerate errors in up to 10% of the total sample count before failing:
 
 ``` python

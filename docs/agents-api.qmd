@@ -3,14 +3,6 @@ title: "Agents API"
 format: html
 ---
 
-::: callout-note
-The Agents API described in this article is currently available only in the development version of Inspect. You can install the development version with:
-
-``` {.bash .code-overflow-wrap}
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 ## Overview
 
 This article describes advanced Inspect APIs available for creating evaluations with agents. You can also build agents evals using Inspect's default ReAct tool use loop or by bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
