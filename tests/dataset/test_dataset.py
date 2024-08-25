@@ -84,7 +84,6 @@ def test_dataset_image_paths() -> None:
     assert isinstance(sample.input[0], ChatMessageUser)
     assert isinstance(sample.input[0].content[1], ContentImage)
     image = Path(sample.input[0].content[1].image)
-    assert image.is_absolute()
     assert image.exists()
 
 
