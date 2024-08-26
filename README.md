@@ -23,10 +23,10 @@ Optionally install pre-commit hooks via
 make hooks
 ```
 
-Run linting, formatting and testing via
+Run linting, formatting, and tests via
 ```bash
 make check
-mamke test
+make test
 ```
 
 If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.
