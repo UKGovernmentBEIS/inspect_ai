@@ -50,18 +50,32 @@ with input_screen() as console:
 
 The `Prompt` class is designed to be subclassed for more specialized inputs. The `IntPrompt` and `FloatPrompt` classes are built-in, but you can also create your own more customised prompts (the `Confirm` class is another example of this). See the [prompt.py](https://github.com/Textualize/rich/blob/master/rich/prompt.py) source code for additional details.
 
+## Progress
+
+Evaluations with user input alternate between asking for input and displaying task progress. By default, the normal task status display is shown when a user input screen is not active.
+
+However, if your evaluation is dominated by user input with very short model interactions in between, the task display flashing on and off might prove distracting. For these cases, you can specify the `transient=False` option, to indicate that the input screen should be shown at all times. For example:
+
+``` python
+with input_screen(transient=False) as console:
+    console.print("Some preamble text")
+    input = console.input("Please enter your name: ")
+```
+
+This will result in the input screen staying active throughout the evaluation. A small progress indicator will be shown whenever user input isn't being requested so that the user knows that the evaluation is still running.
+
 ## Header
 
 You can add a header to your console input via the `header` parameter. For example:
 
 ``` python
-with input_screen("Input Request") as console:
+with input_screen(header="Input Request") as console:
     input = console.input("Please enter your name: ")
 ```
 
 The `header` option is a useful way to delineate user input requests (especially when switching between input display and the normal task display). You might also prefer to create your own heading treatments--under the hood, the `header` option calls `console.rule()` with a blue bold treatment:
 
-```python
+``` python
 console.rule(f"[blue bold]{header}[/blue bold]", style="blue bold")
 ```
 

@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import datetime
 from dataclasses import dataclass
-from typing import Callable, Iterator, Set
+from typing import Any, Callable, Iterator, Set
 
 import rich
 from rich.console import Console, Group, RenderableType
@@ -89,24 +89,29 @@ class RichDisplay(Display):
         self.progress_ui = rich_progress()
         self.parallel = parallel
         try:
-            with Live(
-                None,
-                console=rich_console(),
-                transient=True,
-                auto_refresh=False,
-            ) as live:
-                # save reference to live
-                self.live = live
+            with (
+                Live(
+                    None,
+                    console=rich_console(),
+                    transient=True,
+                    auto_refresh=False,
+                ) as live,
+            ):
+                with RichTaskScreen(live) as task_screen:
+                    # save reference to live
+                    self.live = live
 
-                # enque a display update
-                self.timer_handle = asyncio.get_event_loop().call_later(
-                    1, self._update_display
-                )
+                    # enque a display update
+                    self.timer_handle = asyncio.get_event_loop().call_later(
+                        1, self._update_display
+                    )
 
-                # yield
-                yield RichTaskScreen(live)
+                    # yield
+                    yield task_screen
 
-                # render task results
+                # render task results (re-enable live if necessary)
+                if not live.is_started:
+                    live.start()
                 live.transient = False
                 live.update(tasks_results(self.tasks), refresh=True)
         finally:
@@ -155,13 +160,23 @@ class RichDisplay(Display):
 
 class RichTaskScreen(TaskScreen):
     def __init__(self, live: Live) -> None:
+        theme = rich_theme()
         self.live = live
+        self.status = self.live.console.status(
+            f"[{theme.meta} bold]Task running...[/{theme.meta} bold]", spinner="clock"
+        )
+
+    def __exit__(self, *excinfo: Any) -> None:
+        self.status.stop()
 
     @override
     @contextlib.contextmanager
-    def input_screen(self, header: str | None = None) -> Iterator[Console]:
-        # clear live task status
+    def input_screen(
+        self, header: str | None = None, transient: bool = True
+    ) -> Iterator[Console]:
+        # clear live task status and transient status
         self.live.update("", refresh=True)
+        self.status.stop()
 
         # show cursor for input
         self.live.console.show_cursor(True)
@@ -175,8 +190,24 @@ class RichTaskScreen(TaskScreen):
 
             # yield the console
             yield self.live.console
+
+            # print one blank line
+            self.live.console.print("")
         finally:
+            # disable cursor while not collecting input
             self.live.console.show_cursor(False)
+
+            # if transient then disable live updates entirely
+            if transient is False and self.live.is_started:
+                self.live.stop()
+
+            # otherwise make sure they are enabled
+            elif transient is True and not self.live.is_started:
+                self.live.start()
+
+            # if not transient then display mini-status
+            if not transient:
+                self.status.start()
 
 
 class RichTaskDisplay(TaskDisplay):
