@@ -77,3 +77,20 @@ def chain_of_thought(template: str = DEFAULT_COT_TEMPLATE) -> Solver:
           The template uses a single variable: `prompt`.
     """
     return prompt_template(template)
+
+
+DEFAULT_POT_TEMPLATE = r"""
+{prompt}
+Use Python code to help get the right answer. Provide your answer at the end on its own line in the form "ANSWER: $ANSWER" (without quotes) where $ANSWER is the answer to the question.
+"""
+
+
+@solver
+def program_of_thought(template: str = DEFAULT_POT_TEMPLATE) -> Solver:
+    """Solver which modifies the user prompt to encourage program of thought.
+    Based off Chen et al. (2022) - https://arxiv.org/abs/2211.12588
+    Args:
+        template (str): String or path to file containing PoT template.
+            The template uses a single variable: `prompt`.
+    """
+    return prompt_template(template)
