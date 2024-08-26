@@ -12,7 +12,7 @@ import {
 // Registration component
 import "./Register.mjs";
 
-import { sleep, throttle } from "./utils/sync.mjs";
+import { sleep } from "./utils/sync.mjs";
 import { clearDocumentSelection } from "./components/Browser.mjs";
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
@@ -26,6 +26,10 @@ export function App({ api, pollForLogs = true }) {
   const [selected, setSelected] = useState(-1);
   const [pendingLog, setPendingLog] = useState(undefined);
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
+  const [nonRunningLogs, setNonRunningLogs] = useState({
+    log_dir: "",
+    files: [],
+  });
   const [logHeaders, setLogHeaders] = useState({});
   const [offcanvas, setOffcanvas] = useState(false);
   const [currentLog, setCurrentLog] = useState({
@@ -48,11 +52,11 @@ export function App({ api, pollForLogs = true }) {
   // Read header information for the logs
   // and then update
   useEffect(async () => {
-    // Loeading headers
+    // Loading headers
     setHeadersLoading(true);
 
     // Group into chunks
-    const chunkSize = 12;
+    const chunkSize = 8;
     const fileLists = [];
     for (let i = 0; i < logs.files.length; i += chunkSize) {
       let chunk = logs.files.slice(i, i + chunkSize).map((log) => {
@@ -71,6 +75,24 @@ export function App({ api, pollForLogs = true }) {
             const logFile = fileList[index];
             updatedHeaders[logFile] = header;
           });
+
+          // Filter out running tasks
+          const notRunning = Object.keys(updatedHeaders).filter((key) => {
+            return updatedHeaders[key].status !== "started";
+          });
+          if (notRunning.length > 0) {
+            const files = logs.files.filter((file) => {
+              return notRunning.includes(file.name);
+            });
+
+            setNonRunningLogs((prev_running) => {
+              return {
+                log_dir: prev_running.log_dir,
+                files: [...prev_running.files, ...files],
+              };
+            });
+          }
+
           return { ...prev, ...updatedHeaders };
         });
         await sleep(5000);
@@ -82,28 +104,11 @@ export function App({ api, pollForLogs = true }) {
     }
 
     setHeadersLoading(false);
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-
-  // Filter out running logs
-  const filteredLogs = useMemo(() => {
-    // Filter out running tasks
-    const notRunning = Object.keys(logHeaders).filter((key) => {
-      return logHeaders[key].status !== "started";
-    });
-
-    const files = logs.files.filter((file) => {
-      return notRunning.includes(file.name);
-    });
-
-    return {
-      log_dir: logs.log_dir,
-      files: files,
-    };
-  }, [logHeaders, logs]);
+  }, [logs, setStatus, setLogHeaders, setHeadersLoading, setNonRunningLogs]);
 
   // Load a specific log
   useEffect(async () => {
-    const targetLog = filteredLogs.files[selected];
+    const targetLog = nonRunningLogs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
         setStatus({ loading: true, error: undefined });
@@ -129,7 +134,7 @@ export function App({ api, pollForLogs = true }) {
     }
   }, [
     selected,
-    filteredLogs,
+    nonRunningLogs,
     capabilities,
     currentLog,
     setCurrentLog,
@@ -138,7 +143,7 @@ export function App({ api, pollForLogs = true }) {
 
   // Keep a queue of loading operations that will be run
   // as needed
-  const loadLogsImpl = useCallback(async () => {
+  const loadLogs = useCallback(async () => {
     try {
       const result = await api.eval_logs();
       if (result) {
@@ -153,18 +158,10 @@ export function App({ api, pollForLogs = true }) {
     }
   }, []);
 
-  // Debounce the loadLogs function
-  const loadLogs = useCallback(
-    throttle(() => {
-      loadLogsImpl();
-    }, 5000),
-    [loadLogsImpl],
-  );
-
   // Select any pending logs if they are loaded
   useEffect(async () => {
     if (pendingLog) {
-      const index = filteredLogs.files.findIndex((val) => {
+      const index = nonRunningLogs.files.findIndex((val) => {
         return pendingLog.endsWith(val.name);
       });
       if (index > -1) {
@@ -180,7 +177,7 @@ export function App({ api, pollForLogs = true }) {
         }
       }
     }
-  }, [pendingLog, filteredLogs, setSelected, setPendingLog, loadLogs]);
+  }, [pendingLog, nonRunningLogs, setSelected, setPendingLog, loadLogs]);
 
   const onMessage = useMemo(() => {
     return async (e) => {
@@ -280,12 +277,13 @@ export function App({ api, pollForLogs = true }) {
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
-  const fullScreen = filteredLogs.files.length === 1 && !filteredLogs.log_dir;
+  const fullScreen =
+    nonRunningLogs.files.length === 1 && !nonRunningLogs.log_dir;
   const sidebar =
     !fullScreen && currentLog.contents
       ? html`
           <${Sidebar}
-            logs=${filteredLogs}
+            logs=${nonRunningLogs}
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
@@ -312,7 +310,7 @@ export function App({ api, pollForLogs = true }) {
       />`;
     } else {
       return html` <${WorkSpace}
-        logs=${filteredLogs}
+        logs=${nonRunningLogs}
         log=${currentLog}
         selected=${selected}
         fullScreen=${fullScreen}

@@ -184,7 +184,7 @@ const prettyDir = (path) => {
 };
 
 const EvalStatus = ({ logHeader }) => {
-  switch (logHeader.status) {
+  switch (logHeader?.status) {
     case "error":
       return html`<${StatusError} message="Error" />`;
 

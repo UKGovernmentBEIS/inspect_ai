@@ -6649,7 +6649,7 @@ const prettyDir = (path) => {
 };
 const EvalStatus = ({ logHeader }) => {
   var _a, _b;
-  switch (logHeader.status) {
+  switch (logHeader == null ? void 0 : logHeader.status) {
     case "error":
       return m$1`<${StatusError} message="Error" />`;
     case "cancelled":
@@ -22259,6 +22259,10 @@ function App({ api: api2, pollForLogs = true }) {
   const [selected, setSelected] = h(-1);
   const [pendingLog, setPendingLog] = h(void 0);
   const [logs, setLogs] = h({ log_dir: "", files: [] });
+  const [nonRunningLogs, setNonRunningLogs] = h({
+    log_dir: "",
+    files: []
+  });
   const [logHeaders, setLogHeaders] = h({});
   const [offcanvas, setOffcanvas] = h(false);
   const [currentLog, setCurrentLog] = h({
@@ -22279,7 +22283,7 @@ function App({ api: api2, pollForLogs = true }) {
   const mainAppRef = A();
   y(async () => {
     setHeadersLoading(true);
-    const chunkSize = 12;
+    const chunkSize = 8;
     const fileLists = [];
     for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
       let chunk = logs.files.slice(i2, i2 + chunkSize).map((log) => {
@@ -22296,6 +22300,20 @@ function App({ api: api2, pollForLogs = true }) {
             const logFile = fileList[index];
             updatedHeaders[logFile] = header;
           });
+          const notRunning = Object.keys(updatedHeaders).filter((key2) => {
+            return updatedHeaders[key2].status !== "started";
+          });
+          if (notRunning.length > 0) {
+            const files = logs.files.filter((file) => {
+              return notRunning.includes(file.name);
+            });
+            setNonRunningLogs((prev_running) => {
+              return {
+                log_dir: prev_running.log_dir,
+                files: [...prev_running.files, ...files]
+              };
+            });
+          }
           return { ...prev, ...updatedHeaders };
         });
         await sleep(5e3);
@@ -22305,21 +22323,9 @@ function App({ api: api2, pollForLogs = true }) {
       setStatus({ loading: false, error: e2 });
     }
     setHeadersLoading(false);
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-  const filteredLogs = T(() => {
-    const notRunning = Object.keys(logHeaders).filter((key2) => {
-      return logHeaders[key2].status !== "started";
-    });
-    const files = logs.files.filter((file) => {
-      return notRunning.includes(file.name);
-    });
-    return {
-      log_dir: logs.log_dir,
-      files
-    };
-  }, [logHeaders, logs]);
+  }, [logs, setStatus, setLogHeaders, setHeadersLoading, setNonRunningLogs]);
   y(async () => {
-    const targetLog = filteredLogs.files[selected];
+    const targetLog = nonRunningLogs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
         setStatus({ loading: true, error: void 0 });
@@ -22344,13 +22350,13 @@ function App({ api: api2, pollForLogs = true }) {
     }
   }, [
     selected,
-    filteredLogs,
+    nonRunningLogs,
     capabilities,
     currentLog,
     setCurrentLog,
     setStatus
   ]);
-  const loadLogsImpl = q(async () => {
+  const loadLogs = q(async () => {
     try {
       const result = await api2.eval_logs();
       if (result) {
@@ -22363,15 +22369,9 @@ function App({ api: api2, pollForLogs = true }) {
       setStatus({ loading: false, error: e2 });
     }
   }, []);
-  const loadLogs = q(
-    throttle(() => {
-      loadLogsImpl();
-    }, 5e3),
-    [loadLogsImpl]
-  );
   y(async () => {
     if (pendingLog) {
-      const index = filteredLogs.files.findIndex((val) => {
+      const index = nonRunningLogs.files.findIndex((val) => {
         return pendingLog.endsWith(val.name);
       });
       if (index > -1) {
@@ -22385,7 +22385,7 @@ function App({ api: api2, pollForLogs = true }) {
         }
       }
     }
-  }, [pendingLog, filteredLogs, setSelected, setPendingLog, loadLogs]);
+  }, [pendingLog, nonRunningLogs, setSelected, setPendingLog, loadLogs]);
   const onMessage = T(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
@@ -22453,10 +22453,10 @@ function App({ api: api2, pollForLogs = true }) {
       }, 1e3);
     }
   }, []);
-  const fullScreen = filteredLogs.files.length === 1 && !filteredLogs.log_dir;
+  const fullScreen = nonRunningLogs.files.length === 1 && !nonRunningLogs.log_dir;
   const sidebar = !fullScreen && currentLog.contents ? m$1`
           <${Sidebar}
-            logs=${filteredLogs}
+            logs=${nonRunningLogs}
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
@@ -22479,7 +22479,7 @@ function App({ api: api2, pollForLogs = true }) {
       />`;
     } else {
       return m$1` <${WorkSpace}
-        logs=${filteredLogs}
+        logs=${nonRunningLogs}
         log=${currentLog}
         selected=${selected}
         fullScreen=${fullScreen}
