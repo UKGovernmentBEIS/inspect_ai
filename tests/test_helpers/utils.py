@@ -10,6 +10,12 @@ from inspect_ai.solver import TaskState
 
 
 def skip_if_env_var(var: str, exists=True):
+    """
+    Pytest mark to skip the test if the var environment variable is not defined.
+
+    Use in combination with `pytest.mark.api` if the environment variable in
+    question corresponds to a paid API. For example, see `skip_if_no_openai`.
+    """
     condition = (var in os.environ.keys()) if exists else (var not in os.environ.keys())
     return pytest.mark.skipif(
         condition,
@@ -41,19 +47,19 @@ def skip_if_no_accelerate(func):
 
 
 def skip_if_no_openai(func):
-    return skip_if_env_var("OPENAI_API_KEY", exists=False)(func)
+    return pytest.mark.api(skip_if_env_var("OPENAI_API_KEY", exists=False)(func))
 
 
 def skip_if_no_anthropic(func):
-    return skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func)
+    return pytest.mark.api(skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func))
 
 
 def skip_if_no_google(func):
-    return skip_if_env_var("GOOGLE_API_KEY", exists=False)(func)
+    return pytest.mark.api(skip_if_env_var("GOOGLE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_mistral(func):
-    return skip_if_env_var("MISTRAL_API_KEY", exists=False)(func)
+    return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
 
 
 def skip_if_no_cloudflare(func):
@@ -61,15 +67,15 @@ def skip_if_no_cloudflare(func):
 
 
 def skip_if_no_together(func):
-    return skip_if_env_var("TOGETHER_API_KEY", exists=False)(func)
+    return pytest.mark.api(skip_if_env_var("TOGETHER_API_KEY", exists=False)(func))
 
 
 def skip_if_no_azureai(func):
-    return skip_if_env_var("AZURE_API_KEY", exists=False)(func)
+    return pytest.mark.api(skip_if_env_var("AZURE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_vertex(func):
-    return skip_if_env_var("ENABLE_VERTEX_TESTS", exists=False)(func)
+    return pytest.mark.api(skip_if_env_var("ENABLE_VERTEX_TESTS", exists=False)(func))
 
 
 def skip_if_github_action(func):
