@@ -43,8 +43,8 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         input: str | bytes | None = None,
         cwd: str | None = None,
         env: dict[str, str] = {},
-        timeout: int | None = None,
         user: str | None = None,
+        timeout: int | None = None,
     ) -> ExecResult[str]:
         if user is not None:
             warnings.warn(

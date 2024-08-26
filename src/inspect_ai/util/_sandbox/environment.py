@@ -97,8 +97,8 @@ class SandboxEnvironment(abc.ABC):
         input: str | bytes | None = None,
         cwd: str | None = None,
         env: dict[str, str] = {},
-        timeout: int | None = None,
         user: str | None = None,
+        timeout: int | None = None,
     ) -> ExecResult[str]:
         """Execute a command within a sandbox environment.
 
@@ -110,8 +110,8 @@ class SandboxEnvironment(abc.ABC):
           input (str | bytes | None): Standard input (optional).
           cwd (str | None): Current working dir (optional).
           env (dict[str,str]): Environment variables for execution.
-          timeout (int | None): Optional execution timeout (seconds).
           user (str | None): Optional username or UID to run the command as.
+          timeout (int | None): Optional execution timeout (seconds).
 
         Returns:
           Execution result (status code, stderr/stdout, etc.)
