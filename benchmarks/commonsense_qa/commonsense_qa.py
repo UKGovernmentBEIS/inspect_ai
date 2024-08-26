@@ -15,21 +15,6 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
-
-def record_to_sample(record):
-    return Sample(
-        input=record["question"],
-        choices=[
-            str(record["choices"]["text"][0]),
-            str(record["choices"]["text"][1]),
-            str(record["choices"]["text"][2]),
-            str(record["choices"]["text"][3]),
-            str(record["choices"]["text"][4]),
-        ],
-        target=record["answerKey"],
-        metadata={"question_concept": record["question_concept"]},
-    )
-
 @task
 def commonsense_qa():
     dataset = hf_dataset(
@@ -45,4 +30,18 @@ def commonsense_qa():
         plan=multiple_choice(),
         scorer=choice(),
         config=GenerateConfig(temperature=0),
+    )
+
+def record_to_sample(record):
+    return Sample(
+        input=record["question"],
+        choices=[
+            str(record["choices"]["text"][0]),
+            str(record["choices"]["text"][1]),
+            str(record["choices"]["text"][2]),
+            str(record["choices"]["text"][3]),
+            str(record["choices"]["text"][4]),
+        ],
+        target=record["answerKey"],
+        metadata={"question_concept": record["question_concept"]},
     )
