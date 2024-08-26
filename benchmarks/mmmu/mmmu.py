@@ -28,42 +28,16 @@ def image_to_data_url(image):
     return f"data:{mime_type};base64,{encoded_string}"
 
 
-# Map records to Inspect Sample for multiple-choice questions
-def record_to_sample_multiple_choice(record):
-    answers_list = ast.literal_eval(record["options"])
+# Helper function to create content list from record
+def create_content_list(record):
     content_list = [ContentText(text=record["question"])]
-    # TODO: factor this loop out into separate function?
     for i in range(1, 8):
         image_field = f"image_{i}"
         if record.get(image_field):
             content_list.append(
                 ContentImage(image=image_to_data_url(record[image_field]))
             )
-
-    return Sample(
-        input=[ChatMessageUser(content=content_list)],
-        choices=answers_list,
-        target=record["answer"],
-        metadata={"subfield": record["subfield"]},
-    )
-
-
-# Map records to Inspect Sample for open-ended questions
-def record_to_sample_open_ended(record):
-    content_list = [ContentText(text=record["question"])]
-    # TODO: factor this loop out into separate function?
-    for i in range(1, 8):
-        image_field = f"image_{i}"
-        if record.get(image_field):
-            content_list.append(
-                ContentImage(image=image_to_data_url(record[image_field]))
-            )
-
-    return Sample(
-        input=[ChatMessageUser(content=content_list)],
-        target=record["answer"],
-        metadata={"subfield": record["subfield"]},
-    )
+    return content_list
 
 
 MULT_CHOICE_PROMPT = r"""
@@ -170,3 +144,27 @@ def mmmu_open():
     combined_dataset = concatenate_datasets(datasets)
 
     return mmmu_task_open(combined_dataset)
+
+
+# Map records to Inspect Sample for multiple-choice questions
+def record_to_sample_multiple_choice(record):
+    content_list = create_content_list(record)
+    answers_list = ast.literal_eval(record["options"])
+
+    return Sample(
+        input=[ChatMessageUser(content=content_list)],
+        choices=answers_list,
+        target=record["answer"],
+        metadata={"subfield": record["subfield"]},
+    )
+
+
+# Map records to Inspect Sample for open-ended questions
+def record_to_sample_open_ended(record):
+    content_list = create_content_list(record)
+
+    return Sample(
+        input=[ChatMessageUser(content=content_list)],
+        target=record["answer"],
+        metadata={"subfield": record["subfield"]},
+    )
