@@ -172,6 +172,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         input: str | bytes | None = None,
         cwd: str | None = None,
         env: dict[str, str] = {},
+        user: str | None = None,
         timeout: int | None = None,
     ) -> ExecResult[str]:
         # additional args
@@ -181,6 +182,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         if cwd:
             args.append("--workdir")
             args.append(cwd)
+
+        if user:
+            args.append("--user")
+            args.append(user)
 
         # Forward environment commands to docker compose exec so they
         # will be available to the bash command
