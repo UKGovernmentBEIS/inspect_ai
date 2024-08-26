@@ -24,7 +24,7 @@ def skip_if_env_var(var: str, exists=True):
 
 
 def skip_if_no_groq(func):
-    return skip_if_env_var("GROQ_API_KEY", exists=False)(func)
+    return pytest.mark.api(skip_if_env_var("GROQ_API_KEY", exists=False)(func))
 
 
 def skip_if_no_package(package):
@@ -63,7 +63,7 @@ def skip_if_no_mistral(func):
 
 
 def skip_if_no_cloudflare(func):
-    return skip_if_env_var("CLOUDFLARE_API_TOKEN", exists=False)(func)
+    return pytest.mark.api(skip_if_env_var("CLOUDFLARE_API_TOKEN", exists=False)(func))
 
 
 def skip_if_no_together(func):
