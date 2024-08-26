@@ -102,6 +102,10 @@ Inspect has a number of built-in solvers, each of which can be customised in som
 
     Standard chain of thought template with `{prompt}` substitution variable. Asks the model to provide the final answer on a line by itself at the end for easier scoring.
 
+-   `program_of_thought()`
+
+    Program of thought template with `{prompt}` substitution variable. Asks the model to provide the final answer on a line by itself at the end for easier scoring.
+
 -   `generate()`
 
     As illustrated above, just a simple call to `generate(state)`. This is the default solver if no `plan` is specified.
