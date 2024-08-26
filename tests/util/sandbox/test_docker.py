@@ -16,7 +16,9 @@ def exec_solver(exec_args: list[dict[str, Any]]) -> Solver:
             results.append(result.stdout.strip())
         state.output.completion = "\n".join(results)
         return state
+
     return solve
+
 
 @task
 def custom_task(solver: Solver, setup: str | None = None) -> Task:
@@ -26,6 +28,7 @@ def custom_task(solver: Solver, setup: str | None = None) -> Task:
         sandbox="docker",
     )
 
+
 def run_eval(task: Task) -> str:
     result = eval(task, model="mockllm/model")[0]
     assert result.samples is not None
@@ -33,17 +36,21 @@ def run_eval(task: Task) -> str:
     assert isinstance(content, str)
     return content
 
+
 def test_docker_sandbox_env() -> None:
     echo_solver = exec_solver([{"cmd": ["echo", "Hello, World!"]}])
     echo_task = custom_task(echo_solver)
     message = run_eval(echo_task)
     assert message == "Hello, World!"
 
+
 def test_docker_sandbox_users() -> None:
-    whoami_solver = exec_solver([
-        {"cmd": ["whoami"], "user": "root"},
-        {"cmd": ["whoami"], "user": "myuser"},
-    ])
+    whoami_solver = exec_solver(
+        [
+            {"cmd": ["whoami"], "user": "root"},
+            {"cmd": ["whoami"], "user": "myuser"},
+        ]
+    )
     add_user_script = textwrap.dedent(
         """#!/bin/bash
         useradd -m myuser"""
@@ -53,10 +60,13 @@ def test_docker_sandbox_users() -> None:
     expected_output = "root\nmyuser"
     assert message == expected_output, f"Expected '{expected_output}', got '{message}'"
 
+
 def test_docker_sandbox_nonexistent_user() -> None:
-    nonexistent_solver = exec_solver([
-        {"cmd": ["whoami"], "user": "nonexistent"},
-    ])
+    nonexistent_solver = exec_solver(
+        [
+            {"cmd": ["whoami"], "user": "nonexistent"},
+        ]
+    )
     nonexistent_task = custom_task(nonexistent_solver)
     message = run_eval(nonexistent_task)
     expected_error = (
