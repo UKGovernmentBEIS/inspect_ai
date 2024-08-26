@@ -27,9 +27,8 @@ def sandbox(name: str = "default") -> SandboxEnvironment:
     environments = sandbox_environments_context_var.get(None)
     if not environments:
         raise RuntimeError(
-            "No sandbox environment has been provided for the current task. "
-            + "Please specify one using either the sandbox task/eval "
-            + "option, or the --sandbox CLI option."
+            "No sandbox environment has been provided for the current sample or task. "
+            + "Please specify a sandbox for the sample or a global default sandbox for the task"
         )
 
     # short circuit for 1 environment (allows single environment to not sweat 'default')

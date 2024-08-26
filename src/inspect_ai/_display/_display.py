@@ -1,8 +1,11 @@
 import abc
 import contextlib
+from contextvars import ContextVar
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, Iterator, Type, Union
+
+from rich.console import Console
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
@@ -55,6 +58,12 @@ class TaskSuccess:
 TaskResult = Union[TaskError, TaskCancelled, TaskSuccess]
 
 
+class TaskScreen(abc.ABC):
+    @abc.abstractmethod
+    @contextlib.contextmanager
+    def input_screen(self, header: str | None = None) -> Iterator[Console]: ...
+
+
 class TaskDisplay(abc.ABC):
     @abc.abstractmethod
     @contextlib.contextmanager
@@ -74,8 +83,28 @@ class Display(abc.ABC):
 
     @abc.abstractmethod
     @contextlib.contextmanager
-    def live_task_status(self, total_tasks: int, parallel: bool) -> Iterator[None]: ...
+    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]: ...
 
     @abc.abstractmethod
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
+
+
+def task_screen() -> TaskScreen:
+    screen = _task_screen.get(None)
+    if screen is None:
+        raise RuntimeError(
+            "console input function called outside of running evaluation."
+        )
+    return screen
+
+
+def init_task_screen(screen: TaskScreen) -> None:
+    _task_screen.set(screen)
+
+
+def clear_task_screen() -> None:
+    _task_screen.set(None)
+
+
+_task_screen: ContextVar[TaskScreen | None] = ContextVar("task_screen", default=None)

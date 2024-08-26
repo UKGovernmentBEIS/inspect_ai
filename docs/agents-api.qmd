@@ -1,15 +1,5 @@
----
-title: "Agents API"
-format: html
----
+# Agents API {#sec-agents-api}
 
-::: callout-note
-The Agents API described in this article is currently available only in the development version of Inspect. You can install the development version with:
-
-``` {.bash .code-overflow-wrap}
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
 
 ## Overview
 
@@ -304,4 +294,4 @@ def list_files():
     return execute
 ```
 
-See the section on [Sandbox Environments](agents.qmd##sec-sandbox-environments) for further details on using sandboxes with Inspect.
+See the section on [Sandbox Environments](agents.qmd#sec-sandbox-environments) for further details on using sandboxes with Inspect.

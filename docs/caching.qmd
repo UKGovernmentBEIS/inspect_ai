@@ -134,14 +134,6 @@ $ export INSPECT_CACHE_DIR=/tmp/inspect-cache
 
 ## Provider Caching {#sec-provider-caching}
 
-::: callout-note
-The provider caching feature described below is currently available only in the development version of Inspect. You can install the development version with:
-
-``` {.bash .code-overflow-wrap}
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. Currently, Inspect includes support for [Anthropic Prompt Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) and will extend this support to other providers over time as they add caching to their APIs.
 
 Provider prompt caching is controlled by the `cache-prompt` generation config option. The default value for `cache-prompt` is `"auto"`, which enables prompt caching automatically if tool definitions are included in the request. Use `true` and `false` to force caching on or off. For example:

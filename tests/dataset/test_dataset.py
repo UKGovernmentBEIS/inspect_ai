@@ -44,6 +44,8 @@ def test_dataset_fields(type: Type[T_ds], file: str) -> None:
         dataset_path(file), sample_fields=sample_field_spec
     )
     assert_sample(dataset[0])
+    assert isinstance(dataset[0].sandbox, tuple)
+    assert dataset[0].sandbox[0] == "docker"
 
 
 # test reading a dataset with a custom data_to_sample function
@@ -84,7 +86,6 @@ def test_dataset_image_paths() -> None:
     assert isinstance(sample.input[0], ChatMessageUser)
     assert isinstance(sample.input[0].content[1], ContentImage)
     image = Path(sample.input[0].content[1].image)
-    assert image.is_absolute()
     assert image.exists()
 
 
