@@ -143,6 +143,9 @@ export type Type4 =
 export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];
+export type Sandbox1 = [unknown, unknown] | null;
+export type Files = string[] | null;
+export type Setup = string | null;
 export type Messages = (
   | ChatMessageSystem
   | ChatMessageUser
@@ -194,10 +197,11 @@ export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id2 = number | string | null;
 export type Metadata7 = {} | null;
-export type Files = {
+export type Sandbox2 = string | [unknown, unknown] | null;
+export type Files1 = {
   [k: string]: string;
 } | null;
-export type Setup = string | null;
+export type Setup1 = string | null;
 export type JsonValue = unknown;
 export type Timestamp1 = string;
 export type Event1 = "state";
@@ -482,6 +486,9 @@ export interface EvalSample {
   input: Input;
   choices: Choices;
   target: Target;
+  sandbox: Sandbox1;
+  files: Files;
+  setup: Setup;
   messages: Messages;
   output: ModelOutput;
   scores: Scores1;
@@ -610,9 +617,11 @@ export interface SampleInitEvent {
  *         or narrative text to be used by a model grader.
  *     id (int | str | None): Optional. Unique identifier for sample.
  *     metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
+ *     sandbox (SandboxEnvironmentSpec | None): Optional. Sandbox environment
+ *       type and optional config file.
  *     files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
  *       SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
- *     setup: (str | None): Optional. Setup script to run for sample (run
+ *     setup (str | None): Optional. Setup script to run for sample (run
  *       within default SandboxEnvironment).
  */
 export interface Sample {
@@ -621,8 +630,9 @@ export interface Sample {
   target: Target1;
   id: Id2;
   metadata: Metadata7;
-  files: Files;
-  setup: Setup;
+  sandbox: Sandbox2;
+  files: Files1;
+  setup: Setup1;
 }
 /**
  * Change to the current `TaskState`

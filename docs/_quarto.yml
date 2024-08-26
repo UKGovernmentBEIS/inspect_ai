@@ -74,6 +74,7 @@ book:
            - caching.qmd
            - parallelism.qmd
            - agents-api.qmd
+           - interactivity.qmd
            - eval-logs.qmd
            - eval-suites.qmd
            - extensions.qmd
