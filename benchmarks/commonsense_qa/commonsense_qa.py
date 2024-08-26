@@ -1,11 +1,11 @@
 """
-CommonsenseQA (CSQA): A Question Answering Challenge Targeting Commonsense Knowledge
+CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge
 
 Alon Talmor, Jonathan Herzig, Nicholas Lourie, Jonathan Berant
 https://arxiv.org/pdf/1811.00937v2
 
 # eval w/ 500 randomly selected samples
-inspect eval csqa.py --limit 500
+inspect eval commonsense_qa.py --limit 500
 """
 
 from inspect_ai import Task, task
