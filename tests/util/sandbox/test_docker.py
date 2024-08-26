@@ -1,6 +1,8 @@
 import textwrap
 from typing import Any
 
+import pytest
+
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -37,6 +39,7 @@ def run_eval(task: Task) -> str:
     return content
 
 
+@pytest.mark.slow
 def test_docker_sandbox_env() -> None:
     echo_solver = exec_solver([{"cmd": ["echo", "Hello, World!"]}])
     echo_task = custom_task(echo_solver)
@@ -44,6 +47,7 @@ def test_docker_sandbox_env() -> None:
     assert message == "Hello, World!"
 
 
+@pytest.mark.slow
 def test_docker_sandbox_users() -> None:
     whoami_solver = exec_solver(
         [
@@ -61,6 +65,7 @@ def test_docker_sandbox_users() -> None:
     assert message == expected_output, f"Expected '{expected_output}', got '{message}'"
 
 
+@pytest.mark.slow
 def test_docker_sandbox_nonexistent_user() -> None:
     nonexistent_solver = exec_solver(
         [
