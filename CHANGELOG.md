@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-- Introduce slow marker for pytest with --runslow flag to run slow tests.
 - Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
 - Sandbox environments can now be specified [per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
 - [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporairly clear task display for user input.
