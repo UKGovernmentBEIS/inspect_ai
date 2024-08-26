@@ -15392,7 +15392,7 @@ const EventSection = ({ title, style, children }) => {
 };
 const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   const stateObj = event.state;
-  stateManager.setState(stateObj);
+  stateManager.initializeState(stateObj);
   const sections = [];
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
     sections.push(m$1`<${EventSection} title="Files">
@@ -16916,7 +16916,7 @@ function format(delta, left2) {
   return defaultInstance.format(delta, left2);
 }
 const StateDiffView = ({ starting, ending, style }) => {
-  const changes = diff(unescapeNewlines(starting), unescapeNewlines(ending));
+  const changes = diff(starting, ending);
   const html_result = format(changes);
   return m$1`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
@@ -16935,7 +16935,8 @@ function unescapeNewlines(obj) {
 }
 const StateEventView = ({ id, event, depth, stateManager }) => {
   const startingState = stateManager.getState();
-  const resolvedState = stateManager.applyChanges(event.changes);
+  stateManager.applyChanges(event.changes);
+  const resolvedState = stateManager.getState();
   const summary = summarizeChanges(event.changes);
   const tabs = [
     m$1`<${StateDiffView}
@@ -16945,7 +16946,10 @@ const StateEventView = ({ id, event, depth, stateManager }) => {
       style=${{ margin: "1em 0" }}
     />`
   ];
-  const changePreview = generatePreview(event.changes, resolvedState);
+  const changePreview = generatePreview(
+    event.changes,
+    structuredClone(resolvedState)
+  );
   if (changePreview) {
     tabs.unshift(
       m$1`<div name="Summary" style=${{ margin: "1em 0" }}>
@@ -18379,8 +18383,8 @@ const initStateManager = () => {
      *
      * @param {Object} newState - The new state object to update with.
      */
-    setState: (newState) => {
-      state = structuredClone(newState);
+    initializeState: (newState) => {
+      state = newState;
     },
     /**
      * Updates the current state with a new state object.
@@ -18388,11 +18392,11 @@ const initStateManager = () => {
      * @param {import("../../types/log").Changes} changes - The new state object to update with.
      */
     applyChanges: (changes) => {
-      state = structuredClone(state);
-      changes.forEach((change) => {
-        applyOperation(state, change);
-      });
-      return state;
+      state = applyPatch(
+        structuredClone(state),
+        structuredClone(changes),
+        true
+      ).newDocument;
     }
   };
 };
