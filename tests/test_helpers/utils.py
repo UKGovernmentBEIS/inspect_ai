@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import subprocess
 
 import pytest
 
@@ -73,6 +74,25 @@ def skip_if_no_vertex(func):
 
 def skip_if_github_action(func):
     return skip_if_env_var("GITHUB_ACTIONS", exists=True)(func)
+
+
+def skip_if_no_docker(func):
+    try:
+        is_docker_installed = (
+            subprocess.run(
+                ["docker", "--version"],
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).returncode
+            == 0
+        )
+    except FileNotFoundError:
+        is_docker_installed = False
+
+    return pytest.mark.skipif(
+        not is_docker_installed, reason="Test doesn't work without Docker installed."
+    )(func)
 
 
 def run_example(example: str, model: str):

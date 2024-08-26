@@ -30,6 +30,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         input: str | bytes | None = None,
         cwd: str | None = None,
         env: dict[str, str] = {},
+        user: str | None = None,
         timeout: int | None = None,
     ) -> ExecResult[str]:
         return ExecResult(success=True, returncode=0, stdout="Hello!", stderr="")
