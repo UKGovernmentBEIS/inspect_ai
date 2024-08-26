@@ -2,6 +2,7 @@ import textwrap
 from typing import Any
 
 import pytest
+from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
@@ -39,6 +40,7 @@ def run_eval(task: Task) -> str:
     return content
 
 
+@skip_if_no_docker
 @pytest.mark.slow
 def test_docker_sandbox_env() -> None:
     echo_solver = exec_solver([{"cmd": ["echo", "Hello, World!"]}])
@@ -47,6 +49,7 @@ def test_docker_sandbox_env() -> None:
     assert message == "Hello, World!"
 
 
+@skip_if_no_docker
 @pytest.mark.slow
 def test_docker_sandbox_users() -> None:
     whoami_solver = exec_solver(
@@ -65,6 +68,7 @@ def test_docker_sandbox_users() -> None:
     assert message == expected_output, f"Expected '{expected_output}', got '{message}'"
 
 
+@skip_if_no_docker
 @pytest.mark.slow
 def test_docker_sandbox_nonexistent_user() -> None:
     nonexistent_solver = exec_solver(
