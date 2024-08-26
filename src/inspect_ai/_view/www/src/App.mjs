@@ -68,7 +68,9 @@ export function App({ api, pollForLogs = true }) {
     // Chunk by chunk, read the header information
     try {
       for (const fileList of fileLists) {
+        console.time("eval_log_headers");
         const headers = await api.eval_log_headers(fileList);
+        console.timeEnd("eval_log_headers");
         setLogHeaders((prev) => {
           const updatedHeaders = {};
           headers.forEach((header, index) => {
@@ -112,11 +114,13 @@ export function App({ api, pollForLogs = true }) {
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
         setStatus({ loading: true, error: undefined });
+        console.time("eval_log");
         const logContents = await api.eval_log(
           targetLog.name,
           false,
           capabilities,
         );
+        console.timeEnd("eval_log");
         if (logContents) {
           const log = logContents.parsed;
           setCurrentLog({
@@ -145,7 +149,9 @@ export function App({ api, pollForLogs = true }) {
   // as needed
   const loadLogs = useCallback(async () => {
     try {
+      console.time("eval_logs");
       const result = await api.eval_logs();
+      console.timeEnd("eval_logs");
       if (result) {
         setLogs(result);
       } else {

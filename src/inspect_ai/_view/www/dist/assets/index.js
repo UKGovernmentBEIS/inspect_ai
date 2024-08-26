@@ -22297,7 +22297,9 @@ function App({ api: api2, pollForLogs = true }) {
     }
     try {
       for (const fileList of fileLists) {
+        console.time("eval_log_headers");
         const headers = await api2.eval_log_headers(fileList);
+        console.timeEnd("eval_log_headers");
         setLogHeaders((prev) => {
           const updatedHeaders = {};
           headers.forEach((header, index) => {
@@ -22333,11 +22335,13 @@ function App({ api: api2, pollForLogs = true }) {
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
         setStatus({ loading: true, error: void 0 });
+        console.time("eval_log");
         const logContents = await api2.eval_log(
           targetLog.name,
           false,
           capabilities
         );
+        console.timeEnd("eval_log");
         if (logContents) {
           const log = logContents.parsed;
           setCurrentLog({
@@ -22362,7 +22366,9 @@ function App({ api: api2, pollForLogs = true }) {
   ]);
   const loadLogs = q(async () => {
     try {
+      console.time("eval_logs");
       const result = await api2.eval_logs();
+      console.timeEnd("eval_logs");
       if (result) {
         setLogs(result);
       } else {
