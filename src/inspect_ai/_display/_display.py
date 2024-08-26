@@ -58,10 +58,12 @@ class TaskSuccess:
 TaskResult = Union[TaskError, TaskCancelled, TaskSuccess]
 
 
-class TaskScreen(abc.ABC):
+class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
     @abc.abstractmethod
     @contextlib.contextmanager
-    def input_screen(self, header: str | None = None) -> Iterator[Console]: ...
+    def input_screen(
+        self, header: str | None = None, transient: bool = True
+    ) -> Iterator[Console]: ...
 
 
 class TaskDisplay(abc.ABC):
