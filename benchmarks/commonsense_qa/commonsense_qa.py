@@ -15,6 +15,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
+
 @task
 def commonsense_qa():
     dataset = hf_dataset(
@@ -24,13 +25,14 @@ def commonsense_qa():
         trust=True,
         shuffle=True,
     )
-    
+
     return Task(
         dataset=dataset,
         plan=multiple_choice(),
         scorer=choice(),
         config=GenerateConfig(temperature=0),
     )
+
 
 def record_to_sample(record):
     return Sample(
