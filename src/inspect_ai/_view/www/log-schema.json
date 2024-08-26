@@ -1036,6 +1036,62 @@
           ],
           "title": "Target"
         },
+        "sandbox": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sandbox"
+        },
+        "files": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Files"
+        },
+        "setup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Setup"
+        },
         "messages": {
           "items": {
             "anyOf": [
@@ -1104,6 +1160,9 @@
         "input",
         "choices",
         "target",
+        "sandbox",
+        "files",
+        "setup",
         "messages",
         "output",
         "scores",
@@ -2153,7 +2212,7 @@
       "additionalProperties": false
     },
     "Sample": {
-      "description": "Sample to be used in an evaluation task.\n\nArgs:\n    input (str | list[ChatMessage]): The input to be submitted to the model.\n    choices (list[str] | None): Optional. List of available answer choices\n       (used only for multiple-choice evals).\n    target (str | list[str]): Optional. Ideal target output. May be a literal value\n        or narrative text to be used by a model grader.\n    id (int | str | None): Optional. Unique identifier for sample.\n    metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.\n    files (dict[str, str] | None): Optional. Files that go along with the sample (copied to\n      SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).\n    setup: (str | None): Optional. Setup script to run for sample (run\n      within default SandboxEnvironment).",
+      "description": "Sample to be used in an evaluation task.\n\nArgs:\n    input (str | list[ChatMessage]): The input to be submitted to the model.\n    choices (list[str] | None): Optional. List of available answer choices\n       (used only for multiple-choice evals).\n    target (str | list[str]): Optional. Ideal target output. May be a literal value\n        or narrative text to be used by a model grader.\n    id (int | str | None): Optional. Unique identifier for sample.\n    metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.\n    sandbox (SandboxEnvironmentSpec | None): Optional. Sandbox environment\n      type and optional config file.\n    files (dict[str, str] | None): Optional. Files that go along with the sample (copied to\n      SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).\n    setup (str | None): Optional. Setup script to run for sample (run\n      within default SandboxEnvironment).",
       "properties": {
         "input": {
           "anyOf": [
@@ -2239,6 +2298,38 @@
           "default": null,
           "title": "Metadata"
         },
+        "sandbox": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sandbox"
+        },
         "files": {
           "anyOf": [
             {
@@ -2273,6 +2364,7 @@
         "target",
         "id",
         "metadata",
+        "sandbox",
         "files",
         "setup"
       ],

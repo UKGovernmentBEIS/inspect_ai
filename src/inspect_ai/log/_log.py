@@ -88,6 +88,15 @@ class EvalSample(BaseModel):
     target: str | list[str]
     """Sample target value(s)"""
 
+    sandbox: tuple[str, str | None] | None = Field(default=None)
+    """Sandbox environment type and optional config file."""
+
+    files: list[str] | None = Field(default=None)
+    """Files that go along with the sample (copied to SandboxEnvironment)"""
+
+    setup: str | None = Field(default=None)
+    """Setup script to run for sample (run within default SandboxEnvironment)."""
+
     messages: list[ChatMessage]
     """Chat conversation history for sample."""
 
