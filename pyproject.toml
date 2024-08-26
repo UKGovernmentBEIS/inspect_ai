@@ -116,7 +116,7 @@ dev = [
     "pytest-cov",
     "pytest-dotenv",
     "pytest-xdist",
-    "ruff",
+    "ruff==0.6.2", # match version specified in .pre-commit-config.yaml
     "types-PyYAML",
     "types-aiofiles",
     "types-beautifulsoup4",
