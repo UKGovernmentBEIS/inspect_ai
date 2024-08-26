@@ -1,4 +1,5 @@
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Literal, Union, cast, overload
 
@@ -45,6 +46,12 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         timeout: int | None = None,
         user: str | None = None,
     ) -> ExecResult[str]:
+        if user is not None:
+            warnings.warn(
+                "The 'user' parameter is ignored in LocalSandboxEnvironment. Commands will run as the current user.",
+                UserWarning,
+            )
+
         return await subprocess(
             args=cmd,
             input=input,

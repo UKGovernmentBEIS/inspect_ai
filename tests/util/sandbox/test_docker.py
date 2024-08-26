@@ -12,7 +12,9 @@ class CommandAndUser(NamedTuple):
     user: str | None = None
 
 
-def create_exec_solver(command_user_pairs: list[CommandAndUser]) -> Callable[..., Solver]:
+def create_exec_solver(
+    command_user_pairs: list[CommandAndUser],
+) -> Callable[..., Solver]:
     @solver
     def exec_solver() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
