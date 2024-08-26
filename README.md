@@ -12,7 +12,7 @@ To get started with Inspect, please see the documentation at <https://inspect.ai
 
 To work on development of Inspect, clone the repository and install with the `-e` flag and `[dev]` optional dependencies:
 
-```         bash
+```bash
 $ git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
 $ cd inspect_ai
 $ pip install -e ".[dev]"
