@@ -26,13 +26,8 @@ export const EventRow = ({ title, icon, depth, children }) => {
           fontSize: FontSize.small,
         }}
       >
-        <i
-          class=${icon || ApplicationIcons.metadata}
-          style=${{ ...TextStyle.secondary }}
-        />
-        <div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
-          ${title}
-        </div>
+        <i class=${icon || ApplicationIcons.metadata} />
+        <div style=${{ ...TextStyle.label }}>${title}</div>
         <div>${children}</div>
       </div>`
     : "";

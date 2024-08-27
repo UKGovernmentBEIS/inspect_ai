@@ -137,6 +137,13 @@ class TaskLogger:
                 choices=sample.choices,
                 target=sample.target,
                 metadata=state.metadata if state.metadata else {},
+                sandbox=(
+                    (sample.sandbox, None)
+                    if isinstance(sample.sandbox, str)
+                    else sample.sandbox
+                ),
+                files=list(sample.files.keys()) if sample.files else None,
+                setup=sample.setup,
                 messages=state.messages,
                 output=state.output,
                 scores=cast(dict[str, Score], scores),

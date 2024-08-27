@@ -2,8 +2,9 @@ import asyncio
 import contextlib
 import datetime
 from dataclasses import dataclass
-from typing import Callable, Iterator, Set
+from typing import Any, Callable, Iterator, Set
 
+import rich
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
 from rich.panel import Panel
@@ -34,6 +35,7 @@ from ._display import (
     TaskError,
     TaskProfile,
     TaskResult,
+    TaskScreen,
     TaskSuccess,
 )
 
@@ -77,25 +79,40 @@ class RichDisplay(Display):
 
     @override
     @contextlib.contextmanager
-    def live_task_status(self, total_tasks: int, parallel: bool) -> Iterator[None]:
+    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
+        # reconfigure the default global console
+        use_color = is_running_in_vscode() and not is_running_in_jupyterlab()
+        rich.reconfigure(no_color=not use_color)
+
         self.total_tasks = total_tasks
         self.tasks = []
         self.progress_ui = rich_progress()
         self.parallel = parallel
         try:
-            with Live(None, console=rich_console(), auto_refresh=False) as live:
-                # save reference to live
-                self.live = live
+            with (
+                Live(
+                    None,
+                    console=rich_console(),
+                    transient=True,
+                    auto_refresh=False,
+                ) as live,
+            ):
+                with RichTaskScreen(live) as task_screen:
+                    # save reference to live
+                    self.live = live
 
-                # enque a display update
-                self.timer_handle = asyncio.get_event_loop().call_later(
-                    1, self._update_display
-                )
+                    # enque a display update
+                    self.timer_handle = asyncio.get_event_loop().call_later(
+                        1, self._update_display
+                    )
 
-                # yield
-                yield
+                    # yield
+                    yield task_screen
 
-                # render task results
+                # render task results (re-enable live if necessary)
+                if not live.is_started:
+                    live.start()
+                live.transient = False
                 live.update(tasks_results(self.tasks), refresh=True)
         finally:
             # clear tasks and progress
@@ -130,6 +147,7 @@ class RichDisplay(Display):
             and self.tasks
             and self.progress_ui is not None
             and self.live is not None
+            and self.live.is_started
         ):
             if self.parallel:
                 r = tasks_live_status(self.total_tasks, self.tasks, self.progress_ui)
@@ -138,6 +156,58 @@ class RichDisplay(Display):
             self.live.update(r, refresh=True)
 
         self.timer_handle = asyncio.get_event_loop().call_later(1, self._update_display)
+
+
+class RichTaskScreen(TaskScreen):
+    def __init__(self, live: Live) -> None:
+        theme = rich_theme()
+        self.live = live
+        self.status = self.live.console.status(
+            f"[{theme.meta} bold]Task running...[/{theme.meta} bold]", spinner="clock"
+        )
+
+    def __exit__(self, *excinfo: Any) -> None:
+        self.status.stop()
+
+    @override
+    @contextlib.contextmanager
+    def input_screen(
+        self, header: str | None = None, transient: bool = True
+    ) -> Iterator[Console]:
+        # clear live task status and transient status
+        self.live.update("", refresh=True)
+        self.status.stop()
+
+        # show cursor for input
+        self.live.console.show_cursor(True)
+
+        try:
+            # print header if requested
+            if header:
+                style = f"{rich_theme().meta} bold"
+                self.live.console.rule(f"[{style}]{header}[/{style}]", style=style)
+                self.live.console.print("")
+
+            # yield the console
+            yield self.live.console
+
+            # print one blank line
+            self.live.console.print("")
+        finally:
+            # disable cursor while not collecting input
+            self.live.console.show_cursor(False)
+
+            # if transient then disable live updates entirely
+            if transient is False and self.live.is_started:
+                self.live.stop()
+
+            # otherwise make sure they are enabled
+            elif transient is True and not self.live.is_started:
+                self.live.start()
+
+            # if not transient then display mini-status
+            if not transient:
+                self.status.start()
 
 
 class RichTaskDisplay(TaskDisplay):
@@ -405,9 +475,13 @@ def task_targets(profile: TaskProfile) -> str:
 def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
     # merge config
     theme = rich_theme()
-    config = dict(profile.task_args) | dict(
-        profile.eval_config.model_dump(exclude_none=True)
-    )
+    # wind params back for display
+    task_args = dict(profile.task_args)
+    for key in task_args.keys():
+        value = task_args[key]
+        if isinstance(value, dict) and "plan" in value and "params" in value:
+            task_args[key] = value["plan"]
+    config = task_args | dict(profile.eval_config.model_dump(exclude_none=True))
     if generate_config:
         config = config | dict(profile.generate_config.model_dump(exclude_none=True))
     config_print: list[str] = []
@@ -574,13 +648,7 @@ def rich_theme() -> Theme:
 
 
 def rich_console() -> Console:
-    global _console
-    if _console is None:
-        # only use color in vscode (other terminals are too
-        # variable in their color contrast levels to rely on)
-        use_color = is_running_in_vscode() and not is_running_in_jupyterlab()
-        _console = Console(no_color=not use_color)
-    return _console
+    return rich.get_console()
 
 
 def rich_display() -> RichDisplay:
@@ -606,5 +674,4 @@ def rich_progress() -> RProgress:
 
 
 _theme: Theme | None = None
-_console: Console | None = None
 _display: RichDisplay | None = None
