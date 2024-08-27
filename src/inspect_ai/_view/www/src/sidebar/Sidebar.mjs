@@ -332,7 +332,16 @@ const SidebarScores = ({ scores }) => {
 };
 
 const StatusCancelled = ({ message }) => {
-  return html`<div style=${{ ...TextStyle.secondary }}>${message}</div>`;
+  return html`<div
+    style=${{
+      marginTop: "0.2em",
+      fontSize: FontSize.small,
+      ...TextStyle.label,
+      ...TextStyle.secondary,
+    }}
+  >
+    ${message}
+  </div>`;
 };
 
 const StatusRunning = ({ message }) => {
@@ -352,7 +361,16 @@ const StatusRunning = ({ message }) => {
 };
 
 const StatusError = ({ message }) => {
-  return html`<div style=${{ color: "var(--bs-danger)" }}>${message}</div>`;
+  return html`<div
+    style=${{
+      color: "var(--bs-danger)",
+      marginTop: "0.2em",
+      fontSize: FontSize.small,
+      ...TextStyle.label,
+    }}
+  >
+    ${message}
+  </div>`;
 };
 
 const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
