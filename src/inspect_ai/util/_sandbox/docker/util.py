@@ -7,7 +7,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.constants import SANDBOX
 
-from .config import auto_compose, ensure_auto_compose_file
+from .config import ensure_auto_compose_file, resolve_compose_file
 
 logger = getLogger(__name__)
 
@@ -28,7 +28,11 @@ class ComposeProject:
         working_dir: str = "/",
     ) -> "ComposeProject":
         # ensure we have an auto-compose file if we need one
-        config = Path(config).resolve().as_posix() if config else await auto_compose()
+        config = (
+            Path(config).resolve().as_posix()
+            if config
+            else await resolve_compose_file()
+        )
         await ensure_auto_compose_file(config)
 
         # return project
