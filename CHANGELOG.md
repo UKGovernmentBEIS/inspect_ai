@@ -7,6 +7,7 @@
 - [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporairly clear task display for user input.
 - Raise error when a Solver does not return a TaskState.
 - Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintented token usage)
+- Added [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) benchmark.
 
 ## v0.3.25 (25 August 2024)
 
