@@ -475,9 +475,13 @@ def task_targets(profile: TaskProfile) -> str:
 def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
     # merge config
     theme = rich_theme()
-    config = dict(profile.task_args) | dict(
-        profile.eval_config.model_dump(exclude_none=True)
-    )
+    # wind params back for display
+    task_args = dict(profile.task_args)
+    for key in task_args.keys():
+        value = task_args[key]
+        if isinstance(value, dict) and "plan" in value and "params" in value:
+            task_args[key] = value["plan"]
+    config = task_args | dict(profile.eval_config.model_dump(exclude_none=True))
     if generate_config:
         config = config | dict(profile.generate_config.model_dump(exclude_none=True))
     config_print: list[str] = []

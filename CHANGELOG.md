@@ -2,11 +2,14 @@
 
 ## Unreleased
 
+- [Per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
+- [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
 - Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
-- Sandbox environments can now be specified [per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
-- [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporairly clear task display for user input.
+- Fix issue with resolving Docker configuration files when not running from the task directory.
+- Treat `cwd` that are relative paths as relative to sample working directry.
 - Raise error when a Solver does not return a TaskState.
-- Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintented token usage)
+- Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintended token usage)
+- Added [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) benchmark.
 
 ## v0.3.25 (25 August 2024)
 

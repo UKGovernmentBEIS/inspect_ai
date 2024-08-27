@@ -4,6 +4,7 @@ from inspect import get_annotations, getmodule, isclass
 from typing import Any, Callable, Literal, cast
 
 from pydantic import BaseModel, Field
+from pydantic_core import to_jsonable_python
 
 from .constants import PKG_NAME
 
@@ -74,14 +75,26 @@ def registry_tag(
             named_params[params[i]] = arg
     named_params |= kwargs
 
+    # plan objects are serialised with name and params
+    for param in named_params.keys():
+        value = named_params[param]
+        if is_registry_object(value) and registry_info(value).type == "plan":
+            named_params[param] = dict(
+                plan=registry_log_name(value), params=registry_params(value)
+            )
+
     # callables are not serializable so use their names
     for param in named_params.keys():
         if is_registry_object(named_params[param]):
             named_params[param] = registry_info(named_params[param]).name
-        elif hasattr(named_params[param], "__name__"):
+        elif callable(named_params[param]):
             named_params[param] = getattr(named_params[param], "__name__")
+        elif isinstance(named_params[param], dict | list):
+            named_params[param] = to_jsonable_python(
+                named_params[param], fallback=lambda x: getattr(x, "__name__", None)
+            )
         else:
-            named_params[param] = str(named_params[param])
+            named_params[param] = named_params[param]
 
     # set attribute
     setattr(o, REGISTRY_INFO, info)
@@ -156,6 +169,15 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
     # forward registry info to the instantiated object
     def with_registry_info(o: object) -> object:
         return set_registry_info(o, registry_info(obj))
+
+    # instantiate plan objects for tasks
+    if type == "task":
+        for param in kwargs.keys():
+            value = kwargs[param]
+            if isinstance(value, dict) and "plan" in value and "params" in value:
+                kwargs[param] = registry_create(
+                    "plan", value["plan"], **value["params"]
+                )
 
     if isclass(obj):
         return with_registry_info(obj(**kwargs))
