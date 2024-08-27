@@ -43,8 +43,16 @@ const tools_choice = {
     remove: [],
   },
   render: (resolvedState) => {
+    const toolName = (toolChoice) => {
+      if (typeof toolChoice === "object") {
+        return toolChoice["name"];
+      } else {
+        return toolChoice;
+      }
+    };
+
     const toolsInfo = {
-      "Tool Choice": resolvedState.tool_choice,
+      "Tool Choice": toolName(resolvedState.tool_choice),
     };
 
     if (resolvedState.tools.length > 0) {
