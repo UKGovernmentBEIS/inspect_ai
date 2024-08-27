@@ -46,7 +46,6 @@ Answer with the option's letter from the given choices directly.
 """.strip()
 
 
-# Shared task function for multiple-choice questions
 def mmmu_task_multiple_choice(dataset):
     multiple_choice_questions_hf = dataset.filter(
         lambda example: example["question_type"] == "multiple-choice"
@@ -70,12 +69,10 @@ def mmmu_task_multiple_choice(dataset):
 
 OPEN_PROMPT = r"""
 Answer the question using a single word or phrase.
-Unless the question asks for an equation as an answer, don't answer with an equation. Lean towards answering with a number, where relevant.
 {prompt}
 """.strip()
 
 
-# Shared task function for open-ended questions
 def mmmu_task_open(dataset):
     open_ended_questions_hf = dataset.filter(
         lambda example: example["question_type"] == "open"
@@ -128,6 +125,7 @@ subjects_list = [
 ]
 
 
+# Allow multiple-choice/open-ended tasks to be run separately
 @task
 def mmmu_multiple_choice():
     path = "MMMU/MMMU"
@@ -137,6 +135,7 @@ def mmmu_multiple_choice():
     return mmmu_task_multiple_choice(combined_dataset)
 
 
+# Allow multiple-choice/open-ended tasks to be run separately
 @task
 def mmmu_open():
     path = "MMMU/MMMU"
