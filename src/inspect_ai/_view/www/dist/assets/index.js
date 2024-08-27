@@ -6330,12 +6330,14 @@ const ApplicationIcons = {
   "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
   previous: "bi bi-chevron-left",
+  refresh: "bi bi-arrow-clockwise",
   role: {
     user: "bi bi-person",
     system: "bi bi-cpu",
     assistant: "bi bi-robot",
     tool: "bi bi-tools"
   },
+  running: "bi bi-stars",
   sample: "bi bi-database",
   samples: "bi bi-file-spreadsheet",
   scorer: "bi bi-calculator",
@@ -6787,7 +6789,16 @@ const SidebarScores = ({ scores }) => {
   </div>`;
 };
 const StatusCancelled = ({ message }) => {
-  return m$1`<div style=${{ ...TextStyle.secondary }}>${message}</div>`;
+  return m$1`<div
+    style=${{
+    marginTop: "0.2em",
+    fontSize: FontSize.small,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+  >
+    ${message}
+  </div>`;
 };
 const StatusRunning = ({ message }) => {
   return m$1` <div
@@ -6801,18 +6812,20 @@ const StatusRunning = ({ message }) => {
     ...TextStyle.label
   }}
   >
-    <div
-      class="spinner-border spinner-border-sm"
-      role="status"
-      style=${{ marginTop: "0.15em" }}
-    >
-      <span class="visually-hidden">${message}</span>
-    </div>
     <div>${message}</div>
   </div>`;
 };
 const StatusError = ({ message }) => {
-  return m$1`<div style=${{ color: "var(--bs-danger)" }}>${message}</div>`;
+  return m$1`<div
+    style=${{
+    color: "var(--bs-danger)",
+    marginTop: "0.2em",
+    fontSize: FontSize.small,
+    ...TextStyle.label
+  }}
+  >
+    ${message}
+  </div>`;
 };
 const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   if (log_dir) {
@@ -20184,30 +20197,30 @@ const CanceledPanel = ({ sampleCount }) => {
   </div>`;
 };
 const RunningPanel = () => {
-  return m$1`<div
-    style=${{
+  return m$1`
+    <div
+      style=${{
     marginTop: "0.5em",
     display: "inline-grid",
     gridTemplateColumns: "max-content max-content"
   }}
-  >
-    <div
-      class="spinner-border spinner-border-sm"
-      role="status"
-      style=${{ marginTop: "0.2em" }}
-    ></div>
-    <div
-      style=${{
+    >
+      <div>
+        <i class=${ApplicationIcons.running} />
+      </div>
+      <div
+        style=${{
     marginLeft: "0.3em",
     paddingTop: "0.2em",
     fontSize: FontSize.smaller,
     ...TextStyle.label,
     ...TextStyle.secondary
   }}
-    >
-      Running
+      >
+        Running
+      </div>
     </div>
-  </div>`;
+  `;
 };
 const ResultsPanel = ({ results }) => {
   var _a, _b;
@@ -21897,13 +21910,20 @@ const WorkSpace = (props) => {
           />`;
         },
         tools: () => {
-          var _a3, _b3, _c2, _d2, _e2;
-          if (((_b3 = (_a3 = workspaceLog.contents) == null ? void 0 : _a3.samples) == null ? void 0 : _b3.length) <= 1) {
+          var _a3, _b3, _c2, _d2, _e2, _f;
+          if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) === "started") {
+            return m$1`<${ToolButton}
+              name=${m$1`Refresh`}
+              icon="${ApplicationIcons.refresh}"
+              onclick="${props.refreshLog}"
+            />`;
+          }
+          if (((_c2 = (_b3 = workspaceLog.contents) == null ? void 0 : _b3.samples) == null ? void 0 : _c2.length) <= 1) {
             return "";
           }
           return m$1`<${SampleTools}
             epoch=${epoch}
-            epochs=${(_e2 = (_d2 = (_c2 = workspaceLog.contents) == null ? void 0 : _c2.eval) == null ? void 0 : _d2.config) == null ? void 0 : _e2.epochs}
+            epochs=${(_f = (_e2 = (_d2 = workspaceLog.contents) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f.epochs}
             setEpoch=${setEpoch}
             filter=${filter}
             filterChanged=${setFilter}
@@ -22292,12 +22312,7 @@ const FindBand = ({ hideBand }) => {
 };
 function App({ api: api2, pollForLogs = true }) {
   const [selected, setSelected] = h(-1);
-  const [pendingLog, setPendingLog] = h(void 0);
   const [logs, setLogs] = h({ log_dir: "", files: [] });
-  const [nonRunningLogs, setNonRunningLogs] = h({
-    log_dir: "",
-    files: []
-  });
   const [logHeaders, setLogHeaders] = h({});
   const [offcanvas, setOffcanvas] = h(false);
   const [currentLog, setCurrentLog] = h({
@@ -22335,20 +22350,6 @@ function App({ api: api2, pollForLogs = true }) {
             const logFile = fileList[index];
             updatedHeaders[logFile] = header;
           });
-          const notRunning = Object.keys(updatedHeaders).filter((key2) => {
-            return updatedHeaders[key2].status !== "started";
-          });
-          if (notRunning.length > 0) {
-            const files = logs.files.filter((file) => {
-              return notRunning.includes(file.name);
-            });
-            setNonRunningLogs((prev_running) => {
-              return {
-                log_dir: prev_running.log_dir,
-                files: [...prev_running.files, ...files]
-              };
-            });
-          }
           return { ...prev, ...updatedHeaders };
         });
         await sleep(5e3);
@@ -22358,29 +22359,13 @@ function App({ api: api2, pollForLogs = true }) {
       setStatus({ loading: false, error: e2 });
     }
     setHeadersLoading(false);
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading, setNonRunningLogs]);
-  y(() => {
-    if (pendingLog) {
-      const idx = nonRunningLogs.files.findIndex((file) => {
-        console.log({ file, pendingLog });
-        return pendingLog.endsWith(file.name);
-      });
-      if (idx > -1) {
-        setSelected(idx);
-        setPendingLog(void 0);
-      }
-    }
-  }, [pendingLog, nonRunningLogs]);
+  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
   y(async () => {
-    const targetLog = nonRunningLogs.files[selected];
+    const targetLog = logs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
         setStatus({ loading: true, error: void 0 });
-        const logContents = await api2.eval_log(
-          targetLog.name,
-          false,
-          capabilities
-        );
+        const logContents = await loadLog(targetLog.name);
         if (logContents) {
           const log = logContents.parsed;
           setCurrentLog({
@@ -22395,31 +22380,59 @@ function App({ api: api2, pollForLogs = true }) {
         setStatus({ loading: false, error: e2 });
       }
     }
-  }, [
-    selected,
-    nonRunningLogs,
-    capabilities,
-    currentLog,
-    setCurrentLog,
-    setStatus
-  ]);
-  const loadLogs = q(async () => {
+  }, [selected, capabilities, currentLog, setCurrentLog, setStatus]);
+  const loadLogs = async () => {
     try {
-      setNonRunningLogs({
-        log_dir: "",
-        files: []
-      });
       const result = await api2.eval_logs();
-      if (result) {
-        setLogs(result);
-      } else {
-        setLogs({ log_dir: "", files: [] });
+      return result;
+    } catch (e2) {
+      console.log(e2);
+      setStatus({ loading: false, error: e2 });
+    }
+  };
+  const loadLog = async (logFileName) => {
+    try {
+      const logContents = await api2.eval_log(logFileName, false, capabilities);
+      return logContents;
+    } catch (e2) {
+      console.log(e2);
+      setStatus({ loading: false, error: e2 });
+    }
+  };
+  const refreshLog = q(async () => {
+    try {
+      setStatus({ loading: true, error: void 0 });
+      const targetLog = logs.files[selected];
+      const logContents = await loadLog(targetLog.name);
+      if (logContents) {
+        const log = logContents.parsed;
+        if (log.status !== "started") {
+          setLogHeaders((prev) => {
+            const updatedState = { ...prev };
+            const freshHeaders = {
+              eval: log.eval,
+              plan: log.plan,
+              results: log.results,
+              stats: log.stats,
+              status: log.status,
+              version: log.version
+            };
+            updatedState[targetLog.name] = freshHeaders;
+            return updatedState;
+          });
+        }
+        setCurrentLog({
+          contents: log,
+          name: targetLog.name,
+          raw: logContents.raw
+        });
+        setStatus({ loading: false, error: void 0 });
       }
     } catch (e2) {
       console.log(e2);
       setStatus({ loading: false, error: e2 });
     }
-  }, []);
+  }, [logs, selected, setStatus, setCurrentLog, setLogHeaders]);
   const onMessage = T(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
@@ -22427,20 +22440,26 @@ function App({ api: api2, pollForLogs = true }) {
         case "updateState": {
           if (e2.data.url) {
             const decodedUrl = decodeURIComponent(e2.data.url);
-            const index = nonRunningLogs.files.findIndex((val) => {
+            const index = logs.files.findIndex((val) => {
               return decodedUrl.endsWith(val.name);
             });
             if (index > -1) {
               setSelected(index);
             } else {
-              setPendingLog(decodedUrl);
-              await loadLogs();
+              const result = await loadLogs();
+              const idx = result.files.findIndex((file) => {
+                return decodedUrl.endsWith(file.name);
+              });
+              if (idx > -1) {
+                setSelected(idx);
+              }
+              setLogs(result);
             }
           }
         }
       }
     };
-  }, [setPendingLog]);
+  }, [setSelected, setLogs]);
   y(() => {
     window.addEventListener("message", onMessage);
     return () => {
@@ -22465,17 +22484,18 @@ function App({ api: api2, pollForLogs = true }) {
     setOffcanvas(true);
     const logPath = urlParams.get("task_file");
     const load = logPath ? async () => {
-      setLogs({
+      return {
         log_dir: "",
         files: [{ name: logPath }]
-      });
+      };
     } : loadLogs;
     const embeddedState = document.getElementById("logview-state");
     if (embeddedState) {
       const state = JSON.parse(embeddedState.textContent);
       onMessage({ data: state });
     } else {
-      await load();
+      const result = await load();
+      setLogs(result);
     }
     if (selected === -1 && !embeddedState) {
       setSelected(0);
@@ -22495,10 +22515,10 @@ function App({ api: api2, pollForLogs = true }) {
       }, 1e3);
     }
   }, []);
-  const fullScreen = nonRunningLogs.files.length === 1 && !nonRunningLogs.log_dir;
+  const fullScreen = logs.files.length === 1 && !logs.log_dir;
   const sidebar = !fullScreen && currentLog.contents ? m$1`
           <${Sidebar}
-            logs=${nonRunningLogs}
+            logs=${logs}
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
@@ -22521,7 +22541,7 @@ function App({ api: api2, pollForLogs = true }) {
       />`;
     } else {
       return m$1` <${WorkSpace}
-        logs=${nonRunningLogs}
+        logs=${logs}
         log=${currentLog}
         selected=${selected}
         fullScreen=${fullScreen}
@@ -22529,6 +22549,7 @@ function App({ api: api2, pollForLogs = true }) {
         capabilities=${capabilities}
         showFind=${showFind}
         setShowFind=${setShowFind}
+        refreshLog=${refreshLog}
       />`;
     }
   }, [logs, currentLog, selected, fullScreen, offcanvas, status]);

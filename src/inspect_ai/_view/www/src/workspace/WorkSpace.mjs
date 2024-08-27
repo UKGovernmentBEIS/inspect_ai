@@ -164,6 +164,14 @@ export const WorkSpace = (props) => {
           />`;
         },
         tools: () => {
+          if (workspaceLog.contents?.status === "started") {
+            return html`<${ToolButton}
+              name=${html`Refresh`}
+              icon="${ApplicationIcons.refresh}"
+              onclick="${props.refreshLog}"
+            />`;
+          }
+
           // Don't show tools if there is a sample sample
           if (workspaceLog.contents?.samples?.length <= 1) {
             return "";
