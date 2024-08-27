@@ -22329,6 +22329,18 @@ function App({ api: api2, pollForLogs = true }) {
     }
     setHeadersLoading(false);
   }, [logs, setStatus, setLogHeaders, setHeadersLoading, setNonRunningLogs]);
+  y(() => {
+    if (pendingLog) {
+      const idx = nonRunningLogs.files.findIndex((file) => {
+        console.log({ file, pendingLog });
+        return pendingLog.endsWith(file.name);
+      });
+      if (idx > -1) {
+        setSelected(idx);
+        setPendingLog(void 0);
+      }
+    }
+  }, [pendingLog, nonRunningLogs]);
   y(async () => {
     const targetLog = nonRunningLogs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
@@ -22378,23 +22390,6 @@ function App({ api: api2, pollForLogs = true }) {
       setStatus({ loading: false, error: e2 });
     }
   }, []);
-  y(async () => {
-    if (pendingLog) {
-      const index = nonRunningLogs.files.findIndex((val) => {
-        return pendingLog.endsWith(val.name);
-      });
-      if (index > -1) {
-        setSelected(index);
-        setPendingLog(void 0);
-      } else {
-        if (!logs.files.find((val) => {
-          return pendingLog.endsWith(val.name);
-        })) {
-          await loadLogs();
-        }
-      }
-    }
-  }, [pendingLog, nonRunningLogs, setSelected, setPendingLog, loadLogs]);
   const onMessage = T(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
@@ -22402,7 +22397,15 @@ function App({ api: api2, pollForLogs = true }) {
         case "updateState": {
           if (e2.data.url) {
             const decodedUrl = decodeURIComponent(e2.data.url);
-            setPendingLog(decodedUrl);
+            const index = nonRunningLogs.files.findIndex((val) => {
+              return decodedUrl.endsWith(val.name);
+            });
+            if (index > -1) {
+              setSelected(index);
+            } else {
+              setPendingLog(decodedUrl);
+              await loadLogs();
+            }
           }
         }
       }

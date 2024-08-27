@@ -106,6 +106,19 @@ export function App({ api, pollForLogs = true }) {
     setHeadersLoading(false);
   }, [logs, setStatus, setLogHeaders, setHeadersLoading, setNonRunningLogs]);
 
+  useEffect(() => {
+    if (pendingLog) {
+      const idx = nonRunningLogs.files.findIndex((file) => {
+        console.log({ file, pendingLog });
+        return pendingLog.endsWith(file.name);
+      });
+      if (idx > -1) {
+        setSelected(idx);
+        setPendingLog(undefined);
+      }
+    }
+  }, [pendingLog, nonRunningLogs]);
+
   // Load a specific log
   useEffect(async () => {
     const targetLog = nonRunningLogs.files[selected];
@@ -163,27 +176,6 @@ export function App({ api, pollForLogs = true }) {
     }
   }, []);
 
-  // Select any pending logs if they are loaded
-  useEffect(async () => {
-    if (pendingLog) {
-      const index = nonRunningLogs.files.findIndex((val) => {
-        return pendingLog.endsWith(val.name);
-      });
-      if (index > -1) {
-        setSelected(index);
-        setPendingLog(undefined);
-      } else {
-        if (
-          !logs.files.find((val) => {
-            return pendingLog.endsWith(val.name);
-          })
-        ) {
-          await loadLogs();
-        }
-      }
-    }
-  }, [pendingLog, nonRunningLogs, setSelected, setPendingLog, loadLogs]);
-
   const onMessage = useMemo(() => {
     return async (e) => {
       const type = e.data.type || e.data.message;
@@ -191,7 +183,15 @@ export function App({ api, pollForLogs = true }) {
         case "updateState": {
           if (e.data.url) {
             const decodedUrl = decodeURIComponent(e.data.url);
-            setPendingLog(decodedUrl);
+            const index = nonRunningLogs.files.findIndex((val) => {
+              return decodedUrl.endsWith(val.name);
+            });
+            if (index > -1) {
+              setSelected(index);
+            } else {
+              setPendingLog(decodedUrl);
+              await loadLogs();
+            }
           }
         }
       }
