@@ -6790,8 +6790,25 @@ const StatusCancelled = ({ message }) => {
   return m$1`<div style=${{ ...TextStyle.secondary }}>${message}</div>`;
 };
 const StatusRunning = ({ message }) => {
-  return m$1`<div class="spinner-border spinner-border-sm" role="status">
-    <span class="visually-hidden">${message}</span>
+  return m$1` <div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "0.5em",
+    marginTop: "0.3em",
+    fontSize: FontSize.small,
+    ...TextStyle.secondary,
+    ...TextStyle.label
+  }}
+  >
+    <div
+      class="spinner-border spinner-border-sm"
+      role="status"
+      style=${{ marginTop: "0.15em" }}
+    >
+      <span class="visually-hidden">${message}</span>
+    </div>
+    <div>${message}</div>
   </div>`;
 };
 const StatusError = ({ message }) => {
@@ -20171,15 +20188,21 @@ const RunningPanel = () => {
     style=${{
     marginTop: "0.5em",
     display: "inline-grid",
-    gridTemplateColumns: "auto auto"
+    gridTemplateColumns: "max-content max-content"
   }}
   >
-    <div class="spinner-border spinner-border-sm" role="status"></div>
+    <div
+      class="spinner-border spinner-border-sm"
+      role="status"
+      style=${{ marginTop: "0.2em" }}
+    ></div>
     <div
       style=${{
     marginLeft: "0.3em",
     paddingTop: "0.2em",
-    fontSize: FontSize.smaller
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary
   }}
     >
       Running

@@ -336,8 +336,25 @@ const StatusCancelled = ({ message }) => {
 };
 
 const StatusRunning = ({ message }) => {
-  return html`<div class="spinner-border spinner-border-sm" role="status">
-    <span class="visually-hidden">${message}</span>
+  return html` <div
+    style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content max-content",
+      columnGap: "0.5em",
+      marginTop: "0.3em",
+      fontSize: FontSize.small,
+      ...TextStyle.secondary,
+      ...TextStyle.label,
+    }}
+  >
+    <div
+      class="spinner-border spinner-border-sm"
+      role="status"
+      style=${{ marginTop: "0.15em" }}
+    >
+      <span class="visually-hidden">${message}</span>
+    </div>
+    <div>${message}</div>
   </div>`;
 };
 

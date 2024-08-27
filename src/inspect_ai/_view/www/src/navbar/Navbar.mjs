@@ -177,15 +177,21 @@ const RunningPanel = () => {
     style=${{
       marginTop: "0.5em",
       display: "inline-grid",
-      gridTemplateColumns: "auto auto",
+      gridTemplateColumns: "max-content max-content",
     }}
   >
-    <div class="spinner-border spinner-border-sm" role="status"></div>
+    <div
+      class="spinner-border spinner-border-sm"
+      role="status"
+      style=${{ marginTop: "0.2em" }}
+    ></div>
     <div
       style=${{
         marginLeft: "0.3em",
         paddingTop: "0.2em",
         fontSize: FontSize.smaller,
+        ...TextStyle.label,
+        ...TextStyle.secondary,
       }}
     >
       Running
