@@ -71,18 +71,16 @@ def build_plan() -> List:
 def squad_f1_scorer():
     async def score(state: TaskState, target: Target) -> Score:
         # Get generated answer and extract relevant answer text
-        answer = state.output.completion
+        prediction = state.output.completion
         ref_answers = target.target
 
         # Compute exact match (EM) and F1 score
-        em_score, f1_score = await process_results(answer, ref_answers)
+        em_score, f1_score = await process_results(prediction, ref_answers)
 
         # F1 score and EM reported as main aggregated metrics, EM score currently added to metadata
-
-        # TODO: determine which 'main value' should be used? And which should be added to metadata?
         return Score(
             value=f1_score,
-            answer=answer,
+            answer=prediction,
             metadata={
                 "metrics": {
                     "f1_score": f1_score,
@@ -237,6 +235,7 @@ async def _tokenize(text: str) -> List[str]:
 
 
 async def _normalize(answer: str) -> str:
+    """Normalization used in official SQuAD evaluation script."""
     tokens = []
     tokenized_answer = await _tokenize(answer)
     for token in tokenized_answer:

@@ -15,12 +15,16 @@ Context: Super Bowl 50 was an American football game to determine the champion o
 
 Question: If Roman numerals were used, what would Super Bowl 50 have been called?
 
-Answer(s): Super Bowl L, L
+Answer(s): Super Bowl L, L, Super Bowl L
 ```
 The model is tasked to answer the question by referring to the context, potentially requiring mutliple-sentence reasoning.
 
 ## Evaluation
+The model is prompted with the Wikipedia paragraph acting as the context, and the corresponding question. It is required to answer the question, only using the context provided and no outside information. The prompt template takes inspiration from the following OpenAI examples:
+- [fine_tuned_qa example](https://github.com/openai/openai-cookbook/blob/627a11cb2f2c7a174c42c724c2e8a9737f79e6e1/examples/fine-tuned_qa/ft_retrieval_augmented_generation_qdrant.ipynb)
+- [unsolvable_questions example](https://github.com/openai/evals/blob/234bcde34b5951233681455faeb92baaaef97573/evals/registry/data/unsolvable_questions/convert.js)
 
+The evaluation performed, in particular the F1-score calculation logic, draws from EleutherAI's lm-evaluation-harness for the [DROP benchmark](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/drop/utils.py#L64C1-L73C40), as well as the [SuperGLUE benchmark](https://github.com/EleutherAI/lm-evaluation-harness/blob/ebe7226ebfb8d11a9fb8d6b53eb65891f895c633/lm_eval/tasks/super_glue/record/t5_utils.py).
 
 ## Note on SQuAD v2
 SQuAD v2 combines the SQuAD v1.1 dataset with 50,000+ unanswerable questions, written adversarially by crowdworkers to look similar to answerable ones.
