@@ -34,10 +34,7 @@ def read_file():
         Returns:
           File contents
         """
-        try:
-            return await sandbox().read_file(file)
-        except FileNotFoundError:
-            raise ToolError(f"File {file} not found.")
+        return await sandbox().read_file(file)
 
     return execute
 
