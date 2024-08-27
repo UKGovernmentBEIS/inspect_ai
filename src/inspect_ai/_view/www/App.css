@@ -75,6 +75,11 @@ html.vscode {
   font-size: 13px;
 }
 
+html.vscode .sample-input {
+  line-height: 1.3em;
+  -webkit-line-clamp: 4 !important
+}
+
 body[class^="vscode-"] .modal-backdrop {
   --bs-backdrop-opacity: 0.15;
   --bs-backdrop-bg: var(--vscode-editor-foreground);
@@ -625,7 +630,7 @@ table.table.table-sm td {
 }
 
 .tab-tools .btn {
-  font-size: 0.5rem;
+  font-size: 0.7rem;
   padding: 0.4em 0.8em;
 }
 
