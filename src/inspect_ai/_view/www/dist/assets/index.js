@@ -6450,7 +6450,7 @@ class AppErrorBoundary extends b {
     return this.props.children;
   }
 }
-const ProgressBar = ({ style, animating }) => {
+const ProgressBar = ({ style, containerStyle, animating }) => {
   const emptyStyle = {
     display: "flex",
     textAlign: "center",
@@ -6467,7 +6467,7 @@ const ProgressBar = ({ style, animating }) => {
   const progressContainerStyle = {
     width: "100%",
     height: "2px",
-    background: "none"
+    ...containerStyle
   };
   const progressBarStyle = {
     width: "5%",
@@ -6522,7 +6522,8 @@ const Sidebar = ({
     zIndex: 10,
     borderBottom: "solid var(--bs-light-border-subtle) 1px",
     paddingBottom: "0.5rem",
-    paddingTop: "0.5rem"
+    paddingTop: "0.5rem",
+    height: "3.6em"
   }}
       >
         <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
@@ -6543,7 +6544,7 @@ const Sidebar = ({
           <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "61px", zIndex: 3 }}>
+      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
         <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
       </div>
       <ul
@@ -22297,9 +22298,7 @@ function App({ api: api2, pollForLogs = true }) {
     }
     try {
       for (const fileList of fileLists) {
-        console.time("eval_log_headers");
         const headers = await api2.eval_log_headers(fileList);
-        console.timeEnd("eval_log_headers");
         setLogHeaders((prev) => {
           const updatedHeaders = {};
           headers.forEach((header, index) => {
@@ -22335,13 +22334,11 @@ function App({ api: api2, pollForLogs = true }) {
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
         setStatus({ loading: true, error: void 0 });
-        console.time("eval_log");
         const logContents = await api2.eval_log(
           targetLog.name,
           false,
           capabilities
         );
-        console.timeEnd("eval_log");
         if (logContents) {
           const log = logContents.parsed;
           setCurrentLog({
@@ -22366,9 +22363,11 @@ function App({ api: api2, pollForLogs = true }) {
   ]);
   const loadLogs = q(async () => {
     try {
-      console.time("eval_logs");
+      setNonRunningLogs({
+        log_dir: "",
+        files: []
+      });
       const result = await api2.eval_logs();
-      console.timeEnd("eval_logs");
       if (result) {
         setLogs(result);
       } else {
@@ -22522,7 +22521,10 @@ function App({ api: api2, pollForLogs = true }) {
     }
   }}>
       ${showFind ? m$1`<${FindBand} hideBand=${hideFind} />` : ""}
-      <${ProgressBar} animating=${status.loading} />
+      <${ProgressBar} animating=${status.loading}  containerStyle=${{
+    background: "var(--bs-light)",
+    marginBottom: "-1px"
+  }}/>
       ${workspace}
     </div>
     </${AppErrorBoundary}>

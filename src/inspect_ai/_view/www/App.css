@@ -242,6 +242,7 @@ body {
   padding-top: 0;
   padding-bottom: 0;
   background-color: var(--bs-light);
+  top: 2px;
 }
 
 .navbar-title-grid {

@@ -36,6 +36,7 @@ export const Sidebar = ({
           borderBottom: "solid var(--bs-light-border-subtle) 1px",
           paddingBottom: "0.5rem",
           paddingTop: "0.5rem",
+          height: "3.6em",
         }}
       >
         <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
@@ -56,7 +57,7 @@ export const Sidebar = ({
           <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "61px", zIndex: 3 }}>
+      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
         <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
       </div>
       <ul
