@@ -1,3 +1,5 @@
+# type: ignore
+
 import json
 from typing import Any, Dict, Protocol, cast, runtime_checkable
 

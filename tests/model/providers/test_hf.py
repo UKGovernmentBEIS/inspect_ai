@@ -1,6 +1,9 @@
 import pytest
-from test_helpers.utils import skip_if_github_action, skip_if_no_transformers
-from transformers import PreTrainedModel  # type: ignore
+from test_helpers.utils import (
+    skip_if_github_action,
+    skip_if_no_accelerate,
+    skip_if_no_transformers,
+)
 
 from inspect_ai.model import (
     ChatMessageUser,
@@ -10,7 +13,7 @@ from inspect_ai.model import (
 
 
 @pytest.fixture
-def model() -> PreTrainedModel:
+def model():
     return get_model(
         "hf/EleutherAI/pythia-70m",
         config=GenerateConfig(
@@ -26,7 +29,8 @@ def model() -> PreTrainedModel:
 @pytest.mark.asyncio
 @skip_if_github_action
 @skip_if_no_transformers
-async def test_hf_api(model: PreTrainedModel) -> None:
+@skip_if_no_accelerate
+async def test_hf_api(model) -> None:
     message = ChatMessageUser(content="Lorem ipsum dolor")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
@@ -35,7 +39,7 @@ async def test_hf_api(model: PreTrainedModel) -> None:
 @pytest.mark.asyncio
 @skip_if_github_action
 @skip_if_no_transformers
-async def test_hf_api_fails(model: PreTrainedModel) -> None:
+async def test_hf_api_fails(model) -> None:
     temp_before = model.config.temperature
     try:
         model.config.temperature = 0.0

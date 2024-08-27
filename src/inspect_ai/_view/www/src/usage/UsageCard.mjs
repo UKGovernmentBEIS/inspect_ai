@@ -76,6 +76,10 @@ export const UsageCard = ({ stats, context }) => {
  * @returns {import("preact").JSX.Element | string} The ModelUsagePanel component.
  */
 export const ModelUsagePanel = ({ usage }) => {
+  if (!usage) {
+    return "";
+  }
+
   const rows = [
     {
       label: "input",
