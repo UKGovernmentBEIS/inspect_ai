@@ -347,13 +347,6 @@ const StatusRunning = ({ message }) => {
       ...TextStyle.label,
     }}
   >
-    <div
-      class="spinner-border spinner-border-sm"
-      role="status"
-      style=${{ marginTop: "0.15em" }}
-    >
-      <span class="visually-hidden">${message}</span>
-    </div>
     <div>${message}</div>
   </div>`;
 };
