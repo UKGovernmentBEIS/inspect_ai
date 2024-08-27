@@ -30,6 +30,7 @@ from .compose import (
     compose_services,
     compose_up,
 )
+from .config import CONFIG_FILES
 from .prereqs import validate_prereqs
 from .util import ComposeProject, sandbox_log, task_project_name
 
@@ -38,6 +39,10 @@ logger = getLogger(__name__)
 
 @sandboxenv(name="docker")
 class DockerSandboxEnvironment(SandboxEnvironment):
+    @classmethod
+    def config_files(cls) -> list[str]:
+        return CONFIG_FILES
+
     @classmethod
     async def task_init(cls, task_name: str, config: str | None) -> None:
         # validate prereqs

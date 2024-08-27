@@ -23,6 +23,11 @@ class SandboxEnvironment(abc.ABC):
     """
 
     @classmethod
+    def config_files(cls) -> list[str]:
+        """Standard config files for this provider (used for automatic discovery)"""
+        return []
+
+    @classmethod
     async def task_init(cls, task_name: str, config: str | None) -> None:
         """Called at task startup initialize resources.
 
