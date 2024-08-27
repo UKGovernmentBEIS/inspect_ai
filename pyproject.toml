@@ -38,6 +38,7 @@ norecursedirs = [
     "tests/test_package",
     "tests/test_task_list",
 ]
+asyncio_mode = "auto"
 log_level = "warning"
 
 [tool.mypy]
