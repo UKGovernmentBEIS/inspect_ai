@@ -7,6 +7,14 @@ import aiofiles
 logger = getLogger(__name__)
 
 
+CONFIG_FILES = [
+    "compose.yaml",
+    "compose.yml",
+    "docker-compose.yaml",
+    "docker-compose.yml",
+]
+
+
 async def resolve_compose_file(parent: str = "") -> str | None:
     # existing compose file provides all the config we need
     compose = find_compose_file(parent)
@@ -27,13 +35,7 @@ async def resolve_compose_file(parent: str = "") -> str | None:
 
 
 def find_compose_file(parent: str = "") -> str | None:
-    compose_files = [
-        "compose.yaml",
-        "compose.yml",
-        "docker-compose.yaml",
-        "docker-compose.yml",
-    ]
-    for file in compose_files:
+    for file in CONFIG_FILES:
         if os.path.isfile(os.path.join(parent, file)):
             return file
     return None
