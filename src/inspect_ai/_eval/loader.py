@@ -4,11 +4,12 @@ import os
 from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
+from logging import getLogger
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, cast
 
-from inspect_ai._eval.task.util import task_file, task_src_dir
+from inspect_ai._eval.task.util import task_file, task_run_dir
 from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import (
@@ -25,8 +26,10 @@ from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from .list import task_files
 from .registry import task_create
 from .task import PreviousTask, Task, TaskInfo, Tasks
-from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR, TASK_SRC_DIR_ATTR
+from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.run import EvalSampleSource, eval_log_sample_source
+
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -165,7 +168,7 @@ def resolve_task_sandbox(
             config_files = config_files_fn()
 
             # probe for them in task src dir
-            src_dir = task_src_dir(task)
+            src_dir = task_run_dir(task)
             for config_file in config_files:
                 config_file_path = os.path.join(src_dir, config_file)
                 if os.path.isfile(config_file_path):
@@ -176,7 +179,7 @@ def resolve_task_sandbox(
         if resolved_sandbox[1] is not None:
             file_path = Path(resolved_sandbox[1])
             if not file_path.is_absolute():
-                file_path = Path(task_src_dir(task)) / file_path
+                file_path = Path(task_run_dir(task)) / file_path
                 resolved_sandbox = (resolved_sandbox[0], file_path.as_posix())
 
     # return resolved sandbox
@@ -270,10 +273,15 @@ def create_file_tasks(
             # (will be used later to ensure it runs in the directory)
             task = task_create(task_spec, model, **task_args)
             setattr(task, TASK_FILE_ATTR, file.as_posix())
-            setattr(task, TASK_SRC_DIR_ATTR, file.parent.as_posix())
-            if task.attribs.get("chdir", True):
-                setattr(task, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+            setattr(task, TASK_RUN_DIR_ATTR, file.parent.as_posix())
             tasks.append(task)
+
+            # warn about deprecated chdir attrib
+            if "chdir" in task.attribs:
+                logger.warning(
+                    "The 'chdir' task attribute is deprecated (tasks now always chdir)"
+                )
+
         return tasks
 
 

@@ -44,7 +44,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
 
 
 async def _cleanup_file(sandbox_env: SandboxEnvironment, filename: str) -> None:
-    res = await sandbox_env.exec(["/usr/bin/rm", filename])
+    res = await sandbox_env.exec(["rm", filename])
     assert res.success
 
 
@@ -172,14 +172,14 @@ async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
 async def test_cwd_unspecified(sandbox_env: SandboxEnvironment) -> None:
     file_name = "test_cwd_unspecified.file"
     await sandbox_env.write_file(file_name, "ls me plz")
-    current_dir_contents = (await sandbox_env.exec(["/usr/bin/ls", "-1"])).stdout
+    current_dir_contents = (await sandbox_env.exec(["ls", "-1"])).stdout
     assert file_name in current_dir_contents
     await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_cwd_custom(sandbox_env: SandboxEnvironment) -> None:
-    current_dir_contents = (await sandbox_env.exec(["/usr/bin/ls"], cwd="/etc")).stdout
-    assert "passwd" in current_dir_contents
+    current_dir_contents = (await sandbox_env.exec(["ls"], cwd="/usr/bin")).stdout
+    assert "man" in current_dir_contents
 
 
 async def test_cwd_relative(sandbox_env: SandboxEnvironment) -> None:
@@ -188,9 +188,7 @@ async def test_cwd_relative(sandbox_env: SandboxEnvironment) -> None:
     file_name = "test_cwd_relative.file"
     file_path = cwd_subdirectory + "/" + file_name
     await sandbox_env.write_file(file_path, "ls me plz")
-    current_dir_contents = (
-        await sandbox_env.exec(["/usr/bin/ls"], cwd=cwd_subdirectory)
-    ).stdout
+    current_dir_contents = (await sandbox_env.exec(["ls"], cwd=cwd_subdirectory)).stdout
     assert (
         file_name in current_dir_contents
     ), f"{file_name} not found in {current_dir_contents}"
@@ -202,9 +200,7 @@ async def test_cwd_absolute(sandbox_env: SandboxEnvironment) -> None:
     await sandbox_env.exec(["mkdir", cwd_directory])
     file_name = "/tmp/test_cwd_absolute/test_cwd_absolute.file"
     await sandbox_env.write_file(file_name, "ls me plz")
-    current_dir_contents = (
-        await sandbox_env.exec(["/usr/bin/ls"], cwd=cwd_directory)
-    ).stdout
+    current_dir_contents = (await sandbox_env.exec(["ls"], cwd=cwd_directory)).stdout
     assert "test_cwd_absolute.file" in current_dir_contents
     await _cleanup_file(sandbox_env, file_name)
 

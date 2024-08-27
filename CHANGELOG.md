@@ -9,6 +9,7 @@
 - Treat `cwd` that are relative paths as relative to sample working directry.
 - Raise error when a Solver does not return a TaskState.
 - Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintended token usage)
+- Remove `chdir` option from `@tasks` (tasks now always chdir during execution).
 - Added [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) benchmark.
 
 ## v0.3.25 (25 August 2024)

@@ -2,6 +2,8 @@ import base64
 import contextlib
 from typing import AsyncGenerator
 
+from inspect_ai._eval.task.task import Task
+from inspect_ai._eval.task.util import task_run_dir
 from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri
 from inspect_ai.dataset import Sample
@@ -89,6 +91,17 @@ def read_sandboxenv_file(contents: str) -> bytes:
             file_bytes = contents.encode("utf-8")
 
     return file_bytes
+
+
+def resolve_sandbox_for_task(
+    task: Task,
+    sample: Sample,
+) -> tuple[str, str | None, str] | None:
+    sandbox = resolve_sandbox(task.sandbox, sample)
+    if sandbox is not None:
+        return sandbox + (task_run_dir(task),)
+    else:
+        return None
 
 
 def resolve_sandbox(
