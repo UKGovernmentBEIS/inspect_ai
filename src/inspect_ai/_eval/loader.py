@@ -154,22 +154,32 @@ def resolve_task_sandbox(
 
     # if we have a sandbox with no config, see if there are implcit
     # config files available for the provider
-    if resolved_sandbox is not None and resolved_sandbox[1] is None:
-        # get config files for this type
-        sandboxenv_type = registry_find_sandboxenv(resolved_sandbox[0])
-        config_files_fn = cast(
-            Callable[..., list[str]], getattr(sandboxenv_type, "config_files")
-        )
-        config_files = config_files_fn()
+    if resolved_sandbox is not None:
+        # look for default
+        if resolved_sandbox[1] is None:
+            # get config files for this type
+            sandboxenv_type = registry_find_sandboxenv(resolved_sandbox[0])
+            config_files_fn = cast(
+                Callable[..., list[str]], getattr(sandboxenv_type, "config_files")
+            )
+            config_files = config_files_fn()
 
-        # probe for them in task src dir
-        src_dir = task_src_dir(task)
-        for config_file in config_files:
-            config_file_path = os.path.join(src_dir, config_file)
-            if os.path.isfile(config_file_path):
-                return (resolved_sandbox[0], config_file_path)
+            # probe for them in task src dir
+            src_dir = task_src_dir(task)
+            for config_file in config_files:
+                config_file_path = os.path.join(src_dir, config_file)
+                if os.path.isfile(config_file_path):
+                    resolved_sandbox = (resolved_sandbox[0], config_file)
+                    break
 
-    # just return the default resolve sandbox
+        # resolve relative paths
+        if resolved_sandbox[1] is not None:
+            file_path = Path(resolved_sandbox[1])
+            if not file_path.is_absolute():
+                file_path = Path(task_src_dir(task)) / file_path
+                resolved_sandbox = (resolved_sandbox[0], file_path.as_posix())
+
+    # return resolved sandbox
     return resolved_sandbox
 
 
