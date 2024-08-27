@@ -52,10 +52,14 @@ class LocalSandboxEnvironment(SandboxEnvironment):
                 UserWarning,
             )
 
+        final_cwd = Path(self.directory.name if cwd is None else cwd)
+        if not final_cwd.is_absolute():
+            final_cwd = self.directory.name / final_cwd
+
         return await subprocess(
             args=cmd,
             input=input,
-            cwd=cwd if cwd else self.directory.name,
+            cwd=final_cwd,
             env=env,
             timeout=timeout,
         )
