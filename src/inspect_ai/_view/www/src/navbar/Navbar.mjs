@@ -173,30 +173,30 @@ const CanceledPanel = ({ sampleCount }) => {
 };
 
 const RunningPanel = () => {
-  return html`<div
-    style=${{
-      marginTop: "0.5em",
-      display: "inline-grid",
-      gridTemplateColumns: "max-content max-content",
-    }}
-  >
-    <div
-      class="spinner-border spinner-border-sm"
-      role="status"
-      style=${{ marginTop: "0.2em" }}
-    ></div>
+  return html`
     <div
       style=${{
-        marginLeft: "0.3em",
-        paddingTop: "0.2em",
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary,
+        marginTop: "0.5em",
+        display: "inline-grid",
+        gridTemplateColumns: "max-content max-content",
       }}
     >
-      Running
+      <div>
+        <i class=${ApplicationIcons.running} />
+      </div>
+      <div
+        style=${{
+          marginLeft: "0.3em",
+          paddingTop: "0.2em",
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+        }}
+      >
+        Running
+      </div>
     </div>
-  </div>`;
+  `;
 };
 
 const ResultsPanel = ({ results }) => {
