@@ -2,8 +2,9 @@ import asyncio
 import contextlib
 import datetime
 from dataclasses import dataclass
-from typing import Callable, Iterator, Set
+from typing import Any, Callable, Iterator, Set
 
+import rich
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
 from rich.panel import Panel
@@ -22,7 +23,7 @@ from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.throttle import throttle
-from inspect_ai.log import EvalResults, EvalStats
+from inspect_ai.log import EvalStats
 from inspect_ai.log._log import rich_traceback
 from inspect_ai.util._concurrency import concurrency_status
 
@@ -34,6 +35,7 @@ from ._display import (
     TaskError,
     TaskProfile,
     TaskResult,
+    TaskScreen,
     TaskSuccess,
 )
 
@@ -46,6 +48,7 @@ class Theme:
     link: str = "blue"
     success: str = "green"
     error: str = "red"
+    warning: str = "orange3"
 
 
 @dataclass
@@ -76,25 +79,40 @@ class RichDisplay(Display):
 
     @override
     @contextlib.contextmanager
-    def live_task_status(self, total_tasks: int, parallel: bool) -> Iterator[None]:
+    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
+        # reconfigure the default global console
+        use_color = is_running_in_vscode() and not is_running_in_jupyterlab()
+        rich.reconfigure(no_color=not use_color)
+
         self.total_tasks = total_tasks
         self.tasks = []
         self.progress_ui = rich_progress()
         self.parallel = parallel
         try:
-            with Live(None, console=rich_console(), auto_refresh=False) as live:
-                # save reference to live
-                self.live = live
+            with (
+                Live(
+                    None,
+                    console=rich_console(),
+                    transient=True,
+                    auto_refresh=False,
+                ) as live,
+            ):
+                with RichTaskScreen(live) as task_screen:
+                    # save reference to live
+                    self.live = live
 
-                # enque a display update
-                self.timer_handle = asyncio.get_event_loop().call_later(
-                    1, self._update_display
-                )
+                    # enque a display update
+                    self.timer_handle = asyncio.get_event_loop().call_later(
+                        1, self._update_display
+                    )
 
-                # yield
-                yield
+                    # yield
+                    yield task_screen
 
-                # render task results
+                # render task results (re-enable live if necessary)
+                if not live.is_started:
+                    live.start()
+                live.transient = False
                 live.update(tasks_results(self.tasks), refresh=True)
         finally:
             # clear tasks and progress
@@ -129,6 +147,7 @@ class RichDisplay(Display):
             and self.tasks
             and self.progress_ui is not None
             and self.live is not None
+            and self.live.is_started
         ):
             if self.parallel:
                 r = tasks_live_status(self.total_tasks, self.tasks, self.progress_ui)
@@ -137,6 +156,58 @@ class RichDisplay(Display):
             self.live.update(r, refresh=True)
 
         self.timer_handle = asyncio.get_event_loop().call_later(1, self._update_display)
+
+
+class RichTaskScreen(TaskScreen):
+    def __init__(self, live: Live) -> None:
+        theme = rich_theme()
+        self.live = live
+        self.status = self.live.console.status(
+            f"[{theme.meta} bold]Task running...[/{theme.meta} bold]", spinner="clock"
+        )
+
+    def __exit__(self, *excinfo: Any) -> None:
+        self.status.stop()
+
+    @override
+    @contextlib.contextmanager
+    def input_screen(
+        self, header: str | None = None, transient: bool = True
+    ) -> Iterator[Console]:
+        # clear live task status and transient status
+        self.live.update("", refresh=True)
+        self.status.stop()
+
+        # show cursor for input
+        self.live.console.show_cursor(True)
+
+        try:
+            # print header if requested
+            if header:
+                style = f"{rich_theme().meta} bold"
+                self.live.console.rule(f"[{style}]{header}[/{style}]", style=style)
+                self.live.console.print("")
+
+            # yield the console
+            yield self.live.console
+
+            # print one blank line
+            self.live.console.print("")
+        finally:
+            # disable cursor while not collecting input
+            self.live.console.show_cursor(False)
+
+            # if transient then disable live updates entirely
+            if transient is False and self.live.is_started:
+                self.live.stop()
+
+            # otherwise make sure they are enabled
+            elif transient is True and not self.live.is_started:
+                self.live.start()
+
+            # if not transient then display mini-status
+            if not transient:
+                self.status.start()
 
 
 class RichTaskDisplay(TaskDisplay):
@@ -296,7 +367,7 @@ def task_result_cancelled(
         profile=profile,
         show_model=True,
         body=task_stats(profile, cancelled.stats),
-        footer=task_interrupted(profile, cancelled.samples_logged),
+        footer=task_interrupted(profile, cancelled.samples_completed),
         log_location=profile.log_location,
     )
 
@@ -306,7 +377,7 @@ def task_result_summary(profile: TaskProfile, success: TaskSuccess) -> Renderabl
         profile=profile,
         show_model=True,
         body=task_stats(profile, success.stats),
-        footer=task_results(success.results),
+        footer=task_results(profile, success),
         log_location=profile.log_location,
     )
 
@@ -316,7 +387,7 @@ def task_result_error(profile: TaskProfile, error: TaskError) -> RenderableType:
         profile=profile,
         show_model=True,
         body=rich_traceback(error.exc_type, error.exc_value, error.traceback),
-        footer=task_interrupted(profile, error.samples_logged),
+        footer=task_interrupted(profile, error.samples_completed),
         log_location=profile.log_location,
     )
 
@@ -325,7 +396,7 @@ def task_panel(
     profile: TaskProfile,
     show_model: bool,
     body: RenderableType,
-    footer: tuple[RenderableType, RenderableType] | None,
+    footer: RenderableType | tuple[RenderableType, RenderableType] | None,
     log_location: str | None,
 ) -> Panel:
     # rendering context
@@ -348,7 +419,10 @@ def task_panel(
     # footer if specified
     if footer:
         table.add_row()
-        table.add_row(footer[0], footer[1])
+        if isinstance(footer, tuple):
+            table.add_row(footer[0], footer[1])
+        else:
+            table.add_row(footer)
 
     # enclose in outer table for log link footer
     root = table
@@ -401,9 +475,13 @@ def task_targets(profile: TaskProfile) -> str:
 def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
     # merge config
     theme = rich_theme()
-    config = dict(profile.task_args) | dict(
-        profile.eval_config.model_dump(exclude_none=True)
-    )
+    # wind params back for display
+    task_args = dict(profile.task_args)
+    for key in task_args.keys():
+        value = task_args[key]
+        if isinstance(value, dict) and "plan" in value and "params" in value:
+            task_args[key] = value["plan"]
+    config = task_args | dict(profile.eval_config.model_dump(exclude_none=True))
     if generate_config:
         config = config | dict(profile.generate_config.model_dump(exclude_none=True))
     config_print: list[str] = []
@@ -433,16 +511,12 @@ def live_task_footer() -> tuple[RenderableType, RenderableType]:
     )
 
 
-def task_interrupted(
-    profile: TaskProfile, samples_logged: int
-) -> tuple[RenderableType, RenderableType]:
+def task_interrupted(profile: TaskProfile, samples_completed: int) -> RenderableType:
     log_location = profile.log_location
     theme = rich_theme()
     message = f"[bold][{theme.error}]Task interrupted ("
-    if samples_logged > 0:
-        message = (
-            f"{message}{samples_logged} completed samples logged before interruption)."
-        )
+    if samples_completed > 0:
+        message = f"{message}{samples_completed} completed samples logged before interruption)."
         if task_can_retry_from_filesystem(profile):
             message = (
                 f"{message} Resume task with:[/{theme.error}][/bold]\n\n"
@@ -455,16 +529,18 @@ def task_interrupted(
             f"{message}no samples completed before interruption)[/{theme.error}][/bold]"
         )
 
-    return message, ""
+    return message
 
 
 def task_can_retry_from_filesystem(profile: TaskProfile) -> bool:
     return profile.file is not None
 
 
-def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
+def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
     theme = rich_theme()
+
     # do we have more than one scorer name?
+    results = success.results
     scorer_names: Set[str] = {score.name for score in results.scores}
     reducer_names: Set[str] = {
         score.reducer for score in results.scores if score.reducer is not None
@@ -490,9 +566,20 @@ def task_results(results: EvalResults) -> tuple[RenderableType, RenderableType]:
             key = f"{score.name}/{name}" if (len(scorer_names) > 1) else name
             output[key] = value
 
-    metrics = f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
+    if output:
+        message = f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
+    else:
+        message = ""
 
-    return (metrics, "")
+    # note if some of our samples had errors
+    if success.samples_completed < profile.samples:
+        sample_errors = profile.samples - success.samples_completed
+        sample_error_pct = int(float(sample_errors) / float(profile.samples) * 100)
+        if message:
+            message = f"{message}\n\n"
+        message = f"{message}[{theme.warning}]WARNING: {sample_errors} of {profile.samples} samples ({sample_error_pct}%) had errors and were not scored.[/{theme.warning}]"
+
+    return message
 
 
 def task_stats(profile: TaskProfile, stats: EvalStats) -> RenderableType:
@@ -518,9 +605,19 @@ def task_stats(profile: TaskProfile, stats: EvalStats) -> RenderableType:
 
     # token usage
     for model, usage in stats.model_usage.items():
+        if (
+            usage.input_tokens_cache_read is not None
+            or usage.input_tokens_cache_write is not None
+        ):
+            input_tokens_cache_read = usage.input_tokens_cache_read or 0
+            input_tokens_cache_write = usage.input_tokens_cache_write or 0
+            input_tokens = f"[bold]I: [/bold]{usage.input_tokens:,}, [bold]CW: [/bold]{input_tokens_cache_write:,}, [bold]CR: [/bold]{input_tokens_cache_read:,}"
+        else:
+            input_tokens = f"[bold]I: [/bold]{usage.input_tokens:,}"
+
         table.add_row(
             Text(model, style="bold"),
-            f"  {usage.total_tokens:,} tokens [{usage.input_tokens:,} + {usage.output_tokens:,}]",
+            f"  {usage.total_tokens:,} tokens [{input_tokens}, [bold]O: [/bold]{usage.output_tokens:,}]",
             style=theme.light,
         )
 
@@ -551,13 +648,7 @@ def rich_theme() -> Theme:
 
 
 def rich_console() -> Console:
-    global _console
-    if _console is None:
-        # only use color in vscode (other terminals are too
-        # variable in their color contrast levels to rely on)
-        use_color = is_running_in_vscode() and not is_running_in_jupyterlab()
-        _console = Console(no_color=not use_color)
-    return _console
+    return rich.get_console()
 
 
 def rich_display() -> RichDisplay:
@@ -583,5 +674,4 @@ def rich_progress() -> RProgress:
 
 
 _theme: Theme | None = None
-_console: Console | None = None
 _display: RichDisplay | None = None

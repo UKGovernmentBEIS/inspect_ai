@@ -15,6 +15,8 @@ import { arrayToString, shortenCompletion } from "../utils/Format.mjs";
 import { SampleScoreView } from "./SampleScoreView.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleTranscript } from "./SampleTranscript.mjs";
+import { ANSIDisplay } from "../components/AnsiDisplay.mjs";
+import { FlatSampleError } from "./SampleError.mjs";
 
 export const InlineSampleDisplay = ({
   index,
@@ -49,6 +51,7 @@ export const SampleDisplay = ({
   const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
+  const errorTabId = `${baseId}-error`;
 
   // Upon sample update
   useEffect(() => {
@@ -133,6 +136,22 @@ export const SampleDisplay = ({
           selected=${selectedTab === metdataTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
         ${sampleMetadatas}
+        </div>
+      </${TabPanel}>`,
+    );
+  }
+
+  if (sample.error) {
+    tabs.push(
+      html`
+      <${TabPanel} 
+          id=${errorTabId} 
+          title="Error" 
+          icon=${ApplicationIcons.metadata}
+          onSelected=${onSelectedTab} 
+          selected=${selectedTab === errorTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+          <${ANSIDisplay} output=${sample.error.traceback_ansi} style=${{ fontSize: FontSize.small, margin: "1em 0" }}/>
         </div>
       </${TabPanel}>`,
     );
@@ -257,7 +276,9 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
 
   columns.push({
     label: "Score",
-    value: sampleDescriptor?.selectedScore(sample).render(),
+    value: sample.error
+      ? html`<${FlatSampleError} style=${{ marginTop: "0.4rem" }} />`
+      : sampleDescriptor?.selectedScore(sample).render(),
     size: "minmax(2em, auto)",
     center: true,
   });

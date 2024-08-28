@@ -23,12 +23,14 @@ from .compose import (
     compose_build,
     compose_check_running,
     compose_cleanup_images,
+    compose_command,
     compose_cp,
     compose_exec,
     compose_pull,
     compose_services,
     compose_up,
 )
+from .config import CONFIG_FILES
 from .prereqs import validate_prereqs
 from .util import ComposeProject, sandbox_log, task_project_name
 
@@ -37,6 +39,10 @@ logger = getLogger(__name__)
 
 @sandboxenv(name="docker")
 class DockerSandboxEnvironment(SandboxEnvironment):
+    @classmethod
+    def config_files(cls) -> list[str]:
+        return CONFIG_FILES
+
     @classmethod
     async def task_init(cls, task_name: str, config: str | None) -> None:
         # validate prereqs
@@ -172,15 +178,22 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         input: str | bytes | None = None,
         cwd: str | None = None,
         env: dict[str, str] = {},
+        user: str | None = None,
         timeout: int | None = None,
     ) -> ExecResult[str]:
         # additional args
         args = []
 
-        # specify working if requested
-        if cwd:
-            args.append("--workdir")
-            args.append(cwd)
+        final_cwd = Path(self._project.working_dir if cwd is None else cwd)
+        if not final_cwd.is_absolute():
+            final_cwd = self._project.working_dir / final_cwd
+
+        args.append("--workdir")
+        args.append(str(final_cwd))
+
+        if user:
+            args.append("--user")
+            args.append(user)
 
         # Forward environment commands to docker compose exec so they
         # will be available to the bash command
@@ -201,7 +214,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         sandbox_log(f"write_file: {file}")
 
         # resolve relative file paths
-        original_file = file
         file = container_file(self._project, file)
 
         # ensure that the directory exists
@@ -215,32 +227,79 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     msg = f"Failed to create container directory {parent}: {result.stderr}"
                     raise RuntimeError(msg)
 
-        # use docker cp for binary files, tee for text files (which will
-        # have higher privs b/c the command runs in the container)
+        # We want to be able to write a file in the container,
+        # but only if the container's user would be allowed to do that.
+        # We need to avoid implicitly trusting the provided "file" string.
+        # For example, it shouldn't be passed as part of a shell command,
+        # because of the risk of shell injection.
+
+        local_tmpfile = tempfile.NamedTemporaryFile()
+
+        # write contents into a local tmp file (not in the container)
         if isinstance(contents, str):
-            # write the file
-            result = await self.exec(["tee", "--", file], input=contents)
-            if not result.success:
-                # PermissionError
-                if "permission denied" in result.stderr.lower():
-                    raise PermissionError(
-                        errno.EACCES, "Permission denied.", original_file
-                    )
-                else:
-                    msg = (
-                        f"Failed to write file '{file}' into container: {result.stderr}"
-                    )
-                    raise RuntimeError(msg)
+            local_tmpfile.write(contents.encode("utf-8"))
         else:
-            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-                src_file = os.path.join(temp_dir, os.path.basename(file))
-                async with aiofiles.open(src_file, "wb") as f:
-                    await f.write(contents)
-                await compose_cp(
-                    src=os.path.basename(src_file),
-                    dest=f"{self._service}:{file}",
-                    project=self._project,
-                    cwd=os.path.dirname(src_file),
+            local_tmpfile.write(contents)
+
+        local_tmpfile.flush()
+
+        # Copy the local tmp file into a tmp file on the container.
+        # Both tmp files have safe names as we created them ourselves
+
+        # Use a custom mktemp target in the default cwd, because there
+        # was much strangness using mktemp in /tmp within GitHub CI:
+        # the temp files were created with the wrong ownership.
+        mktemp_result = await self.exec(["mktemp", ".tmp_inspect_sandbox_XXXXXX"])
+        if not mktemp_result.success:
+            raise RuntimeError(
+                f"failed to create temporary file in container: {mktemp_result}"
+            )
+        container_tmpfile = mktemp_result.stdout.strip()
+
+        # compose cp will leave the file owned by root
+        await compose_cp(
+            src=local_tmpfile.name,
+            dest=f"{self._service}:{container_file(self._project,container_tmpfile)}",
+            project=self._project,
+        )
+
+        local_tmpfile.close()  # this will also delete the file
+
+        if not hasattr(self, "_docker_user"):
+            uid = (await self.exec(["id", "--user"])).stdout.strip()
+            gid = (await self.exec(["id", "--group"])).stdout.strip()
+            self._docker_user = (uid, gid)
+
+        await compose_command(
+            [
+                "exec",
+                "--user",
+                "root",
+                self._service,
+                "chown",
+                f"{self._docker_user[0]}:{self._docker_user[1]}",
+                container_tmpfile,
+            ],
+            project=self._project,
+        )
+
+        res_cp = await self.exec(
+            ["cp", "--no-target-directory", "--", container_tmpfile, file]
+        )
+
+        await self.exec(["rm", container_tmpfile])
+
+        if res_cp.returncode != 0:
+            if "Permission denied" in res_cp.stderr:
+                error_string = f"Permission was denied. Failed to copy temporary file. Error details: {res_cp.stderr};"
+                raise PermissionError(error_string)
+            elif "cannot overwrite directory" in res_cp.stderr:
+                raise IsADirectoryError(
+                    f"Failed to write file: {file} because it is a directory already"
+                )
+            else:
+                raise RuntimeError(
+                    f"failed to copy temporary file during write_file: {res_cp}"
                 )
 
     @overload

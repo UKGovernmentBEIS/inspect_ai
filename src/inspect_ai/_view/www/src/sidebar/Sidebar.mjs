@@ -195,7 +195,7 @@ const EvalStatus = ({ logHeader }) => {
       return html`<${StatusRunning} message="Running" />`;
 
     default:
-      if (logHeader?.results?.scores && logHeader.results.scores.length > 0) {
+      if (logHeader?.results?.scores && logHeader.results?.scores.length > 0) {
         if (logHeader.results.scores.length === 1) {
           return html`<${SidebarScore}
             scorer=${logHeader.results.scores[0]}

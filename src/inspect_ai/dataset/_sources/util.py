@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Callable
 
 from inspect_ai._util.content import Content, ContentImage
@@ -25,10 +24,7 @@ def resolve_sample_files(dataset: Dataset) -> None:
         try:
             target_file = f"{parent_dir}{fs.sep}{file}"
             if fs.exists(target_file):
-                if fs.is_local():
-                    return Path(target_file).resolve().as_posix()
-                else:
-                    return target_file
+                return target_file
             else:
                 return file
         except OSError:
@@ -36,6 +32,10 @@ def resolve_sample_files(dataset: Dataset) -> None:
 
     # for each sample
     for sample in dataset:
+        # check for sandbox config file
+        if isinstance(sample.sandbox, tuple) and sample.sandbox[1] is not None:
+            sample.sandbox = (sample.sandbox[0], resolve_file(sample.sandbox[1]))
+
         # check for files
         if sample.files is not None:
             for path in sample.files.keys():

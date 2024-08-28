@@ -7,6 +7,8 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
+from inspect_ai._display._display import clear_task_screen, init_task_screen
+from inspect_ai._eval.task.sandbox import resolve_sandbox
 from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir_python
@@ -43,13 +45,13 @@ async def eval_run(
     run_dir = task_run_dir(tasks[0].task)
     if any([task_run_dir(task.task) != run_dir for task in tasks]):
         raise RuntimeError("Parallel tasks must have the same working directory.")
-    sandbox = next((task.sandbox for task in tasks if task.sandbox is not None), None)
+    has_sandbox = next((task.has_sandbox for task in tasks), None)
 
     # if we have a sandbox then we need to enforce sample concurrency at
     # this level of the eval (so we don't explode the # of sandboxes)
     sample_semaphore: asyncio.Semaphore | None = (
         create_sample_semaphore(eval_config, GenerateConfig(**kwargs))
-        if sandbox
+        if has_sandbox
         else None
     )
 
@@ -60,7 +62,7 @@ async def eval_run(
     with chdir_python(run_dir), dotenv_environ():
         # run startup pass for the sandbox environment
         shutdown_sandbox_environments: Callable[[], Awaitable[None]] | None = None
-        if sandbox:
+        if has_sandbox:
             cleanup = eval_config.sandbox_cleanup is not False
             shutdown_sandbox_environments = await startup_sandbox_environments(
                 tasks, cleanup
@@ -87,6 +89,11 @@ async def eval_run(
                     task_eval_config.epochs_reducer = reducer_log_names(
                         task.epochs_reducer
                     )
+
+                # tasks can provide a fail_on_error policy, but don't let it override
+                # an eval level fail_on_error policy
+                if task_eval_config.fail_on_error is None:
+                    task_eval_config.fail_on_error = task.fail_on_error
 
                 # create and track the logger
                 logger = TaskLogger(
@@ -148,8 +155,10 @@ async def eval_run(
 # executable tasks if we are evaluating against multiple models)
 async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
     # https://discuss.python.org/t/asyncio-cancel-a-cancellation-utility-as-a-coroutine-this-time-with-feeling/26304/3
-    asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
-    with display().live_task_status(total_tasks=len(tasks), parallel=False):
+
+    with display().task_screen(total_tasks=len(tasks), parallel=False) as screen:
+        init_task_screen(screen)
+        asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
         try:
             return await asyncio.gather(*asyncio_tasks)
         except asyncio.CancelledError:
@@ -161,6 +170,8 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
                     task.cancel()
                     await task
                     results.append(task.result())
+        finally:
+            clear_task_screen()
         return results
 
 
@@ -223,7 +234,10 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 break
 
     # with task display
-    with display().live_task_status(total_tasks=len(tasks), parallel=True):
+    with display().task_screen(total_tasks=len(tasks), parallel=True) as screen:
+        # set screen
+        init_task_screen(screen)
+
         # start worker tasks
         workers = [asyncio.create_task(worker()) for _ in range(0, parallel)]
 
@@ -236,6 +250,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             await queue.join()
         except asyncio.CancelledError:
             pass
+        finally:
+            clear_task_screen()
 
         # cancel worker tasks
         for w in workers:
@@ -250,8 +266,11 @@ async def startup_sandbox_environments(
     # find unique sandboxenvs
     sandboxenvs: Set[tuple[str, str | None]] = set()
     for task in tasks:
-        if task.sandbox is not None and task.sandbox not in sandboxenvs:
-            sandboxenvs.add(task.sandbox)
+        # resolve each sample and add to sandboxenvs
+        for sample in task.task.dataset:
+            sandbox = resolve_sandbox(task.sandbox, sample)
+            if sandbox is not None and sandbox not in sandboxenvs:
+                sandboxenvs.add(sandbox)
 
     # initialiase sandboxenvs (track cleanups)
     cleanups: list[tuple[TaskCleanup, str | None]] = []

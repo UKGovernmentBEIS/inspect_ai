@@ -1,0 +1,79 @@
+---
+title: "Errors and Limits"
+format: html
+---
+
+## Overview
+
+When developing more complex evaluations, its not uncommon to encounter error conditions during development---these might occur due to a bug in a solver or scorer, an unreliable or overloaded API, or a failure to communicate with a sandbox environment. It's also possible to end up evals that don't terminate properly because models continue running in a tool calling loop even though they are "stuck" and very unlikely to make additioanal progress.
+
+This article covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples. Topics covered include:
+
+1.  Retrying failed evaluations (while preserving the samples completed during the initial failed run).
+2.  Establishing a threshold (count or percentage) of samples to tolerate errors for before failing an evaluation.
+3.  Setting a maximum number of messages in a sample before forcing the model to give up.
+
+{{< include _errors_and_retries.md >}}
+
+## Failure Threshold
+
+In some cases you might wish to tolerate some number of errors without failing the evaluation. This might be during development when errors are more commonplace, or could be to deal with a particularly unreliable API used in the evaluation. Add the `fail_on_error` option to your `Task` definition to establish this threshold. For example, here we indicate that we'll tolerate errors in up to 10% of the total sample count before failing:
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        plan=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=120)]),
+            generate(),
+        ],
+        fail_on_error=0.1,
+        scorer=includes(),
+        sandbox="docker",
+    )
+```
+
+Failed samples are *not scored* and a warning indicating that some samples failed is both printed in the terminal and shown in Inspect View when this occurs.
+
+You can specify `fail_on_error` as a boolean (turning the behaviour on and off entirely), as a number between 0 and 1 (indicating a proportion of failures to tolerate), or a number greater than 1 to (indicating a count of failures to tolerate):
+
+| Value                 | Behaviour                                           |
+|-----------------------|-------------------------------------------------|
+| `fail_on_error=True`  | Fail eval immediately on sample errors (default).   |
+| `fail_on_error=False` | Never fail eval on sample errors.                   |
+| `fail_on_error=0.1`   | Fail if more than 10% of total samples have errors. |
+| `fail_on_error=5`     | Fail eval if more than 5 samples have errors.       |
+
+: {tbl-colwidths=\[40,60\]}
+
+While `fail_on_error` is typically specified at the `Task` level, you can also override the task setting when calling `eval()` or `inspect eval` from the CLI. For example:
+
+``` python
+eval("intercode_ctf.py", fail_on_error=False)
+```
+
+You might choose to do this if you want to tolerate a certain proportion of errors during development but want to ensure there are never errors when running in production.
+
+## Messages Limit
+
+In open-ended model conversations (for example, an agent evalution with tool usage) it's possible that a model will get "stuck" attempting to perform a task with no realistic prospect of completing it. Sometimes models will "give up" but sometimes they won't! For this type of evaluation it's normally a good idea to set a limit on total messages. For example, here's an evaluation task that sets a limit of 30 messages:
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        plan=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=120)]),
+            generate(),
+        ],
+        max_messages=30,
+        scorer=includes(),
+        sandbox="docker",
+    )
+```
+
+The `max_messages=30` argument sets a limit of 30 total messages in the conversation before the model is forced to give up. At that point, whatever `output` happens to be in the `TaskState` will be scored (presumably leading to a score of 9 or 'incorrect').

@@ -23,6 +23,7 @@ export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
+export type FailOnError = boolean | number | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
@@ -59,6 +60,9 @@ export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
+export type CachePrompt = "auto" | boolean | null;
+export type TotalSamples = number;
+export type CompletedSamples = number;
 export type Name2 = string;
 export type Scorer = string;
 export type Reducer = string | null;
@@ -89,6 +93,8 @@ export type CompletedAt = string;
 export type InputTokens = number;
 export type OutputTokens = number;
 export type TotalTokens = number;
+export type InputTokensCacheWrite = number | null;
+export type InputTokensCacheRead = number | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
@@ -126,6 +132,7 @@ export type Content3 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate" | "cache") | null;
 export type Role3 = "tool";
 export type ToolCallId = string | null;
+export type Function1 = string | null;
 export type Type4 =
   | "parsing"
   | "timeout"
@@ -136,6 +143,9 @@ export type Type4 =
 export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];
+export type Sandbox1 = [unknown, unknown] | null;
+export type Files = string[] | null;
+export type Setup = string | null;
 export type Messages = (
   | ChatMessageSystem
   | ChatMessageUser
@@ -187,10 +197,11 @@ export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id2 = number | string | null;
 export type Metadata7 = {} | null;
-export type Files = {
+export type Sandbox2 = string | [unknown, unknown] | null;
+export type Files1 = {
   [k: string]: string;
 } | null;
-export type Setup = string | null;
+export type Setup1 = string | null;
 export type JsonValue = unknown;
 export type Timestamp1 = string;
 export type Event1 = "state";
@@ -225,9 +236,11 @@ export type Description1 = string | null;
 export type Properties1 = {
   [k: string]: ToolParam;
 } | null;
+export type Additionalproperties = ToolParam | boolean | null;
 export type Anyof = ToolParam[] | null;
 export type Required = string[] | null;
 export type Required1 = string[];
+export type Additionalproperties1 = boolean;
 export type Tools = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name5 = string;
@@ -235,12 +248,14 @@ export type Timestamp4 = string;
 export type Event4 = "tool";
 export type Type7 = "function";
 export type Id3 = string;
-export type Function1 = string;
+export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Timestamp5 = string;
 export type Event5 = "score";
 export type Timestamp6 = string;
-export type Event6 = "logger";
+export type Event6 = "error";
+export type Timestamp7 = string;
+export type Event7 = "logger";
 export type Name6 = string | null;
 export type Level =
   | "debug"
@@ -255,15 +270,15 @@ export type Created1 = number;
 export type Filename = string;
 export type Module = string;
 export type Lineno = number;
-export type Timestamp7 = string;
-export type Event7 = "info";
 export type Timestamp8 = string;
-export type Event8 = "step";
+export type Event8 = "info";
+export type Timestamp9 = string;
+export type Event9 = "step";
 export type Action = "begin" | "end";
 export type Type8 = string | null;
 export type Name7 = string;
-export type Timestamp9 = string;
-export type Event9 = "subtask";
+export type Timestamp10 = string;
+export type Event10 = "subtask";
 export type Name8 = string;
 export type Events2 = (
   | SampleInitEvent
@@ -272,6 +287,7 @@ export type Events2 = (
   | ModelEvent
   | ToolEvent
   | ScoreEvent
+  | ErrorEvent
   | LoggerEvent
   | InfoEvent
   | StepEvent
@@ -284,6 +300,7 @@ export type Events1 = (
   | ModelEvent
   | ToolEvent
   | ScoreEvent
+  | ErrorEvent
   | LoggerEvent
   | InfoEvent
   | StepEvent
@@ -296,6 +313,7 @@ export type Events = (
   | ModelEvent
   | ToolEvent
   | ScoreEvent
+  | ErrorEvent
   | LoggerEvent
   | InfoEvent
   | StepEvent
@@ -344,6 +362,7 @@ export interface EvalConfig {
   limit: Limit;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
+  fail_on_error: FailOnError;
   max_messages: MaxMessages;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
@@ -395,8 +414,11 @@ export interface GenerateConfig {
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
+  cache_prompt: CachePrompt;
 }
 export interface EvalResults {
+  total_samples: TotalSamples;
+  completed_samples: CompletedSamples;
   scores: Scores;
   metadata: Metadata3;
   sample_reductions: SampleReductions;
@@ -450,6 +472,8 @@ export interface ModelUsage1 {
   input_tokens: InputTokens;
   output_tokens: OutputTokens;
   total_tokens: TotalTokens;
+  input_tokens_cache_write: InputTokensCacheWrite;
+  input_tokens_cache_read: InputTokensCacheRead;
 }
 export interface EvalError {
   message: Message;
@@ -462,12 +486,16 @@ export interface EvalSample {
   input: Input;
   choices: Choices;
   target: Target;
+  sandbox: Sandbox1;
+  files: Files;
+  setup: Setup;
   messages: Messages;
   output: ModelOutput;
   scores: Scores1;
   metadata: Metadata6;
   store: Store;
   transcript: EvalEvents;
+  error: EvalError | null;
 }
 export interface ChatMessageSystem {
   content: Content;
@@ -507,6 +535,7 @@ export interface ChatMessageTool {
   source: Source3;
   role: Role3;
   tool_call_id: ToolCallId;
+  function: Function1;
   error: ToolCallError | null;
 }
 export interface ToolCallError {
@@ -588,9 +617,11 @@ export interface SampleInitEvent {
  *         or narrative text to be used by a model grader.
  *     id (int | str | None): Optional. Unique identifier for sample.
  *     metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
+ *     sandbox (SandboxEnvironmentSpec | None): Optional. Sandbox environment
+ *       type and optional config file.
  *     files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
  *       SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
- *     setup: (str | None): Optional. Setup script to run for sample (run
+ *     setup (str | None): Optional. Setup script to run for sample (run
  *       within default SandboxEnvironment).
  */
 export interface Sample {
@@ -599,8 +630,9 @@ export interface Sample {
   target: Target1;
   id: Id2;
   metadata: Metadata7;
-  files: Files;
-  setup: Setup;
+  sandbox: Sandbox2;
+  files: Files1;
+  setup: Setup1;
 }
 /**
  * Change to the current `TaskState`
@@ -679,6 +711,7 @@ export interface ToolParams {
   type: Type5;
   properties: Properties;
   required: Required1;
+  additionalProperties: Additionalproperties1;
 }
 export interface Properties {
   [k: string]: ToolParam;
@@ -692,7 +725,7 @@ export interface ToolParam {
   default: Default;
   items: ToolParam | null;
   properties: Properties1;
-  additionalProperties: ToolParam | null;
+  additionalProperties: Additionalproperties;
   anyOf: Anyof;
   required: Required;
 }
@@ -723,7 +756,7 @@ export interface ToolEvent {
   event: Event4;
   type: Type7;
   id: Id3;
-  function: Function1;
+  function: Function2;
   arguments: Arguments1;
   result: Result;
   error: ToolCallError | null;
@@ -741,11 +774,19 @@ export interface ScoreEvent {
   score: Score;
 }
 /**
+ * Event with sample error.
+ */
+export interface ErrorEvent {
+  timestamp: Timestamp6;
+  event: Event6;
+  error: EvalError;
+}
+/**
  * Log message recorded with Python logger.
  */
 export interface LoggerEvent {
-  timestamp: Timestamp6;
-  event: Event6;
+  timestamp: Timestamp7;
+  event: Event7;
   message: LoggingMessage;
 }
 export interface LoggingMessage {
@@ -761,16 +802,16 @@ export interface LoggingMessage {
  * Event with custom info/data.
  */
 export interface InfoEvent {
-  timestamp: Timestamp7;
-  event: Event7;
+  timestamp: Timestamp8;
+  event: Event8;
   data: JsonValue;
 }
 /**
  * Step within current sample or subtask.
  */
 export interface StepEvent {
-  timestamp: Timestamp8;
-  event: Event8;
+  timestamp: Timestamp9;
+  event: Event9;
   action: Action;
   type: Type8;
   name: Name7;
@@ -779,8 +820,8 @@ export interface StepEvent {
  * Subtask spawned.
  */
 export interface SubtaskEvent {
-  timestamp: Timestamp9;
-  event: Event9;
+  timestamp: Timestamp10;
+  event: Event10;
   name: Name8;
   input: Input3;
   result: Result1;

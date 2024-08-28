@@ -1,12 +1,11 @@
 import asyncio
-import base64
 import contextlib
 import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import PurePath
-from typing import AsyncGenerator, Callable, Literal
+from typing import Callable, Literal
 
 from typing_extensions import Unpack
 
@@ -17,7 +16,6 @@ from inspect_ai._display._display import (
     TaskProfile,
     TaskSuccess,
 )
-from inspect_ai._eval.task.util import sample_messages
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -25,13 +23,11 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
-from inspect_ai._util.url import data_uri_to_base64, is_data_uri
 from inspect_ai._view.view import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -58,24 +54,23 @@ from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.solver._subtask.subtask import init_subtask
 from inspect_ai.solver._subtask.transcript import (
+    ErrorEvent,
     SampleInitEvent,
     ScoreEvent,
     transcript,
 )
 from inspect_ai.solver._task_state import state_jsonable
-from inspect_ai.util._sandbox.context import (
-    cleanup_sandbox_environments_sample,
-    init_sandbox_environments_sample,
-)
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from ..context import init_task_context
 from ..task import Task
+from .error import SampleErrorHandler
 from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
+from .sandbox import sandboxenv_context
 from .transcript import solver_transcript
+from .util import sample_messages
 
 py_logger = getLogger(__name__)
 
@@ -122,6 +117,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     stats = EvalStats(started_at=iso_now())
     error: EvalError | None = None
     cancelled = False
+
+    # handle sample errors (raise as required)
+    sample_error_handler = SampleErrorHandler(config.fail_on_error, len(task.dataset))
 
     # resolve some config
     model_name = ModelName(model)
@@ -229,21 +227,25 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         logger=logger if log_samples else None,
                         log_images=log_images,
                         sample_source=sample_source,
+                        sample_error=sample_error_handler,
                         semaphore=sample_semaphore,
                     )
                     for (sample, state) in zip(samples, states)
                 ]
 
                 # run them in parallel (subject to config.max_samples)
-                scores = await asyncio.gather(*sample_coroutines)
+                sample_results = await asyncio.gather(*sample_coroutines)
 
             # compute and record metrics if we have scores
             completed_scores = [
-                score_dict for score_dict in scores if isinstance(score_dict, dict)
+                score_dict
+                for score_dict in sample_results
+                if isinstance(score_dict, dict)
             ]
 
             if len(completed_scores) > 0:
                 results = eval_results(
+                    samples=profile.samples,
                     scores=completed_scores,
                     reducers=task.epochs_reducer,
                     scorers=scorers,
@@ -257,7 +259,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             collect_eval_data(stats, logger)
 
             # display task summary
-            td.complete(TaskSuccess(stats, results))
+            td.complete(TaskSuccess(logger.samples_completed, stats, results))
 
         except asyncio.CancelledError:
             # flag as cancelled
@@ -267,7 +269,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             collect_eval_data(stats, logger)
 
             # display task cancelled
-            td.complete(TaskCancelled(logger.samples_logged, stats))
+            td.complete(TaskCancelled(logger.samples_completed, stats))
 
         except BaseException as ex:
             # get exception info
@@ -282,7 +284,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             collect_eval_data(stats, logger)
 
             # display it
-            td.complete(TaskError(logger.samples_logged, type, value, traceback))
+            td.complete(TaskError(logger.samples_completed, type, value, traceback))
 
     # log as appropriate
     if cancelled:
@@ -318,6 +320,7 @@ async def task_run_sample(
     logger: TaskLogger | None,
     log_images: bool,
     sample_source: EvalSampleSource | None,
+    sample_error: Callable[[BaseException], EvalError],
     semaphore: asyncio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
@@ -351,15 +354,16 @@ async def task_run_sample(
     # initialise subtask
     init_subtask(SAMPLE_SUBTASK, state.store)
 
-    # use toolenv if provided
+    # use sandbox if provided
     sandboxenv_cm = (
         sandboxenv_context(task_name, sandbox, sandbox_cleanup, sample)
-        if sandbox
+        if sandbox or sample.sandbox is not None
         else contextlib.nullcontext()
     )
 
     # solver loop
     async with semaphore_cm, sandboxenv_cm:
+        error: EvalError | None = None
         try:
             # sample init event (remove file bodies as they have content or absolute paths)
             event_sample = sample.model_copy(
@@ -376,6 +380,10 @@ async def task_run_sample(
                 # run the solver
                 with solver_transcript(solver, state) as st:
                     state = await solver(state, generate)
+                    if state is None:
+                        raise RuntimeError(
+                            f"Solver '{st.name}' did not return a TaskState"
+                        )
                     st.complete(state)
                 progress()
 
@@ -393,6 +401,17 @@ async def task_run_sample(
                 progress()
             state.completed = True
 
+        except asyncio.CancelledError:
+            # allow cancelled error to propagate
+            raise
+
+        except BaseException as ex:
+            # handle error (this will throw if we've exceeded the limit)
+            error = sample_error(ex)
+
+            # fire error event
+            transcript()._event(ErrorEvent(error=error))
+
         finally:
             # safely run cleanup function if there is one
             if plan.cleanup:
@@ -406,7 +425,7 @@ async def task_run_sample(
 
         # score it
         results: dict[str, SampleScore] = {}
-        if scorers:
+        if scorers and error is None:
             for scorer in scorers:
                 scorer_name = unique_scorer_name(scorer, list(results.keys()))
                 with transcript().step(name=scorer_name, type="scorer"):
@@ -432,10 +451,13 @@ async def task_run_sample(
                 state = (await states_with_base64_images([state]))[0]
 
             # log the sample
-            logger.log_sample(state.epoch, sample, state, results, True)
+            logger.log_sample(state.epoch, sample, state, results, error, True)
 
         # return
-        return results
+        if error is None:
+            return results
+        else:
+            return None
 
 
 async def resolve_dataset(
@@ -524,7 +546,8 @@ def eval_log_sample_source(
 
     elif eval_log.eval.dataset.samples != len(dataset):
         py_logger.warning(
-            "Unable to re-use samples from retry log file because the dataset size changed"
+            "Unable to re-use samples from retry log file because the dataset size changed "
+            + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
         return no_sample_source
     else:
@@ -534,7 +557,9 @@ def eval_log_sample_source(
                 (
                     sample
                     for sample in (eval_log.samples or [])
-                    if sample.id == id and sample.epoch == epoch
+                    if sample.id == id
+                    and sample.epoch == epoch
+                    and sample.error is None
                 ),
                 None,
             )
@@ -570,77 +595,3 @@ def create_sample_semaphore(
 
     # return the semaphore
     return asyncio.Semaphore(max_samples)
-
-
-@contextlib.asynccontextmanager
-async def sandboxenv_context(
-    task_name: str,
-    sandbox: tuple[str, str | None],
-    cleanup: bool,
-    sample: Sample,
-) -> AsyncGenerator[None, None]:
-    # read files from sample
-    files: dict[str, bytes] = {}
-    if sample.files:
-        for path, contents in sample.files.items():
-            files[path] = read_sandboxenv_file(contents)
-
-    # read setup script from sample (add bash shebang if necessary)
-    setup: bytes | None = None
-    if sample.setup:
-        setup = read_sandboxenv_file(sample.setup)
-        setup_str = setup.decode(encoding="utf-8")
-        if not setup_str.strip().startswith("#!"):
-            setup_str = f"#!/usr/bin/env bash\n\n{setup_str}"
-            setup = setup_str.encode(encoding="utf-8")
-
-    interrupted = False
-    environments: dict[str, SandboxEnvironment] | None = None
-    try:
-        # initialize sandbox environment,
-        environments = await init_sandbox_environments_sample(
-            type=sandbox[0],
-            task_name=task_name,
-            config=sandbox[1],
-            files=files,
-            setup=setup,
-            metadata=sample.metadata if sample.metadata else {},
-        )
-
-        # run sample
-        yield
-
-    except BaseException as ex:
-        interrupted = True
-        raise ex
-
-    finally:
-        # cleanup sandbox environment
-        if environments and cleanup:
-            await cleanup_sandbox_environments_sample(
-                type=sandbox[0],
-                task_name=task_name,
-                config=sandbox[1],
-                environments=environments,
-                interrupted=interrupted,
-            )
-
-
-def read_sandboxenv_file(contents: str) -> bytes:
-    if is_data_uri(contents):
-        contents_base64 = data_uri_to_base64(contents)
-        file_bytes = base64.b64decode(contents_base64)
-    else:
-        # try to read as a file (if it doesn't exist or has a path not cool w/
-        # the fileystem then we fall back to contents)
-        try:
-            fs = filesystem(contents)
-            if fs.exists(contents):
-                with file(contents, "rb") as f:
-                    file_bytes = f.read()
-            else:
-                file_bytes = contents.encode("utf-8")
-        except Exception:
-            file_bytes = contents.encode("utf-8")
-
-    return file_bytes

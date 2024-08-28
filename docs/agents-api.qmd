@@ -1,15 +1,5 @@
----
-title: "Agents API"
-format: html
----
+# Agents API {#sec-agents-api}
 
-::: callout-note
-The Agents API described in this article is currently available only in the development version of Inspect. You can install the development version with:
-
-``` {.bash .code-overflow-wrap}
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
 
 ## Overview
 
@@ -36,7 +26,7 @@ The `metadata` field no longer need be used for these scenarios (and in fact sho
 
 ## Sharing State
 
-Sequences of solvers often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Insepct using the `Store`, which provides a scoped scratchpad for arbitrary values.
+Sequences of solvers often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Inspect using the `Store`, which provides a scoped scratchpad for arbitrary values.
 
 The core of the `Store` interface is:
 
@@ -304,4 +294,4 @@ def list_files():
     return execute
 ```
 
-See the section on [Sandbox Environments](agents.qmd##sec-sandbox-environments) for further details on using sandboxes with Inspect.
+See the section on [Sandbox Environments](agents.qmd#sec-sandbox-environments) for further details on using sandboxes with Inspect.
