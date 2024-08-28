@@ -7,7 +7,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ChatMessageUser
 
 from ..task import Task
-from .constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+from .constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR, TASK_SRC_DIR_ATTR
 
 
 def sample_messages(sample: Sample) -> list[ChatMessage]:
@@ -22,6 +22,10 @@ def sample_messages(sample: Sample) -> list[ChatMessage]:
 
 def task_run_dir(task: Task) -> str:
     return getattr(task, TASK_RUN_DIR_ATTR, os.getcwd())
+
+
+def task_src_dir(task: Task) -> str:
+    return getattr(task, TASK_SRC_DIR_ATTR, os.getcwd())
 
 
 def task_file(task: Task, relative: bool = False) -> str | None:
