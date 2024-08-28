@@ -10,7 +10,6 @@ from types import ModuleType
 from typing import Any, Callable, cast
 
 from inspect_ai._eval.task.util import task_file, task_run_dir
-from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -246,7 +245,7 @@ def create_tasks(
 
 
 def load_file_tasks(file: Path) -> list[RegistryInfo]:
-    with chdir_python(file.parent.as_posix()), dotenv_environ():
+    with chdir_python(file.parent.as_posix()):
         return _load_task_specs(file)
 
 
@@ -256,7 +255,7 @@ def create_file_tasks(
     task_specs: list[str] | list[RegistryInfo] | None = None,
     task_args: dict[str, Any] = {},
 ) -> list[Task]:
-    with chdir_python(file.parent.as_posix()), dotenv_environ():
+    with chdir_python(file.parent.as_posix()):
         # if we don't have task specs then go get them (also,
         # turn them into plain names)
         if task_specs is None:

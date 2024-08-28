@@ -8,7 +8,6 @@ from typing_extensions import Unpack
 
 from inspect_ai._display import display
 from inspect_ai._display._display import clear_task_screen, init_task_screen
-from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.log import EvalConfig, EvalLog
@@ -283,7 +282,7 @@ async def startup_sandbox_environments(
 
         # run startup
         task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-        with chdir(sandboxenv[2]), dotenv_environ():
+        with chdir(sandboxenv[2]):
             await task_init("startup", sandboxenv[1])
 
         # append cleanup method
@@ -295,7 +294,7 @@ async def startup_sandbox_environments(
         for cleanup_jobs in cleanups:
             try:
                 cleanup_fn, config, task_run_dir = cleanup_jobs
-                with chdir(task_run_dir), dotenv_environ():
+                with chdir(task_run_dir):
                     await cleanup_fn("shutdown", config, cleanup)
             except BaseException as ex:
                 log.warning(
