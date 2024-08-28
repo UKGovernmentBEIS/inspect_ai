@@ -305,7 +305,7 @@ async def eval_async(
                     break
 
             # return list of eval logs
-            return EvalLogs(results)
+            logs = EvalLogs(results)
 
         # multiple task definitions AND tasks not capped at 1
         else:
@@ -321,10 +321,13 @@ async def eval_async(
                 score=score,
                 **kwargs,
             )
-            return EvalLogs(results)
+            logs = EvalLogs(results)
 
     finally:
         _eval_async_running = False
+
+    # return logs
+    return logs
 
 
 # single call to eval_async at a time
