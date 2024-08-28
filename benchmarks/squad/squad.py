@@ -29,7 +29,10 @@ def squad():
 
     return Task(
         dataset=dataset,
-        plan=build_plan(),
+        plan=[
+            system_message(SYSTEM_MESSAGE),
+            generate()
+        ],
         scorer=squad_f1_scorer()
     )
 
@@ -50,22 +53,7 @@ def format_input(record) -> str:
 
 def format_target(record) -> List[str]:
   answers = record["answers"]
-  choices = answers["text"]
-
-  target = choices
-  return target
-
-def build_plan() -> List:
-    
-  sys_msg = system_message(SYSTEM_MESSAGE)
-
-  plan = [
-    sys_msg,
-    generate(),
-  ]
-
-  return plan
-
+  return answers["text"]
 
 @scorer(metrics=[mean(), bootstrap_std()])
 def squad_f1_scorer():
