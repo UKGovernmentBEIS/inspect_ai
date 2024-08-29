@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.29
+
+- Improve behavior of log viewer when a task completes and the view is already displaying
+
 ## 0.3.28
 
 - Fix incorrect environment variable when setting model base url (thx @hanbyul-kim)
