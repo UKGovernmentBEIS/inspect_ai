@@ -5,6 +5,7 @@ This directory contains evals for several benchmarks. Datasets for evals are not
 | Benchmark                                                                                     | Reference                            |                                      Code | Dataset      |
 |-----------------------|-----------------|----------------:|-----------------|
 | MMLU: Measuring Massive Multitask Language Understanding                                      | <https://arxiv.org/abs/2009.03300>   |                        [mmlu.py](mmlu.py) | Download     |
+| MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark                                      | <https://arxiv.org/abs/2009.03300>   |                        [mmlu_pro.py](mmlu_pro/mmlu_pro.py) | HuggingFace     |
 | MATH: Measuring Mathematical Problem Solving With the MATH Dataset                            | <https://arxiv.org/abs/2103.03874>   |          [mathematics.py](mathematics/mathematics.py) | Download     |
 | GPQA: A Graduate-Level Google-Proof Q&A Benchmark                                             | <https://arxiv.org/abs/2311.12022>   |                        [gpqa.py](gpqa.py) | Download     |
 | ARC: AI2 Reasoning Challenge                                                                  | <https://arxiv.org/abs/1803.05457>   |                          [arc.py](arc.py) | Hugging Face |
