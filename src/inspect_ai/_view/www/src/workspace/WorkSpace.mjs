@@ -229,7 +229,7 @@ export const WorkSpace = (props) => {
         const warnings = [];
         if (
           !workspaceLog.contents?.samples &&
-          workspaceLog.contents?.eval?.dataset?.samples > 0 && 
+          workspaceLog.contents?.eval?.dataset?.samples > 0 &&
           workspaceLog.contents?.status !== "error"
         ) {
           warnings.push(
