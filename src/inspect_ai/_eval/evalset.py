@@ -144,10 +144,12 @@ def eval_set(
     #   - tasks with no log at all (they'll be attempted for the first time)
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
-    def try_eval(retry_state: RetryCallState) -> list[EvalLog]:
+    def try_eval(retry_state: RetryCallState | None = None) -> list[EvalLog]:
+        print("TRYING EVAL")
+
         # adjust max_connections based on attempt number
         try_max_connections = max_connections
-        reductions = retry_state.attempt_number - 1
+        reductions = retry_state.attempt_number - 1 if retry_state else 0
         for _ in range(0, reductions):
             try_max_connections = max(round(try_max_connections * retry_connections), 1)
         kwargs["max_connections"] = try_max_connections
@@ -195,6 +197,8 @@ def eval_set(
             )
 
         # look for retryable eval logs and cleave them into success/failed
+        logs = list_eval_logs(log_dir)
+        log_headers = read_eval_log_headers(logs)
         latest_logs = latest_completed_task_eval_logs(
             logs, log_headers, cleanup_older=retry_cleanup
         )
@@ -219,7 +223,6 @@ def eval_set(
 
     # TODO: task name issues
     # TODO: progress/status text
-    # TODO: tests!
 
     return all_evals_succeeded(results), results
 
@@ -349,7 +352,6 @@ def latest_completed_task_eval_logs(
 
         # remove the rest if requested
         if cleanup_older:
-            print("cleaning up older")
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
                 try:

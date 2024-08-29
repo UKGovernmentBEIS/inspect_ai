@@ -153,9 +153,9 @@ def failing_solver(rate=0.67):
 
 
 @task
-def failing_task(rate=0.67):
+def failing_task(rate=0.67, samples=1):
     return Task(
-        dataset=[Sample(input="Say hello", target="hello")],
+        dataset=[Sample(input="Say hello", target="hello")] * samples,
         plan=[failing_solver(rate), generate()],
         scorer=match(),
     )

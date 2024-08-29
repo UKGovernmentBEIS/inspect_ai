@@ -1,4 +1,3 @@
-import math
 import shutil
 import sys
 import tempfile
@@ -25,7 +24,7 @@ def test_eval_set() -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         # run eval with a solver that fails 50% of the time
         succces, _ = eval_set(
-            tasks=failing_task(0.5),
+            tasks=failing_task(rate=0.5, samples=10),
             log_dir=log_dir,
             retry=sys.maxsize,
             model="mockllm/model",
