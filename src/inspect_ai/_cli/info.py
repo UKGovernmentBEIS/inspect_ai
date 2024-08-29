@@ -5,7 +5,6 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai import __version__
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai._util.file import size_in_mb
 from inspect_ai._view.view import resolve_header_only
 from inspect_ai.log._file import eval_log_json, read_eval_log, read_eval_log_headers
 
