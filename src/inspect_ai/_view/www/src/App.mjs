@@ -72,7 +72,9 @@ export function App({ api, pollForLogs = true }) {
           });
           return { ...prev, ...updatedHeaders };
         });
-        await sleep(5000);
+        if (headers.length === chunkSize) {
+          await sleep(5000);
+        }
       }
     } catch (e) {
       // Show an error
