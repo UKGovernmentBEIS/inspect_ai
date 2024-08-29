@@ -170,7 +170,7 @@ def eval_set(
         for task_group in task_groups:
             group_models, group_tasks = task_group
             eval(
-                tasks=group_tasks,
+                tasks=list(group_tasks),
                 model=group_models.models,
                 model_base_url=model_base_url,
                 model_args=model_args,
@@ -255,7 +255,10 @@ def task_identifer(task: ResolvedTask | EvalLog) -> str:
 
 
 def task_identifer_without_model(identifier: str) -> str:
-    return "/".join(identifier.split("/")[:-1])
+    parts = identifier.split("/")
+    parts = parts[:-2]
+    identifier = "/".join(parts)
+    return identifier
 
 
 class ModelList:
@@ -272,6 +275,9 @@ class ModelList:
             return False
         return self._key() == other._key()
 
+    def __str__(self) -> str:
+        return ",".join([str(model) for model in self.models])
+
     def _key(self) -> str:
         model_names = [str(model) for model in self.models]
         model_names.sort()
@@ -280,7 +286,7 @@ class ModelList:
 
 def schedule_pending_tasks(
     pending_tasks: list[ResolvedTask],
-) -> list[tuple[ModelList, list[Task]]]:
+) -> list[tuple[ModelList, Set[Task]]]:
     # build a map of task identifiers and the models they target
     task_id_model_targets: dict[str, ModelList] = {}
     for pending_task in pending_tasks:
@@ -293,8 +299,8 @@ def schedule_pending_tasks(
     unique_model_targets: Set[ModelList] = set(task_id_model_targets.values())
 
     # create schedule
-    schedule: list[tuple[ModelList, list[Task]]] = [
-        (model_target, []) for model_target in unique_model_targets
+    schedule: list[tuple[ModelList, Set[Task]]] = [
+        (model_target, set()) for model_target in unique_model_targets
     ]
     for models, tasks in schedule:
         # which task ids have this set of models
@@ -304,13 +310,16 @@ def schedule_pending_tasks(
                 task_ids.append(task_id)
 
         # go find the tasks that have this id
-        tasks.extend(
-            [
+        for task_id in task_ids:
+            for t in [
                 task.task
                 for task in pending_tasks
                 if task_id == task_identifer_without_model(task_identifer(task))
-            ]
-        )
+            ]:
+                tasks.add(t)
+
+    # deterministic return order
+    schedule.sort(key=lambda x: str(x[0]))
 
     return schedule
 
@@ -340,6 +349,7 @@ def latest_completed_task_eval_logs(
 
         # remove the rest if requested
         if cleanup_older:
+            print("cleaning up older")
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
                 try:
