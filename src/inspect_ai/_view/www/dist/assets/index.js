@@ -21815,7 +21815,7 @@ const WorkSpace = (props) => {
   const [currentTaskId, setCurrentTaskId] = h(
     (_b = (_a = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.run_id
   );
-  const [selectedTab, setSelectedTab] = h(kEvalTabId);
+  const [selectedTab, setSelectedTab] = h();
   const [scores, setScores] = h([]);
   const [score, setScore] = h(void 0);
   const [samplesDesc, setSamplesDesc] = h(void 0);
@@ -21835,9 +21835,9 @@ const WorkSpace = (props) => {
     setSort(kDefaultSort);
   }, [setEpoch, setFilter, setSort]);
   y(() => {
-    var _a2, _b2;
+    var _a2;
     if (workspaceLog.contents && ((_a2 = workspaceLog.contents.eval) == null ? void 0 : _a2.run_id) !== currentTaskId) {
-      const defaultTab = ((_b2 = workspaceLog.contents) == null ? void 0 : _b2.status) !== "error" ? kEvalTabId : kInfoTabId;
+      const defaultTab = Object.values(tabs)[0].id;
       setSelectedTab(defaultTab);
       if (divRef.current) {
         divRef.current.scrollTop = 0;
@@ -21887,13 +21887,13 @@ const WorkSpace = (props) => {
     setCurrentTaskId((_b2 = (_a2 = workspaceLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.run_id);
   }, [workspaceLog]);
   const tabs = T(() => {
-    var _a2, _b2, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e, _f;
     const resolvedTabs = {};
-    if (((_a2 = workspaceLog.contents) == null ? void 0 : _a2.status) !== "error") {
+    if (((_a2 = workspaceLog.contents) == null ? void 0 : _a2.status) !== "error" && ((_b2 = workspaceLog.contents) == null ? void 0 : _b2.samples)) {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        scrollable: ((_c = (_b2 = workspaceLog.contents) == null ? void 0 : _b2.samples) == null ? void 0 : _c.length) === 1,
-        label: ((_e = (_d = workspaceLog.contents) == null ? void 0 : _d.samples) == null ? void 0 : _e.length) > 1 ? "Samples" : "Sample",
+        scrollable: ((_d = (_c = workspaceLog.contents) == null ? void 0 : _c.samples) == null ? void 0 : _d.length) === 1,
+        label: ((_f = (_e = workspaceLog.contents) == null ? void 0 : _e.samples) == null ? void 0 : _f.length) > 1 ? "Samples" : "Sample",
         content: () => {
           var _a3, _b3, _c2, _d2, _e2;
           return m$1` <${SamplesTab}
@@ -21910,7 +21910,7 @@ const WorkSpace = (props) => {
           />`;
         },
         tools: () => {
-          var _a3, _b3, _c2, _d2, _e2, _f;
+          var _a3, _b3, _c2, _d2, _e2, _f2;
           if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) === "started") {
             return m$1`<${ToolButton}
               name=${m$1`Refresh`}
@@ -21923,7 +21923,7 @@ const WorkSpace = (props) => {
           }
           return m$1`<${SampleTools}
             epoch=${epoch}
-            epochs=${(_f = (_e2 = (_d2 = workspaceLog.contents) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f.epochs}
+            epochs=${(_f2 = (_e2 = (_d2 = workspaceLog.contents) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f2.epochs}
             setEpoch=${setEpoch}
             filter=${filter}
             filterChanged=${setFilter}

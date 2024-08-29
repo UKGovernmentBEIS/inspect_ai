@@ -44,7 +44,7 @@ export const WorkSpace = (props) => {
   const [currentTaskId, setCurrentTaskId] = useState(
     workspaceLog?.contents?.eval?.run_id,
   );
-  const [selectedTab, setSelectedTab] = useState(kEvalTabId);
+  const [selectedTab, setSelectedTab] = useState();
   const [scores, setScores] = useState([]);
   const [score, setScore] = useState(undefined);
   const [samplesDesc, setSamplesDesc] = useState(undefined);
@@ -74,8 +74,7 @@ export const WorkSpace = (props) => {
       workspaceLog.contents &&
       workspaceLog.contents.eval?.run_id !== currentTaskId
     ) {
-      const defaultTab =
-        workspaceLog.contents?.status !== "error" ? kEvalTabId : kInfoTabId;
+      const defaultTab = Object.values(tabs)[0].id;
       setSelectedTab(defaultTab);
       if (divRef.current) {
         divRef.current.scrollTop = 0;
@@ -143,7 +142,10 @@ export const WorkSpace = (props) => {
 
     // The samples tab
     // Currently only appears when the result is successful
-    if (workspaceLog.contents?.status !== "error") {
+    if (
+      workspaceLog.contents?.status !== "error" &&
+      workspaceLog.contents?.samples
+    ) {
       resolvedTabs.samples = {
         id: kEvalTabId,
         scrollable: workspaceLog.contents?.samples?.length === 1,
