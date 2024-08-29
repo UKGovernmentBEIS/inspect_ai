@@ -238,7 +238,7 @@ export const WorkSpace = (props) => {
           );
         }
 
-        return html` <div>
+        return html` <div style=${{ width: "100%" }}>
           ${warnings}
           <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
             ${infoCards}
