@@ -78,50 +78,74 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
   }
   private activeLogDir_: Uri | null = null;
 
-  public showLogFile(uri: Uri) {
+  public async showLogFile(uri: Uri) {
     // Get the directory name using posix path methods
     const log_dir = dirname(uri);
 
-    this.showLogview({ log_file: uri, log_dir });
+    await this.showLogview({ log_file: uri, log_dir });
   }
 
-  public showLogview(state: LogviewState) {
-    // Determine whether we are showing a log viewer for this directory
-    // If we aren't close the log viewer so a fresh one can be opened.
-    if (
-      this.activeLogDir_ !== null &&
-      state.log_dir.toString() !== this.activeLogDir_.toString()
-    ) {
-      // Close it
-      this.activeView_?.dispose();
-      this.activeView_ = undefined;
+  public async showLogFileIfOpen(uri: Uri) {
+    if (this.isVisible()) {
+      // If the viewer is visible / showing, then send a refresh signal
+
+      // Get the directory name using posix path methods
+      const log_dir = dirname(uri);
+      await this.showLogview({ log_file: uri, log_dir, background_refresh: true });
     }
+  }
 
-    // Note the log directory that we are showing
-    this.activeLogDir_ = state.log_dir || null;
-
-    // Update the view state
-    this.updateViewState(state);
-
-    // Ensure that we send the state once the view is loaded
-    this.setOnShow(() => {
-      this.updateVisibleView().catch(() => { });
-    });
-
-    // If the view is closed, clear the state
-    this.setOnClose(() => {
-      this.lastState_ = undefined;
-      this.activeLogDir_ = null;
-    });
-
-    // Actually reveal or show the webview
-    if (this.activeView_) {
-      this.revealWebview();
+  public async showLogview(state: LogviewState) {
+    if (state.background_refresh) {
+      // Determine whether we are showing a log viewer for this directory
+      // If we aren't close the log viewer so a fresh one can be opened.
+      if (
+        this.activeLogDir_ !== null &&
+        state.log_dir.toString() === this.activeLogDir_.toString()
+      ) {
+        // Update the view state
+        this.updateViewState(state);
+        await this.activeView_?.update(state);
+      }
     } else {
-      this.showWebview(state, {
-        preserveFocus: true,
-        viewColumn: ViewColumn.Beside,
+      // Determine whether we are showing a log viewer for this directory
+      // If we aren't close the log viewer so a fresh one can be opened.
+      if (
+        this.activeLogDir_ !== null &&
+        state.log_dir.toString() !== this.activeLogDir_.toString()
+      ) {
+        // Close it
+        this.activeView_?.dispose();
+        this.activeView_ = undefined;
+      }
+
+      // Note the log directory that we are showing
+      this.activeLogDir_ = state.log_dir || null;
+
+      // Update the view state
+      this.updateViewState(state);
+
+      // Ensure that we send the state once the view is loaded
+      this.setOnShow(() => {
+        this.updateVisibleView().catch(() => { });
       });
+
+      // If the view is closed, clear the state
+      this.setOnClose(() => {
+        this.lastState_ = undefined;
+        this.activeLogDir_ = null;
+      });
+
+      // Actually reveal or show the webview
+      if (this.activeView_) {
+        this.revealWebview();
+      } else {
+        this.showWebview(state, {
+          preserveFocus: true,
+          viewColumn: ViewColumn.Beside,
+        });
+      }
+
     }
   }
 
@@ -230,6 +254,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
     await this._webviewPanel.webview.postMessage({
       type: "updateState",
       url: state.log_file?.toString(),
+      background_refresh: !!state.background_refresh
     });
   }
 

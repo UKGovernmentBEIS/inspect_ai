@@ -88,15 +88,11 @@ export async function activate(context: ExtensionContext) {
 
   // Read the extension configuration
   const settingsMgr = new InspectSettingsManager(() => {
-    // If settings have changed, see if we need to stop or start the file watcher
-    if (logFileWatcher && !settingsMgr.getSettings().logViewAuto) {
-      stopLogWatcher();
-    } else if (
+    if (
       !logFileWatcher &&
-      settingsMgr.getSettings().logViewAuto &&
       inspectLogviewManager
     ) {
-      startLogWatcher(logviewWebviewManager, stateManager);
+      startLogWatcher(logviewWebviewManager, stateManager, settingsMgr);
     }
   });
 
@@ -128,9 +124,7 @@ export async function activate(context: ExtensionContext) {
   );
 
   // Activate the file watcher for this workspace
-  if (settingsMgr.getSettings().logViewAuto) {
-    startLogWatcher(logviewWebviewManager, stateManager);
-  }
+  startLogWatcher(logviewWebviewManager, stateManager, settingsMgr);
 
   // Activate Code Lens
   activateCodeLens(context);
@@ -160,11 +154,13 @@ let logFileWatcher: LogViewFileWatcher | undefined;
 
 const startLogWatcher = (
   logviewWebviewManager: InspectLogviewManager,
-  workspaceStateManager: WorkspaceStateManager
+  workspaceStateManager: WorkspaceStateManager,
+  settingsMgr: InspectSettingsManager
 ) => {
   logFileWatcher = new LogViewFileWatcher(
     logviewWebviewManager,
-    workspaceStateManager
+    workspaceStateManager,
+    settingsMgr
   );
 };
 
