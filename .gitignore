@@ -172,6 +172,3 @@ thumbs.db
 node_modules/
 
 /.luarc.json
-
-#in-house-ctf
-examples/agents/in-house-ctf/scratch
