@@ -243,7 +243,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
     const disconnect = webviewPanelJsonRpcServer(this._webviewPanel, {
       [kMethodEvalLogs]: evalLogs(state?.log_dir),
       [kMethodEvalLog]: (params: unknown[]) =>
-        evalLog(params[0] as string, params[1] as boolean),
+        evalLog(params[0] as string, params[1] as boolean | number),
       [kMethodEvalLogHeaders]: (params: unknown[]) =>
         evalLogHeaders(params[0] as string[]),
     });
@@ -425,8 +425,15 @@ function evalLogs(log_dir: Uri): () => Promise<string | undefined> {
 
 function evalLog(
   file: string,
-  headerOnly: boolean
+  headerOnly: boolean | number
 ): Promise<string | undefined> {
+  // Old clients pass a boolean value which we need to resolve
+  // into the max number of MB the log can be before samples are excluded
+  // and it becomes header_only
+  if (typeof (headerOnly) === "boolean") {
+    headerOnly = headerOnly ? 0 : Number.MAX_SAFE_INTEGER;
+  }
+
   return Promise.resolve(
     inspectEvalLog(activeWorkspacePath(), file, headerOnly)
   );
