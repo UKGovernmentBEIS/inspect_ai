@@ -23,6 +23,13 @@ inspect eval mathematics/mathematics.py -T levels=4,5 -T subjects=algebra
 inspect eval mathematics/mathematics.py -T grader_model=openai/gpt-4o
 """
 
+from utils import (  # type: ignore
+    filter_dataset,
+    record_to_sample,
+    sample_to_fewshot,
+    score_helper,
+)
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import hf_dataset
 from inspect_ai.model import GenerateConfig, Model
@@ -33,13 +40,6 @@ from inspect_ai.scorer import (
     stderr,
 )
 from inspect_ai.solver import TaskState, generate, prompt_template, system_message
-
-from utils import (  # type: ignore
-    filter_dataset,
-    record_to_sample,
-    sample_to_fewshot,
-    score_helper,
-)
 
 # Few-shot prompt template partially based on https://arxiv.org/pdf/2206.14858 - Appendix D.2
 SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE = """
