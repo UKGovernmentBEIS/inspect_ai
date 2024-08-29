@@ -107,7 +107,7 @@ export function App({ api, pollForLogs = true }) {
         setStatus({ loading: false, error: e });
       }
     }
-  }, [selected, capabilities, currentLog, setCurrentLog, setStatus]);
+  }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
 
   // Load the list of logs
   const loadLogs = async () => {
@@ -182,14 +182,23 @@ export function App({ api, pollForLogs = true }) {
         const idx = result.files.findIndex((file) => {
           return logUrl.endsWith(file.name);
         });
-        if (idx > -1) {
-          setSelected(idx);
-        }
         setLogs(result);
+        setSelected(idx > -1 ? idx : 0);
       }
     },
     [logs, setSelected, setLogs],
   );
+
+  const refreshLogList = useCallback(async () => {
+    const currentLog = logs.files[selected > -1 ? selected : 0];
+
+    const refreshedLogs = await loadLogs();
+    const newIndex = refreshedLogs.files.findIndex((file) => {
+      return currentLog.name.endsWith(file.name);
+    });
+    setLogs(refreshedLogs);
+    setSelected(newIndex);
+  }, [logs, selected, setSelected, setLogs]);
 
   const onMessage = useMemo(() => {
     return async (e) => {
@@ -198,19 +207,23 @@ export function App({ api, pollForLogs = true }) {
         case "updateState": {
           if (e.data.url) {
             const decodedUrl = decodeURIComponent(e.data.url);
-            if (e.data.background_refresh) {
-              const isFocused = document.hasFocus();
-              if (!isFocused) {
-                showLogFile(decodedUrl);
-              }
-            } else {
-              showLogFile(decodedUrl);
-            }
+            showLogFile(decodedUrl);
           }
+          break;
+        }
+        case "backgroundUpdate": {
+          const decodedUrl = decodeURIComponent(e.data.url);
+          const isFocused = document.hasFocus();
+          if (!isFocused) {
+            showLogFile(decodedUrl);
+          } else {
+            refreshLogList();
+          }
+          break;
         }
       }
     };
-  }, [setSelected, setLogs]);
+  }, [showLogFile, refreshLogList]);
 
   // listen for updateState messages from vscode
   useEffect(() => {

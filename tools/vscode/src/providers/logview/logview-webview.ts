@@ -251,11 +251,17 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
   }
 
   public async update(state: LogviewState) {
-    await this._webviewPanel.webview.postMessage({
-      type: "updateState",
-      url: state.log_file?.toString(),
-      background_refresh: !!state.background_refresh
-    });
+    if (state.background_refresh) {
+      await this._webviewPanel.webview.postMessage({
+        type: "backgroundUpdate",
+        url: state.log_file?.toString(),
+      });
+    } else {
+      await this._webviewPanel.webview.postMessage({
+        type: "updateState",
+        url: state.log_file?.toString(),
+      });
+    }
   }
 
   protected getHtml(state: LogviewState): string {

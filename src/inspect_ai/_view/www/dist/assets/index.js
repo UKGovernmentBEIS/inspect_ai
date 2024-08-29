@@ -22352,7 +22352,9 @@ function App({ api: api2, pollForLogs = true }) {
           });
           return { ...prev, ...updatedHeaders };
         });
-        await sleep(5e3);
+        if (headers.length === chunkSize) {
+          await sleep(5e3);
+        }
       }
     } catch (e2) {
       console.log(e2);
@@ -22380,7 +22382,7 @@ function App({ api: api2, pollForLogs = true }) {
         setStatus({ loading: false, error: e2 });
       }
     }
-  }, [selected, capabilities, currentLog, setCurrentLog, setStatus]);
+  }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
   const loadLogs = async () => {
     try {
       const result = await api2.eval_logs();
@@ -22433,23 +22435,33 @@ function App({ api: api2, pollForLogs = true }) {
       setStatus({ loading: false, error: e2 });
     }
   }, [logs, selected, setStatus, setCurrentLog, setLogHeaders]);
-  const showLogFile = q(async (logUrl) => {
-    const index = logs.files.findIndex((val) => {
-      return logUrl.endsWith(val.name);
-    });
-    if (index > -1) {
-      setSelected(index);
-    } else {
-      const result = await loadLogs();
-      const idx = result.files.findIndex((file) => {
-        return logUrl.endsWith(file.name);
+  const showLogFile = q(
+    async (logUrl) => {
+      const index = logs.files.findIndex((val) => {
+        return logUrl.endsWith(val.name);
       });
-      if (idx > -1) {
-        setSelected(idx);
+      if (index > -1) {
+        setSelected(index);
+      } else {
+        const result = await loadLogs();
+        const idx = result.files.findIndex((file) => {
+          return logUrl.endsWith(file.name);
+        });
+        setLogs(result);
+        setSelected(idx > -1 ? idx : 0);
       }
-      setLogs(result);
-    }
-  }, [logs, setSelected, setLogs]);
+    },
+    [logs, setSelected, setLogs]
+  );
+  const refreshLogList = q(async () => {
+    const currentLog2 = logs.files[selected > -1 ? selected : 0];
+    const refreshedLogs = await loadLogs();
+    const newIndex = refreshedLogs.files.findIndex((file) => {
+      return currentLog2.name.endsWith(file.name);
+    });
+    setLogs(refreshedLogs);
+    setSelected(newIndex);
+  }, [logs, selected, setSelected, setLogs]);
   const onMessage = T(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
@@ -22457,19 +22469,23 @@ function App({ api: api2, pollForLogs = true }) {
         case "updateState": {
           if (e2.data.url) {
             const decodedUrl = decodeURIComponent(e2.data.url);
-            if (e2.data.background_refresh) {
-              const isFocused = document.hasFocus();
-              if (!isFocused) {
-                showLogFile(decodedUrl);
-              }
-            } else {
-              showLogFile(decodedUrl);
-            }
+            showLogFile(decodedUrl);
           }
+          break;
+        }
+        case "backgroundUpdate": {
+          const decodedUrl = decodeURIComponent(e2.data.url);
+          const isFocused = document.hasFocus();
+          if (!isFocused) {
+            showLogFile(decodedUrl);
+          } else {
+            refreshLogList();
+          }
+          break;
         }
       }
     };
-  }, [setSelected, setLogs]);
+  }, [showLogFile, refreshLogList]);
   y(() => {
     window.addEventListener("message", onMessage);
     return () => {
