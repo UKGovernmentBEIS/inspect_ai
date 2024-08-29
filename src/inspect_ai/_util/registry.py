@@ -87,14 +87,14 @@ def registry_tag(
     for param in named_params.keys():
         if is_registry_object(named_params[param]):
             named_params[param] = registry_info(named_params[param]).name
-        elif callable(named_params[param]):
+        elif callable(named_params[param]) and hasattr(named_params[param], "__name__"):
             named_params[param] = getattr(named_params[param], "__name__")
         elif isinstance(named_params[param], dict | list):
             named_params[param] = to_jsonable_python(
                 named_params[param], fallback=lambda x: getattr(x, "__name__", None)
             )
         else:
-            named_params[param] = named_params[param]
+            named_params[param] = str(named_params[param])
 
     # set attribute
     setattr(o, REGISTRY_INFO, info)
