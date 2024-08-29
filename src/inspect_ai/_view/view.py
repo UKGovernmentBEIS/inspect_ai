@@ -151,7 +151,6 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
         # read query parameters from the URL
         query_params = parse_qs(parsed.query)
         header_only = query_params.get("header-only", None) is not None
-        max_size = query_params.get("max-size", None)
 
         # reconstruct the path
         path = urlunparse(
@@ -166,10 +165,8 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
         )
         path = unquote(path)
 
-        # if there is a max_size passed, respect that and switch to
-        # header_only mode if the file is too large
-        if max_size is not None and size_in_mb(path) > int(max_size[0]):
-            header_only = True
+        # Resolve the header_only value to boolean
+        header_only = resolve_header_only(path, header_only)
 
         ctype = self.guess_type(path)
         try:
@@ -243,6 +240,17 @@ def view_notify_eval(location: str) -> None:
         # Serialize the payload and write it to the signal file
         payload_json = json.dumps(payload, indent=2)
         f.write(payload_json)
+
+
+def resolve_header_only(path: str, header_only: int | None) -> bool:
+    # if there is a max_size passed, respect that and switch to
+    # header_only mode if the file is too large
+    if header_only == 0:
+        return True
+    if header_only is not None and size_in_mb(path) > int(header_only):
+        return True
+    else:
+        return False
 
 
 def view_last_eval_time() -> int:

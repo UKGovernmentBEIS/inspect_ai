@@ -6,6 +6,7 @@ from pydantic_core import to_jsonable_python
 from inspect_ai import __version__
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai._util.file import size_in_mb
+from inspect_ai._view.view import resolve_header_only
 from inspect_ai.log._file import eval_log_json, read_eval_log, read_eval_log_headers
 
 
@@ -35,23 +36,15 @@ def version(json: bool) -> None:
 @click.argument("path")
 @click.option(
     "--header-only",
-    type=bool,
-    is_flag=True,
-    default=False,
+    type=int,
+    is_flag=False,
+    flag_value=0,
     help="Read and print only the header of the log file (i.e. no samples).",
 )
-@click.option(
-    "--max-size",
-    type=str,
-    is_flag=False,
-    default=None,
-    help="Read and print only the header of the log file (i.e. no samples) if the total file size exceeds this value (in MB).",
-)
-def log(path: str, header_only: bool, max_size: str | None) -> None:
+def log(path: str, header_only: int) -> None:
     """Print log file contents."""
-    # If there is a maximum size, respect that
-    if max_size is not None and size_in_mb(path) > int(max_size):
-        header_only = True
+    # Resolve the header only to a boolean
+    header_only = resolve_header_only(path, header_only)
 
     log = read_eval_log(path, header_only=header_only)
     print(eval_log_json(log))
