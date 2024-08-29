@@ -1,12 +1,16 @@
+import math
 import shutil
+import sys
+import tempfile
 from pathlib import Path
 from typing import Set
 
-from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
+from test_helpers.utils import failing_task, skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task
 from inspect_ai._eval.evalset import (
     ModelList,
+    eval_set,
     latest_completed_task_eval_logs,
     schedule_pending_tasks,
 )
@@ -15,6 +19,18 @@ from inspect_ai.log._file import list_eval_logs, read_eval_log_headers
 from inspect_ai.model import Model, get_model
 
 TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
+
+
+def test_eval_set() -> None:
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run eval with a solver that fails 50% of the time
+        succces, _ = eval_set(
+            tasks=failing_task(0.5),
+            log_dir=log_dir,
+            retry=sys.maxsize,
+            model="mockllm/model",
+        )
+        assert succces
 
 
 @skip_if_no_openai
