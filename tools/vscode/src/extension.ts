@@ -22,7 +22,7 @@ import { initPythonInterpreter } from "./core/python";
 import { initInspectProps } from "./inspect";
 import { activateInspectManager } from "./providers/inspect/inspect-manager";
 import { checkActiveWorkspaceFolder } from "./core/workspace";
-import { inspectBinPath, inspectVersion } from "./inspect/props";
+import { inspectBinPath, inspectVersionDescriptor } from "./inspect/props";
 import { extensionHost } from "./hooks";
 
 const kInspectMinimumVersion = "0.3.8";
@@ -173,8 +173,8 @@ const stopLogWatcher = () => {
 
 const checkInspectVersion = async () => {
   if (inspectBinPath()) {
-    const version = inspectVersion();
-    if (version && version.compare(kInspectMinimumVersion) === -1) {
+    const descriptor = inspectVersionDescriptor();
+    if (descriptor && descriptor.version.compare(kInspectMinimumVersion) === -1) {
       const close: MessageItem = { title: "Close" };
       await window.showInformationMessage<MessageItem>(
         "The VS Code extension requires a newer version of Inspect. Please update " +
