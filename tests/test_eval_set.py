@@ -105,7 +105,7 @@ def test_latest_completed_task_eval_logs() -> None:
     logs = list_eval_logs(TEST_EVAL_SET_PATH.as_posix(), recursive=False)
     log_headers = read_eval_log_headers(logs)
     latest = latest_completed_task_eval_logs(logs, log_headers, False)
-    assert latest[0].status == "error"
+    assert len(latest) == 1
     assert len(list_eval_logs(TEST_EVAL_SET_PATH.as_posix())) == 2
 
     # verify that we correctly clean when requested
