@@ -58,6 +58,10 @@ function httpApiForFile(logFile) {
     }
   };
 
+  async function open_log_file() {
+    // No op
+  }
+
   return {
     client_events: async () => {
       return Promise.resolve([]);
@@ -83,5 +87,6 @@ function httpApiForFile(logFile) {
       return Promise.resolve([contents.parsed]);
     },
     download_file,
+    open_log_file,
   };
 }

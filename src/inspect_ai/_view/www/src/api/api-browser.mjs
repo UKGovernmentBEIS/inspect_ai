@@ -58,10 +58,15 @@ async function api(method, path, body) {
   }
 }
 
+async function open_log_file() {
+  // No op
+}
+
 export default {
   client_events,
   eval_logs,
   eval_log,
   eval_log_headers,
   download_file,
+  open_log_file,
 };
