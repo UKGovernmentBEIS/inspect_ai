@@ -213,9 +213,14 @@ export function App({ api, pollForLogs = true }) {
         }
         case "backgroundUpdate": {
           const decodedUrl = decodeURIComponent(e.data.url);
+          const log_dir = e.data.log_dir;
           const isFocused = document.hasFocus();
           if (!isFocused) {
-            showLogFile(decodedUrl);
+            if (log_dir === logs.log_dir) {
+              showLogFile(decodedUrl);
+            } else {
+              api.open_log_file(e.data.url, e.data.log_dir);
+            }
           } else {
             refreshLogList();
           }
@@ -223,7 +228,7 @@ export function App({ api, pollForLogs = true }) {
         }
       }
     };
-  }, [showLogFile, refreshLogList]);
+  }, [logs, showLogFile, refreshLogList]);
 
   // listen for updateState messages from vscode
   useEffect(() => {
