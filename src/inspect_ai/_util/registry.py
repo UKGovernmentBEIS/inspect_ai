@@ -93,6 +93,8 @@ def registry_tag(
             named_params[param] = to_jsonable_python(
                 named_params[param], fallback=lambda x: getattr(x, "__name__", None)
             )
+        elif isinstance(named_params[param], int | float | str | bool | None):
+            named_params[param] = named_params[param]
         else:
             named_params[param] = str(named_params[param])
 
