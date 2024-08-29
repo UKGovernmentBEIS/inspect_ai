@@ -22433,6 +22433,23 @@ function App({ api: api2, pollForLogs = true }) {
       setStatus({ loading: false, error: e2 });
     }
   }, [logs, selected, setStatus, setCurrentLog, setLogHeaders]);
+  const showLogFile = q(async (logUrl) => {
+    const index = logs.files.findIndex((val) => {
+      return logUrl.endsWith(val.name);
+    });
+    if (index > -1) {
+      setSelected(index);
+    } else {
+      const result = await loadLogs();
+      const idx = result.files.findIndex((file) => {
+        return logUrl.endsWith(file.name);
+      });
+      if (idx > -1) {
+        setSelected(idx);
+      }
+      setLogs(result);
+    }
+  }, [logs, setSelected, setLogs]);
   const onMessage = T(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
@@ -22440,20 +22457,13 @@ function App({ api: api2, pollForLogs = true }) {
         case "updateState": {
           if (e2.data.url) {
             const decodedUrl = decodeURIComponent(e2.data.url);
-            const index = logs.files.findIndex((val) => {
-              return decodedUrl.endsWith(val.name);
-            });
-            if (index > -1) {
-              setSelected(index);
-            } else {
-              const result = await loadLogs();
-              const idx = result.files.findIndex((file) => {
-                return decodedUrl.endsWith(file.name);
-              });
-              if (idx > -1) {
-                setSelected(idx);
+            if (e2.data.background_refresh) {
+              const isFocused = document.hasFocus();
+              if (!isFocused) {
+                showLogFile(decodedUrl);
               }
-              setLogs(result);
+            } else {
+              showLogFile(decodedUrl);
             }
           }
         }
