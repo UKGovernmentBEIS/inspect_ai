@@ -23,7 +23,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.file import FileSystem, filesystem
+from inspect_ai._util.file import FileSystem, filesystem, size_in_mb
 from inspect_ai._util.http import InspectHTTPRequestHandler
 from inspect_ai.log._file import (
     eval_log_json,
@@ -151,6 +151,7 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
         # read query parameters from the URL
         query_params = parse_qs(parsed.query)
         header_only = query_params.get("header-only", None) is not None
+        max_size = query_params.get("max-size", None)
 
         # reconstruct the path
         path = urlunparse(
@@ -164,6 +165,11 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
             )
         )
         path = unquote(path)
+
+        # if there is a max_size passed, respect that and switch to
+        # header_only mode if the file is too large
+        if max_size is not None and size_in_mb(path) > int(max_size[0]):
+            header_only = True
 
         ctype = self.guess_type(path)
         try:
