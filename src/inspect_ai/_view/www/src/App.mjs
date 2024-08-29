@@ -263,11 +263,14 @@ export function App({ api, pollForLogs = true }) {
 
     // If the URL provides a task file, load that
     const logPath = urlParams.get("task_file");
-    const load = logPath
+
+    // Replace any spaces in the path with a '+' sign:
+    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+    const load = resolvedLogPath
       ? async () => {
           return {
             log_dir: "",
-            files: [{ name: logPath }],
+            files: [{ name: resolvedLogPath }],
           };
         }
       : loadLogs;

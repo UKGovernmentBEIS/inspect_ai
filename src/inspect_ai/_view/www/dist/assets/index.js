@@ -22520,10 +22520,11 @@ function App({ api: api2, pollForLogs = true }) {
     }
     setOffcanvas(true);
     const logPath = urlParams.get("task_file");
-    const load = logPath ? async () => {
+    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+    const load = resolvedLogPath ? async () => {
       return {
         log_dir: "",
-        files: [{ name: logPath }]
+        files: [{ name: resolvedLogPath }]
       };
     } : loadLogs;
     const embeddedState = document.getElementById("logview-state");
