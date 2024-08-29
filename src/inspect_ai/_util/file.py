@@ -201,8 +201,16 @@ def default_fs_options(file: str) -> dict[str, Any]:
 
 
 def size_in_mb(file: str) -> float:
-    # Get the size in bytes
-    file_size_in_bytes = os.path.getsize(file)
+    # Open the file using fsspec and retrieve the file's information
+    fs, path = fsspec.core.url_to_fs(file)
+
+    # Use the filesystem's info method to get the size
+    file_info = fs.info(path)
+
+    # Extract the size from the file information
+    file_size_in_bytes = cast(float, file_info["size"])
+
+    # Get the size in megabytes
     file_size_in_mb = file_size_in_bytes / (1024 * 1024)
     return file_size_in_mb
 
