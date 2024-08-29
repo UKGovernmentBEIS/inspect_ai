@@ -11,7 +11,7 @@
 - Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintended token usage)
 - Remove `chdir` option from `@tasks` (tasks now always chdir during execution).
 - Do not process `.env` files in task directories (all required vars should be specified in the global `.env`).
-- Added [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) benchmark.
+- Added [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) and [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu_pro) benchmarks.
 
 ## v0.3.25 (25 August 2024)
 
