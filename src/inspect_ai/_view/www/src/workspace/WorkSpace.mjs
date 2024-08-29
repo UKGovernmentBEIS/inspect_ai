@@ -25,6 +25,7 @@ import { Navbar } from "../navbar/Navbar.mjs";
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
+import { WarningBand } from "../components/WarningBand.mjs";
 
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
@@ -201,12 +202,13 @@ export const WorkSpace = (props) => {
       label: "Info",
       scrollable: true,
       content: () => {
-        const infoCards = [
+        const infoCards = [];
+        infoCards.push([
           html`<${PlanCard}
             log="${workspaceLog.contents}"
             context=${context}
           />`,
-        ];
+        ]);
 
         if (workspaceLog.contents?.status !== "started") {
           infoCards.push(
@@ -223,8 +225,24 @@ export const WorkSpace = (props) => {
             html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`,
           );
         }
-        return html`<div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-          ${infoCards}
+
+        const warnings = [];
+        if (
+          !workspaceLog.contents?.samples &&
+          workspaceLog.contents?.eval?.dataset?.samples > 0
+        ) {
+          warnings.push(
+            html`<${WarningBand}
+              message="This evaluation log is too large display samples."
+            />`,
+          );
+        }
+
+        return html` <div>
+          ${warnings}
+          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+            ${infoCards}
+          </div>
         </div>`;
       },
     };

@@ -18912,6 +18912,44 @@ class VirtualList extends b {
     return rows;
   }
 }
+const WarningBand = ({ message }) => {
+  const [hidden, setHidden] = h(false);
+  return m$1`
+    <div
+      style=${{
+    gridTemplateColumns: "max-content auto max-content",
+    alignItems: "center",
+    columnGap: "0.5em",
+    fontSize: FontSize.small,
+    color: "var(--bs-warning-text-emphasis)",
+    background: "var(--bs-warning-bg-subtle)",
+    borderBottom: "solid 1px var(--bs-light-border-subtle)",
+    padding: "0.3em 1em",
+    display: hidden ? "none" : "grid"
+  }}
+    >
+      <i class=${ApplicationIcons.logging.warning} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+    fontSize: FontSize["title-secondary"],
+    margin: "0",
+    padding: "0",
+    color: "var(--bs-warning-text-emphasis)",
+    height: FontSize["title-secondary"],
+    lineHeight: FontSize["title-secondary"]
+  }}
+        class="btn"
+        onclick=${() => {
+    setHidden(true);
+  }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
+    </div>
+  `;
+};
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 const SampleList = (props) => {
@@ -19044,7 +19082,7 @@ const SampleList = (props) => {
   const sampleCount = items == null ? void 0 : items.length;
   const percentError = errorCount / sampleCount * 100;
   const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
-  const warningRow = warningMessage ? m$1`<${WarningRow} message=${warningMessage} />` : "";
+  const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
@@ -19059,41 +19097,6 @@ const SampleList = (props) => {
       style=${listStyle}
     />
   </div>`;
-};
-const WarningRow = ({ message }) => {
-  const [hidden, setHidden] = h(false);
-  return m$1`
-    <div
-      style=${{
-    gridTemplateColumns: "max-content auto max-content",
-    columnGap: "0.5em",
-    fontSize: FontSize.small,
-    background: "var(--bs-warning-bg-subtle)",
-    borderBottom: "solid 1px var(--bs-light-border-subtle)",
-    padding: "0.3em 1em",
-    display: hidden ? "none" : "grid"
-  }}
-    >
-      <i class=${ApplicationIcons.logging.warning} />
-      ${message}
-      <button
-        title="Close"
-        style=${{
-    fontSize: FontSize["title-secondary"],
-    margin: "0",
-    padding: "0",
-    height: FontSize["title-secondary"],
-    lineHeight: FontSize["title-secondary"]
-  }}
-        class="btn"
-        onclick=${() => {
-    setHidden(true);
-  }}
-      >
-        <i class=${ApplicationIcons.close}></i>
-      </button>
-    </div>
-  `;
 };
 const SeparatorRow = ({ id, title, height }) => {
   return m$1`<div
@@ -21942,13 +21945,14 @@ const WorkSpace = (props) => {
       label: "Info",
       scrollable: true,
       content: () => {
-        var _a3, _b3, _c2;
-        const infoCards = [
+        var _a3, _b3, _c2, _d2, _e2, _f2, _g;
+        const infoCards = [];
+        infoCards.push([
           m$1`<${PlanCard}
             log="${workspaceLog.contents}"
             context=${context}
           />`
-        ];
+        ]);
         if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) !== "started") {
           infoCards.push(
             m$1`<${UsageCard}
@@ -21962,8 +21966,19 @@ const WorkSpace = (props) => {
             m$1`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`
           );
         }
-        return m$1`<div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-          ${infoCards}
+        const warnings = [];
+        if (!((_d2 = workspaceLog.contents) == null ? void 0 : _d2.samples) && ((_g = (_f2 = (_e2 = workspaceLog.contents) == null ? void 0 : _e2.eval) == null ? void 0 : _f2.dataset) == null ? void 0 : _g.samples) > 0) {
+          warnings.push(
+            m$1`<${WarningBand}
+              message="This evaluation log is too large display samples."
+            />`
+          );
+        }
+        return m$1` <div>
+          ${warnings}
+          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+            ${infoCards}
+          </div>
         </div>`;
       }
     };
