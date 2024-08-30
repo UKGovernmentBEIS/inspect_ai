@@ -119,3 +119,7 @@ def test_latest_completed_task_eval_logs() -> None:
         assert len(list_eval_logs(clean_dir.as_posix())) == 1
     finally:
         shutil.rmtree(clean_dir, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    test_eval_set()

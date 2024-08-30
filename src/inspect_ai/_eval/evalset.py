@@ -12,7 +12,11 @@ from typing_extensions import Unpack
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.file import filesystem
 from inspect_ai.log import EvalLog
-from inspect_ai.log._file import EvalLogInfo, list_eval_logs, read_eval_log_headers
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    list_eval_logs,
+    read_eval_log_headers,
+)
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -145,8 +149,6 @@ def eval_set(
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval(retry_state: RetryCallState | None = None) -> list[EvalLog]:
-        print("TRYING EVAL")
-
         # adjust max_connections based on attempt number
         try_max_connections = max_connections
         reductions = retry_state.attempt_number - 1 if retry_state else 0
@@ -197,13 +199,13 @@ def eval_set(
             )
 
         # look for retryable eval logs and cleave them into success/failed
-        logs = list_eval_logs(log_dir)
-        log_headers = read_eval_log_headers(logs)
+        log_files = list_eval_logs(log_dir)
+        log_headers = read_eval_log_headers(log_files)
         latest_logs = latest_completed_task_eval_logs(
-            logs, log_headers, cleanup_older=retry_cleanup
+            log_files, log_headers, cleanup_older=retry_cleanup
         )
-        success_logs = [log for log in latest_logs if log.status == "success"]
-        failed_logs = [log for log in latest_logs if log.status != "success"]
+        success_logs = [log[1] for log in latest_logs if log[1].status == "success"]
+        failed_logs = [log[0] for log in latest_logs if log[1].status != "success"]
 
         # retry the failed logs
         if len(failed_logs) > 0:
@@ -328,18 +330,18 @@ def schedule_pending_tasks(
 
 
 def latest_completed_task_eval_logs(
-    logs: list[EvalLogInfo], log_headers: list[EvalLog], cleanup_older: bool = False
-) -> list[EvalLog]:
+    log_files: list[EvalLogInfo], logs: list[EvalLog], cleanup_older: bool = False
+) -> list[tuple[EvalLogInfo, EvalLog]]:
     # collect logs by id
     logs_by_id: dict[str, list[tuple[EvalLogInfo, EvalLog]]] = {}
-    for log, log_header in zip(logs, log_headers):
+    for log, log_header in zip(log_files, logs):
         id = log_header.eval.task_id
         if id not in logs_by_id:
             logs_by_id[id] = []
         logs_by_id[id].append((log, log_header))
 
     # take the most recent completed log for each id
-    latest_completed_logs: list[EvalLog] = []
+    latest_completed_logs: list[tuple[EvalLogInfo, EvalLog]] = []
     for id, id_logs in logs_by_id.items():
         # filter on completed
         id_logs = [id_log for id_log in id_logs if id_log[1].status != "started"]
@@ -348,7 +350,7 @@ def latest_completed_task_eval_logs(
         id_logs.sort(key=lambda id_log: id_log[0].mtime, reverse=True)
 
         # take the most recent
-        latest_completed_logs.append(id_logs[0][1])
+        latest_completed_logs.append(id_logs[0])
 
         # remove the rest if requested
         if cleanup_older:
