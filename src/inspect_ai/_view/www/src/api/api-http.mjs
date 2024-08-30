@@ -9,7 +9,8 @@ export default function singleFileHttpApi() {
   const urlParams = new URLSearchParams(window.location.search);
   const fetchLogPath = urlParams.get("log_file");
   if (fetchLogPath) {
-    const api = httpApiForFile(fetchLogPath);
+    const resolvedLogPath = fetchLogPath.replace(" ", "+");
+    const api = httpApiForFile(resolvedLogPath);
     return api;
   }
 }
