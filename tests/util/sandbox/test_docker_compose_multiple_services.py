@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from test_helpers.tool_call_utils import get_tool_calls, get_tool_response
+
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
@@ -147,3 +149,16 @@ def test_docker_compose_multiple_services_write_file():
     )[0]
 
     assert result.status == "success"
+    messages = result.samples[0].messages
+    assert (
+        get_tool_response(
+            messages, get_tool_calls(messages, "read_file_service_1")[0]
+        ).content
+        == "unused_1"
+    )
+    assert (
+        get_tool_response(
+            messages, get_tool_calls(messages, "read_file_service_2")[0]
+        ).content
+        == "unused_2"
+    )
