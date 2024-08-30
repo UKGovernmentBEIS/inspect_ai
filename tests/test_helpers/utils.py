@@ -1,12 +1,13 @@
 import importlib.util
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from inspect_ai import eval
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
-from inspect_ai.solver import TaskState
+from inspect_ai.solver import Generate, TaskState, solver
 
 
 def skip_if_env_var(var: str, exists=True):
@@ -124,3 +125,14 @@ def simple_task_state(
         output=ModelOutput.from_content(model="model", content=model_output),
         sample_id=0,
     )
+
+
+@solver
+def file_check(file: str):
+    async def solve(state: TaskState, generate: Generate):
+        if not Path(file).exists():
+            raise ValueError(f"File {file} does not exist.")
+
+        return state
+
+    return solve
