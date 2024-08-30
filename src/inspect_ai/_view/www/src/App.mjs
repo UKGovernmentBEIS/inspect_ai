@@ -308,7 +308,8 @@ export function App({ api, pollForLogs = true }) {
             window.location.reload(true);
           }
           if (events.includes("refresh-evals")) {
-            await load();
+            const logs = await load();
+            setLogs(logs);
             setSelected(0);
           }
         });

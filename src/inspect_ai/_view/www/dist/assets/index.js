@@ -22566,7 +22566,8 @@ function App({ api: api2, pollForLogs = true }) {
             window.location.reload(true);
           }
           if (events.includes("refresh-evals")) {
-            await load();
+            const logs2 = await load();
+            setLogs(logs2);
             setSelected(0);
           }
         });
