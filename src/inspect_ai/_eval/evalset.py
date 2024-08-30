@@ -191,6 +191,33 @@ def eval_set(
             log_files, log_headers, cleanup_older=retry_cleanup
         )
 
+    # helper function to run a set of evals
+    def run_eval(tasks: Tasks, models: list[Model]) -> list[EvalLog]:
+        return eval(
+            tasks=tasks,
+            model=models,
+            model_base_url=model_base_url,
+            model_args=model_args,
+            task_args=task_args,
+            sandbox=sandbox,
+            sandbox_cleanup=sandbox_cleanup,
+            plan=plan,
+            log_level=log_level,
+            log_dir=log_dir,
+            limit=limit,
+            epochs=epochs,
+            fail_on_error=fail_on_error,
+            max_messages=max_messages,
+            max_samples=max_samples,
+            max_tasks=max_tasks,
+            max_subprocesses=max_subprocesses,
+            log_samples=log_samples,
+            log_images=log_images,
+            log_buffer=log_buffer,
+            score=score,
+            **kwargs,
+        )
+
     # function which will be called repeatedly to attempt to complete
     # the evaluations. for this purpose we will divide tasks into:
     #   - tasks with no log at all (they'll be attempted for the first time)
@@ -212,56 +239,45 @@ def eval_set(
         task_groups = schedule_pending_tasks(pending_tasks)
 
         # run the task groups (each will have a different model list)
-        for task_group in task_groups:
-            group_models, group_tasks = task_group
+        if len(task_groups) > 0:
+            for task_group in task_groups:
+                # alias
+                group_models, group_tasks = task_group
 
-            logger.info(
-                f"eval_set (initial run for tasks): {','.join([task.name for task in group_tasks])}: {group_models}"
-            )
+                # info log
+                logger.info(
+                    f"eval_set (initial run for tasks): {','.join([task.name for task in group_tasks])}: {group_models}"
+                )
 
-            eval(
-                tasks=list(group_tasks),
-                model=group_models.models,
-                model_base_url=model_base_url,
-                model_args=model_args,
-                task_args=task_args,
-                sandbox=sandbox,
-                sandbox_cleanup=sandbox_cleanup,
-                plan=plan,
-                log_level=log_level,
-                log_dir=log_dir,
-                limit=limit,
-                epochs=epochs,
-                fail_on_error=fail_on_error,
-                max_messages=max_messages,
-                max_samples=max_samples,
-                max_tasks=max_tasks,
-                max_subprocesses=max_subprocesses,
-                log_samples=log_samples,
-                log_images=log_images,
-                log_buffer=log_buffer,
-                score=score,
-                **kwargs,
-            )
+                # run the evals
+                run_eval(tasks=list(group_tasks), models=group_models.models)
 
-        # look for retryable eval logs and cleave them into success/failed
-        latest_logs = latest_eval_logs()
-        success_logs = [log[1] for log in latest_logs if log[1].status == "success"]
-        failed_logs = [log[0] for log in latest_logs if log[1].status != "success"]
+            # return latest
+            return [log[1] for log in latest_eval_logs()]
 
-        # retry the failed logs
-        if len(failed_logs) > 0:
-            newline = "\n  "
-            logger.info(
-                f"eval_set (retrying failed evals):{newline}{newline.join([os.path.basename(log.name) for log in failed_logs])}"
-            )
-
-            retried_logs = eval_retry(
-                failed_logs, log_dir=log_dir, max_connections=max_connections
-            )
-            return success_logs + retried_logs
+        # we've already run the first pass on all the task groups, now do retries
         else:
-            return success_logs
+            # look for retryable eval logs and cleave them into success/failed
+            latest_logs = latest_eval_logs()
+            success_logs = [log[1] for log in latest_logs if log[1].status == "success"]
+            failed_logs = [log[0] for log in latest_logs if log[1].status != "success"]
+
+            # retry the failed logs
+            if len(failed_logs) > 0:
+                newline = "\n  "
+                logger.info(
+                    f"eval_set (retrying failed evals):{newline}{newline.join([os.path.basename(log.name) for log in failed_logs])}"
+                )
+
+                # create previous tasks
+                previous_tasks = failed_logs
+
+                retried_logs = eval_retry(
+                    previous_tasks, log_dir=log_dir, max_connections=max_connections
+                )
+                return success_logs + retried_logs
+            else:
+                return success_logs
 
     # create retry policy
     retry = Retrying(
