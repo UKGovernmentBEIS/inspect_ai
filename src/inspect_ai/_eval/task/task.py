@@ -156,7 +156,7 @@ class TaskInfo(BaseModel):
 @dataclass
 class PreviousTask:
     id: str
-    task: str
+    task: str | Task
     log: EvalLog
 
 

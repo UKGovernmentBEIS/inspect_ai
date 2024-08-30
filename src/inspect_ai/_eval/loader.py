@@ -86,9 +86,13 @@ def resolve_tasks(
         tasks = [tasks]
     if isinstance(tasks, list) and isinstance(tasks[0], PreviousTask):
         previous_tasks = cast(list[PreviousTask], tasks)
-        loaded_tasks = load_tasks(
-            [task.task for task in previous_tasks], model, task_args
-        )
+        loaded_tasks = [
+            task.task
+            if isinstance(task.task, Task)
+            else load_tasks([task.task], model, task_args)[0]
+            for task in previous_tasks
+        ]
+
         return [
             ResolvedTask(
                 task=loaded_task,
