@@ -120,8 +120,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             working_dir = await container_working_dir(service, project)
 
             # create the docker sandbox environemnt
-            docker_env = DockerSandboxEnvironment(service, project)
-            docker_env.working_dir = working_dir
+            docker_env = DockerSandboxEnvironment(service, project, working_dir)
 
             # save reference to environment (mark as default if requested)
             is_default = service_info.get("x-default", False) is True
@@ -167,10 +166,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     async def cli_cleanup(cls, id: str | None) -> None:
         await cli_cleanup(id)
 
-    def __init__(self, service: str, project: ComposeProject) -> None:
+    def __init__(self, service: str, project: ComposeProject, working_dir: str) -> None:
         super().__init__()
         self._service = service
         self._project = project
+        self._working_dir = working_dir
 
     @override
     async def exec(
@@ -185,9 +185,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # additional args
         args = []
 
-        final_cwd = Path(self.working_dir if cwd is None else cwd)
+        final_cwd = Path(self._working_dir if cwd is None else cwd)
         if not final_cwd.is_absolute():
-            final_cwd = self.working_dir / final_cwd
+            final_cwd = self._working_dir / final_cwd
 
         args.append("--workdir")
         args.append(str(final_cwd))
@@ -357,7 +357,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     def container_file(self, file: str) -> str:
         path = Path(file)
         if not path.is_absolute():
-            path = Path(self.working_dir) / path
+            path = Path(self._working_dir) / path
         return path.as_posix()
 
 

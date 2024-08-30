@@ -5,14 +5,14 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import tool
+from inspect_ai.tool import Tool, tool
 from inspect_ai.util import sandbox
 
 CURRENT_DIRECTORY = Path(__file__).resolve().parent
 
 
 @tool
-def write_file_service_1():
+def write_file_service_1() -> Tool:
     async def execute(file: str, content: str):
         """
         Writes the contents of a file.
@@ -23,13 +23,13 @@ def write_file_service_1():
 
 
         """
-        return await sandbox("service_1").write_file(file, content)
+        await sandbox("service_1").write_file(file, content)
 
     return execute
 
 
 @tool
-def write_file_service_2():
+def write_file_service_2() -> Tool:
     async def execute(file: str, content: str):
         """
         Writes the contents of a file.
@@ -40,13 +40,13 @@ def write_file_service_2():
 
 
         """
-        return await sandbox("service_2").write_file(file, content)
+        await sandbox("service_2").write_file(file, content)
 
     return execute
 
 
 @tool
-def read_file_service_1() -> str:
+def read_file_service_1() -> Tool:
     async def execute(file: str) -> str:
         """
         Reads the contents of a file.
@@ -65,7 +65,7 @@ def read_file_service_1() -> str:
 
 
 @tool
-def read_file_service_2() -> str:
+def read_file_service_2() -> Tool:
     async def execute(file: str) -> str:
         """
         Reads the contents of a file.
@@ -93,7 +93,17 @@ def test_docker_compose_multiple_services_write_file():
     ]
     task = Task(
         dataset=dataset,
-        plan=[use_tools([write_file_service_1(), write_file_service_2(), read_file_service_1(), read_file_service_2()]), generate()],
+        plan=[
+            use_tools(
+                [
+                    write_file_service_1(),
+                    write_file_service_2(),
+                    read_file_service_1(),
+                    read_file_service_2(),
+                ]
+            ),
+            generate(),
+        ],
         scorer=includes(),
         sandbox=(
             "docker",
@@ -126,7 +136,9 @@ def test_docker_compose_multiple_services_write_file():
             tool_arguments={"file": "foo.txt"},
         )
         while True:
-            yield ModelOutput.from_content(model="mockllm/model", content="nothing left")
+            yield ModelOutput.from_content(
+                model="mockllm/model", content="nothing left"
+            )
 
     result = eval(
         task,
