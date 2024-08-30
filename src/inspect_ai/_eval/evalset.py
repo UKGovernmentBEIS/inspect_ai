@@ -183,6 +183,14 @@ def eval_set(
         else:
             return []
 
+    # helper function that gets the latest logs (cleaning if requested)
+    def latest_eval_logs() -> list[tuple[EvalLogInfo, EvalLog]]:
+        log_files = list_eval_logs(log_dir)
+        log_headers = read_eval_log_headers(log_files)
+        return latest_completed_task_eval_logs(
+            log_files, log_headers, cleanup_older=retry_cleanup
+        )
+
     # function which will be called repeatedly to attempt to complete
     # the evaluations. for this purpose we will divide tasks into:
     #   - tasks with no log at all (they'll be attempted for the first time)
@@ -237,11 +245,7 @@ def eval_set(
             )
 
         # look for retryable eval logs and cleave them into success/failed
-        log_files = list_eval_logs(log_dir)
-        log_headers = read_eval_log_headers(log_files)
-        latest_logs = latest_completed_task_eval_logs(
-            log_files, log_headers, cleanup_older=retry_cleanup
-        )
+        latest_logs = latest_eval_logs()
         success_logs = [log[1] for log in latest_logs if log[1].status == "success"]
         failed_logs = [log[0] for log in latest_logs if log[1].status != "success"]
 
@@ -270,8 +274,14 @@ def eval_set(
         before=before,
     )
 
-    # execute w/ retry and return when complete
+    # execute w/ retry
     results = retry(try_eval)
+
+    # final sweep to remove failed log files
+    if retry_cleanup:
+        latest_eval_logs()
+
+    # return status + results
     return all_evals_succeeded(results), results
 
 
