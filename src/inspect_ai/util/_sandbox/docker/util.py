@@ -17,7 +17,7 @@ class ComposeProject:
     name: str
     config: str | None
     env: dict[str, str] | None
-    working_dir: str
+    working_dir: str # TODO: remove this, it doesn't make sense: needs to be at the sandbox level
 
     @classmethod
     async def create(
