@@ -36,7 +36,7 @@ import click
 from security_guide import security_guide
 from theory_of_mind import theory_of_mind
 
-from inspect_ai._eval.evalset import eval_set
+from inspect_ai import eval_set
 
 
 @click.command()
