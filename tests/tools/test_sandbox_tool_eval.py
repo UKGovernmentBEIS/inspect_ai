@@ -1,7 +1,7 @@
 import itertools
 
+from test_helpers.tool_call_utils import get_tool_calls, get_tool_response
 from test_helpers.tools import list_files, read_file
-from tool_call_utils import get_tool_calls, get_tool_response
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample

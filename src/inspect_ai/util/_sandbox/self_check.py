@@ -205,6 +205,8 @@ async def test_cwd_absolute(sandbox_env: SandboxEnvironment) -> None:
     await _cleanup_file(sandbox_env, file_name)
 
 
+# TODO: write a test for when cwd doesn't exist
+
 # Generic type variable for exceptions
 E = TypeVar("E", bound=BaseException)
 
