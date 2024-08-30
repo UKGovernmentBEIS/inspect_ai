@@ -74,7 +74,8 @@ def eval_set(
         retry_attempts: (int): Maximum number of retry attempts before giving up
           (defaults to 10).
         retry_wait (int): Time to wait between attempts, increased exponentially.
-          (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.)
+          (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
+          per-retry will in no case by longer than 1 hour.
         retry_connections (float): Reduce max_connections at this rate with each retry
           (defaults to 0.5)
         retry_cleanup (bool): Cleanup failed log files after retries
@@ -264,7 +265,7 @@ def eval_set(
         retry_error_callback=return_last_value,
         reraise=True,
         stop=stop_after_attempt(retry_attempts),
-        wait=wait_exponential(retry_wait),
+        wait=wait_exponential(retry_wait, max=(60 * 60)),
         before_sleep=before_sleep,
         before=before,
     )
