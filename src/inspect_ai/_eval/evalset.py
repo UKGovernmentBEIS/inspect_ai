@@ -269,11 +269,8 @@ def eval_set(
         before=before,
     )
 
-    # execute
+    # execute w/ retry and return when complete
     results = retry(try_eval)
-
-    # TODO: task name issues
-
     return all_evals_succeeded(results), results
 
 
