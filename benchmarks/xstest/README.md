@@ -1,6 +1,7 @@
 # XSTest
 
-[RACE](https://arxiv.org/abs/2308.01263) is a benchmark for identifying exaggerated safety behaviours in LLM's.
+[XSTest](https://arxiv.org/abs/2308.01263) is a benchmark for identifying exaggerated safety behaviours in LLM's.
+It comprises 250 safe prompts across ten prompt types that well-calibrated models should not refuse to comply with, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.
 
 ## Execution
 
