@@ -28,7 +28,8 @@ class MockLLM(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         custom_outputs: Iterable[ModelOutput]
-        | Generator[ModelOutput, None, None] = None,
+        | Generator[ModelOutput, None, None]
+        | None = None,
         **model_args: dict[str, Any],
     ) -> None:
         super().__init__(model_name, base_url, api_key, [], config)
