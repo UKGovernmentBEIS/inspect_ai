@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any, Set, cast
 
 import rich
@@ -204,6 +205,11 @@ def eval_set(
         # run the task groups (each will have a different model list)
         for task_group in task_groups:
             group_models, group_tasks = task_group
+
+            logger.info(
+                f"eval_set (initial run for tasks): {','.join([task.name for task in group_tasks])}: {group_models}"
+            )
+
             eval(
                 tasks=list(group_tasks),
                 model=group_models.models,
@@ -240,6 +246,11 @@ def eval_set(
 
         # retry the failed logs
         if len(failed_logs) > 0:
+            newline = "\n  "
+            logger.info(
+                f"eval_set (retrying failed evals):{newline}{newline.join([os.path.basename(log.name) for log in failed_logs])}"
+            )
+
             retried_logs = eval_retry(
                 failed_logs, log_dir=log_dir, max_connections=max_connections
             )
@@ -262,7 +273,6 @@ def eval_set(
     results = retry(try_eval)
 
     # TODO: task name issues
-    # TODO: info logging
 
     return all_evals_succeeded(results), results
 
