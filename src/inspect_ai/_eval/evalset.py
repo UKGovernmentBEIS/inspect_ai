@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Set
+from typing import Any, Set, cast
 
 import rich
 from rich.status import Status
@@ -174,6 +174,13 @@ def eval_set(
     def all_evals_succeeded(logs: list[EvalLog]) -> bool:
         return all([log.status == "success" for log in logs])
 
+    # return last value if we get to the end
+    def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
+        if retry_state.outcome:
+            return cast(list[EvalLog], retry_state.outcome.result())
+        else:
+            return []
+
     # function which will be called repeatedly to attempt to complete
     # the evaluations. for this purpose we will divide tasks into:
     #   - tasks with no log at all (they'll be attempted for the first time)
@@ -243,6 +250,7 @@ def eval_set(
     # create retry policy
     retry = Retrying(
         retry=retry_if_not_result(all_evals_succeeded),
+        retry_error_callback=return_last_value,
         reraise=True,
         stop=stop_after_attempt(retry_attempts),
         wait=wait_exponential(retry_wait),
@@ -254,7 +262,7 @@ def eval_set(
     results = retry(try_eval)
 
     # TODO: task name issues
-    # TODO: return evals with errors at end
+    # TODO: info logging
 
     return all_evals_succeeded(results), results
 
