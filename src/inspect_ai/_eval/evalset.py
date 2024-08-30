@@ -1,11 +1,14 @@
 import logging
 from typing import Any, Set
 
+import rich
+from rich.status import Status
 from tenacity import (
     RetryCallState,
     Retrying,
     retry_if_not_result,
     stop_after_attempt,
+    wait_exponential,
 )
 from typing_extensions import Unpack
 
@@ -35,7 +38,8 @@ logger = logging.getLogger(__name__)
 def eval_set(
     tasks: Tasks,
     log_dir: str,
-    retry: int | Retrying = 5,
+    retry_attempts: int = 10,
+    retry_wait: int = 30,
     retry_connections: float = 0.5,
     retry_cleanup: bool = True,
     model: str | Model | list[str] | list[Model] | None = None,
@@ -66,8 +70,10 @@ def eval_set(
             to evaluate a task in the current working directory
         log_dir (str): Output path for logging results
            (required to ensure that a unique storage scope is assigned for the set).
-        retry (int | Retrying): Number of times to retry or tenacity Retrying policy
-          (defaults to 5 retries)
+        retry_attempts: (int): Maximum number of retry attempts before giving up
+          (defaults to 10).
+        retry_wait (int): Time to wait between attempts, increased exponentially.
+          (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.)
         retry_connections (float): Reduce max_connections at this rate with each retry
           (defaults to 0.5)
         retry_cleanup (bool): Cleanup failed log files after retries
@@ -136,8 +142,33 @@ def eval_set(
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
 
-    # compute starting max_connections
+    # pick out the max_connections so we can tweak it
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
+
+    # status display
+    status: Status | None = None
+
+    # before sleep
+    def before_sleep(retry_state: RetryCallState) -> None:
+        # compute next max_connections
+        nonlocal max_connections
+        max_connections = max(round(max_connections * retry_connections), 1)
+        kwargs["max_connections"] = max_connections
+
+        nonlocal status
+        console = rich.get_console()
+        console.print("")
+        status = console.status(
+            f"[blue bold]Evals not complete, waiting {round(retry_state.upcoming_sleep)} seconds before retrying...\n[/blue bold]",
+            spinner="clock",
+        )
+        status.start()
+
+    def before(retry_state: RetryCallState) -> None:
+        nonlocal status
+        if status is not None:
+            status.stop()
+            status = None
 
     # filter for determining when we are done
     def all_evals_succeeded(logs: list[EvalLog]) -> bool:
@@ -148,14 +179,7 @@ def eval_set(
     #   - tasks with no log at all (they'll be attempted for the first time)
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
-    def try_eval(retry_state: RetryCallState | None = None) -> list[EvalLog]:
-        # adjust max_connections based on attempt number
-        try_max_connections = max_connections
-        reductions = retry_state.attempt_number - 1 if retry_state else 0
-        for _ in range(0, reductions):
-            try_max_connections = max(round(try_max_connections * retry_connections), 1)
-        kwargs["max_connections"] = try_max_connections
-
+    def try_eval() -> list[EvalLog]:
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
         logs = list_eval_logs(log_dir)
@@ -209,22 +233,28 @@ def eval_set(
 
         # retry the failed logs
         if len(failed_logs) > 0:
-            retried_logs = eval_retry(failed_logs, log_dir=log_dir)
+            retried_logs = eval_retry(
+                failed_logs, log_dir=log_dir, max_connections=max_connections
+            )
             return success_logs + retried_logs
         else:
             return success_logs
 
-    # create Retrying instance
-    if isinstance(retry, int):
-        retry = Retrying(stop=stop_after_attempt(retry))
-    retry.retry = retry_if_not_result(all_evals_succeeded)
-    retry.reraise = True
+    # create retry policy
+    retry = Retrying(
+        retry=retry_if_not_result(all_evals_succeeded),
+        reraise=True,
+        stop=stop_after_attempt(retry_attempts),
+        wait=wait_exponential(retry_wait),
+        before_sleep=before_sleep,
+        before=before,
+    )
 
     # execute
     results = retry(try_eval)
 
     # TODO: task name issues
-    # TODO: progress/status text
+    # TODO: return evals with errors at end
 
     return all_evals_succeeded(results), results
 
