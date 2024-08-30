@@ -1,6 +1,11 @@
 from random import randint
 from typing import Literal
 
+from test_helpers.tool_call_utils import (
+    get_tool_call,
+    get_tool_calls,
+    get_tool_response,
+)
 from test_helpers.tools import addition, raise_error, read_file
 from test_helpers.utils import (
     skip_if_no_anthropic,
@@ -10,7 +15,6 @@ from test_helpers.utils import (
     skip_if_no_openai,
     skip_if_no_vertex,
 )
-from tool_call_utils import get_tool_call, get_tool_calls, get_tool_response
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
