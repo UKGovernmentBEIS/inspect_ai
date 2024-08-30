@@ -21,15 +21,29 @@ TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
 
 
 def test_eval_set() -> None:
+    # run eval with a solver that fails 20% of the time
     with tempfile.TemporaryDirectory() as log_dir:
-        # run eval with a solver that fails 50% of the time
-        succces, _ = eval_set(
-            tasks=failing_task(rate=0.5, samples=10),
+        succces, logs = eval_set(
+            tasks=failing_task(rate=0.2, samples=10),
             log_dir=log_dir,
-            retry=sys.maxsize,
+            retry_attempts=100,
+            retry_wait=1,
             model="mockllm/model",
         )
         assert succces
+        assert logs[0].status == "success"
+
+    # run eval that is guaranteed to fail
+    with tempfile.TemporaryDirectory() as log_dir:
+        succces, logs = eval_set(
+            tasks=failing_task(rate=1, samples=10),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=1,
+            model="mockllm/model",
+        )
+        assert not succces
+        assert logs[0].status == "error"
 
 
 @skip_if_no_openai
@@ -119,7 +133,3 @@ def test_latest_completed_task_eval_logs() -> None:
         assert len(list_eval_logs(clean_dir.as_posix())) == 1
     finally:
         shutil.rmtree(clean_dir, ignore_errors=True)
-
-
-if __name__ == "__main__":
-    test_eval_set()
