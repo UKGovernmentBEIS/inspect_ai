@@ -142,9 +142,10 @@ def file_check(file: str):
 
 
 @solver
-def failing_solver(rate=0.67):
+def failing_solver(rate=0.5):
     async def solve(state: TaskState, generate: Generate):
-        if random() < rate:
+        value = random()
+        if value < rate:
             raise ValueError("Eval failed!")
 
         return state
@@ -153,9 +154,12 @@ def failing_solver(rate=0.67):
 
 
 @task
-def failing_task(rate=0.67, samples=1):
+def failing_task(rate=0.5, samples=1) -> Task:
+    dataset: list[Sample] = []
+    for _ in range(0, samples):
+        dataset.append(Sample(input="Say hello", target="hello"))
     return Task(
-        dataset=[Sample(input="Say hello", target="hello")] * samples,
+        dataset=dataset,
         plan=[failing_solver(rate), generate()],
         scorer=match(),
     )
