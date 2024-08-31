@@ -46,16 +46,14 @@ def test_eval_set() -> None:
         assert logs[0].status == "error"
 
 
-@skip_if_no_openai
-@skip_if_no_anthropic
 def test_schedule_pending_tasks() -> None:
     task1 = Task(dataset=[], name="task1")
     task2 = Task(dataset=[], name="task2")
     task3 = Task(dataset=[], name="task3")
     task4 = Task(dataset=[], name="task4")
     task5 = Task(dataset=[], name="task5")
-    openai = get_model("openai/gpt-4o")
-    anthropic = get_model("anthropic/claude-3-haiku-20240307")
+    openai = get_model("mockllm/openai")
+    anthropic = get_model("mockllm/anthropic")
     mock = get_model("mockllm/model")
 
     def resolved_task(task: Task, model: Model) -> ResolvedTask:
