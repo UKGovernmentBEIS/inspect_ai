@@ -39,21 +39,14 @@ def squad():
 def record_to_sample(record):
   return Sample(
       input=format_input(record),
-      target=format_target(record),
+      target=record["answers"]["text"],
       id=record["id"],
   )
 
 def format_input(record) -> str:
   passage_str = f"""Context: {record["context"]}"""
   question_str = f"""Question: {record["question"]}"""
-  input_str = "\n".join([passage_str, question_str])
-
-  return input_str
-
-
-def format_target(record) -> List[str]:
-  answers = record["answers"]
-  return answers["text"]
+  return "\n".join([passage_str, question_str])
 
 @scorer(metrics=[mean(), bootstrap_std()])
 def squad_f1_scorer():
