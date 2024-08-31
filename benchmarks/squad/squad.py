@@ -23,7 +23,6 @@ def squad():
         path="rajpurkar/squad",
         split="validation",
         sample_fields=record_to_sample,
-        trust=True,
         shuffle=True
     )
 
