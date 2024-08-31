@@ -33,8 +33,8 @@ but your own script might want to customise these further:
 import sys
 
 import click
+from popularity import popularity
 from security_guide import security_guide
-from theory_of_mind import theory_of_mind
 
 from inspect_ai import eval_set
 
@@ -53,21 +53,12 @@ def run(log_dir: str, retry_attempts: int):
        Tuple of bool, list[EvalLog] with sucess status and final logs
     """
     # run eval_set
-    success, logs = eval_set(
-        tasks=[theory_of_mind(), security_guide()],
+    return eval_set(
+        tasks=[popularity(), security_guide()],
         model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
         log_dir=log_dir,
         retry_attempts=retry_attempts,
     )
-
-    # notify user
-    if success:
-        print(f"Completed all tasks in '{log_dir}' successfully")
-    else:
-        print(f"Did not successfully complete all tasks in '{log_dir}'.")
-
-    # return results
-    return success, logs
 
 
 # enable invocation as a script
