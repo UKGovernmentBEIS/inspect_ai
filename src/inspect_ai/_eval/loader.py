@@ -31,7 +31,7 @@ from .task.run import EvalSampleSource, eval_log_sample_source
 logger = getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ResolvedTask:
     task: Task
     task_args: dict[str, Any]
