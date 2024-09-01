@@ -10,6 +10,33 @@ from pprint import pp
 from typing import List, Tuple, Union
 from scipy.optimize import linear_sum_assignment  # type: ignore
 
+
+"""
+FROM PAPER:
+
+4.1 Evaluation Metrics
+Our core evaluation metric, word-level F1, is im- plemented similarly to SQuAD (Rajpurkar et al., 
+2016): precision and recall are computed by con- sidering the portion of words in the prediction 
+and references that overlap after removing stop- words.12 For no answer questions, we give the 
+system an F1 of one if it correctly predicts no answerandzerootherwise.13 Like 
+SQuAD,we compute the maximum F1 among all references; however, since many questions have 
+multiple valid answers, this metric varies significantly with
+
+the number of reference annotations. To make or- acle human and system performance comparable, 
+given n references, we report the average of the maximum F1 computed from each n − 1 
+subset with respect to the heldout reference.
+Additionally, since averaged F1 can be mislead- ing for 
+questions with multiple valid answers, we introduce the human equivalence score (HEQ)
+,a performance measure for judging whether a sys- tem’s output is as good as that of 
+an average hu- man.14 HEQmeasuresthepercentageofexamples for which system F1 exceeds 
+or matches human F1. We compute two variants: (1) the percentage of questions for 
+which this is true (HEQ-Q), and (2) the percentage of dialogs for which this is 
+true for every question in the dialog (HEQ-D). A sys- tem that achieves a value of
+100 on HEQ-D can by definition maintain average human quality output over full dialogs.
+For dialog acts, we report accuracy with respect to the majority annotation, breaking ties randomly.
+
+"""
+
 # !!!!
 # WIP
 # Taken from drop benchmark, need to refactor or add directly to inspect library as new f1 scorer
