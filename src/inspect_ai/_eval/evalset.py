@@ -327,7 +327,7 @@ def eval_set(
         msg = status_msg(f"Completed all tasks in '{log_dir}' successfully")
     else:
         msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
-    console.print(f"\n{msg}")
+    console.print(f"{msg}")
 
     # return status + results
     return success, results

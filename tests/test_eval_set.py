@@ -17,8 +17,6 @@ from inspect_ai._eval.loader import ResolvedTask
 from inspect_ai.log._file import list_eval_logs
 from inspect_ai.model import Model, get_model
 
-TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
-
 
 def test_eval_set() -> None:
     # run eval with a solver that fails 20% of the time
@@ -117,6 +115,7 @@ def test_schedule_pending_tasks() -> None:
 
 def test_latest_completed_task_eval_logs() -> None:
     # cleanup previous tests
+    TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
     clean_dir = TEST_EVAL_SET_PATH / "clean"
     if clean_dir.exists():
         shutil.rmtree(clean_dir.as_posix())
