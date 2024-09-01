@@ -1,17 +1,10 @@
+from pprint import pp
 from typing import Dict, List
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.hf import hf_dataset
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import choice
-
-MULTIPLE_CHOICE_TEMPLATE_COT = r"""
-Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}. Think step by step before answering.
-
-{question}
-
-{choices}
-""".strip()
 
 
 @task
@@ -67,7 +60,5 @@ def format_input(doc: Dict) -> str:
     return input_str
 
 def format_target(doc: Dict) -> List[str]:
-    target = doc["answers"]["texts"][-1]
-    # Convert each tuple to str, since 'target' only accepts 'str' or 'List[str]'.
-    target = ["|".join(elm) for elm in target]
+    target = " | ".join(doc["answers"]["texts"][-1])
     return target
