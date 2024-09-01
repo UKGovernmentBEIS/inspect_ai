@@ -17,7 +17,7 @@ FROM PAPER:
 4.1 Evaluation Metrics
 Our core evaluation metric, word-level F1, is im- plemented similarly to SQuAD (Rajpurkar et al., 
 2016): precision and recall are computed by con- sidering the portion of words in the prediction 
-and references that overlap after removing stop- words.12 For no answer questions, we give the 
+and references that overlap after removing stop-words.12 For no answer questions, we give the 
 system an F1 of one if it correctly predicts no answerandzerootherwise.13 Like 
 SQuAD,we compute the maximum F1 among all references; however, since many questions have 
 multiple valid answers, this metric varies significantly with
@@ -40,6 +40,10 @@ For dialog acts, we report accuracy with respect to the majority annotation, bre
 # !!!!
 # WIP
 # Taken from drop benchmark, need to refactor or add directly to inspect library as new f1 scorer
+# Todos:
+# - Remove stop words
+# - Run some additional checks to see if it really works as expected
+# - Add HEQ metric from paper?
 @scorer(metrics=[mean(), bootstrap_std()])
 def f1_scorer():
     async def score(state: TaskState, target: Target) -> Score:
