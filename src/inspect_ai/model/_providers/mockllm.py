@@ -1,4 +1,4 @@
-from typing import Any, Iterable, Iterator
+from typing import Any, Generator, Iterable, Iterator
 
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -27,19 +27,21 @@ class MockLLM(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        custom_outputs: Iterable[ModelOutput] = [],
+        custom_outputs: Iterable[ModelOutput]
+        | Generator[ModelOutput, None, None]
+        | None = None,
         **model_args: dict[str, Any],
     ) -> None:
         super().__init__(model_name, base_url, api_key, [], config)
         self.model_args = model_args
         if model_name != "model":
             raise ValueError(f"Invalid model name: {model_name}")
-        if custom_outputs:
+        if custom_outputs is not None:
             # We cannot rely on the user of this model giving custom_outputs the correct type since they do not call this constructor
             # Hence this type check and the one in generate.
-            if not isinstance(custom_outputs, Iterable):
+            if not isinstance(custom_outputs, Iterable | Generator):
                 raise ValueError(
-                    f"model_args['custom_outputs'] must be an Iterable, got {custom_outputs}"
+                    f"model_args['custom_outputs'] must be an Iterable or a Generator, got {custom_outputs}"
                 )
             self.outputs = iter(custom_outputs)
         else:
@@ -65,5 +67,7 @@ class MockLLM(ModelAPI):
             raise ValueError("custom_outputs ran out of values")
 
         if not isinstance(output, ModelOutput):
-            raise ValueError("output must be an instance of ModelOutput")
+            raise ValueError(
+                f"output must be an instance of ModelOutput; got {type(output)}; content: {repr(output)}"
+            )
         return output

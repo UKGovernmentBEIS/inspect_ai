@@ -1,0 +1,11 @@
+services:
+  default:
+    build:
+      context: docker-compose-context
+      dockerfile: Dockerfile
+    command: "tail -f /dev/null"
+    user: nonroot
+    working_dir: /home/nonroot
+    init: true
+    network_mode: none
+    stop_grace_period: 1s

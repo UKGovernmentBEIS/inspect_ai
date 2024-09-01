@@ -99,7 +99,7 @@ $ inspect eval theory.py --temperature 0 --seed 42
 
 ## Configuration {#sec-workflow-configuration}
 
-As you can see, there is often a lot of configuration required for calling `inspect eval`. While we can include it all on the command line, it's generally easier to use environment variables. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in both the working directory and the directory where the task source file is located (this is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package).
+As you can see, there is often a lot of configuration required for calling `inspect eval`. While we can include it all on the command line, it's generally easier to use environment variables. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in the current working directory (also searching in parent directories if a `.env` file is not found in the working directory). This is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package).
 
 For example, here's a `.env` file that makes available API keys for several providers and sets a bunch of defaults for a working session:
 
