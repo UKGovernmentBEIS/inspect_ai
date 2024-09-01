@@ -51,6 +51,8 @@ def format_input(doc: Dict) -> str:
     
     questions = doc["questions"]
     previous_questions_answers = []
+    
+    # We just append everything but the last question for now
     for idx, question in enumerate(questions[:-1]):
         answer = doc["answers"]["texts"][idx][0]
         question = f"""question: {question}"""
@@ -58,6 +60,7 @@ def format_input(doc: Dict) -> str:
         previous_questions_answers.append(question)
         previous_questions_answers.append(answer)
         
+    # We use the last question as current question for now 
     current_question = questions[-1]
     
     input_str = "\n".join([wikipedia_title, background, section_title, context, "\n".join(previous_questions_answers), current_question, """answer:"""])
