@@ -132,7 +132,7 @@ def eval_set(
     ) -> list[EvalLog]:
         # run evals
         results = eval(
-            tasks=deepcopy(tasks),
+            tasks=tasks,
             model=models,
             model_base_url=model_base_url,
             model_args=model_args,
@@ -263,7 +263,7 @@ def eval_set(
             # run the tasks
             run_logs = run_task_groups(
                 task_groups=task_groups,
-                run_tasks=lambda tasks: [task.task for task in tasks],
+                run_tasks=lambda tasks: deepcopy([task.task for task in tasks]),
             )
 
             # if this was the entire list of resolved tasks, return results
@@ -305,7 +305,7 @@ def eval_set(
                     return [
                         PreviousTask(
                             id=log.header.eval.task_id,
-                            task=task.task,
+                            task=deepcopy(task.task),
                             log=read_eval_log(log.info),
                         )
                         for task, log in zip(tasks, map(task_to_failed_log, tasks))
