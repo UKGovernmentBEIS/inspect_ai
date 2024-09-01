@@ -566,6 +566,9 @@ def schedule_retry_tasks(retry_tasks: list[ResolvedTask]) -> list[TaskGroup]:
         ]
         schedule.append(TaskGroup(model_target, group_tasks))
 
+    # deterministic return order
+    schedule.sort(key=lambda x: str(x[0]))
+
     return schedule
 
 
