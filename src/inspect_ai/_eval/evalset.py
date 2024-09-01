@@ -130,7 +130,8 @@ def eval_set(
     def run_eval(
         tasks: list[Task] | list[PreviousTask], models: list[Model]
     ) -> list[EvalLog]:
-        return eval(
+        # run evals
+        results = eval(
             tasks=deepcopy(tasks),
             model=models,
             model_base_url=model_base_url,
@@ -154,6 +155,13 @@ def eval_set(
             score=score,
             **kwargs,
         )
+
+        # check for cancelled
+        if evals_cancelled(results):
+            raise KeyboardInterrupt
+
+        # return results
+        return results
 
     # helper function to run a list of task groups
     def run_task_groups(
@@ -252,10 +260,21 @@ def eval_set(
 
         # we have some pending tasks yet to run, run them
         if len(task_groups) > 0:
-            return run_task_groups(
+            # run the tasks
+            run_logs = run_task_groups(
                 task_groups=task_groups,
                 run_tasks=lambda tasks: [task.task for task in tasks],
             )
+
+            # if this was the entire list of resolved tasks, return results
+            if len(pending_tasks) == len(all_tasks):
+                return run_logs
+            # otherwise query the filesystem
+            else:
+                latest_logs = latest_completed_task_eval_logs(
+                    logs=list_all_eval_logs(log_dir), cleanup_older=False
+                )
+                return [log.header for log in latest_logs]
 
         # all tasks have had an initial run, perform retries
         else:
@@ -333,9 +352,16 @@ def eval_set(
     return success, results
 
 
-# filter for determining when we are done
+# filters to determine when we are done
+
+
 def all_evals_succeeded(logs: list[EvalLog]) -> bool:
     return all([log.status == "success" for log in logs])
+
+
+# filter for determining when we are done
+def evals_cancelled(logs: list[EvalLog]) -> bool:
+    return any([log.status == "cancelled" for log in logs])
 
 
 # return last value if we get to the end
