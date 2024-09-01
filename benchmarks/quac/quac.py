@@ -1,10 +1,10 @@
-from pprint import pp
+
 from typing import Dict, List
+from f1 import f1_scorer
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.hf import hf_dataset
-from inspect_ai.model import GenerateConfig
-from inspect_ai.scorer import choice
+from inspect_ai.model._generate_config import GenerateConfig
 
 
 @task
@@ -12,31 +12,26 @@ def quac():
     dataset = hf_dataset(
         path="allenai/quac",
         sample_fields=record_to_sample,
-        split="validation",
+        split="train",
         shuffle=True,
         trust=True
     )
-    dataset = dataset[:100]
-    breakpoint()
+    dataset = dataset[:10]
     
-    # TODO:
-    plan = None # TO IMPLEMENT
     return Task(
         dataset=dataset,
-        plan=plan, # What plan to use?
-        scorer=choice(),
+        scorer=f1_scorer(),
         config=GenerateConfig(temperature=0.5),
     )
     
-    
-def record_to_sample(record: Dict) -> Sample:
+def record_to_sample(record) -> Sample:
     return Sample(
         input=format_input(record),
         target=format_target(record),
         id=record["dialogue_id"],
     )
     
-def format_input(doc: Dict) -> str:
+def format_input(doc) -> str:
     wikipedia_title = f"""wikipedia_page_title: {doc["wikipedia_page_title"]}"""
     background = f"""background: {doc["background"]}"""
     section_title = f"""section_title: {doc["section_title"]}"""
