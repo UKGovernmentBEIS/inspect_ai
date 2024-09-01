@@ -33,8 +33,8 @@ but your own script might want to customise these further:
 import sys
 
 import click
-from popularity import popularity
 from security_guide import security_guide
+from theory_of_mind import theory_of_mind
 
 from inspect_ai import eval_set
 
@@ -54,7 +54,7 @@ def run(log_dir: str, retry_attempts: int):
     """
     # run eval_set
     return eval_set(
-        tasks=[popularity(), security_guide()],
+        tasks=[security_guide(), theory_of_mind()],
         model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
         log_dir=log_dir,
         retry_attempts=retry_attempts,
