@@ -5,7 +5,6 @@ from typing import Any, Callable, Sequence, cast
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
-from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog

@@ -1,20 +1,19 @@
 import shutil
-import sys
 import tempfile
 from pathlib import Path
-from typing import Set
 
-from test_helpers.utils import failing_task, skip_if_no_anthropic, skip_if_no_openai
+from test_helpers.utils import failing_task
 
 from inspect_ai import Task
 from inspect_ai._eval.evalset import (
     ModelList,
     eval_set,
     latest_completed_task_eval_logs,
+    list_all_eval_logs,
     schedule_pending_tasks,
 )
 from inspect_ai._eval.loader import ResolvedTask
-from inspect_ai.log._file import list_eval_logs, read_eval_log_headers
+from inspect_ai.log._file import list_eval_logs
 from inspect_ai.model import Model, get_model
 
 TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
@@ -67,14 +66,16 @@ def test_schedule_pending_tasks() -> None:
         )
 
     def assert_schedule(
-        sched: tuple[ModelList, Set[Task]], models: list[Model], tasks: list[Task]
+        sched: tuple[ModelList, list[ResolvedTask]],
+        models: list[Model],
+        tasks: list[Task],
     ) -> None:
         assert sched[0] == ModelList(models)
         sched_tasks = list(sched[1])
-        sched_tasks.sort(key=lambda x: x.name)
+        sched_tasks.sort(key=lambda x: x.task.name)
         tasks = list(tasks)
         tasks.sort(key=lambda x: x.name)
-        assert sched_tasks == tasks
+        assert [task.task for task in sched_tasks] == tasks
 
     # test schedule with all models for each task
     tasks: list[ResolvedTask] = []
@@ -113,11 +114,10 @@ def test_latest_completed_task_eval_logs() -> None:
         shutil.rmtree(clean_dir.as_posix())
 
     # verify we correctly select only the most recent log
-    logs = list_eval_logs(TEST_EVAL_SET_PATH.as_posix(), recursive=False)
-    log_headers = read_eval_log_headers(logs)
-    latest = latest_completed_task_eval_logs(logs, log_headers, False)
+    all_logs = list_all_eval_logs(TEST_EVAL_SET_PATH.as_posix())
+    assert len(all_logs) == 2
+    latest = latest_completed_task_eval_logs(all_logs, False)
     assert len(latest) == 1
-    assert len(list_eval_logs(TEST_EVAL_SET_PATH.as_posix())) == 2
 
     # verify that we correctly clean when requested
     clean_dir.mkdir(exist_ok=True)
@@ -125,9 +125,8 @@ def test_latest_completed_task_eval_logs() -> None:
         for filename in TEST_EVAL_SET_PATH.glob("*.json"):
             destination = clean_dir / filename.name
             shutil.copy2(filename, destination)
-        logs = list_eval_logs(clean_dir.as_posix(), recursive=False)
-        log_headers = read_eval_log_headers(logs)
-        latest = latest_completed_task_eval_logs(logs, log_headers, True)
+        all_logs = list_all_eval_logs(clean_dir.as_posix())
+        latest = latest_completed_task_eval_logs(all_logs, True)
         assert len(list_eval_logs(clean_dir.as_posix())) == 1
     finally:
         shutil.rmtree(clean_dir, ignore_errors=True)

@@ -1,6 +1,6 @@
 import logging
-import os
-from typing import Any, Set, cast
+from copy import deepcopy
+from typing import Any, Callable, NamedTuple, Set, cast
 
 import rich
 from rich.status import Status
@@ -13,12 +13,12 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
-from inspect_ai._eval.task.task import Task
 from inspect_ai._util.file import filesystem
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import (
     EvalLogInfo,
     list_eval_logs,
+    read_eval_log,
     read_eval_log_headers,
 )
 from inspect_ai.model import (
@@ -29,9 +29,10 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver import Plan, Solver
 from inspect_ai.util import SandboxEnvironmentSpec
 
-from .eval import eval, eval_init, eval_retry
+from .eval import eval, eval_init
 from .loader import ResolvedTask
 from .task import Epochs, Tasks
+from .task.task import PreviousTask, Task
 
 logger = logging.getLogger(__name__)
 
@@ -123,78 +124,14 @@ def eval_set(
         Tuple of bool (whether all tasks completed successfully) and list of EvalLog
         (one for each task)
     """
-    # resolve tasks
-    models, resolved_tasks = eval_init(
-        tasks=tasks,
-        model=model,
-        model_base_url=model_base_url,
-        model_args=model_args,
-        task_args=task_args,
-        sandbox=sandbox,
-        max_subprocesses=max_subprocesses,
-        log_level=log_level,
-        **kwargs,
-    )
 
-    # ensure that all tasks have unique identfiers (will need this for pairing
-    # tasks with log files). will throw if the constraint is violated
-    validate_unique_identifers(resolved_tasks)
-
-    # ensure log_dir
-    fs = filesystem(log_dir)
-    fs.mkdir(log_dir, exist_ok=True)
-
-    # pick out the max_connections so we can tweak it
-    max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
-
-    # status display
-    status: Status | None = None
-
-    # before sleep
-    def before_sleep(retry_state: RetryCallState) -> None:
-        # compute next max_connections
-        nonlocal max_connections
-        max_connections = max(round(max_connections * retry_connections), 1)
-        kwargs["max_connections"] = max_connections
-
-        nonlocal status
-        console = rich.get_console()
-        console.print("")
-        status = console.status(
-            f"[blue bold]Evals not complete, waiting {round(retry_state.upcoming_sleep)} seconds before retrying...\n[/blue bold]",
-            spinner="clock",
-        )
-        status.start()
-
-    def before(retry_state: RetryCallState) -> None:
-        nonlocal status
-        if status is not None:
-            status.stop()
-            status = None
-
-    # filter for determining when we are done
-    def all_evals_succeeded(logs: list[EvalLog]) -> bool:
-        return all([log.status == "success" for log in logs])
-
-    # return last value if we get to the end
-    def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
-        if retry_state.outcome:
-            return cast(list[EvalLog], retry_state.outcome.result())
-        else:
-            return []
-
-    # helper function that gets the latest logs (cleaning if requested)
-    def latest_eval_logs() -> list[tuple[EvalLogInfo, EvalLog]]:
-        log_files = list_eval_logs(log_dir)
-        log_headers = read_eval_log_headers(log_files)
-        return latest_completed_task_eval_logs(
-            log_files, log_headers, cleanup_older=retry_cleanup
-        )
-
-    # helper function to run a set of evals
-    def run_eval(tasks: Tasks, models: list[Model]) -> list[EvalLog]:
+    # helper function to run a set of evals (note that we deepcopy the tasks
+    # so that multiple passes don't share task instances)
+    def run_eval(
+        tasks: list[Task] | list[PreviousTask], models: list[Model]
+    ) -> list[EvalLog]:
         return eval(
-            tasks=tasks,
+            tasks=deepcopy(tasks),
             model=models,
             model_base_url=model_base_url,
             model_args=model_args,
@@ -218,6 +155,84 @@ def eval_set(
             **kwargs,
         )
 
+    # helper function to run a list of task groups
+    def run_task_groups(
+        task_groups: list[TaskGroup],
+        run_tasks: Callable[[list[ResolvedTask]], list[Task] | list[PreviousTask]],
+    ) -> list[EvalLog]:
+        logs: list[EvalLog] = []
+        for task_group in task_groups:
+            # alias
+            group_models, group_tasks = task_group
+
+            # info log
+            logger.info(
+                f"eval_set (running task group): {','.join([task.task.name for task in group_tasks])}: {group_models}"
+            )
+
+            # run the evals
+            logs.extend(
+                run_eval(
+                    tasks=run_tasks(group_tasks),
+                    models=group_models.models,
+                )
+            )
+
+        return logs
+
+    # resolve tasks
+    models, resolved_tasks = eval_init(
+        tasks=tasks,
+        model=model,
+        model_base_url=model_base_url,
+        model_args=model_args,
+        task_args=task_args,
+        sandbox=sandbox,
+        max_subprocesses=max_subprocesses,
+        log_level=log_level,
+        **kwargs,
+    )
+
+    # ensure log_dir and list all logs
+    fs = filesystem(log_dir)
+    fs.mkdir(log_dir, exist_ok=True)
+
+    # validate that:
+    #  (1) All tasks have a unique identifier
+    #  (2) All logs have identifiers that map to tasks
+    validate_eval_set_preconditions(resolved_tasks, list_all_eval_logs(log_dir))
+
+    # pick out the max_connections so we can tweak it with each retry
+    max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
+
+    # prepare console/status
+    console = rich.get_console()
+    status: Status | None = None
+
+    # before sleep
+    def before_sleep(retry_state: RetryCallState) -> None:
+        # compute/update next max_connections
+        nonlocal max_connections
+        max_connections = max(round(max_connections * retry_connections), 1)
+        kwargs["max_connections"] = max_connections
+
+        # print waiting status
+        nonlocal status
+        console.print("")
+        msg = (
+            f"Evals not complete, waiting {round(retry_state.upcoming_sleep)} "
+            + "seconds before retrying...\n"
+        )
+        status = console.status(status_msg(msg), spinner="clock")
+        status.start()
+
+    def before(retry_state: RetryCallState) -> None:
+        # clear waiting status
+        nonlocal status
+        if status is not None:
+            status.stop()
+            status = None
+
     # function which will be called repeatedly to attempt to complete
     # the evaluations. for this purpose we will divide tasks into:
     #   - tasks with no log at all (they'll be attempted for the first time)
@@ -226,58 +241,67 @@ def eval_set(
     def try_eval() -> list[EvalLog]:
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
-        logs = list_eval_logs(log_dir)
-        log_headers = read_eval_log_headers(logs)
-        log_task_identifers = [task_identifer(log) for log in log_headers]
+        # for those that haven't run, schedule them into models => tasks groups
+        all_logs = list_all_eval_logs(log_dir)
+        log_task_identifers = [log.task_identifier for log in all_logs]
         all_tasks = [(task_identifer(task), task) for task in resolved_tasks]
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifers
         ]
-
-        # schedule pending tasks (they need to be grouped by which models to
-        # run them on -- if all tasks are pending then there will be only 1 group)
         task_groups = schedule_pending_tasks(pending_tasks)
 
-        # run the task groups (each will have a different model list)
+        # we have some pending tasks yet to run, run them
         if len(task_groups) > 0:
-            for task_group in task_groups:
-                # alias
-                group_models, group_tasks = task_group
+            return run_task_groups(
+                task_groups=task_groups,
+                run_tasks=lambda tasks: [task.task for task in tasks],
+            )
 
-                # info log
-                logger.info(
-                    f"eval_set (initial run for tasks): {','.join([task.name for task in group_tasks])}: {group_models}"
-                )
-
-                # run the evals
-                run_eval(tasks=list(group_tasks), models=group_models.models)
-
-            # return latest
-            return [log[1] for log in latest_eval_logs()]
-
-        # we've already run the first pass on all the task groups, now do retries
+        # all tasks have had an initial run, perform retries
         else:
             # look for retryable eval logs and cleave them into success/failed
-            latest_logs = latest_eval_logs()
-            success_logs = [log[1] for log in latest_logs if log[1].status == "success"]
-            failed_logs = [log[0] for log in latest_logs if log[1].status != "success"]
+            success_logs, failed_logs = list_latest_eval_logs(all_logs, retry_cleanup)
 
-            # retry the failed logs
+            # retry the failed logs (look them up in resolved_tasks)
             if len(failed_logs) > 0:
-                newline = "\n  "
-                logger.info(
-                    f"eval_set (retrying failed evals):{newline}{newline.join([os.path.basename(log.name) for log in failed_logs])}"
+                # schedule the re-execution of the failed tasks
+                failed_task_identifers = [log.task_identifier for log in failed_logs]
+                failed_tasks = [
+                    task
+                    for task in resolved_tasks
+                    if task_identifer(task) in failed_task_identifers
+                ]
+                task_groups = schedule_retry_tasks(failed_tasks)
+
+                # execute task groups (run previous task so we get the samples from the log)
+                def run_previous_tasks(tasks: list[ResolvedTask]) -> list[PreviousTask]:
+                    def task_to_failed_log(task: ResolvedTask) -> Log:
+                        resolved_task_identifier = task_identifer(task)
+                        return next(
+                            log
+                            for log in failed_logs
+                            if log.task_identifier == resolved_task_identifier
+                        )
+
+                    return [
+                        PreviousTask(
+                            id=log.header.eval.task_id,
+                            task=task.task,
+                            log=read_eval_log(log.info),
+                        )
+                        for task, log in zip(tasks, map(task_to_failed_log, tasks))
+                    ]
+
+                retried_logs = run_task_groups(
+                    task_groups=task_groups, run_tasks=run_previous_tasks
                 )
 
-                # create previous tasks
-                previous_tasks = failed_logs
+                # return success
+                return [log.header for log in success_logs] + retried_logs
 
-                retried_logs = eval_retry(
-                    previous_tasks, log_dir=log_dir, max_connections=max_connections
-                )
-                return success_logs + retried_logs
+            # no failed logs to retry, just return sucesss logs
             else:
-                return success_logs
+                return [log.header for log in success_logs]
 
     # create retry policy
     retry = Retrying(
@@ -295,23 +319,132 @@ def eval_set(
 
     # final sweep to remove failed log files
     if retry_cleanup:
-        latest_eval_logs()
+        cleanup_older_eval_logs(log_dir)
+
+    # report final status
+    success = all_evals_succeeded(results)
+    if success:
+        msg = status_msg(f"Completed all tasks in '{log_dir}' successfully")
+    else:
+        msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
+    console.print(f"\n{msg}")
 
     # return status + results
-    return all_evals_succeeded(results), results
+    return success, results
 
 
-# validate that all of the tasks have a unique identfier
-def validate_unique_identifers(resolved_tasks: list[ResolvedTask]) -> None:
-    identifiers: Set[str] = set()
+# filter for determining when we are done
+def all_evals_succeeded(logs: list[EvalLog]) -> bool:
+    return all([log.status == "success" for log in logs])
+
+
+# return last value if we get to the end
+def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
+    if retry_state.outcome:
+        return cast(list[EvalLog], retry_state.outcome.result())
+    else:
+        return []
+
+
+class Log(NamedTuple):
+    info: EvalLogInfo
+    header: EvalLog
+    task_identifier: str
+
+
+# list all eval logs
+def list_all_eval_logs(log_dir: str) -> list[Log]:
+    log_files = list_eval_logs(log_dir)
+    log_headers = read_eval_log_headers(log_files)
+    task_identifers = [task_identifer(log_header) for log_header in log_headers]
+    return [
+        Log(info=info, header=header, task_identifier=task_identifier)
+        for info, header, task_identifier in zip(
+            log_files, log_headers, task_identifers
+        )
+    ]
+
+
+# get the latest logs (cleaning if requested). returns tuple of successful/unsuccessful
+def list_latest_eval_logs(
+    logs: list[Log], cleanup_older: bool
+) -> tuple[list[Log], list[Log]]:
+    latest_logs = latest_completed_task_eval_logs(
+        logs=logs, cleanup_older=cleanup_older
+    )
+    success_logs = [log for log in latest_logs if log.header.status == "success"]
+    failed_logs = [log for log in latest_logs if log.header.status != "success"]
+    return (success_logs, failed_logs)
+
+
+# cleanup logs that aren't the latest
+def cleanup_older_eval_logs(log_dir: str) -> None:
+    latest_completed_task_eval_logs(
+        logs=list_all_eval_logs(log_dir), cleanup_older=True
+    )
+
+
+def latest_completed_task_eval_logs(
+    logs: list[Log], cleanup_older: bool = False
+) -> list[Log]:
+    # collect logs by id
+    logs_by_id: dict[str, list[Log]] = {}
+    for log in logs:
+        id = log.header.eval.task_id
+        if id not in logs_by_id:
+            logs_by_id[id] = []
+        logs_by_id[id].append(log)
+
+    # take the most recent completed log for each id
+    latest_completed_logs: list[Log] = []
+    for id, id_logs in logs_by_id.items():
+        # filter on completed
+        id_logs = [id_log for id_log in id_logs if id_log[1].status != "started"]
+
+        # sort by last file write time
+        id_logs.sort(key=lambda id_log: id_log[0].mtime, reverse=True)
+
+        # take the most recent
+        latest_completed_logs.append(id_logs[0])
+
+        # remove the rest if requested
+        if cleanup_older:
+            fs = filesystem(id_logs[0][0].name)
+            for id_log in id_logs[1:]:
+                try:
+                    fs.rm(id_log[0].name)
+                except Exception as ex:
+                    logger.warning(f"Error attempt to remove '{id_log[0].name}': {ex}")
+
+    return latest_completed_logs
+
+
+# ensure that preconditions for eval_set are met:
+#  (1) all tasks have unique identfiers (so we can pair task -> log file)
+#  (2) all log files have identifiers that map to tasks (so we know we
+#      are running in a log dir created for this eval_set)
+def validate_eval_set_preconditions(
+    resolved_tasks: list[ResolvedTask], all_logs: list[Log]
+) -> None:
+    # do all resolved tasks have unique identfiers?
+    task_identifiers: Set[str] = set()
     for task in resolved_tasks:
         identifer = task_identifer(task)
-        if identifer in identifiers:
+        if identifer in task_identifiers:
             raise ValueError(
                 f"Tasks in an eval_set must have distinct names (found duplicate name '{task_identifer_without_model(identifer)}')"
             )
         else:
-            identifiers.add(identifer)
+            task_identifiers.add(identifer)
+
+    # do all logs in the log directory correspond to task identifiers?
+    for log in all_logs:
+        if log.task_identifier not in task_identifiers:
+            raise ValueError(
+                f"Log file in log_dir passed to eval_set ({log.info.name}) is not "
+                + "associated with a task passed to eval_set (you must run eval_set "
+                + "in a fresh log directory)"
+            )
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
@@ -361,24 +494,31 @@ class ModelList:
         return ",".join(model_names)
 
 
-def schedule_pending_tasks(
-    pending_tasks: list[ResolvedTask],
-) -> list[tuple[ModelList, Set[Task]]]:
+class TaskGroup(NamedTuple):
+    models: ModelList
+    tasks: list[ResolvedTask]
+
+
+# group into models => tasks for maximum parallelism
+def schedule_pending_tasks(pending_tasks: list[ResolvedTask]) -> list[TaskGroup]:
     # build a map of task identifiers and the models they target
     task_id_model_targets: dict[str, ModelList] = {}
     for pending_task in pending_tasks:
         task_id = task_identifer_without_model(task_identifer(pending_task))
         if task_id not in task_id_model_targets:
             task_id_model_targets[task_id] = ModelList([])
-        task_id_model_targets[task_id].models.append(pending_task.model)
+        if pending_task.model not in task_id_model_targets[task_id].models:
+            task_id_model_targets[task_id].models.append(pending_task.model)
 
     # build a list of unique model targets
     unique_model_targets: Set[ModelList] = set(task_id_model_targets.values())
 
     # create schedule
-    schedule: list[tuple[ModelList, Set[Task]]] = [
-        (model_target, set()) for model_target in unique_model_targets
+    schedule: list[TaskGroup] = [
+        TaskGroup(models=model_target, tasks=[])
+        for model_target in unique_model_targets
     ]
+
     for models, tasks in schedule:
         # which task ids have this set of models
         task_ids: list[str] = []
@@ -389,11 +529,19 @@ def schedule_pending_tasks(
         # go find the tasks that have this id
         for task_id in task_ids:
             for t in [
-                task.task
+                task
                 for task in pending_tasks
                 if task_id == task_identifer_without_model(task_identifer(task))
             ]:
-                tasks.add(t)
+                # add the task if its not already in there
+                if (
+                    next(
+                        (task for task in tasks if task.task == t.task),
+                        None,
+                    )
+                    is None
+                ):
+                    tasks.append(t)
 
     # deterministic return order
     schedule.sort(key=lambda x: str(x[0]))
@@ -401,39 +549,24 @@ def schedule_pending_tasks(
     return schedule
 
 
-def latest_completed_task_eval_logs(
-    log_files: list[EvalLogInfo], logs: list[EvalLog], cleanup_older: bool = False
-) -> list[tuple[EvalLogInfo, EvalLog]]:
-    # collect logs by id
-    logs_by_id: dict[str, list[tuple[EvalLogInfo, EvalLog]]] = {}
-    for log, log_header in zip(log_files, logs):
-        id = log_header.eval.task_id
-        if id not in logs_by_id:
-            logs_by_id[id] = []
-        logs_by_id[id].append((log, log_header))
+# group into model => tasks (can't do multiple models b/c these are PreviousTask
+# instances (and therefore model/task pair specific -- we don't want to create
+# multiple instances of these tasks)
+def schedule_retry_tasks(retry_tasks: list[ResolvedTask]) -> list[TaskGroup]:
+    # build a list of unique model targets
+    unique_model_targets: Set[ModelList] = set()
+    for retry_task in retry_tasks:
+        unique_model_targets.add(ModelList([retry_task.model]))
 
-    # take the most recent completed log for each id
-    latest_completed_logs: list[tuple[EvalLogInfo, EvalLog]] = []
-    for id, id_logs in logs_by_id.items():
-        # filter on completed
-        id_logs = [id_log for id_log in id_logs if id_log[1].status != "started"]
+    # create a task group for reach model target
+    schedule: list[TaskGroup] = []
+    for model_target in unique_model_targets:
+        group_tasks = [
+            task for task in retry_tasks if ModelList([task.model]) == model_target
+        ]
+        schedule.append(TaskGroup(model_target, group_tasks))
 
-        # sort by last file write time
-        id_logs.sort(key=lambda id_log: id_log[0].mtime, reverse=True)
-
-        # take the most recent
-        latest_completed_logs.append(id_logs[0])
-
-        # remove the rest if requested
-        if cleanup_older:
-            fs = filesystem(id_logs[0][0].name)
-            for id_log in id_logs[1:]:
-                try:
-                    fs.rm(id_log[0].name)
-                except Exception as ex:
-                    logger.warning(f"Error attempt to remove '{id_log[0].name}': {ex}")
-
-    return latest_completed_logs
+    return schedule
 
 
 def starting_max_connections(models: list[Model], config: GenerateConfig) -> int:
@@ -446,3 +579,8 @@ def starting_max_connections(models: list[Model], config: GenerateConfig) -> int
         return min(
             models, key=lambda model: model.api.max_connections()
         ).api.max_connections()
+
+
+def status_msg(msg: str) -> str:
+    STATUS_FMT = "blue bold"
+    return f"[{STATUS_FMT}]{msg}[/{STATUS_FMT}]"
