@@ -1,5 +1,9 @@
 # PubMedQA
 
+A Dataset for Biomedical Research Question Answering
+
+## Paper
+
 Title: PubMedQA: A Dataset for Biomedical Research Question Answering
 
 Authors: Qiao Jin, Bhuwan Dhingra, Zhengping Liu, William W. Cohen, Xinghua Lu
@@ -35,7 +39,7 @@ PubMedQA datasets consist of 3 different subsets:
 3. PubMedQA Unlabeled (PQA-U): An unlabeled PubMedQA subset consists of 61.2k
    context-question pairs data collected from PubMed articles.
 
-## Citation:
+### Citation:
 
 ```bibtex
 @inproceedings{jin2019pubmedqa,
@@ -64,13 +68,39 @@ the same data, but with sample ids included. The "bigbio_qa" version of the
 labeled test set is used in this implementation. The following subsets are
 available, with their respective splits:
 
-- `'pubmed_qa_artificial_[source|bigbio_qa]'`:
-    - 'train': 200,000 samples
-    - 'validation': 11,269 samples
-- `'pubmed_qa_unlabeled_[source|bigbio_qa]'`:
-    - 'train': 61,249 samples
-- `'pubmed_qa_labeled_fold{i}_[source|bigbio_qa]' for i in {0..9}`:
+- `'pubmed_qa_labeled_fold{i}_[source|bigbio_qa]' for i in {0..9}`: Each of
+  these 10 cross-validation folds takes the 1000 samples from PubMedQA
+  Labeled  (PQA-L) and splits them into the same 500 samples for the test set,
+  and different sets of 450 and 50 samples from the remaining 500 for the
+  training and validation sets, respectively.
+    - 'test': 500 samples, common across all folds. **This is the test set used
+      for the benchmark.**
     - 'train': 450 samples
     - 'validation': 50 samples
-    - 'test': 500 samples, common across all folds. **This is the test set 
-      used for the benchmark.**
+- `'pubmed_qa_artificial_[source|bigbio_qa]'`: PubMedQA Artificial (PQA-A)
+    - 'train': 200,000 samples
+    - 'validation': 11,269 samples
+- `'pubmed_qa_unlabeled_[source|bigbio_qa]'`: PubMedQA Unlabeled (PQA-U)
+    - 'train': 61,249 samples
+
+## Execution
+Here is an example from the dataset (cropped for brevity):
+
+```
+Context: Gallbladder carcinoma is characterized by delayed diagnosis, 
+ineffective treatment and poor prognosis. ... 
+
+Question: Is external palliative radiotherapy for gallbladder carcinoma effective?
+
+A) yes
+B) no
+C) maybe
+```
+
+## Evaluation
+The model is prompted with an abstract and a question. The model is required to
+answer the question with a yes, no, or maybe. The standard `multiple_choice`
+solver is used with a prompt template based on the
+default `SINGLE_ANSWER_TEMPLATE`, which allows using the in-built `choice`
+scorer for evaluation.
+ 
