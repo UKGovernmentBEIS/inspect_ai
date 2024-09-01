@@ -11,6 +11,7 @@ from inspect_ai._eval.evalset import (
     latest_completed_task_eval_logs,
     list_all_eval_logs,
     schedule_pending_tasks,
+    schedule_retry_tasks,
 )
 from inspect_ai._eval.loader import ResolvedTask
 from inspect_ai.log._file import list_eval_logs
@@ -105,6 +106,13 @@ def test_schedule_pending_tasks() -> None:
     assert_schedule(schedule[0], [mock], [task3, task5])
     assert_schedule(schedule[1], [openai, anthropic], [task2, task4])
     assert_schedule(schedule[2], [openai, anthropic, mock], [task1])
+
+    # test retry scheduling (single model at a time)
+    schedule = schedule_retry_tasks(tasks)
+    assert len(schedule) == 3
+    assert_schedule(schedule[0], [anthropic], [task1, task2, task4])
+    assert_schedule(schedule[1], [mock], [task1, task3, task5])
+    assert_schedule(schedule[2], [openai], [task1, task2, task4])
 
 
 def test_latest_completed_task_eval_logs() -> None:
