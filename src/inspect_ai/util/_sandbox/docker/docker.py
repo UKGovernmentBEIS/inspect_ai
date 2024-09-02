@@ -212,6 +212,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
             raise PermissionError(f"Permission denied executing command: {exec_result}")
 
+        return exec_result
+
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
         sandbox_log(f"write_file: {file}")
