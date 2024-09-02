@@ -311,7 +311,11 @@ def chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
         name=tool.name,
         description=tool.description,
         parameters=tool.parameters.model_dump(exclude_none=True),
-        strict=True,
+        # Temporarily disable strict tool calling, as it doesn't support
+        # optional parameters, so breaks some existing code. We will want
+        # to bring it back as an option and/or find a workaround that
+        # enables conformance to strict while preserving optional params
+        # strict=True,
     )
     return ChatCompletionToolParam(type="function", function=function)
 
