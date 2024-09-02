@@ -1,31 +1,9 @@
 import tempfile
-from random import random
 
-from inspect_ai import Task, eval, eval_retry, task
-from inspect_ai.dataset import Sample
+from test_helpers.utils import failing_task
+
+from inspect_ai import eval, eval_retry
 from inspect_ai.log import list_eval_logs, retryable_eval_logs
-from inspect_ai.scorer import match
-from inspect_ai.solver import Generate, TaskState, generate, solver
-
-
-@solver
-def failing_solver():
-    async def solve(state: TaskState, generate: Generate):
-        if random() > 0.33:
-            raise ValueError("Eval failed!")
-
-        return state
-
-    return solve
-
-
-@task
-def failing_task():
-    return Task(
-        dataset=[Sample(input="Say hello", target="hello")],
-        plan=[failing_solver(), generate()],
-        scorer=match(),
-    )
 
 
 def test_eval_retry():

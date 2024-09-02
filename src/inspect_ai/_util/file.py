@@ -102,6 +102,11 @@ class FileSystem:
     def exists(self, path: str) -> bool:
         return self.fs.exists(path) is True
 
+    def rm(
+        self, path: str, recursive: bool = False, maxdepth: int | None = None
+    ) -> None:
+        self.fs.rm(path, recursive, maxdepth)
+
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
         self.fs.makedirs(path, exist_ok=exist_ok)
 
