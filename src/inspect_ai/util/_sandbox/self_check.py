@@ -169,10 +169,12 @@ async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
     with Raises(TimeoutError):
         await sandbox_env.exec(["sleep", "2"], timeout=1)
 
+
 async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
     with Raises(PermissionError):
         # /etc/password is not an executable file so this should fail
         await sandbox_env.exec(["/etc/passwd"])
+
 
 async def test_cwd_unspecified(sandbox_env: SandboxEnvironment) -> None:
     file_name = "test_cwd_unspecified.file"
