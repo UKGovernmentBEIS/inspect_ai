@@ -1,4 +1,9 @@
-# Eval Suites {#sec-eval-suites}
+---
+aliases: 
+  - eval-suites.html
+---
+
+# Eval Sets {#sec-eval-sets}
 
 ## Overview
 
