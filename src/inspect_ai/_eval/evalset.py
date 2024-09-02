@@ -40,10 +40,10 @@ logger = logging.getLogger(__name__)
 def eval_set(
     tasks: Tasks,
     log_dir: str,
-    retry_attempts: int = 10,
-    retry_wait: int = 30,
-    retry_connections: float = 0.5,
-    retry_cleanup: bool = True,
+    retry_attempts: int | None = None,
+    retry_wait: int | None = None,
+    retry_connections: float | None = None,
+    retry_cleanup: bool | None = None,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
@@ -72,14 +72,14 @@ def eval_set(
             to evaluate a task in the current working directory
         log_dir (str): Output path for logging results
            (required to ensure that a unique storage scope is assigned for the set).
-        retry_attempts: (int): Maximum number of retry attempts before giving up
+        retry_attempts: (int | None): Maximum number of retry attempts before giving up
           (defaults to 10).
-        retry_wait (int): Time to wait between attempts, increased exponentially.
+        retry_wait (int | None): Time to wait between attempts, increased exponentially.
           (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
           per-retry will in no case by longer than 1 hour.
-        retry_connections (float): Reduce max_connections at this rate with each retry
+        retry_connections (float | None): Reduce max_connections at this rate with each retry
           (defaults to 0.5)
-        retry_cleanup (bool): Cleanup failed log files after retries
+        retry_cleanup (bool | None): Cleanup failed log files after retries
           (defaults to True)
         model (str | Model | list[str] | list[Model] | None): Model(s) for
             evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
@@ -210,7 +210,9 @@ def eval_set(
     #  (2) All logs have identifiers that map to tasks
     validate_eval_set_preconditions(resolved_tasks, list_all_eval_logs(log_dir))
 
-    # pick out the max_connections so we can tweak it with each retry
+    # resolve some parameters
+    retry_connections = retry_connections or 0.5
+    retry_cleanup = retry_cleanup is not False
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
 
     # prepare console/status
@@ -327,8 +329,8 @@ def eval_set(
         retry=retry_if_not_result(all_evals_succeeded),
         retry_error_callback=return_last_value,
         reraise=True,
-        stop=stop_after_attempt(retry_attempts),
-        wait=wait_exponential(retry_wait, max=(60 * 60)),
+        stop=stop_after_attempt(retry_attempts or 10),
+        wait=wait_exponential(retry_wait or 30, max=(60 * 60)),
         before_sleep=before_sleep,
         before=before,
     )
