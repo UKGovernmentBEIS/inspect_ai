@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [Eval Sets](https://inspect.ai-safety-institute.org.uk/eval-sets.html) for running groups of tasks with automatic retries.
 - [Per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
 - [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
 - Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
@@ -11,6 +12,7 @@
 - Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintended token usage)
 - Remove `chdir` option from `@tasks` (tasks now always chdir during execution).
 - Do not process `.env` files in task directories (all required vars should be specified in the global `.env`).
+- Roll back usage of `strict` mode for OpenAI tool calls (strict mode doesn't support optional parameters, breaking some existing code).
 - Added [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) and [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu_pro) benchmarks.
 
 ## v0.3.25 (25 August 2024)

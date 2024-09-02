@@ -309,4 +309,4 @@ $ inspect eval security/jeopardy
 $ inspect eval security/attack_defense 
 ```
 
-Inspect has lots of features aimed at running evaluation suites, including filtering tasks based on tags/metadata, recovering from partially completed suites (due to failed evals), and more. See the documentation on [Eval Suites](#sec-eval-suites) to learn more.
+Inspect has lots of features aimed at running evaluation suites, including filtering tasks based on tags/metadata, recovering from partially completed suites (due to failed evals), and more. See the documentation on [Eval Sets](#sec-eval-sets) to learn more.
