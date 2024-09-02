@@ -184,12 +184,12 @@ These sections provide a more in depth treatment of the various components used 
 
 These sections discuss more advanced features and workflow. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
 
+-   [Eval Sets](#sec-eval-sets) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
+
 -   [Caching](#sec-caching) enables you to cache model output to reduce the number of API calls made, saving both time and expense.
 
 -   [Parallelism](#sec-parallelism) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
 
 -   [Eval Logs](#sec-eval-logs) explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
-
--   [Eval Suites](#sec-eval-suites) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 
 -   [Extensions](#sec-extensions) describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).
