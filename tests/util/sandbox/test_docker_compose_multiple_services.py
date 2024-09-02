@@ -86,6 +86,7 @@ def read_file_service_2() -> Tool:
 
     return execute
 
+
 @skip_if_no_docker
 @pytest.mark.slow
 def test_docker_compose_multiple_services_write_file():
