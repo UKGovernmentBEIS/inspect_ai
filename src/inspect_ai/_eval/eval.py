@@ -519,7 +519,9 @@ async def eval_retry_async(
         # run the eval
         log = (
             await eval_async(
-                tasks=PreviousTask(task=task, id=task_id, log=eval_log),
+                tasks=PreviousTask(
+                    id=task_id, task=task, task_args=task_args, log=eval_log
+                ),
                 model=model,
                 model_base_url=model_base_url,
                 model_args=model_args,

@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 from typing import Any, Callable, NamedTuple, Set, cast
 
 import rich
@@ -13,6 +14,7 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._util.file import filesystem
+from inspect_ai._util.registry import is_registry_object
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -29,7 +31,7 @@ from inspect_ai.solver import Plan, Solver
 from inspect_ai.util import SandboxEnvironmentSpec
 
 from .eval import eval, eval_init
-from .loader import ResolvedTask
+from .loader import ResolvedTask, resolve_task_args
 from .task import Epochs, Tasks
 from .task.task import PreviousTask, Task
 
@@ -302,14 +304,27 @@ def eval_set(
                             if log.task_identifier == resolved_task_identifier
                         )
 
-                    return [
-                        PreviousTask(
-                            id=log.header.eval.task_id,
-                            task=task.task,
-                            log=read_eval_log(log.info),
+                    previous_tasks: list[PreviousTask] = []
+                    for task, log in zip(tasks, map(task_to_failed_log, tasks)):
+                        # if its a registry task then do str and task_args
+                        # so it is fully recreated for the retry
+                        if is_registry_object(task.task):
+                            prev_task: str | Task = task.task.name
+                        # if its a vanilla task then deepcopy so the same
+                        # instance is not run twice
+                        else:
+                            prev_task = deepcopy(task.task)
+
+                        previous_tasks.append(
+                            PreviousTask(
+                                id=log.header.eval.task_id,
+                                task=prev_task,
+                                task_args=resolve_task_args(task.task),
+                                log=read_eval_log(log.info),
+                            )
                         )
-                        for task, log in zip(tasks, map(task_to_failed_log, tasks))
-                    ]
+
+                    return previous_tasks
 
                 retried_logs = run_task_groups(
                     task_groups=task_groups, run_tasks=run_previous_tasks

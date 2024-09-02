@@ -156,6 +156,7 @@ class TaskInfo(BaseModel):
 class PreviousTask:
     id: str
     task: str | Task
+    task_args: dict[str, Any]
     log: EvalLog
 
 

@@ -94,18 +94,11 @@ def resolve_tasks(
         for previous_task in previous_tasks:
             loaded_task_args = task_args
             if isinstance(previous_task.task, Task):
-                # prefer re-creating from registry if possible
-                loaded_task_args = resolve_task_args(previous_task.task)
-                if is_registry_object(previous_task.task):
-                    loaded_task = load_tasks(
-                        [previous_task.task.name],
-                        model,
-                        loaded_task_args,
-                    )[0]
-                else:
-                    loaded_task = previous_task.task
+                loaded_task = previous_task.task
             else:
-                loaded_task = load_tasks([previous_task.task], model, task_args)[0]
+                loaded_task = load_tasks(
+                    [previous_task.task], model, previous_task.task_args
+                )[0]
             loaded_tasks.append(loaded_task)
             loaded_tasks_args.append(loaded_task_args)
 
