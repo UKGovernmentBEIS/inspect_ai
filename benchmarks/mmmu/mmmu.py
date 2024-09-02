@@ -1,44 +1,11 @@
-import ast
-import base64
-from io import BytesIO
-
-from datasets import concatenate_datasets, load_dataset
-from PIL import Image
+from mmmu_utils import create_content_and_answers_list, load_and_concatenate_datasets
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._dataset import MemoryDataset
-from inspect_ai.model import ChatMessageUser, ContentImage, ContentText, GenerateConfig
+from inspect_ai.model import ChatMessageUser, GenerateConfig
 from inspect_ai.scorer import choice, model_graded_fact
 from inspect_ai.solver import generate, multiple_choice, prompt_template
-
-
-# Helper function to convert images to data URLs
-def image_to_data_url(image):
-    if isinstance(image, Image.Image):
-        buffered = BytesIO()
-        image.save(buffered, format="PNG")
-        image_bytes = buffered.getvalue()
-    else:
-        with open(image, "rb") as image_file:
-            image_bytes = image_file.read()
-
-    encoded_string = base64.b64encode(image_bytes).decode("utf-8")
-    mime_type = "image/png"
-    return f"data:{mime_type};base64,{encoded_string}"
-
-
-# Helper function to create content list from record
-def create_content_list(record):
-    content_list = [ContentText(text=record["question"])]
-    for i in range(1, 8):
-        image_field = f"image_{i}"
-        if record.get(image_field):
-            content_list.append(
-                ContentImage(image=image_to_data_url(record[image_field]))
-            )
-    return content_list
-
 
 MULT_CHOICE_PROMPT = r"""
 Answer with the option's letter from the given choices directly.
@@ -128,27 +95,20 @@ subjects_list = [
 # Allow multiple-choice/open-ended tasks to be run separately
 @task
 def mmmu_multiple_choice():
-    path = "MMMU/MMMU"
-    datasets = [load_dataset(path, subject, split="dev") for subject in subjects_list]
-    combined_dataset = concatenate_datasets(datasets)
-
+    combined_dataset = load_and_concatenate_datasets(subjects_list)
     return mmmu_task_multiple_choice(combined_dataset)
 
 
 # Allow multiple-choice/open-ended tasks to be run separately
 @task
 def mmmu_open():
-    path = "MMMU/MMMU"
-    datasets = [load_dataset(path, subject, split="dev") for subject in subjects_list]
-    combined_dataset = concatenate_datasets(datasets)
-
+    combined_dataset = load_and_concatenate_datasets(subjects_list)
     return mmmu_task_open(combined_dataset)
 
 
 # Map records to Inspect Sample for multiple-choice questions
 def record_to_sample_multiple_choice(record):
-    content_list = create_content_list(record)
-    answers_list = ast.literal_eval(record["options"])
+    content_list, answers_list = create_content_and_answers_list(record)
 
     return Sample(
         input=[ChatMessageUser(content=content_list)],
@@ -160,10 +120,13 @@ def record_to_sample_multiple_choice(record):
 
 # Map records to Inspect Sample for open-ended questions
 def record_to_sample_open_ended(record):
-    content_list = create_content_list(record)
+    content_list, _ = create_content_and_answers_list(record)
 
     return Sample(
         input=[ChatMessageUser(content=content_list)],
         target=record["answer"],
-        metadata={"subfield": record["subfield"]},
+        metadata={"subfield": record["subfield"],
+                "explanation": record["explanation"],
+                "img_type": record["img_type"],
+                "topic_difficulty": record["topic_difficulty"]},
     )
