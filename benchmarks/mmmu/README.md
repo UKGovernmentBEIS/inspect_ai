@@ -23,5 +23,3 @@ All evaluation is zero shot. For multiple-choice questions, one question, four o
 Implement micro-averaged accuracy (calculate average accuracy per subject, multiply by (number of samples / total samples), sum weighted accuracies). Although, for the validation set, all subjects have the same number of samples.
 
 If [possible](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e12c1d274024db1761363aa4786a24b4426901b6/src/inspect_ai/_util/content.py#L14), test performance against Gemini and Claude models.
-
-Deal with edge case where image names (e.g "[<image 1>, <image 2>]") are answers.
