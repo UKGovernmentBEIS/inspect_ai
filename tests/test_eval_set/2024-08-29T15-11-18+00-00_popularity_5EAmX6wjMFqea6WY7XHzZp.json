@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "status": "error",
+  "eval": {
+    "task": "popularity",
+    "task_version": 0,
+    "task_file": "examples/popularity.py",
+    "task_id": "5EAmX6wjMFqea6WY7XHzZp",
+    "run_id": "o6Sd6xm3yv7pcqhmX2MJn9",
+    "created": "2024-08-29T15:11:08+00:00",
+    "dataset": {
+      "name": "popularity",
+      "location": "example://popularity",
+      "samples": 100,
+      "shuffled": false
+    },
+    "model": "mockllm/model",
+    "task_attribs": {},
+    "task_args": {
+      "model": null
+    },
+    "model_args": {},
+    "config": {
+      "limit": 1
+    }
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "system_message",
+        "params": {
+          "message": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+        }
+      },
+      {
+        "solver": "generate",
+        "params": {}
+      }
+    ],
+    "config": {
+      "temperature": 1.0
+    }
+  },
+  "results": {
+    "total_samples": 1,
+    "completed_samples": 1,
+    "scores": [
+      {
+        "name": "match",
+        "scorer": "match",
+        "params": {},
+        "metrics": {
+          "accuracy": {
+            "name": "accuracy",
+            "value": 0.0,
+            "options": {}
+          },
+          "stderr": {
+            "name": "stderr",
+            "value": 0,
+            "options": {}
+          }
+        }
+      }
+    ]
+  },
+  "stats": {
+    "started_at": "2024-08-29T15:11:08+00:00",
+    "completed_at": "2024-08-29T15:11:08+00:00",
+    "model_usage": {}
+  }
+}
