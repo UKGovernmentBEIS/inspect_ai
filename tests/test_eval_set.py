@@ -1,8 +1,9 @@
 import shutil
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 
-from test_helpers.utils import failing_task
+from test_helpers.utils import failing_solver, failing_task
 
 from inspect_ai import Task
 from inspect_ai._eval.evalset import (
@@ -14,8 +15,11 @@ from inspect_ai._eval.evalset import (
     schedule_retry_tasks,
 )
 from inspect_ai._eval.loader import ResolvedTask
+from inspect_ai.dataset import Sample
 from inspect_ai.log._file import list_eval_logs
 from inspect_ai.model import Model, get_model
+from inspect_ai.scorer._match import includes
+from inspect_ai.solver._solver import generate
 
 
 def test_eval_set() -> None:
@@ -42,6 +46,33 @@ def test_eval_set() -> None:
         )
         assert not succces
         assert logs[0].status == "error"
+
+
+def test_eval_set_dynamic() -> None:
+    with tempfile.TemporaryDirectory() as log_dir:
+        dataset: list[Sample] = []
+        for _ in range(0, 10):
+            dataset.append(Sample(input="Say hello", target="hello"))
+        task1 = Task(
+            name="task1",
+            dataset=deepcopy(dataset),
+            plan=[failing_solver(0.2), generate()],
+            scorer=includes(),
+        )
+        task2 = Task(
+            name="task2",
+            dataset=deepcopy(dataset),
+            plan=[failing_solver(0.2), generate()],
+            scorer=includes(),
+        )
+        success, _ = eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            model=[get_model("mockllm/model")],
+            retry_attempts=100,
+            retry_wait=1,
+        )
+        assert success
 
 
 def test_schedule_pending_tasks() -> None:
