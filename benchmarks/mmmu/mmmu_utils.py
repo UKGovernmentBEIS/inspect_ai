@@ -20,7 +20,7 @@ def save_image(record, image_number, subject_dir, question_number):
         str or None: The path to the saved image if the image exists in the record; otherwise, None.
     """
     if record.get(f"image_{image_number}"):
-        image_filename = f"{question_number}_image_{image_number}.png"
+        image_filename = f"question_{question_number}_image_{image_number}.png"
         image_path = os.path.join(subject_dir, image_filename)
         image = record[f"image_{image_number}"]
         image.save(image_path, format="PNG")
