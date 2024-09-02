@@ -47,7 +47,7 @@ def run(log_dir: str, retry_attempts: int):
 
     Args:
        log_dir: Log directory for eval set (required).
-       retry_attempts: Number of retyr attempts (defaults to 10)
+       retry_attempts: Number of retry attempts (defaults to 10)
 
     Returns:
        Tuple of bool, list[EvalLog] with sucess status and final logs
