@@ -92,13 +92,14 @@ def resolve_tasks(
         loaded_tasks: list[Task] = []
         loaded_tasks_args: list[dict[str, Any]] = []
         for previous_task in previous_tasks:
-            loaded_task_args = task_args
             if isinstance(previous_task.task, Task):
+                loaded_task_args = task_args
                 loaded_task = previous_task.task
             else:
-                loaded_task = load_tasks(
-                    [previous_task.task], model, previous_task.task_args
-                )[0]
+                loaded_task_args = previous_task.task_args
+                loaded_task = load_tasks([previous_task.task], model, loaded_task_args)[
+                    0
+                ]
             loaded_tasks.append(loaded_task)
             loaded_tasks_args.append(loaded_task_args)
 
