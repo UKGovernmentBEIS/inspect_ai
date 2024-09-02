@@ -23,6 +23,23 @@ def addition():
 
 
 @tool
+def command_exec():
+    async def execute(command: str) -> str:
+        """Executes the given bash script in the agent execution environment, in the working directory.
+
+        Args:
+            command (str): A single string of the bash script to run in the container.
+
+        Returns:
+            out (str): output of the script (success/failure, return code, stdout, stderr).
+        """
+        result = await sandbox().exec(cmd=["bash", "-c", command], timeout=90)
+        return str(result)
+
+    return execute
+
+
+@tool
 def read_file():
     async def execute(file: str):
         """

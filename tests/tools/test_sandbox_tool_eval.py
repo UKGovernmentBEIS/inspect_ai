@@ -2,9 +2,8 @@ import itertools
 from pathlib import Path
 from typing import Generator
 
-import pytest
 from test_helpers.tool_call_utils import get_tool_calls, get_tool_response
-from test_helpers.tools import list_files, read_file
+from test_helpers.tools import command_exec, list_files, read_file
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
@@ -140,7 +139,7 @@ def test_sandbox_environment_read_file_error():
 
 
 @skip_if_no_docker
-@pytest.mark.slow
+# @pytest.mark.slow
 def test_sandbox_environment_nonroot_files():
     """Checks the file passed in as part of the Sample is actually readable by the Docker user in the container."""
     dataset = [
@@ -155,6 +154,7 @@ def test_sandbox_environment_nonroot_files():
         plan=[
             use_tools(
                 [
+                    command_exec(),
                     read_file(),
                 ]
             ),
@@ -165,6 +165,11 @@ def test_sandbox_environment_nonroot_files():
     )
 
     def custom_outputs() -> Generator[ModelOutput, None, None]:
+        yield ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name="command_exec",
+            tool_arguments={"command": "id"},
+        )
         yield ModelOutput.for_tool_call(
             model="mockllm/model",
             tool_name="read_file",
@@ -187,5 +192,11 @@ def test_sandbox_environment_nonroot_files():
     )[0]
 
     assert result.status == "success"
-    chat_message_tool = find_tool_call(result, "read_file")
-    assert chat_message_tool.error and "not found" in chat_message_tool.error.message
+    id_chat_message_tool = find_tool_call(result, "command_exec")
+    # the test is broken if it's ended up as the root user;
+    # the point is to check the non-root user from the test_sandbox_compose config
+    assert "uid=0(root)" not in id_chat_message_tool.text
+
+    read_file_chat_message_tool = find_tool_call(result, "read_file")
+    assert not read_file_chat_message_tool.error
+    assert "hello" in read_file_chat_message_tool.text
