@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Eval Logs – Inspect</title>
+<title>Eval Sets – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./extensions.html" rel="next">
-<link href="./interactivity.html" rel="prev">
+<link href="./errors-and-limits.html" rel="next">
+<link href="./models.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -75,9 +75,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -130,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-logs.html"><span class="chapter-title">Eval Logs</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-sets.html"><span class="chapter-title">Eval Sets</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -248,7 +245,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Sets</span></a>
+  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Eval Sets</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -278,7 +275,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Eval Logs</span></a>
+  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -299,17 +296,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#log-location" id="toc-log-location" class="nav-link" data-scroll-target="#log-location">Log Location</a></li>
-  <li><a href="#evallog" id="toc-evallog" class="nav-link" data-scroll-target="#evallog">EvalLog</a></li>
-  <li><a href="#sec-errors-and-retries" id="toc-sec-errors-and-retries" class="nav-link" data-scroll-target="#sec-errors-and-retries">Errors and Retries</a>
+  <li><a href="#running-eval-sets" id="toc-running-eval-sets" class="nav-link" data-scroll-target="#running-eval-sets">Running Eval Sets</a>
+  <ul class="collapse">
+  <li><a href="#dynamic-tasks" id="toc-dynamic-tasks" class="nav-link" data-scroll-target="#dynamic-tasks">Dynamic Tasks</a></li>
+  <li><a href="#options" id="toc-options" class="nav-link" data-scroll-target="#options">Options</a></li>
+  </ul></li>
+  <li><a href="#logging-context" id="toc-logging-context" class="nav-link" data-scroll-target="#logging-context">Logging Context</a>
   <ul class="collapse">
   <li><a href="#sec-sample-preservation" id="toc-sec-sample-preservation" class="nav-link" data-scroll-target="#sec-sample-preservation">Sample Preservation</a></li>
   </ul></li>
-  <li><a href="#sec-amazon-s3" id="toc-sec-amazon-s3" class="nav-link" data-scroll-target="#sec-amazon-s3">Amazon S3</a></li>
-  <li><a href="#log-cli-commands" id="toc-log-cli-commands" class="nav-link" data-scroll-target="#log-cli-commands">Log CLI Commands</a>
+  <li><a href="#task-enumeration" id="toc-task-enumeration" class="nav-link" data-scroll-target="#task-enumeration">Task Enumeration</a>
   <ul class="collapse">
-  <li><a href="#listing-logs" id="toc-listing-logs" class="nav-link" data-scroll-target="#listing-logs">Listing Logs</a></li>
-  <li><a href="#reading-logs" id="toc-reading-logs" class="nav-link" data-scroll-target="#reading-logs">Reading Logs</a></li>
+  <li><a href="#multiple-tasks-in-a-file" id="toc-multiple-tasks-in-a-file" class="nav-link" data-scroll-target="#multiple-tasks-in-a-file">Multiple Tasks in a File</a></li>
+  <li><a href="#multiple-tasks-in-a-directory" id="toc-multiple-tasks-in-a-directory" class="nav-link" data-scroll-target="#multiple-tasks-in-a-directory">Multiple Tasks in a Directory</a></li>
+  </ul></li>
+  <li><a href="#listing-and-filtering" id="toc-listing-and-filtering" class="nav-link" data-scroll-target="#listing-and-filtering">Listing and Filtering</a>
+  <ul class="collapse">
+  <li><a href="#recursive-listings" id="toc-recursive-listings" class="nav-link" data-scroll-target="#recursive-listings">Recursive Listings</a></li>
+  <li><a href="#attributes-and-filters" id="toc-attributes-and-filters" class="nav-link" data-scroll-target="#attributes-and-filters">Attributes and Filters</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -317,9 +321,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-logs.html"><span class="chapter-title">Eval Logs</span></a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-sets.html"><span class="chapter-title">Eval Sets</span></a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title"><span id="sec-eval-logs" class="quarto-section-identifier"><span class="chapter-title">Eval Logs</span></span></h1>
+<h1 class="title"><span id="sec-eval-sets" class="quarto-section-identifier"><span class="chapter-title">Eval Sets</span></span></h1>
 </div>
 
 
@@ -336,156 +340,123 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="overview" class="level2">
-<h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Every time you use <code>inspect eval</code> or call the <code>eval()</code> function, an evaluation log is written for each task evaluated. By default, logs are written to the <code>./logs</code> sub-directory of the current working directory (we’ll cover how to change this below). You will find a link to the log at the bottom of the results for each task:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval security_guide.py <span class="at">--model</span> openai/gpt-4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></p>
-<p>You can also use the Inspect log viewer for interactive exploration of logs. Run this command once at the beginning of a working session (the view will update automatically when new evaluations are run):</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><a href="images/inspect-view-main.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-main.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."></a></p>
-<p>This section won’t cover using <code>inspect view</code> though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the <a href="log-viewer.html">Log Viewer</a> section for details on interactively exploring logs.</p>
-</section>
-<section id="log-location" class="level2">
-<h2 class="anchored" data-anchor-id="log-location">Log Location</h2>
-<p>By default, logs are written to the <code>./logs</code> sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity.py <span class="at">--model</span> openai/gpt-4 <span class="at">--log-dir</span> ./experiment-log</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>, log_dir <span class="op">=</span> <span class="st">"./experiment-log"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that in addition to logging the <code>eval()</code> function also returns an <code>EvalLog</code> object for programmatic access to the details of the evaluation. We’ll talk more about how to use this object below.</p>
-<p>The <code>INSPECT_LOG_DIR</code> environment variable can also be specified to override the default <code>./logs</code> location. You may find it convenient to define this in a <code>.env</code> file from the location where you run your evals:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode ini code-with-copy"><code class="sourceCode ini"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_DIR</span><span class="ot">=</span><span class="st">./experiment-log</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_LEVEL</span><span class="ot">=</span><span class="st">warning</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you define a relative path to <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file, then its location will always be resolved as <em>relative to</em> that <code>.env</code> file (rather than relative to whatever your current working directory is when you run <code>inspect eval</code>).</p>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
-<div class="callout-body-container">
-<p>If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file. This is because the VS Code Python extension also <a href="https://code.visualstudio.com/docs/python/environments#_environment-variables">reads variables</a> from <code>.env</code> files, and your updated <code>INSPECT_LOG_DIR</code> won’t be re-read by VS Code until after a restart.</p>
+<div class="callout-title-container flex-fill">
+Note
 </div>
 </div>
+<div class="callout-body-container callout-body">
+<p>The eval set features described in this article are currently available only in the development version of Inspect. You can install the development version with:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/ukgovernmentbeis/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>See the <a href="#sec-amazon-s3">Amazon S3</a> section below for details on logging evaluations to Amazon S3 buckets.</p>
+</div>
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
+<p>Most of the examples in the documentation run a single evaluation task by either passing a script name to <code>inspect eval</code> or by calling the <code>eval()</code> function directly. While this is a good workflow for developing single evaluations, you’ll often want to run several evaluations together as a <em>set</em>. This might be for the purpose of exploring hyperparameters, evaluating on multiple models at one time, or running a full benchmark suite.</p>
+<p>The <code>inspect eval-set</code> command and <code>eval_set()</code> function and provide several facilities for running sets of evaluations, including:</p>
+<ol type="1">
+<li>Automatically retrying failed evaluations (with a configurable retry strategy)</li>
+<li>Re-using samples from failed tasks so that work is not repeated during retries.</li>
+<li>Cleaning up log files from failed runs after a task is successfully completed.</li>
+<li>The ability to re-run the command multiple times, with work picking up where the last invocation left off.</li>
+</ol>
+<p>Below we’ll cover the various tools and techniques available for creating eval sets.</p>
 </section>
-<section id="evallog" class="level2">
-<h2 class="anchored" data-anchor-id="evallog">EvalLog</h2>
-<p>The <code>EvalLog</code> object returned from <code>eval()</code> provides programmatic interface to the contents of log files:</p>
-<p><strong>Class</strong> <code>inspect_ai.log.EvalLog</code></p>
+<section id="running-eval-sets" class="level2">
+<h2 class="anchored" data-anchor-id="running-eval-sets">Running Eval Sets</h2>
+<p>Run a set of evaluations using the <code>inspect eval-set</code> command or <code>eval_set()</code> function. For example:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set mmlu.py mathematics.py <span class="dt">\</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--model</span> openai/gpt-4o,anthropic/claude-3-5-sonnet-20240620 <span class="dt">\</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>   <span class="at">--log-dir</span> logs-run-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or equivalently:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>   tasks<span class="op">=</span>[<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>],</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.</p>
+<section id="dynamic-tasks" class="level3">
+<h3 class="anchored" data-anchor-id="dynamic-tasks">Dynamic Tasks</h3>
+<p>In the above examples tasks are ready from the filesystem. It is also possible to dynamically create a set of tasks and pass them to the <code>eval_set()</code> function. For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>mmlu <span class="op">=</span> Task(name<span class="op">=</span><span class="st">"mmlu"</span>, dataset<span class="op">=</span>csv_dataset(<span class="st">"mmlu.csv"</span>))</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>maths <span class="op">=</span> Task(name<span class="op">=</span><span class="st">"maths"</span>, dataset<span class="op">=</span>csv_dataset(<span class="st">"maths.csv"</span>))</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>   [mmlu, maths],</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>One important difference you’ll notice in this example is that the <code>Task</code> instances are given an explicit <code>name</code>. This is a <strong>requirement</strong> for <code>eval_set()</code>, as task names are used to pair task instances with their log files. Further, all task names passed to <code>eval_set()</code> must be unique (this is validated and an error thrown if they are not). This isn’t necessary for tasks bound from the filesystem since their name is automatically derived from the function that creates them.</p>
+</section>
+<section id="options" class="level3">
+<h3 class="anchored" data-anchor-id="options">Options</h3>
+<p>There are a number of options that control the retry behaviour of eval sets:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 25%">
-<col style="width: 27%">
-<col style="width: 47%">
+<col style="width: 40%">
+<col style="width: 60%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Field</th>
-<th>Type</th>
+<th><strong>Option</strong></th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>status</code></td>
-<td><code>str</code></td>
-<td>Status of evaluation (<code>"started"</code>, <code>"success"</code>, or <code>"error"</code>).</td>
+<td><code>--retry-attempts</code></td>
+<td>Maximum number of retry attempts (defaults to 10)</td>
 </tr>
 <tr class="even">
-<td><code>eval</code></td>
-<td><code>EvalSpec</code></td>
-<td>Top level eval details including task, model, creation time, etc.</td>
+<td><code>--retry-wait</code></td>
+<td>Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.)</td>
 </tr>
 <tr class="odd">
-<td><code>plan</code></td>
-<td><code>EvalPlan</code></td>
-<td>List of solvers and model generation config used for the eval.</td>
+<td><code>--retry-connections</code></td>
+<td>Reduce max connections at this rate with each retry (defaults to 0.5)</td>
 </tr>
 <tr class="even">
-<td><code>samples</code></td>
-<td><code>list[EvalSample]</code></td>
-<td>Each sample evaluated, including its input, output, target, and score.</td>
-</tr>
-<tr class="odd">
-<td><code>results</code></td>
-<td><code>EvalResults</code></td>
-<td>Aggregate results computed by scorer metrics.</td>
-</tr>
-<tr class="even">
-<td><code>stats</code></td>
-<td><code>EvalStats</code></td>
-<td>Model usage statistics (input and output tokens)</td>
-</tr>
-<tr class="odd">
-<td><code>logging</code></td>
-<td><code>list[LoggingMessage]</code></td>
-<td>Logging messages (e.g.&nbsp;from <code>log.info()</code>, <code>log.debug()</code>, etc.</td>
-</tr>
-<tr class="even">
-<td><code>error</code></td>
-<td><code>EvalError</code></td>
-<td>Error information (if <code>status == "error</code>) including traceback.</td>
+<td><code>--no-retry-cleanup</code></td>
+<td>Do not cleanup failed log files after retries.</td>
 </tr>
 </tbody>
 </table>
-<p>Before analysing results from a log, you should always check their status to ensure they represent a successful run:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">==</span> <span class="st">"success"</span>:</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>   ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In the section below we’ll talk more about how to deal with logs from failed evaluations (e.g.&nbsp;retrying the eval).</p>
-<p>You can enumerate, read, and write <code>EvalLog</code> objects using the following helper functions from the <code>inspect_ai.log</code> module:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 43%">
-<col style="width: 56%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Function</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>list_eval_logs()</code></td>
-<td>List all of the eval logs at a given location.</td>
-</tr>
-<tr class="even">
-<td><code>read_eval_log(log_file)</code></td>
-<td>Read an <code>EvalLog</code> from a log file path.</td>
-</tr>
-<tr class="odd">
-<td><code>write_eval_log(log, log_file)</code></td>
-<td>Write an <code>EvalLog</code> to a log file path.</td>
-</tr>
-</tbody>
-</table>
-<p>A common workflow is to define an <code>INSPECT_LOG_DIR</code> for running a set of evaluations, then calling <code>list_eval_logs()</code> to analyse the results when all the work is done:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># setup log dir context</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>os.environ[<span class="st">"INSPECT_LOG_DIR"</span>] <span class="op">=</span> <span class="st">"./experiment-logs"</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># do a bunch of evals</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(security_guide, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the results in the logs</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> list_eval_logs()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that <code>list_eval_logs()</code> lists log files recursively. Pass <code>recursive=False</code> to list only the log files at the root level.</p>
+<p>For example, here we specify a base wait time of 120 seconds:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval-set mmlu.py mathematics.py <span class="dt">\</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--log-dir</span> logs-run-42</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>   <span class="ex">--retry-wait</span> 120</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or with the <code>eval_set()</code> function:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>   [<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>],</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>   retry_wait<span class="op">=</span><span class="dv">120</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="sec-errors-and-retries" class="level2">
-<h2 class="anchored" data-anchor-id="sec-errors-and-retries">Errors and Retries</h2>
-<p>When an evaluation task fails due to an error or is otherwise interrupted (e.g.&nbsp;by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g.&nbsp;due to network connectivity or a rate limit) and can be subsequently <em>retried</em>.</p>
-<p>For these cases, Inspect includes an <code>eval-retry</code> command and <code>eval_retry()</code> function that you can use to resume tasks interrupted by errors (including <a href="./eval-logs.html#sec-sample-preservation">preserving samples</a> already completed within the original task). For example, if you had a failing task with log file <code>logs/2024-05-29T12-38-43_math_Gprr29Mv.json</code>, you could retry it from the shell with:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from Python with:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>eval_retry(<span class="st">"logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that retry only works for tasks that are created from <code>@task</code> decorated functions (as if a <code>Task</code> is created dynamically outside of an <code>@task</code> function Inspect does not know how to reconstruct it for the retry).</p>
-<p>Note also that <code>eval_retry()</code> does not overwrite the previous log file, but rather creates a new one (preserving the <code>task_id</code> from the original file).</p>
-<p>Here’s an example of retrying a failed eval with a lower number of <code>max_connections</code> (the theory being that too many concurrent connections may have caused a rate limit error):</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(my_task)[<span class="dv">0</span>]</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">!=</span> <span class="st">"success"</span>:</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  eval_retry(log, max_connections <span class="op">=</span> <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="logging-context" class="level2">
+<h2 class="anchored" data-anchor-id="logging-context">Logging Context</h2>
+<p>We mentioned above that you need to specify a dedicated log directory for each eval set that you run. This requirement exists for a couple of reasons:</p>
+<ol type="1">
+<li><p>The log directory provides a durable record of which tasks are completed so that you can run the eval set as many times as is required to finish all of the work. For example, you might get halfway through a run and then encounter provider rate limit errors. You’ll want to be able to restart the eval set later (potentially even many hours later) and the dedicated log directory enables you to do this.</p></li>
+<li><p>This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs).</p></li>
+</ol>
+<p>Once all of the tasks in an eval set are complete, re-running <code>inspect eval-set</code> or <code>eval_set()</code> on the same log directory will be a no-op as there is no more work to do. At this point you can use the <code>list_eval_logs()</code> function to collect up logs for analysis:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> list_eval_logs(<span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If you are calling the <code>eval_set()</code> function it will return a tuple of <code>bool</code> and <code>list[EvalLog]</code>, where the <code>bool</code> indicates whether all tasks were completed:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>success, logs <span class="op">=</span> eval_set(...)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> success:</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># analyse logs</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># will need to run eval_set again</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that eval_set() does by default do quite a bit of retrying (up to 10 times by default) so <code>success=False</code> reflects the case where even after all of the retries the tasks were still not completed (this might occur due to a service outage or perhaps bugs in eval code raising runtime errors).</p>
 <section id="sec-sample-preservation" class="level3">
 <h3 class="anchored" data-anchor-id="sec-sample-preservation">Sample Preservation</h3>
 <p>When retrying a log file, Inspect will attempt to re-use completed samples from the original task. This can result in substantial time and cost savings compared to starting over from the beginning.</p>
@@ -502,66 +473,109 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h4 class="anchored" data-anchor-id="max-samples">Max Samples</h4>
 <p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
 <p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code>, ensuring that the model API is always fully saturated (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
-<div class="callout callout-style-simple callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
+</section>
+</section>
+</section>
+<section id="task-enumeration" class="level2">
+<h2 class="anchored" data-anchor-id="task-enumeration">Task Enumeration</h2>
+<p>When running eval sets tasks can be specified either individually (as in the examples above) or can be enumerated from the filesystem. You can organise tasks in many different ways, below we cover some of the more common options.</p>
+<section id="multiple-tasks-in-a-file" class="level3">
+<h3 class="anchored" data-anchor-id="multiple-tasks-in-a-file">Multiple Tasks in a File</h3>
+<p>The simplest possible organisation would be multiple tasks defined in a single source file. Consider this source file (<code>ctf.py</code>) with two tasks in it:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> attack_defense():</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We can run both of these tasks with the following command (note for this and the remainder of examples we’ll assume that you have let an <code>INSPECT_EVAL_MODEL</code> environment variable so you don’t need to pass the <code>--model</code> argument explicitly):</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set ctf.py <span class="at">--log-dir</span> logs-run-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or equivalently:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>eval_set(<span class="st">"ctf.py"</span>, log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that during development and debugging we can also run the tasks individually:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py@jeopardy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="multiple-tasks-in-a-directory" class="level3">
+<h3 class="anchored" data-anchor-id="multiple-tasks-in-a-directory">Multiple Tasks in a Directory</h3>
+<p>Next, let’s consider a multiple tasks in a directory. Imagine you have the following directory structure, where <code>jeopardy.py</code> and <code>attack_defense.py</code> each have one or more <code>@task</code> functions defined:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">security/</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="ex">import.py</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">analyze.py</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="ex">jeopardy.py</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">attack_defense.py</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Here is the listing of all the tasks in the suite:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>$ inspect <span class="bu">list</span> tasks security</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>crypto</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>decompile</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>packet</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>heap_trouble</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>saar</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>bank</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>voting</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>dns</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can run this eval set as follows:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security <span class="at">--log-dir</span> logs-security-02-09-24</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that some of the files in this directory don’t contain evals (e.g.&nbsp;<code>import.py</code> and <code>analyze.py</code>). These files are not read or executed by <code>inspect eval-set</code> (which only executes files that contain <code>@task</code> definitions).</p>
+<p>If we wanted to run more than one directory we could do so by just passing multiple directory names. For example:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security persuasion <span class="at">--log-dir</span> logs-suite-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or equivalently:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>eval_set([<span class="st">"security"</span>, <span class="st">"persuasion"</span>], log_dir<span class="op">=</span><span class="st">"logs-suite-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="listing-and-filtering" class="level2">
+<h2 class="anchored" data-anchor-id="listing-and-filtering">Listing and Filtering</h2>
+<section id="recursive-listings" class="level3">
+<h3 class="anchored" data-anchor-id="recursive-listings">Recursive Listings</h3>
+<p>Note that directories or expanded globs of directory names passed to <code>eval-set</code> are recursively scanned for tasks. So you could have a very deep hierarchy of directories, with a mix of task and non task scripts, and the <code>eval-set</code> command or function will discover all of the tasks automatically.</p>
+<p>There are some rules for how recursive directory scanning works that you should keep in mind:</p>
+<ol type="1">
+<li>Sources files and directories that start with <code>.</code> or <code>_</code> are not scanned for tasks.</li>
+<li>Directories named <code>env</code>, <code>venv</code>, and <code>tests</code> are not scanned for tasks.</li>
+</ol>
+</section>
+<section id="attributes-and-filters" class="level3">
+<h3 class="anchored" data-anchor-id="attributes-and-filters">Attributes and Filters</h3>
+<p>Eval suites will sometimes be defined purely by directory structure, but there will be cross-cutting concerns that are also used to filter what is run. For example, you might want to define some tasks as part of a “light” suite that is less expensive and time consuming to run. This is supported by adding attributes to task decorators. For example:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Given this, you could list all of the light tasks in <code>security</code> and pass them to <code>eval()</code> as follows:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>light_suite <span class="op">=</span> list_tasks(</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"security"</span>, </span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="bu">filter</span> <span class="op">=</span> <span class="kw">lambda</span> task: task.attribs.get(<span class="st">"light"</span>) <span class="kw">is</span> <span class="va">True</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(light_suite, log_dir<span class="op">=</span><span class="st">"logs-light-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that the <code>inspect list tasks</code> command can also be used to enumerate tasks in plain text or JSON (use one or more <code>-F</code> options if you want to filter tasks):</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span> <span class="at">-F</span> light=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can feed the results of <code>inspect list tasks</code> into <code>inspect eval-set</code> using <code>xargs</code> as follows:</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="kw">|</span> <span class="fu">xargs</span> <span class="dt">\</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>   inspect eval-set <span class="at">--log-dir</span> logs-security-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout callout-style-simple callout-important">
+<div class="callout-body d-flex">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
-<div class="callout-title-container flex-fill">
-Eval Sets
+<div class="callout-body-container">
+<p>One important thing to keep in mind when using attributes to filter tasks is that both <code>inspect list tasks</code> (and the underlying <code>list_tasks()</code> function) do not execute code when scanning for tasks (rather they parse it). This means that if you want to use a task attribute in a filtering expression it needs to be a constant (rather than the result of function call). For example:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># this is valid for filtering expressions</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  ...</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="co"># this is NOT valid for filtering expressions</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span>light_enabled(<span class="st">"ctf"</span>))</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-</div>
-<div class="callout-body-container callout-body">
-<p>We’ve discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on <a href="./eval-sets.html">Eval Sets</a></p>
-</div>
-</div>
-</section>
-</section>
-</section>
-<section id="sec-amazon-s3" class="level2">
-<h2 class="anchored" data-anchor-id="sec-amazon-s3">Amazon S3</h2>
-<p>Storing evaluation logs on S3 provides a more permanent and secure store than using the local filesystem. While the <code>inspect eval</code> command has a <code>--log-dir</code> argument which accepts an S3 URL, the most convenient means of directing inspect to an S3 bucket is to add the <code>INSPECT_LOG_DIR</code> environment variable to the <code>.env</code> file (potentially alongside your S3 credentials). For example:</p>
-<pre class="env"><code>INSPECT_LOG_DIR=s3://my-s3-inspect-log-bucket
-AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-AWS_DEFAULT_REGION=eu-west-2</code></pre>
-<p>One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a <a href="https://github.com/s3fs-fuse/s3fs-fuse">FUSE filesystem</a> so you can easily browse the S3 logs locally.</p>
-</section>
-<section id="log-cli-commands" class="level2">
-<h2 class="anchored" data-anchor-id="log-cli-commands">Log CLI Commands</h2>
-<p>We’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g.&nbsp;TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.</p>
-<section id="listing-logs" class="level3">
-<h3 class="anchored" data-anchor-id="listing-logs">Listing Logs</h3>
-<p>You can use the <code>inspect list logs</code> command to enumerate all of the logs for a given log directory. This command will utilise the <code>INSPECT_LOG_DIR</code> if it is set (alternatively you can specify a <code>--log-dir</code> directly). You’ll likely also want to use the <code>--json</code> flag to get more granular and structured information on the log files. For example:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--status</span> success</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--status</span> error</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can use the <code>--retryable</code> option to list only logs that are <a href="#sec-errors-and-retries">retryable</a></p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--retryable</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="reading-logs" class="level3">
-<h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>
-<p>The <code>inspect list logs</code> command will return set of URIs to log files which will use a variety of protocols (e.g.&nbsp;<code>file://</code>, <code>s3://</code>, <code>gcs://</code>, etc.). You might be tempted to try to read these URIs directly, however you should always do so using the <code>inspect info log-file</code> command. This is because log files can be located on remote storage systems (e.g.&nbsp;Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.</p>
-<p>For example, here we read a local log file and a log file on Amazon S3:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-file file:///home/user/log/logfile.json</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-file s3://my-evals-bucket/logfile.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Log files are stored in JSON. You can get the JSON schema and TypeScript type definitions for the log file format with the following calls to <code>inspect info</code>:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-schema</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-types</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="callout callout-style-simple callout-important callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-NaN and Inf
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Because evaluation logs contain lots of numerical data and calculations, it is possible that some <code>number</code> values will be <code>NaN</code> or <code>Inf</code>. These numeric values are supported natively by Python’s JSON parser, however are not supported by the JSON parsers built in to browsers and Node JS.</p>
-<p>To correctly read <code>Nan</code> and <code>Inf</code> values from eval logs in JavaScript, we recommend that you use the <a href="https://github.com/json5/json5">JSON5 Parser</a>. For other languages, <code>Nan</code> and <code>Inf</code> may be natively supported (if not, see these JSON 5 implementations for <a href="https://github.com/json5/json5/wiki/In-the-Wild">other languages</a>).</p>
 </div>
 </div>
 
@@ -1033,13 +1047,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./interactivity.html" class="pagination-link" aria-label="Interactivity">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Interactivity</span></span>
+      <a href="./models.html" class="pagination-link" aria-label="Models">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Models</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./extensions.html" class="pagination-link" aria-label="Extensions">
-        <span class="nav-page-text"><span class="chapter-title">Extensions</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./errors-and-limits.html" class="pagination-link" aria-label="Errors &amp; Limits">
+        <span class="nav-page-text"><span class="chapter-title">Errors &amp; Limits</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1097,38 +1111,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"selector":".lightbox","descPosition":"bottom","closeEffect":"zoom","loop":false,"openEffect":"zoom"});
-(function() {
-  let previousOnload = window.onload;
-  window.onload = () => {
-    if (previousOnload) {
-      previousOnload();
-    }
-    lightboxQuarto.on('slide_before_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      const href = trigger.getAttribute('href');
-      if (href !== null) {
-        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-        if (imgEl !== null) {
-          const srcAttr = imgEl.getAttribute("src");
-          if (srcAttr && srcAttr.startsWith("data:")) {
-            slideConfig.href = srcAttr;
-          }
-        }
-      } 
-    });
-  
-    lightboxQuarto.on('slide_after_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      if (window.Quarto?.typesetMath) {
-        window.Quarto.typesetMath(slideNode);
-      }
-    });
-  
-  };
-  
-})();
-          </script>
 
 
 
