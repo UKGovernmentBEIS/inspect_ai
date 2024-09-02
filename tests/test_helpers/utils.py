@@ -2,12 +2,15 @@ import importlib.util
 import os
 import subprocess
 from pathlib import Path
+from random import random
 
 import pytest
 
-from inspect_ai import eval
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
-from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.scorer import match
+from inspect_ai.solver import Generate, TaskState, generate, solver
 
 
 def skip_if_env_var(var: str, exists=True):
@@ -136,3 +139,27 @@ def file_check(file: str):
         return state
 
     return solve
+
+
+@solver
+def failing_solver(rate=0.5):
+    async def solve(state: TaskState, generate: Generate):
+        value = random()
+        if value < rate:
+            raise ValueError("Eval failed!")
+
+        return state
+
+    return solve
+
+
+@task
+def failing_task(rate=0.5, samples=1) -> Task:
+    dataset: list[Sample] = []
+    for _ in range(0, samples):
+        dataset.append(Sample(input="Say hello", target="hello"))
+    return Task(
+        dataset=dataset,
+        plan=[failing_solver(rate), generate()],
+        scorer=match(),
+    )

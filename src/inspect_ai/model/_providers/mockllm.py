@@ -34,8 +34,6 @@ class MockLLM(ModelAPI):
     ) -> None:
         super().__init__(model_name, base_url, api_key, [], config)
         self.model_args = model_args
-        if model_name != "model":
-            raise ValueError(f"Invalid model name: {model_name}")
         if custom_outputs is not None:
             # We cannot rely on the user of this model giving custom_outputs the correct type since they do not call this constructor
             # Hence this type check and the one in generate.

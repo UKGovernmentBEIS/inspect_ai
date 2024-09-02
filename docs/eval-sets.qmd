@@ -1,0 +1,279 @@
+---
+aliases: 
+  - eval-suites.html
+---
+
+# Eval Sets {#sec-eval-sets}
+
+::: callout-note
+The eval set features described in this article are currently available only in the development version of Inspect. You can install the development version with:
+
+``` {.bash .code-overflow-wrap}
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+## Overview
+
+Most of the examples in the documentation run a single evaluation task by either passing a script name to `inspect eval` or by calling the `eval()` function directly. While this is a good workflow for developing single evaluations, you'll often want to run several evaluations together as a *set*. This might be for the purpose of exploring hyperparameters, evaluating on multiple models at one time, or running a full benchmark suite.
+
+The `inspect eval-set` command and `eval_set()` function and provide several facilities for running sets of evaluations, including:
+
+1.  Automatically retrying failed evaluations (with a configurable retry strategy)
+2.  Re-using samples from failed tasks so that work is not repeated during retries.
+3.  Cleaning up log files from failed runs after a task is successfully completed.
+4.  The ability to re-run the command multiple times, with work picking up where the last invocation left off.
+
+Below we'll cover the various tools and techniques available for creating eval sets.
+
+## Running Eval Sets
+
+Run a set of evaluations using the `inspect eval-set` command or `eval_set()` function. For example:
+
+``` bash
+$ inspect eval-set mmlu.py mathematics.py \
+   --model openai/gpt-4o,anthropic/claude-3-5-sonnet-20240620 \
+   --log-dir logs-run-42
+```
+
+Or equivalently:
+
+``` python
+from inspect_ai import eval_set
+
+eval_set(
+   tasks=["mmlu.py", "mathematics.py"],
+   model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+   log_dir="logs-run-42"      
+)
+```
+
+Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.
+
+### Dynamic Tasks
+
+In the above examples tasks are ready from the filesystem. It is also possible to dynamically create a set of tasks and pass them to the `eval_set()` function. For example:
+
+``` python
+from inspect_ai import eval_set
+
+mmlu = Task(name="mmlu", dataset=csv_dataset("mmlu.csv"))
+maths = Task(name="maths", dataset=csv_dataset("maths.csv"))
+
+eval_set(
+   [mmlu, maths],
+   model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+   log_dir="logs-run-42"      
+)
+```
+
+One important difference you'll notice in this example is that the `Task` instances are given an explicit `name`. This is a **requirement** for `eval_set()`, as task names are used to pair task instances with their log files. Further, all task names passed to `eval_set()` must be unique (this is validated and an error thrown if they are not). This isn't necessary for tasks bound from the filesystem since their name is automatically derived from the function that creates them.
+
+### Options
+
+There are a number of options that control the retry behaviour of eval sets:
+
+| **Option** | Description |
+|------------------------------------|------------------------------------|
+| `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
+| `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
+| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5) |
+| `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
+
+: {tbl-colwidths=\[40,60\]}
+
+For example, here we specify a base wait time of 120 seconds:
+
+``` bash
+inspect eval-set mmlu.py mathematics.py \
+   --log-dir logs-run-42
+   --retry-wait 120
+```
+
+Or with the `eval_set()` function:
+
+``` python
+eval_set(
+   ["mmlu.py", "mathematics.py"],
+   log_dir="logs-run-42",
+   retry_wait=120
+)
+```
+
+## Logging Context
+
+We mentioned above that you need to specify a dedicated log directory for each eval set that you run. This requirement exists for a couple of reasons:
+
+1.  The log directory provides a durable record of which tasks are completed so that you can run the eval set as many times as is required to finish all of the work. For example, you might get halfway through a run and then encounter provider rate limit errors. You'll want to be able to restart the eval set later (potentially even many hours later) and the dedicated log directory enables you to do this.
+
+2.  This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs).
+
+Once all of the tasks in an eval set are complete, re-running `inspect eval-set` or `eval_set()` on the same log directory will be a no-op as there is no more work to do. At this point you can use the `list_eval_logs()` function to collect up logs for analysis:
+
+``` python
+results = list_eval_logs("logs-run-42")
+```
+
+If you are calling the `eval_set()` function it will return a tuple of `bool` and `list[EvalLog]`, where the `bool` indicates whether all tasks were completed:
+
+``` python
+success, logs = eval_set(...)
+if success:
+    # analyse logs
+else:
+    # will need to run eval_set again
+```
+
+Note that eval_set() does by default do quite a bit of retrying (up to 10 times by default) so `success=False` reflects the case where even after all of the retries the tasks were still not completed (this might occur due to a service outage or perhaps bugs in eval code raising runtime errors).
+
+{{< include _sample-preservation.md >}}
+
+## Task Enumeration
+
+When running eval sets tasks can be specified either individually (as in the examples above) or can be enumerated from the filesystem. You can organise tasks in many different ways, below we cover some of the more common options.
+
+### Multiple Tasks in a File
+
+The simplest possible organisation would be multiple tasks defined in a single source file. Consider this source file (`ctf.py`) with two tasks in it:
+
+``` python
+@task
+def jeopardy():
+  return Task(
+    ...
+  )
+
+@task
+def attack_defense():
+  return Task(
+    ...
+  )
+```
+
+We can run both of these tasks with the following command (note for this and the remainder of examples we'll assume that you have let an `INSPECT_EVAL_MODEL` environment variable so you don't need to pass the `--model` argument explicitly):
+
+``` bash
+$ inspect eval-set ctf.py --log-dir logs-run-42
+```
+
+Or equivalently:
+
+``` python
+eval_set("ctf.py", log_dir="logs-run-42")
+```
+
+Note that during development and debugging we can also run the tasks individually:
+
+``` bash
+$ inspect eval ctf.py@jeopardy
+```
+
+### Multiple Tasks in a Directory
+
+Next, let's consider a multiple tasks in a directory. Imagine you have the following directory structure, where `jeopardy.py` and `attack_defense.py` each have one or more `@task` functions defined:
+
+``` bash
+security/
+  import.py
+  analyze.py
+  jeopardy.py
+  attack_defense.py
+```
+
+Here is the listing of all the tasks in the suite:
+
+``` python
+$ inspect list tasks security
+jeopardy.py@crypto
+jeopardy.py@decompile
+jeopardy.py@packet
+jeopardy.py@heap_trouble
+attack_defense.py@saar
+attack_defense.py@bank
+attack_defense.py@voting
+attack_defense.py@dns
+```
+
+You can run this eval set as follows:
+
+``` bash
+$ inspect eval-set security --log-dir logs-security-02-09-24
+```
+
+Note that some of the files in this directory don't contain evals (e.g. `import.py` and `analyze.py`). These files are not read or executed by `inspect eval-set` (which only executes files that contain `@task` definitions).
+
+If we wanted to run more than one directory we could do so by just passing multiple directory names. For example:
+
+``` bash
+$ inspect eval-set security persuasion --log-dir logs-suite-42
+```
+
+Or equivalently:
+
+``` python
+eval_set(["security", "persuasion"], log_dir="logs-suite-42")
+```
+
+## Listing and Filtering
+
+### Recursive Listings
+
+Note that directories or expanded globs of directory names passed to `eval-set` are recursively scanned for tasks. So you could have a very deep hierarchy of directories, with a mix of task and non task scripts, and the `eval-set` command or function will discover all of the tasks automatically.
+
+There are some rules for how recursive directory scanning works that you should keep in mind:
+
+1.  Sources files and directories that start with `.` or `_` are not scanned for tasks.
+2.  Directories named `env`, `venv`, and `tests` are not scanned for tasks.
+
+### Attributes and Filters
+
+Eval suites will sometimes be defined purely by directory structure, but there will be cross-cutting concerns that are also used to filter what is run. For example, you might want to define some tasks as part of a "light" suite that is less expensive and time consuming to run. This is supported by adding attributes to task decorators. For example:
+
+``` python
+@task(light=True)
+def jeopardy():
+  return Task(
+    ...
+  )
+```
+
+Given this, you could list all of the light tasks in `security` and pass them to `eval()` as follows:
+
+``` python
+light_suite = list_tasks(
+  "security", 
+  filter = lambda task: task.attribs.get("light") is True
+)
+logs = eval_set(light_suite, log_dir="logs-light-42")
+```
+
+Note that the `inspect list tasks` command can also be used to enumerate tasks in plain text or JSON (use one or more `-F` options if you want to filter tasks):
+
+``` bash
+$ inspect list tasks security
+$ inspect list tasks security --json
+$ inspect list tasks security --json -F light=true
+```
+
+You can feed the results of `inspect list tasks` into `inspect eval-set` using `xargs` as follows:
+
+``` bash
+$ inspect list tasks security | xargs \
+   inspect eval-set --log-dir logs-security-42
+```
+
+::: {.callout-important appearance="simple"}
+One important thing to keep in mind when using attributes to filter tasks is that both `inspect list tasks` (and the underlying `list_tasks()` function) do not execute code when scanning for tasks (rather they parse it). This means that if you want to use a task attribute in a filtering expression it needs to be a constant (rather than the result of function call). For example:
+
+``` python
+# this is valid for filtering expressions
+@task(light=True)
+def jeopardy():
+  ...
+
+# this is NOT valid for filtering expressions
+@task(light=light_enabled("ctf"))
+def jeopardy():
+  ...
+```
+:::

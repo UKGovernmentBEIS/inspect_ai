@@ -31,7 +31,7 @@ from .task.run import EvalSampleSource, eval_log_sample_source
 logger = getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ResolvedTask:
     task: Task
     task_args: dict[str, Any]
@@ -85,14 +85,28 @@ def resolve_tasks(
     if isinstance(tasks, PreviousTask):
         tasks = [tasks]
     if isinstance(tasks, list) and isinstance(tasks[0], PreviousTask):
+        # for previous tasks, prefer recreating from the registry (so we have
+        # a fresh instance) but also allow recycling of task instances for
+        # fully dynamic tasks
         previous_tasks = cast(list[PreviousTask], tasks)
-        loaded_tasks = load_tasks(
-            [task.task for task in previous_tasks], model, task_args
-        )
+        loaded_tasks: list[Task] = []
+        loaded_tasks_args: list[dict[str, Any]] = []
+        for previous_task in previous_tasks:
+            if isinstance(previous_task.task, Task):
+                loaded_task_args = task_args
+                loaded_task = previous_task.task
+            else:
+                loaded_task_args = previous_task.task_args
+                loaded_task = load_tasks([previous_task.task], model, loaded_task_args)[
+                    0
+                ]
+            loaded_tasks.append(loaded_task)
+            loaded_tasks_args.append(loaded_task_args)
+
         return [
             ResolvedTask(
                 task=loaded_task,
-                task_args=task_args,
+                task_args=loaded_task_args,
                 task_file=previous_task.log.eval.task_file,
                 model=model,
                 sandbox=previous_task.log.eval.sandbox,
@@ -102,8 +116,11 @@ def resolve_tasks(
                     previous_task.log, loaded_task.dataset
                 ),
             )
-            for sequence, loaded_task, previous_task in zip(
-                range(0, len(loaded_tasks)), loaded_tasks, previous_tasks
+            for sequence, loaded_task, loaded_task_args, previous_task in zip(
+                range(0, len(loaded_tasks)),
+                loaded_tasks,
+                loaded_tasks_args,
+                previous_tasks,
             )
         ]
 
