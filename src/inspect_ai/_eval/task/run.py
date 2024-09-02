@@ -68,9 +68,10 @@ from .generate import task_generate
 from .images import samples_with_base64_images, states_with_base64_images
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
+from .rundir import set_task_run_dir
 from .sandbox import sandboxenv_context
 from .transcript import solver_transcript
-from .util import sample_messages
+from .util import sample_messages, task_run_dir
 
 py_logger = getLogger(__name__)
 
@@ -113,198 +114,208 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # init task context
     init_task_context(model, generate_config)
 
-    # track stats and error
-    stats = EvalStats(started_at=iso_now())
-    error: EvalError | None = None
-    cancelled = False
+    # establish run_dir for duration of execution
+    with set_task_run_dir(task_run_dir(task)):
+        # track stats and error
+        stats = EvalStats(started_at=iso_now())
+        error: EvalError | None = None
+        cancelled = False
 
-    # handle sample errors (raise as required)
-    sample_error_handler = SampleErrorHandler(config.fail_on_error, len(task.dataset))
+        # handle sample errors (raise as required)
+        sample_error_handler = SampleErrorHandler(
+            config.fail_on_error, len(task.dataset)
+        )
 
-    # resolve some config
-    model_name = ModelName(model)
-    epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
-    sandbox_cleanup = config.sandbox_cleanup is not False
-    log_images = config.log_images is True
-    log_samples = config.log_samples is not False
+        # resolve some config
+        model_name = ModelName(model)
+        epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
+        sandbox_cleanup = config.sandbox_cleanup is not False
+        log_images = config.log_images is True
+        log_samples = config.log_samples is not False
 
-    # resolve dataset
-    _, samples, states = await resolve_dataset(
-        dataset=task.dataset,
-        model_name=model_name,
-        limit=config.limit,
-        epochs=epochs,
-        log_images=log_images,
-        max_messages=config.max_messages,
-    )
+        # resolve dataset
+        _, samples, states = await resolve_dataset(
+            dataset=task.dataset,
+            model_name=model_name,
+            limit=config.limit,
+            epochs=epochs,
+            log_images=log_images,
+            max_messages=config.max_messages,
+        )
 
-    # resolve the plan and scorer
-    plan = (
-        plan
-        if isinstance(plan, Plan)
-        else Plan(plan)
-        if plan is not None
-        else task.plan
-    )
-    score = score and task.scorer is not None
-    scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
-    scorer_profiles = (
-        [registry_log_name(scorer) for scorer in scorers if is_registry_object(scorer)]
-        if scorers is not None
-        else ["(none)"]
-    )
+        # resolve the plan and scorer
+        plan = (
+            plan
+            if isinstance(plan, Plan)
+            else Plan(plan)
+            if plan is not None
+            else task.plan
+        )
+        score = score and task.scorer is not None
+        scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
+        scorer_profiles = (
+            [
+                registry_log_name(scorer)
+                for scorer in scorers
+                if is_registry_object(scorer)
+            ]
+            if scorers is not None
+            else ["(none)"]
+        )
 
-    # compute steps (steps = samples * steps in plan + 1 for scorer)
-    steps = len(samples) * (
-        len(plan.steps) + (1 if plan.finish else 0) + (1)  # scorer
-    )
+        # compute steps (steps = samples * steps in plan + 1 for scorer)
+        steps = len(samples) * (
+            len(plan.steps) + (1 if plan.finish else 0) + (1)  # scorer
+        )
 
-    # compute an eval directory relative log location if we can
-    if PurePath(logger.location).is_relative_to(PurePath(eval_wd)):
-        log_location = PurePath(logger.location).relative_to(eval_wd).as_posix()
-    else:
-        log_location = logger.location
+        # compute an eval directory relative log location if we can
+        if PurePath(logger.location).is_relative_to(PurePath(eval_wd)):
+            log_location = PurePath(logger.location).relative_to(eval_wd).as_posix()
+        else:
+            log_location = logger.location
 
-    # create task profile for display
-    profile = TaskProfile(
-        name=task.name,
-        file=logger.eval.task_file,
-        model=model_name,
-        dataset=task.dataset.name or "(samples)",
-        scorer=", ".join(scorer_profiles),
-        samples=len(samples),
-        steps=steps,
-        eval_config=config,
-        task_args=logger.eval.task_args,
-        generate_config=generate_config,
-        log_location=log_location,
-    )
+        # create task profile for display
+        profile = TaskProfile(
+            name=task.name,
+            file=logger.eval.task_file,
+            model=model_name,
+            dataset=task.dataset.name or "(samples)",
+            scorer=", ".join(scorer_profiles),
+            samples=len(samples),
+            steps=steps,
+            eval_config=config,
+            task_args=logger.eval.task_args,
+            generate_config=generate_config,
+            log_location=log_location,
+        )
 
-    with display().task(profile) as td:
-        try:
-            # log the plan
-            log_plan(logger, plan, generate_config)
+        with display().task(profile) as td:
+            try:
+                # log the plan
+                log_plan(logger, plan, generate_config)
 
-            with td.progress() as p:
-                # forward progress
-                def progress() -> None:
-                    p.update(1)
+                with td.progress() as p:
+                    # forward progress
+                    def progress() -> None:
+                        p.update(1)
 
-                # provide solvers a function that they can use to generate output
-                async def generate(
-                    state: TaskState,
-                    tool_calls: Literal["loop", "single", "none"] = "loop",
-                    cache: bool | CachePolicy = False,
-                    **kwargs: Unpack[GenerateConfigArgs],
-                ) -> TaskState:
-                    return await task_generate(
-                        model=model,
-                        state=state,
-                        tool_calls=tool_calls,
-                        cache=cache,
-                        config=generate_config.merge(kwargs),
+                    # provide solvers a function that they can use to generate output
+                    async def generate(
+                        state: TaskState,
+                        tool_calls: Literal["loop", "single", "none"] = "loop",
+                        cache: bool | CachePolicy = False,
+                        **kwargs: Unpack[GenerateConfigArgs],
+                    ) -> TaskState:
+                        return await task_generate(
+                            model=model,
+                            state=state,
+                            tool_calls=tool_calls,
+                            cache=cache,
+                            config=generate_config.merge(kwargs),
+                        )
+
+                    # semaphore to limit concurrency
+                    sample_semaphore = (
+                        sample_semaphore
+                        if sample_semaphore
+                        else create_sample_semaphore(config, generate_config, model.api)
                     )
 
-                # semaphore to limit concurrency
-                sample_semaphore = (
-                    sample_semaphore
-                    if sample_semaphore
-                    else create_sample_semaphore(config, generate_config, model.api)
-                )
+                    # create sample coroutines
+                    sample_coroutines = [
+                        task_run_sample(
+                            task_name=task.name,
+                            sample=sample,
+                            state=state,
+                            sandbox=sandbox,
+                            sandbox_cleanup=sandbox_cleanup,
+                            plan=plan,
+                            scorers=scorers,
+                            generate=generate,
+                            progress=progress,
+                            logger=logger if log_samples else None,
+                            log_images=log_images,
+                            sample_source=sample_source,
+                            sample_error=sample_error_handler,
+                            semaphore=sample_semaphore,
+                        )
+                        for (sample, state) in zip(samples, states)
+                    ]
 
-                # create sample coroutines
-                sample_coroutines = [
-                    task_run_sample(
-                        task_name=task.name,
-                        sample=sample,
-                        state=state,
-                        sandbox=sandbox,
-                        sandbox_cleanup=sandbox_cleanup,
-                        plan=plan,
-                        scorers=scorers,
-                        generate=generate,
-                        progress=progress,
-                        logger=logger if log_samples else None,
-                        log_images=log_images,
-                        sample_source=sample_source,
-                        sample_error=sample_error_handler,
-                        semaphore=sample_semaphore,
-                    )
-                    for (sample, state) in zip(samples, states)
+                    # run them in parallel (subject to config.max_samples)
+                    sample_results = await asyncio.gather(*sample_coroutines)
+
+                # compute and record metrics if we have scores
+                completed_scores = [
+                    score_dict
+                    for score_dict in sample_results
+                    if isinstance(score_dict, dict)
                 ]
 
-                # run them in parallel (subject to config.max_samples)
-                sample_results = await asyncio.gather(*sample_coroutines)
+                if len(completed_scores) > 0:
+                    results = eval_results(
+                        samples=profile.samples,
+                        scores=completed_scores,
+                        reducers=task.epochs_reducer,
+                        scorers=scorers,
+                        metrics=task.metrics,
+                    )
+                    logger.log_results(results)
+                else:
+                    results = EvalResults()
 
-            # compute and record metrics if we have scores
-            completed_scores = [
-                score_dict
-                for score_dict in sample_results
-                if isinstance(score_dict, dict)
-            ]
+                # collect eval data
+                collect_eval_data(stats, logger)
 
-            if len(completed_scores) > 0:
-                results = eval_results(
-                    samples=profile.samples,
-                    scores=completed_scores,
-                    reducers=task.epochs_reducer,
-                    scorers=scorers,
-                    metrics=task.metrics,
-                )
-                logger.log_results(results)
-            else:
-                results = EvalResults()
+                # display task summary
+                td.complete(TaskSuccess(logger.samples_completed, stats, results))
 
-            # collect eval data
-            collect_eval_data(stats, logger)
+            except asyncio.CancelledError:
+                # flag as cancelled
+                cancelled = True
 
-            # display task summary
-            td.complete(TaskSuccess(logger.samples_completed, stats, results))
+                # collect eval data
+                collect_eval_data(stats, logger)
 
-        except asyncio.CancelledError:
-            # flag as cancelled
-            cancelled = True
+                # display task cancelled
+                td.complete(TaskCancelled(logger.samples_completed, stats))
 
-            # collect eval data
-            collect_eval_data(stats, logger)
+            except BaseException as ex:
+                # get exception info
+                type, value, traceback = sys.exc_info()
+                type = type if type else BaseException
+                value = value if value else ex
 
-            # display task cancelled
-            td.complete(TaskCancelled(logger.samples_completed, stats))
+                # build eval error
+                error = eval_error(ex, type, value, traceback)
 
-        except BaseException as ex:
-            # get exception info
-            type, value, traceback = sys.exc_info()
-            type = type if type else BaseException
-            value = value if value else ex
+                # collect eval data
+                collect_eval_data(stats, logger)
 
-            # build eval error
-            error = eval_error(ex, type, value, traceback)
+                # display it
+                td.complete(TaskError(logger.samples_completed, type, value, traceback))
 
-            # collect eval data
-            collect_eval_data(stats, logger)
+        # log as appropriate
+        if cancelled:
+            eval_log = logger.log_cancelled(stats)
+        elif error:
+            eval_log = logger.log_failure(stats, error)
+        else:
+            eval_log = logger.log_success(stats)
 
-            # display it
-            td.complete(TaskError(logger.samples_completed, type, value, traceback))
+        # notify the view module that an eval just completed
+        # (in case we have a view polling for new evals)
+        view_notify_eval(logger.location)
 
-    # log as appropriate
-    if cancelled:
-        eval_log = logger.log_cancelled(stats)
-    elif error:
-        eval_log = logger.log_failure(stats, error)
-    else:
-        eval_log = logger.log_success(stats)
+        try:
+            await send_telemetry("eval_log", eval_log_json(eval_log))
+        except Exception as ex:
+            py_logger.warning(
+                f"Error occurred sending telemetry: {exception_message(ex)}"
+            )
 
-    # notify the view module that an eval just completed
-    # (in case we have a view polling for new evals)
-    view_notify_eval(logger.location)
-
-    try:
-        await send_telemetry("eval_log", eval_log_json(eval_log))
-    except Exception as ex:
-        py_logger.warning(f"Error occurred sending telemetry: {exception_message(ex)}")
-
-    # return eval log
-    return eval_log
+        # return eval log
+        return eval_log
 
 
 async def task_run_sample(

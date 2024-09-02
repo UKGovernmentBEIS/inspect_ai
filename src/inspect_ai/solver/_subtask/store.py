@@ -38,7 +38,7 @@ class Store:
         self._data: dict[str, Any] = {}
 
     @overload
-    def get(self, key: str, default: None) -> Any:
+    def get(self, key: str, default: None = None) -> Any:
         return self._data.get(key, default)
 
     @overload
