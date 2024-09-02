@@ -114,7 +114,10 @@ def record_to_sample_multiple_choice(record):
         input=[ChatMessageUser(content=content_list)],
         choices=answers_list,
         target=record["answer"],
-        metadata={"subfield": record["subfield"]},
+        metadata={"subfield": record["subfield"],
+                "explanation": record["explanation"],
+                "img_type": record["img_type"],
+                "topic_difficulty": record["topic_difficulty"]},
     )
 
 
