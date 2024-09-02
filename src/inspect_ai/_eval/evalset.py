@@ -1,5 +1,4 @@
 import logging
-from copy import deepcopy
 from typing import Any, Callable, NamedTuple, Set, cast
 
 import rich
@@ -125,8 +124,7 @@ def eval_set(
         (one for each task)
     """
 
-    # helper function to run a set of evals (note that we deepcopy the tasks
-    # so that multiple passes don't share task instances)
+    # helper function to run a set of evals
     def run_eval(
         tasks: list[Task] | list[PreviousTask], models: list[Model]
     ) -> list[EvalLog]:
@@ -265,7 +263,7 @@ def eval_set(
             # run the tasks
             run_logs = run_task_groups(
                 task_groups=task_groups,
-                run_tasks=lambda tasks: deepcopy([task.task for task in tasks]),
+                run_tasks=lambda tasks: [task.task for task in tasks],
             )
 
             # if this was the entire list of resolved tasks, return results
@@ -307,7 +305,7 @@ def eval_set(
                     return [
                         PreviousTask(
                             id=log.header.eval.task_id,
-                            task=deepcopy(task.task),
+                            task=task.task,
                             log=read_eval_log(log.info),
                         )
                         for task, log in zip(tasks, map(task_to_failed_log, tasks))
