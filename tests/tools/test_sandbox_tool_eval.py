@@ -2,6 +2,7 @@ import itertools
 from pathlib import Path
 from typing import Generator
 
+import pytest
 from test_helpers.tool_call_utils import get_tool_calls, get_tool_response
 from test_helpers.tools import command_exec, list_files, read_file
 from test_helpers.utils import skip_if_no_docker
@@ -139,7 +140,7 @@ def test_sandbox_environment_read_file_error():
 
 
 @skip_if_no_docker
-# @pytest.mark.slow
+@pytest.mark.slow
 def test_sandbox_environment_nonroot_files():
     """Checks the file passed in as part of the Sample is actually readable by the Docker user in the container."""
     dataset = [
