@@ -318,11 +318,9 @@ def chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
         name=tool.name,
         description=tool.description,
         parameters=tool.parameters.model_dump(exclude_none=True),
-        # Temporarily disable strict tool calling, as it doesn't support
-        # optional parameters, so breaks some existing code. We will want
-        # to bring it back as an option and/or find a workaround that
-        # enables conformance to strict while preserving optional params
-        # strict=True,
+        # use strict tool calling if all params are required (OpenAI
+        # will reject strict mode if there are optional params)
+        strict=len(tool.parameters.properties) == len(tool.parameters.required),
     )
     return ChatCompletionToolParam(type="function", function=function)
 
