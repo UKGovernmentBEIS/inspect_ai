@@ -13,7 +13,13 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_BUFFER_REMOTE,
 )
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import FileInfo, absolute_file_path, file, filesystem
+from inspect_ai._util.file import (
+    FileInfo,
+    absolute_file_path,
+    basename,
+    file,
+    filesystem,
+)
 
 from ._log import (
     EvalLog,
@@ -93,6 +99,44 @@ def write_eval_log(log: EvalLog, log_file: str | FileInfo) -> None:
     log_file = log_file if isinstance(log_file, str) else log_file.name
     with file(log_file, "w") as f:
         f.write(eval_log_json(log))
+
+
+def write_log_dir_manifest(
+    log_dir: str,
+    *,
+    filename: str = "logs.json",
+    output_dir: str | None = None,
+    fs_options: dict[str, Any] = {},
+) -> None:
+    """Write a manifest for a log directory.
+
+    A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o samples)
+    keyed by log file names (names are relative to the log directory)
+
+    Args:
+      log_dir (str): Log directory to write manifest for.
+      filename (str): Manifest filename (defaults to "logs.json")
+      output_dir (str | None): Output directory for manifest (defaults to log_dir)
+      fs_options (dict[str,Any]): Optional. Additional arguments to pass through
+        to the filesystem provider (e.g. `S3FileSystem`).
+    """
+    # resolve dir to list of eval logs
+    logs = list_eval_logs(log_dir)
+
+    # resolve to manifest
+    names = [basename(log_name(log)) for log in logs]
+    headers = read_eval_log_headers(logs)
+    manifest_logs = dict(zip(names, headers))
+
+    # form target path and write
+    output_dir = output_dir or log_dir
+    fs = filesystem(output_dir)
+    manifest = f"{output_dir}{fs.sep}{filename}"
+    manifest_json = to_json(
+        value=manifest_logs, indent=2, exclude_none=True, fallback=lambda _x: None
+    )
+    with file(manifest, mode="wb", fs_options=fs_options) as f:
+        f.write(manifest_json)
 
 
 def eval_log_json(log: EvalLog) -> str:
@@ -189,6 +233,13 @@ def read_eval_log_headers(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
 ) -> list[EvalLog]:
     return [read_eval_log(log_file, header_only=True) for log_file in log_files]
+
+
+def log_name(log: str | FileInfo | EvalLogInfo) -> str:
+    if isinstance(log, str):
+        return log
+    else:
+        return log.name
 
 
 class FileRecorder(Recorder):
