@@ -1,4 +1,5 @@
 import logging
+import os
 from copy import deepcopy
 from typing import Any, Callable, NamedTuple, Set, cast
 
@@ -13,6 +14,7 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.registry import is_registry_object
 from inspect_ai.log import EvalLog
@@ -208,7 +210,7 @@ def eval_set(
     # validate that:
     #  (1) All tasks have a unique identifier
     #  (2) All logs have identifiers that map to tasks
-    validate_eval_set_preconditions(resolved_tasks, list_all_eval_logs(log_dir))
+    validate_eval_set_prerequisites(resolved_tasks, list_all_eval_logs(log_dir))
 
     # resolve some parameters
     retry_connections = retry_connections or 0.5
@@ -464,7 +466,7 @@ def latest_completed_task_eval_logs(
 #  (1) all tasks have unique identfiers (so we can pair task -> log file)
 #  (2) all log files have identifiers that map to tasks (so we know we
 #      are running in a log dir created for this eval_set)
-def validate_eval_set_preconditions(
+def validate_eval_set_prerequisites(
     resolved_tasks: list[ResolvedTask], all_logs: list[Log]
 ) -> None:
     # do all resolved tasks have unique identfiers?
@@ -472,8 +474,8 @@ def validate_eval_set_preconditions(
     for task in resolved_tasks:
         identifer = task_identifer(task)
         if identifer in task_identifiers:
-            raise ValueError(
-                f"Tasks in an eval_set must have distinct names (found duplicate name '{task_identifer_without_model(identifer)}')"
+            raise PrerequisiteError(
+                f"[bold]ERROR[/bold]: Tasks in an eval_set must have distinct names (found duplicate name '{task_identifer_without_model(identifer)}')"
             )
         else:
             task_identifiers.add(identifer)
@@ -481,8 +483,8 @@ def validate_eval_set_preconditions(
     # do all logs in the log directory correspond to task identifiers?
     for log in all_logs:
         if log.task_identifier not in task_identifiers:
-            raise ValueError(
-                f"Log file in log_dir passed to eval_set ({log.info.name}) is not "
+            raise PrerequisiteError(
+                f"[bold]ERROR[/bold]: Existing log file '{os.path.basename(log.info.name)}' in log_dir is not "
                 + "associated with a task passed to eval_set (you must run eval_set "
                 + "in a fresh log directory)"
             )
