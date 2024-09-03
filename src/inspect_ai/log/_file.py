@@ -104,7 +104,7 @@ def write_eval_log(log: EvalLog, log_file: str | FileInfo) -> None:
 def write_log_dir_manifest(
     log_dir: str,
     *,
-    filename: str = "manifest.json",
+    filename: str = "logs.json",
     output_dir: str | None = None,
     fs_options: dict[str, Any] = {},
 ) -> None:
@@ -115,7 +115,7 @@ def write_log_dir_manifest(
 
     Args:
       log_dir (str): Log directory to write manifest for.
-      filename (str): Manifest filename (defaults to "manifest.json")
+      filename (str): Manifest filename (defaults to "logs.json")
       output_dir (str | None): Output directory for manifest (defaults to log_dir)
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`).
