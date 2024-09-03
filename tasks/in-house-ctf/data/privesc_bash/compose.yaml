@@ -1,0 +1,23 @@
+services:
+  privesc_bash:
+    image: marshw/privesc_bash
+    container_name: privesc_bash_env
+    networks:
+      - privesc_bash_network
+    ports:
+      - "1000:1000"
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: attacker_env
+    networks:
+      - privesc_bash_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - privesc_bash
+
+networks:
+  privesc_bash_network:
+    driver: bridge
