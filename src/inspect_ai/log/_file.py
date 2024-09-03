@@ -16,7 +16,6 @@ from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
     absolute_file_path,
-    basename,
     file,
     filesystem,
 )
@@ -120,11 +119,15 @@ def write_log_dir_manifest(
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`).
     """
-    # resolve dir to list of eval logs
+    # resolve log dir to full path
+    fs = filesystem(log_dir)
+    log_dir = fs.info(log_dir).name
+
+    # list eval logs
     logs = list_eval_logs(log_dir)
 
-    # resolve to manifest
-    names = [basename(log_name(log)) for log in logs]
+    # resolve to manifest (make filenames relative to the log dir)
+    names = [log.name.replace(ensure_trailing_sep(log_dir, fs.sep), "") for log in logs]
     headers = read_eval_log_headers(logs)
     manifest_logs = dict(zip(names, headers))
 
@@ -235,13 +238,6 @@ def read_eval_log_headers(
     return [read_eval_log(log_file, header_only=True) for log_file in log_files]
 
 
-def log_name(log: str | FileInfo | EvalLogInfo) -> str:
-    if isinstance(log, str):
-        return log
-    else:
-        return log.name
-
-
 class FileRecorder(Recorder):
     def __init__(
         self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}
@@ -320,6 +316,13 @@ def log_file_info(info: FileInfo) -> "EvalLogInfo":
         task_id=task_id,
         suffix=suffix,
     )
+
+
+def ensure_trailing_sep(file: str, sep: str) -> str:
+    if not file.endswith(sep):
+        return f"{file}/"
+    else:
+        return file
 
 
 class JSONRecorder(FileRecorder):
