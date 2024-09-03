@@ -67,9 +67,9 @@ def custom_model_graded_qa(model, template, instructions, grade_pattern):
     )
 
 
-# run specific subsets
-# inspect eval xstest.py -T subset=safe
-# inspect eval xstest.py -T subset=unsafe
+# run specific subsets - provide model and scorer_model
+# inspect eval benchmarks/xstest/xstest.py --model -T subset=safe -T scorer_model=
+# inspect eval benchmarks/xstest/xstest.py --model -T subset=unsafe -T scorer_model=
 @task
 def xstest(subset="safe", scorer_model="openai/gpt-4o"):
     dataset = hf_dataset(
