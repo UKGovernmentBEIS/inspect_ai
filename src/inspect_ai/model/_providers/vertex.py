@@ -5,6 +5,7 @@ from typing import Any, cast
 import vertexai  # type: ignore
 from google.api_core.exceptions import TooManyRequests
 from google.protobuf.json_format import MessageToDict
+from pydantic import JsonValue
 from typing_extensions import override
 from vertexai.generative_models import (  # type: ignore
     Candidate,
@@ -34,9 +35,9 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
-    ModelCall,
     ModelOutput,
     ModelUsage,
     StopReason,
@@ -179,7 +180,16 @@ def model_call(
             tools=[tool.to_dict() for tool in tools] if tools is not None else None,
         ),
         response=response.to_dict(),
+        filter=model_call_filter,
     )
+
+
+def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # remove images from raw api call
+    if key == "inline_data" and isinstance(value, dict) and "data" in value:
+        value = copy(value)
+        value.update(data="")
+    return value
 
 
 def model_call_content(content: VertexContent) -> dict[str, Any]:

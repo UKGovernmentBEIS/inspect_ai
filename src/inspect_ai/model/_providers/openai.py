@@ -1,5 +1,6 @@
 import json
 import os
+from copy import copy
 from typing import Any, cast
 
 from openai import (
@@ -29,6 +30,7 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.shared_params.function_definition import FunctionDefinition
+from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
@@ -40,10 +42,10 @@ from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
     Logprobs,
-    ModelCall,
     ModelOutput,
     ModelUsage,
 )
@@ -175,7 +177,11 @@ class OpenAIAPI(ModelAPI):
                     if response.usage
                     else None
                 ),
-            ), ModelCall.create(request=request, response=response.model_dump())
+            ), ModelCall.create(
+                request=request,
+                response=response.model_dump(),
+                filter=model_call_filter,
+            )
         except APIStatusError as e:
             completion, error = handle_content_filter_error(e)
             return ModelOutput.from_content(
@@ -413,3 +419,13 @@ def handle_content_filter_error(e: APIStatusError) -> tuple[str, object | None]:
             return CANT_ASSIST, e.body
     else:
         raise e
+
+
+def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # remove images from raw api call
+    if key == "image_url" and isinstance(value, dict) and "url" in value:
+        url = str(value.get("url"))
+        if url.startswith("data:"):
+            value = copy(value)
+            value.update(url="")
+    return value
