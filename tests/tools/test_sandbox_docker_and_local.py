@@ -1,10 +1,15 @@
 from pathlib import Path
 
+import pytest
+from test_helpers.utils import skip_if_no_docker
+
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.self_check import self_check
 
 
+@skip_if_no_docker
+@pytest.mark.slow
 async def test_self_check_local(request) -> None:
     task_name = f"{__name__}_{request.node.name}_local"
 
@@ -16,6 +21,8 @@ async def test_self_check_local(request) -> None:
     return await check_results_of_self_check(task_name, envs_dict)
 
 
+@skip_if_no_docker
+@pytest.mark.slow
 async def test_self_check_docker_custom_nonroot(request) -> None:
     task_name = f"{__name__}_{request.node.name}_docker_nonroot"
 
@@ -32,6 +39,8 @@ async def test_self_check_docker_custom_nonroot(request) -> None:
     return await check_results_of_self_check(task_name, envs_dict)
 
 
+@skip_if_no_docker
+@pytest.mark.slow
 async def test_self_check_docker_default_root(request) -> None:
     task_name = f"{__name__}_{request.node.name}_docker_root"
 

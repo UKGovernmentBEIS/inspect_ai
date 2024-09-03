@@ -81,13 +81,9 @@ INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
 
 ## Multiple Tasks {#sec-multiple-tasks}
 
-By default, Inspect runs a single task at a time. This is because most tasks consist of 10 or more samples, which generally means that sample parallelism is enough to make full use of the `max_connections` defined for the active model. If however, the number samples per task is substantially lower than `max_connections` then you might benefit from running multiple tasks in parallel.
+By default, Inspect runs a single task at a time. This is because most tasks consist of 10 or more samples, which generally means that sample parallelism is enough to make full use of the `max_connections` defined for the active model. 
 
-There is one important constraint on task parallelism to note: by default, all of the tasks *must share a working directory* (as Inspect switches to the working directory of tasks when executing them). This constraint can be relaxed using the `chdir=False` option on the `@task` decorator (see the discussion in [Working Directory](#working-directory) below for details).
-
-### Max Tasks Option
-
-Run multiple tasks in parallel using the `--max-tasks` CLI option or `max_tasks` parameter to the `eval()` function. For example, here we run all of the tasks in the current working directory with up 5 tasks run in parallel:
+If however, the number samples per task is substantially lower than `max_connections` then you might benefit from running multiple tasks in parallel You can do this via the `--max-tasks` CLI option or `max_tasks` parameter to the `eval()` function. For example, here we run all of the tasks in the current working directory with up 5 tasks run in parallel:
 
 ``` bash
 $ inspect eval . --max-tasks=5 
@@ -123,19 +119,6 @@ eval(
 
 This code will evaluate a total of 12 tasks (6 temperature variations against 2 models each) with up to 5 tasks run in parallel.
 
-### Working Directory {#working-directory}
-
-By default, inspect both *loads* and *executes* tasks within the directory that contains the task source file. This is done so that relative references to Python modules, datasets, prompt templates, and other resources are resolved correctly.
-
-Since task parallelism requires that tasks are executed from within the same working directory, you may want to change this default behaviour. You can do this using the `chdir` option of the `@task` decorator. For example:
-
-``` python
-@task(chdir=False)
-def my_task():
-  ...
-```
-
-Note that this only affects where tasks are *executed*. Even with `chdir=False` task files are still *loaded* within their parent directory (so Python modules, datasets, prompts, etc. will still resolve correctly with relative references). If however you are making reference to external files at *runtime* (e.g. within the `solve()` or `score()` method of a `Sovler` or `Scorer`) you'll need to be sure to not rely on relative path resolution when `chdir=False`.
 
 ## Sandbox Environments {#sec-parallel-tool-environments}
 
