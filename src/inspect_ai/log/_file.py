@@ -127,7 +127,7 @@ def write_log_dir_manifest(
     logs = list_eval_logs(log_dir)
 
     # resolve to manifest (make filenames relative to the log dir)
-    names = [log.name.replace(ensure_trailing_sep(log_dir, fs.sep), "") for log in logs]
+    names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
     headers = read_eval_log_headers(logs)
     manifest_logs = dict(zip(names, headers))
 
@@ -238,6 +238,18 @@ def read_eval_log_headers(
     return [read_eval_log(log_file, header_only=True) for log_file in log_files]
 
 
+def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
+    # ensure that log dir has a trailing seperator
+    if not log_dir.endswith(sep):
+        log_dir = f"{log_dir}/"
+
+    # slice off log_dir from the front
+    log = info.name.replace(log_dir, "")
+
+    # manifests are web artifacts so always use forward slash
+    return log.replace("\\", "/")
+
+
 class FileRecorder(Recorder):
     def __init__(
         self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}
@@ -316,13 +328,6 @@ def log_file_info(info: FileInfo) -> "EvalLogInfo":
         task_id=task_id,
         suffix=suffix,
     )
-
-
-def ensure_trailing_sep(file: str, sep: str) -> str:
-    if not file.endswith(sep):
-        return f"{file}/"
-    else:
-        return file
 
 
 class JSONRecorder(FileRecorder):
