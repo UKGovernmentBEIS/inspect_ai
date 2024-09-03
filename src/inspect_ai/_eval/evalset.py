@@ -569,22 +569,17 @@ def schedule_pending_tasks(pending_tasks: list[ResolvedTask]) -> list[TaskGroup]
             if task_models == models:
                 task_ids.append(task_id)
 
-        # go find the tasks that have this id
+        # find a task for each of these ids
         for task_id in task_ids:
-            for t in [
-                task
-                for task in pending_tasks
-                if task_id == task_identifer_without_model(task_identifer(task))
-            ]:
-                # add the task if its not already in there
-                if (
-                    next(
-                        (task for task in tasks if task.task == t.task),
-                        None,
+            tasks.append(
+                next(
+                    (
+                        task
+                        for task in pending_tasks
+                        if task_id == task_identifer_without_model(task_identifer(task))
                     )
-                    is None
-                ):
-                    tasks.append(t)
+                )
+            )
 
     # deterministic return order
     schedule.sort(key=lambda x: str(x[0]))
