@@ -7,7 +7,8 @@
 - [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
 - Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
 - Fix issue with resolving Docker configuration files when not running from the task directory.
-- Treat `cwd` that are relative paths as relative to sample working directry.
+- Treat Sancbox exec `cwd` that are relative paths as relative to sample working directry.
+- Filter base64 encoded images out of model API call logs.
 - Raise error when a Solver does not return a TaskState.
 - Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintended token usage)
 - Remove `chdir` option from `@tasks` (tasks now always chdir during execution).
