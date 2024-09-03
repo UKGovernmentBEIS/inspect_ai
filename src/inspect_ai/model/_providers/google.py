@@ -58,6 +58,7 @@ from .._model_output import (
     StopReason,
 )
 from .util import model_base_url
+from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
 SAFETY_SETTINGS = "safety_settings"
 
@@ -205,7 +206,7 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
     # remove images from raw api call
     if key == "inline_data" and isinstance(value, dict) and "data" in value:
         value = copy(value)
-        value.update(data="")
+        value.update(data=BASE_64_DATA_REMOVED_FROM_LOG)
     return value
 
 

@@ -50,6 +50,7 @@ from .._model_output import (
     StopReason,
 )
 from .util import model_base_url
+from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
 logger = getLogger(__name__)
 
@@ -577,5 +578,5 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         and value.get("type", None) == "base64"
     ):
         value = copy(value)
-        value.update(data="")
+        value.update(data=BASE_64_DATA_REMOVED_FROM_LOG)
     return value

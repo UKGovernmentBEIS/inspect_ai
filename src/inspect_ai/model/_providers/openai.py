@@ -50,6 +50,7 @@ from .._model_output import (
     ModelUsage,
 )
 from .util import as_stop_reason, model_base_url, parse_tool_call
+from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
@@ -427,5 +428,5 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         url = str(value.get("url"))
         if url.startswith("data:"):
             value = copy(value)
-            value.update(url="")
+            value.update(url=BASE_64_DATA_REMOVED_FROM_LOG)
     return value
