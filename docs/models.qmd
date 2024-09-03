@@ -39,7 +39,7 @@ To select a model for use in an evaluation task you specify it using a *model na
 | Hugging Face | `hf/openai-community/gpt2` | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
 | vLLM | `vllm/openai-community/gpt2` | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html) |
 | Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
-| TogetherAI | `together/lmsys/vicuna-13b-v1.5` | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models) |
+| TogetherAI | `together/google/gemma-7b-it` | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models) |
 | AWS Bedrock | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/) |
 | Azure AI | `azureai/azure-deployment-name` | [Azure AI Models](https://ai.azure.com/explore/models) |
 | Vertex | `vertex/gemini-1.5-flash` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models) |

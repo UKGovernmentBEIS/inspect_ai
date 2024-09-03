@@ -23,6 +23,11 @@ class SandboxEnvironment(abc.ABC):
     """
 
     @classmethod
+    def config_files(cls) -> list[str]:
+        """Standard config files for this provider (used for automatic discovery)"""
+        return []
+
+    @classmethod
     async def task_init(cls, task_name: str, config: str | None) -> None:
         """Called at task startup initialize resources.
 
@@ -97,6 +102,7 @@ class SandboxEnvironment(abc.ABC):
         input: str | bytes | None = None,
         cwd: str | None = None,
         env: dict[str, str] = {},
+        user: str | None = None,
         timeout: int | None = None,
     ) -> ExecResult[str]:
         """Execute a command within a sandbox environment.
@@ -107,8 +113,9 @@ class SandboxEnvironment(abc.ABC):
         Args:
           cmd (str | list[str]): Command or command and arguments to execute.
           input (str | bytes | None): Standard input (optional).
-          cwd (str | None): Current working dir (optional).
+          cwd (str | None): Current working dir (optional). If relative, will be relative to the per-sample filesystem context.
           env (dict[str,str]): Environment variables for execution.
+          user (str | None): Optional username or UID to run the command as.
           timeout (int | None): Optional execution timeout (seconds).
 
         Returns:
@@ -116,8 +123,10 @@ class SandboxEnvironment(abc.ABC):
 
         Raises:
           TimeoutError: If the specified `timeout` expires.
-          UnicodeDecodeError: If an encoding error occurs while
-            reading the command output.
+          UnicodeDecodeError: If an error occurs while
+            decoding the command output.
+          PermissionError: If the user does not have
+            permission to execute the command.
         """
         ...
 
@@ -136,6 +145,8 @@ class SandboxEnvironment(abc.ABC):
         Raises:
           PermissionError: If the current user does not have permission to
             write to the specified path.
+          IsADirectoryError: If the file exists already and
+            is a directory.
         """
         ...
 
@@ -158,11 +169,13 @@ class SandboxEnvironment(abc.ABC):
           Contents of file (as str or bytes for binary files)
 
         Raises:
-          FileNotFoundError: If the specified file does not exist.
-          UnicodeDecodeError: If an encoding error occurs while
-            reading the file.
+          FileNotFoundError: If the file does not exist.
+          UnicodeDecodeError: If an encoding error occurs
+            while reading the file.
+            (only applicable when `text = True`)
           PermissionError: If the user does not have
             permission to read from the specified path.
+          IsADirectoryError: If the file is a directory.
         """
         ...
 

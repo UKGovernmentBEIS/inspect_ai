@@ -112,7 +112,7 @@ def init_hook(
         except (AttributeError, ModuleNotFoundError):
             raise PrerequisiteError(
                 f"{env} provider not found: {hook}\n"
-                + "Please correct (or undefine) this environment variable before proceeding.\n"
+                + "Please correct (or undefine) this environment variable before proceeding."
             )
     else:
         return None

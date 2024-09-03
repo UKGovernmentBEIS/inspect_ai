@@ -22,7 +22,7 @@ class EvalError(BaseModel):
 def pip_dependency_error(feature: str, dependencies: list[str]) -> Exception:
     return PrerequisiteError(
         f"[bold]ERROR[/bold]: {feature} requires optional dependencies. "
-        f"Install with:\n\n[bold]pip install {' '.join(dependencies)}[/bold]\n"
+        f"Install with:\n\n[bold]pip install {' '.join(dependencies)}[/bold]"
     )
 
 
@@ -32,7 +32,7 @@ def module_version_error(
     return PrerequisiteError(
         f"[bold]ERROR[/bold]: {feature} requires at least version {required_version} of package {package} "
         f"(you have version {version(package)} installed).\n\n"
-        f"Upgrade with:\n\n[bold]pip install --upgrade {package}[/bold]\n"
+        f"Upgrade with:\n\n[bold]pip install --upgrade {package}[/bold]"
     )
 
 
@@ -40,7 +40,7 @@ def module_max_version_error(feature: str, package: str, max_version: str) -> Ex
     return PrerequisiteError(
         f"[bold]ERROR[/bold]: {feature} supports only version {max_version} and earlier of package {package} "
         f"(you have version {version(package)} installed).\n\n"
-        f"Install the older version with with:\n\n[bold]pip install {package}=={max_version}[/bold]\n"
+        f"Install the older version with with:\n\n[bold]pip install {package}=={max_version}[/bold]"
     )
 
 
@@ -62,7 +62,7 @@ def exception_hook() -> Callable[..., None]:
         traceback: TracebackType,
     ) -> None:
         if isinstance(exception, PrerequisiteError):
-            print("\n", exception.message, sep="")
+            print(f"\n{exception.message}\n")
         else:
             sys_handler(exception_type, exception, traceback)
 

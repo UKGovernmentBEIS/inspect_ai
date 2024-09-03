@@ -3,7 +3,6 @@ from copy import deepcopy
 from typing import Callable, cast
 
 from inspect_ai._display import display
-from inspect_ai._util.dotenv import dotenv_environ
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_create
@@ -131,7 +130,7 @@ async def score_async(
 
 
 async def task_score(task: Task, log: EvalLog) -> EvalLog:
-    with chdir_python(task_run_dir(task)), dotenv_environ():
+    with chdir_python(task_run_dir(task)):
         # confirm we have a scorer
         if task.scorer is None:
             raise ValueError("You must specify a scorer for evals to be scored.")
