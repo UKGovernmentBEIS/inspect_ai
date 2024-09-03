@@ -118,8 +118,7 @@ def write_log_dir_manifest(
       filename (str): Manifest filename (defaults to "manifest.json")
       output_dir (str | None): Output directory for manifest (defaults to log_dir)
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
-        to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
-        if you are accessing a public S3 bucket with no credentials.
+        to the filesystem provider (e.g. `S3FileSystem`).
     """
     # resolve dir to list of eval logs
     logs = list_eval_logs(log_dir)
