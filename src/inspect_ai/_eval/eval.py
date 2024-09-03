@@ -7,8 +7,6 @@ from typing import Any
 from shortuuid import uuid
 from typing_extensions import Unpack
 
-from inspect_ai._display.logger import init_logger
-from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
@@ -220,28 +218,17 @@ async def eval_async(
 
     _eval_async_running = True
     try:
-        # Provide .env and log support bootstrap for notebooks and invoking
-        # an eval as a plain Python script (as opposed to via inspect eval)
-        init_dotenv()
-        init_logger(log_level)
-
-        # init eval context
-        init_eval_context(max_subprocesses)
-
-        # resolve models
-        generate_config = GenerateConfig(**kwargs)
-        models = resolve_models(model, model_base_url, model_args, generate_config)
-
-        # resolve epochs
-        if isinstance(epochs, int):
-            epochs = Epochs(epochs)
-
-        # resolve tasks (set active model to resolve uses of the
-        # 'default' model in tools, solvers, and scorers)
-        resolved_tasks: list[ResolvedTask] = []
-        for m in models:
-            init_active_model(m, generate_config)
-            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
+        model, resolved_tasks = eval_init(
+            tasks=tasks,
+            model=model,
+            model_base_url=model_base_url,
+            model_args=model_args,
+            task_args=task_args,
+            sandbox=sandbox,
+            max_subprocesses=max_subprocesses,
+            log_level=log_level,
+            **kwargs,
+        )
 
         # warn and return empty string if we resolved no tasks
         if len(resolved_tasks) == 0:
@@ -252,6 +239,10 @@ async def eval_async(
         log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
         log_dir = absolute_file_path(log_dir)
         recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
+
+        # resolve epochs
+        if isinstance(epochs, int):
+            epochs = Epochs(epochs)
 
         # create config
         epochs_reducer = epochs.reducer if epochs else None
@@ -276,7 +267,7 @@ async def eval_async(
         # (w/ optional multiple models) and the other for true multi-task
         # (which requires different scheduling and UI)
         run_id = uuid()
-        task_definitions = len(resolved_tasks) // len(models)
+        task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
 
         # single task definition (could be multi-model) or max_tasks capped to 1
@@ -305,7 +296,7 @@ async def eval_async(
                     break
 
             # return list of eval logs
-            return EvalLogs(results)
+            logs = EvalLogs(results)
 
         # multiple task definitions AND tasks not capped at 1
         else:
@@ -321,10 +312,13 @@ async def eval_async(
                 score=score,
                 **kwargs,
             )
-            return EvalLogs(results)
+            logs = EvalLogs(results)
 
     finally:
         _eval_async_running = False
+
+    # return logs
+    return logs
 
 
 # single call to eval_async at a time
@@ -525,7 +519,9 @@ async def eval_retry_async(
         # run the eval
         log = (
             await eval_async(
-                tasks=PreviousTask(task=task, id=task_id, log=eval_log),
+                tasks=PreviousTask(
+                    id=task_id, task=task, task_args=task_args, log=eval_log
+                ),
                 model=model,
                 model_base_url=model_base_url,
                 model_args=model_args,
@@ -553,6 +549,34 @@ async def eval_retry_async(
         eval_logs.append(log)
 
     return EvalLogs(eval_logs)
+
+
+def eval_init(
+    tasks: Tasks,
+    model: str | Model | list[str] | list[Model] | None = None,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] = dict(),
+    task_args: dict[str, Any] = dict(),
+    sandbox: SandboxEnvironmentSpec | None = None,
+    max_subprocesses: int | None = None,
+    log_level: str | None = None,
+    **kwargs: Unpack[GenerateConfigArgs],
+) -> tuple[list[Model], list[ResolvedTask]]:
+    # init eval context
+    init_eval_context(log_level, max_subprocesses)
+
+    # resolve models
+    generate_config = GenerateConfig(**kwargs)
+    models = resolve_models(model, model_base_url, model_args, generate_config)
+
+    # resolve tasks (set active model to resolve uses of the
+    # 'default' model in tools, solvers, and scorers)
+    resolved_tasks: list[ResolvedTask] = []
+    for m in models:
+        init_active_model(m, generate_config)
+        resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
+
+    return models, resolved_tasks
 
 
 # A list of eval logs is returned from eval(). We've already displayed
