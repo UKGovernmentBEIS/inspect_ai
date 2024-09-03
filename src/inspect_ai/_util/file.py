@@ -90,6 +90,9 @@ def basename(file: str) -> str:
     Returns:
        Base name for file
     """
+    # windows paths aren't natively handled on posix so flip backslashes
+    if os.sep == "/":
+        file = file.replace("\\", "/")
     normalized_path = make_path_posix(file)
     _, path_without_protocol = split_protocol(normalized_path)
     name: str = path_without_protocol.rstrip("/").split("/")[-1]
