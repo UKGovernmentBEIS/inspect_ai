@@ -1,9 +1,8 @@
 import uuid
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field
 
-from inspect_ai._util.json import jsonable_python
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessageAssistant
@@ -172,30 +171,4 @@ class ModelOutput(BaseModel):
                     stop_reason="tool_calls",
                 )
             ],
-        )
-
-
-class ModelCall(BaseModel):
-    """Model call (raw request/response data)."""
-
-    request: dict[str, JsonValue]
-    """Raw data posted to model."""
-
-    response: dict[str, JsonValue]
-    """Raw response data from model."""
-
-    @staticmethod
-    def create(request: Any, response: Any) -> "ModelCall":
-        """Create a ModelCall object.
-
-        Create a ModelCall from arbitrary request and response objects (they might
-        be dataclasses, Pydandic objects, dicts, etc.). Converts all values to
-        JSON serialiable (exluding those that can't be)
-
-        Args:
-           request (Any): Request object (dict, dataclass, BaseModel, etc.)
-           response (Any): Response object (dict, dataclass, BaseModel, etc.)
-        """
-        return ModelCall(
-            request=jsonable_python(request), response=jsonable_python(response)
         )

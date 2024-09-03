@@ -34,6 +34,7 @@ from google.generativeai.types import (  # type: ignore
 )
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Struct
+from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
@@ -49,9 +50,9 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
-    ModelCall,
     ModelOutput,
     ModelUsage,
     StopReason,
@@ -196,7 +197,16 @@ def model_call(
             else None,
         ),
         response=response.to_dict(),
+        filter=model_call_filter,
     )
+
+
+def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # remove images from raw api call
+    if key == "inline_data" and isinstance(value, dict) and "data" in value:
+        value = copy(value)
+        value.update(data="")
+    return value
 
 
 def model_call_content(content: ContentDict) -> ContentDict:
