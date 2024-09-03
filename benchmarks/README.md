@@ -19,3 +19,4 @@ This directory contains evals for several benchmarks. Datasets for evals are not
 | WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale                                 | <https://arxiv.org/pdf/1907.10641>   | [winogrande.py](winogrande/winogrande.py) | Hugging Face |
 | RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models. | <https://arxiv.org/abs/1704.04683>   |             [race-h.py](race-h/race-h.py) | Hugging Face |
 | CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge                 | <https://arxiv.org/pdf/1811.00937v2> |   [commonsense_qa.py](commonsense_qa/commonsense_qa.py) | Hugging Face |
+| Instruction-Following Evaluation for Large Language Models                 | <https://arxiv.org/pdf/2311.07911> |   [ifeval.py](ifeval/ifeval.py) | Hugging Face |
