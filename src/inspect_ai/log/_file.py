@@ -16,7 +16,6 @@ from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
     absolute_file_path,
-    basename,
     file,
     filesystem,
 )
@@ -120,11 +119,15 @@ def write_log_dir_manifest(
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`).
     """
-    # resolve dir to list of eval logs
+    # resolve log dir to full path
+    fs = filesystem(log_dir)
+    log_dir = fs.info(log_dir).name
+
+    # list eval logs
     logs = list_eval_logs(log_dir)
 
-    # resolve to manifest
-    names = [basename(log_name(log)) for log in logs]
+    # resolve to manifest (make filenames relative to the log dir)
+    names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
     headers = read_eval_log_headers(logs)
     manifest_logs = dict(zip(names, headers))
 
@@ -235,11 +238,16 @@ def read_eval_log_headers(
     return [read_eval_log(log_file, header_only=True) for log_file in log_files]
 
 
-def log_name(log: str | FileInfo | EvalLogInfo) -> str:
-    if isinstance(log, str):
-        return log
-    else:
-        return log.name
+def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
+    # ensure that log dir has a trailing seperator
+    if not log_dir.endswith(sep):
+        log_dir = f"{log_dir}/"
+
+    # slice off log_dir from the front
+    log = info.name.replace(log_dir, "")
+
+    # manifests are web artifacts so always use forward slash
+    return log.replace("\\", "/")
 
 
 class FileRecorder(Recorder):
