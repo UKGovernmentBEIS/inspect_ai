@@ -10,17 +10,14 @@ from typing_extensions import Unpack
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
-from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
-from inspect_ai.log._file import JSONRecorder
-from inspect_ai.model import (
-    GenerateConfig,
-    GenerateConfigArgs,
-    Model,
-)
-from inspect_ai.model._model import init_active_model, resolve_models
+from inspect_ai.log._file import EvalLogInfo, JSONRecorder, read_eval_log
+from inspect_ai.log._log import EvalConfig, EvalLog
+from inspect_ai.model._generate_config import GenerateConfig, GenerateConfigArgs
+from inspect_ai.model._model import Model, init_active_model, resolve_models
 from inspect_ai.scorer._reducer import reducer_log_names
-from inspect_ai.solver import Plan, Solver
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.solver._plan import Plan
+from inspect_ai.solver._solver import Solver
+from inspect_ai.util._sandbox import SandboxEnvironmentSpec
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks

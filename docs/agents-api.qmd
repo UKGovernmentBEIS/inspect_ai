@@ -50,8 +50,8 @@ history = state.store.get("history", [])
 It is also possible the access the `Store` *for the current sample* using the `store()` function. This is the mechanism for tools to read and write the `Store`. For example:
 
 ``` python
-from inspect_ai.solver import store
 from inspect_ai.tool import tool
+from inspect_ai.util import store
 
 @tool
 def web_browser_back():
@@ -200,7 +200,7 @@ Subtasks provide a mechanism for creating isolated, re-usable units of execution
 To create a subtask, declare an async function with the `@subtask` decorator. The function can take any arguments and return a value of any type. For example:
 
 ``` python
-from inspect_ai.solver import Store, subtask
+from inspect_ai.util import Store, subtask
 
 @subtask
 async def web_search(keywords: str) -> str:

@@ -21,7 +21,7 @@ from inspect_ai.log._transcript import (
 )
 from inspect_ai.tool._tool import ToolResult
 
-from .store import Store, dict_jsonable, init_subtask_store
+from ._store import Store, dict_jsonable, init_subtask_store
 
 RT = TypeVar("RT", ToolResult, Any)
 
@@ -97,7 +97,7 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
                 init_subtask(subtask_name, store)
 
                 # run the subtask
-                with track_store_changes():
+                with track_store_changes():  # type: ignore
                     result = await func(*args, **kwargs)
 
                 # create a subtask event
