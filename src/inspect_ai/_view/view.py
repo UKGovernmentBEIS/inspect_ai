@@ -150,7 +150,8 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
 
         # read query parameters from the URL
         query_params = parse_qs(parsed.query)
-        header_only = query_params.get("header-only", None) is not None
+        header_param = query_params.get("header-only", None)
+        header_only = int(header_param[0]) if header_param is not None else sys.maxsize
 
         # reconstruct the path
         path = urlunparse(
