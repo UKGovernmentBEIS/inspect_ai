@@ -156,10 +156,9 @@ def mbpp(
     return Task(
         dataset=dataset,
         plan=[
-            prompt_template(template, ),
+            prompt_template(template),
             generate(),
         ],
         scorer=code_acceptance(),
         config=GenerateConfig(temperature=0.0),
-
     )
