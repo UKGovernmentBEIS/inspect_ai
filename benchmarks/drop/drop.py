@@ -16,11 +16,7 @@ inspect eval drop/drop.py -T fewshot=false
 """
 
 import re
-import string
-from typing import Dict, List, Tuple, Union
-
-import numpy as np
-from scipy.optimize import linear_sum_assignment  # type: ignore
+from typing import Dict, List, Tuple
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
