@@ -332,6 +332,7 @@ def eval_command(
     no_score: bool | None,
     **kwargs: Unpack[CommonOptions],
 ) -> None:
+    """Evaluate tasks."""
     # read config
     config = config_from_locals(dict(locals()))
 
