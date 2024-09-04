@@ -9,7 +9,7 @@
 - `write_log_dir_manifest()` to write a log header manifest for a log directory
 - Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
 - Fix issue with resolving Docker configuration files when not running from the task directory.
-- Treat Sancbox exec `cwd` that are relative paths as relative to sample working directry.
+- Treat Sandbox exec `cwd` that are relative paths as relative to sample working directry.
 - Filter base64 encoded images out of model API call logs.
 - Raise error when a Solver does not return a TaskState.
 - Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintended token usage)
@@ -17,6 +17,7 @@
 - Do not process `.env` files in task directories (all required vars should be specified in the global `.env`).
 - Only enable `strict` mode for OpenAI tool calls when all function parameters are required.
 - Added [MMMU](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmmu), [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) and [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu_pro) benchmarks.
+- Introduce two new scorers, `f1` (precision and recall in text matching) and `exact` (whether normalized text matches exactly).
 
 ## v0.3.25 (25 August 2024)
 
