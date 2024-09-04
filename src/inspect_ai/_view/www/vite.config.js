@@ -1,7 +1,8 @@
 import { defineConfig } from "vite";
+import prism from "vite-plugin-prismjs";
 
 export default defineConfig({
-  base: '', // Set base to an empty string for relative paths
+  base: "", // Set base to an empty string for relative paths
   build: {
     // It's important we don't minify, as we check the bundled code into git so
     // that users don't need to bundle themselves. If we minify, that balloons
@@ -19,4 +20,10 @@ export default defineConfig({
     },
     sourcemap: true,
   },
+  plugins: [
+    prism({
+      languages: ["javascript", "css", "clike", "bash", "python", "python"],
+      css: true,
+    }),
+  ],
 });
