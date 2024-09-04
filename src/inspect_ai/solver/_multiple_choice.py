@@ -163,9 +163,9 @@ def valid_template(template: str) -> bool:
 @solver
 def multiple_choice(
     *,
+    template: str | None = None,
     multiple_correct: bool = False,
     shuffle: bool | Random = False,
-    template: str | None = None,
 ) -> Solver:
     """Multiple choice question solver.
 
@@ -187,14 +187,6 @@ def multiple_choice(
     with this scorer.
 
     Args:
-      multiple_correct (bool): Default `False`. Whether to allow multiple
-        answers to the multiple choice question. For example, "What numbers are
-        squares? A) 3, B) 4, C) 9" has multiple correct answers, B and C. Leave
-        as `False` if there's exactly one correct answer from the choices
-        available. NOTE: this does nothing if you supply your own template.
-      shuffle (bool | Random): Default `False`. Whether to shuffle the choices
-        in the multiple.  Passing a `Random` instance will use that for shuffling,
-        if `True` a new `Random` instance will be created.
       template (str | None): Template to use for the multiple choice question.
         The default is `SINGLE_ANSWER_TEMPLATE` in this file.
         The template will have questions and possible answers substituted into
@@ -205,6 +197,14 @@ def multiple_choice(
             list of A) ... B) ... etc. before sending to the model.
         - `{letters}`: (optional) A string of letters representing the choices, e.g.
             "A,B,C". Used to be explicit to the model about the possible answers.
+      multiple_correct (bool): Default `False`. Whether to allow multiple
+        answers to the multiple choice question. For example, "What numbers are
+        squares? A) 3, B) 4, C) 9" has multiple correct answers, B and C. Leave
+        as `False` if there's exactly one correct answer from the choices
+        available. NOTE: this does nothing if you supply your own template.
+      shuffle (bool | Random): Default `False`. Whether to shuffle the choices
+        in the multiple.  Passing a `Random` instance will use that for shuffling,
+        if `True` a new `Random` instance will be created.
     """
     if template and not valid_template(template):
         raise ValueError(
