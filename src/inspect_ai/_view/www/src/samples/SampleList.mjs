@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo } from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
@@ -14,8 +14,8 @@ import {
 } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
+import { WarningBand } from "../components/WarningBand.mjs";
 import { inputString } from "../utils/Format.mjs";
-import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
@@ -177,7 +177,7 @@ export const SampleList = (props) => {
       : undefined;
 
   const warningRow = warningMessage
-    ? html`<${WarningRow} message=${warningMessage} />`
+    ? html`<${WarningBand} message=${warningMessage} />`
     : "";
 
   return html` <div
@@ -194,43 +194,6 @@ export const SampleList = (props) => {
       style=${listStyle}
     />
   </div>`;
-};
-
-const WarningRow = ({ message }) => {
-  const [hidden, setHidden] = useState(false);
-
-  return html`
-    <div
-      style=${{
-        gridTemplateColumns: "max-content auto max-content",
-        columnGap: "0.5em",
-        fontSize: FontSize.small,
-        background: "var(--bs-warning-bg-subtle)",
-        borderBottom: "solid 1px var(--bs-light-border-subtle)",
-        padding: "0.3em 1em",
-        display: hidden ? "none" : "grid",
-      }}
-    >
-      <i class=${ApplicationIcons.logging.warning} />
-      ${message}
-      <button
-        title="Close"
-        style=${{
-          fontSize: FontSize["title-secondary"],
-          margin: "0",
-          padding: "0",
-          height: FontSize["title-secondary"],
-          lineHeight: FontSize["title-secondary"],
-        }}
-        class="btn"
-        onclick=${() => {
-          setHidden(true);
-        }}
-      >
-        <i class=${ApplicationIcons.close}></i>
-      </button>
-    </div>
-  `;
 };
 
 const SeparatorRow = ({ id, title, height }) => {

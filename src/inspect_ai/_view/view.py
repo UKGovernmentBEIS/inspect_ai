@@ -23,7 +23,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.file import FileSystem, filesystem
+from inspect_ai._util.file import FileSystem, filesystem, size_in_mb
 from inspect_ai._util.http import InspectHTTPRequestHandler
 from inspect_ai.log._file import (
     eval_log_json,
@@ -165,6 +165,9 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
         )
         path = unquote(path)
 
+        # Resolve the header_only value to boolean
+        header_only = resolve_header_only(path, header_only)
+
         ctype = self.guess_type(path)
         try:
             contents: bytes | None = None
@@ -237,6 +240,17 @@ def view_notify_eval(location: str) -> None:
         # Serialize the payload and write it to the signal file
         payload_json = json.dumps(payload, indent=2)
         f.write(payload_json)
+
+
+def resolve_header_only(path: str, header_only: int | None) -> bool:
+    # if there is a max_size passed, respect that and switch to
+    # header_only mode if the file is too large
+    if header_only == 0:
+        return True
+    if header_only is not None and size_in_mb(path) > int(header_only):
+        return True
+    else:
+        return False
 
 
 def view_last_eval_time() -> int:

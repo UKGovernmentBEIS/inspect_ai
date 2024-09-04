@@ -1,7 +1,11 @@
 import itertools
+from pathlib import Path
+from typing import Generator
 
+import pytest
 from test_helpers.tool_call_utils import get_tool_calls, get_tool_response
-from test_helpers.tools import list_files, read_file
+from test_helpers.tools import command_exec, list_files, read_file
+from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -133,3 +137,67 @@ def test_sandbox_environment_read_file_error():
     chat_message_tool = find_tool_call(result, "read_file")
     assert result.status == "success"
     assert chat_message_tool.error and "not found" in chat_message_tool.error.message
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_environment_nonroot_files():
+    """Checks the file passed in as part of the Sample is actually readable by the Docker user in the container."""
+    dataset = [
+        Sample(
+            input="What are the contents of file bar.txt?",
+            files={"bar.txt": "hello"},
+            target="unused",
+        )
+    ]
+    task = Task(
+        dataset=dataset,
+        plan=[
+            use_tools(
+                [
+                    command_exec(),
+                    read_file(),
+                ]
+            ),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", str(Path(__file__) / ".." / "test_sandbox_compose.yaml")),
+    )
+
+    def custom_outputs() -> Generator[ModelOutput, None, None]:
+        yield ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name="command_exec",
+            tool_arguments={"command": "id"},
+        )
+        yield ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name="read_file",
+            tool_arguments={"file": "bar.txt"},
+        )
+        while True:
+            yield ModelOutput.from_content(
+                model="mockllm/model",
+                content="finished",
+            )
+
+    result = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=custom_outputs(),
+        ),
+        max_messages=5,
+        sandbox_cleanup=False,
+    )[0]
+
+    assert result.status == "success"
+    id_chat_message_tool = find_tool_call(result, "command_exec")
+    # the test is broken if it's ended up as the root user;
+    # the point is to check the non-root user from the test_sandbox_compose config
+    assert "uid=0(root)" not in id_chat_message_tool.text
+
+    read_file_chat_message_tool = find_tool_call(result, "read_file")
+    assert not read_file_chat_message_tool.error
+    assert "hello" in read_file_chat_message_tool.text

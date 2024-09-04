@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import pytest
 from test_helpers.tool_call_utils import get_tool_calls, get_tool_response
+from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -85,6 +87,8 @@ def read_file_service_2() -> Tool:
     return execute
 
 
+@skip_if_no_docker
+@pytest.mark.slow
 def test_docker_compose_multiple_services_write_file():
     dataset = [
         Sample(
