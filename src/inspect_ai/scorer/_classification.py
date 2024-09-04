@@ -53,7 +53,7 @@ def max_f1_score(answer: str, targets: List[str]) -> float:
         if target[0].strip():
             f1_score = compute_f1(answer, target)
             max_f1 = max(max_f1, f1_score)
-    return max_f1
+    return round(max_f1, 1)
 
 
 def max_exact_score(answer: str, targets: List[str]) -> float:
@@ -63,7 +63,7 @@ def max_exact_score(answer: str, targets: List[str]) -> float:
         if target[0].strip():
             exact_score = compute_exact(answer, target)
             max_exact = max(max_exact, exact_score)
-    return max_exact
+    return round(max_exact, 2)
 
 
 def compute_f1(answer: str, target: str) -> float:
