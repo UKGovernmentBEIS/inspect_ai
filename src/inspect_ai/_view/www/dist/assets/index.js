@@ -7451,7 +7451,7 @@ var prism = { exports: {} };
         var tokenList = new LinkedList();
         addAfter(tokenList, tokenList.head, text);
         matchGrammar(text, tokenList, grammar, tokenList.head, 0);
-        return toArray(tokenList);
+        return toArray2(tokenList);
       },
       /**
        * @namespace
@@ -7672,7 +7672,7 @@ var prism = { exports: {} };
       next.prev = node;
       list.length -= i2;
     }
-    function toArray(list) {
+    function toArray2(list) {
       var array = [];
       var node = list.head.next;
       while (node !== list.tail) {
@@ -14346,6 +14346,13 @@ const PlanColumn = ({ title, classes, style, children }) => {
 const isNumeric = (n2) => {
   return !isNaN(parseFloat(n2)) && isFinite(n2);
 };
+const toArray = (val) => {
+  if (Array.isArray(val)) {
+    return val;
+  } else {
+    return [val];
+  }
+};
 const kScoreTypePassFail = "passfail";
 const kScoreTypeCategorical = "categorical";
 const kScoreTypeNumeric = "numeric";
@@ -15423,7 +15430,9 @@ const SampleInitEventView = ({ id, depth, event, stateManager }) => {
         ${sections}
         </div>
         <${EventSection} title="Target">
-          ${event.sample.target}
+          ${toArray(event.sample.target).map((target) => {
+    return m$1`<div>${target}</div>`;
+  })}
         </${EventSection}>
       </div>
     </div>
