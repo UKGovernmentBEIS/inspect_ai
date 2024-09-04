@@ -7,6 +7,21 @@ from inspect_ai.model import ChatMessageUser, GenerateConfig
 from inspect_ai.scorer import choice, model_graded_fact
 from inspect_ai.solver import generate, multiple_choice, prompt_template
 
+
+# Allow multiple-choice/open-ended tasks to be run separately
+@task
+def mmmu_multiple_choice():
+    combined_dataset = load_and_concatenate_datasets(subjects_list)
+    return mmmu_task_multiple_choice(combined_dataset)
+
+
+# Allow multiple-choice/open-ended tasks to be run separately
+@task
+def mmmu_open():
+    combined_dataset = load_and_concatenate_datasets(subjects_list)
+    return mmmu_task_open(combined_dataset)
+
+
 MULT_CHOICE_PROMPT = r"""
 Answer with the option's letter from the given choices directly.
 {prompt}
@@ -90,20 +105,6 @@ subjects_list = [
     "Public_Health",
     "Sociology",
 ]
-
-
-# Allow multiple-choice/open-ended tasks to be run separately
-@task
-def mmmu_multiple_choice():
-    combined_dataset = load_and_concatenate_datasets(subjects_list)
-    return mmmu_task_multiple_choice(combined_dataset)
-
-
-# Allow multiple-choice/open-ended tasks to be run separately
-@task
-def mmmu_open():
-    combined_dataset = load_and_concatenate_datasets(subjects_list)
-    return mmmu_task_open(combined_dataset)
 
 
 # Map records to Inspect Sample for multiple-choice questions
