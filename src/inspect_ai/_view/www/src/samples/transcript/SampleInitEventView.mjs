@@ -24,7 +24,7 @@ export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
 
   // Rememember the state (so other event viewers can use
   // it as a baseline when applying their state updates)
-  stateManager.setState(stateObj);
+  stateManager.initializeState(stateObj);
 
   const sections = [];
 

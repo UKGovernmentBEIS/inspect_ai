@@ -73,6 +73,16 @@ async def test_mock_generate_custom_invalid_iterable_string() -> None:
 
 
 @pytest.mark.asyncio
+async def test_mock_generate_custom_invalid_iterable_number() -> None:
+    with pytest.raises(ValueError) as e_info:
+        get_model(
+            "mockllm/model",
+            custom_outputs=0,
+        )
+    assert "must be an Iterable or a Generator" in str(e_info.value)
+
+
+@pytest.mark.asyncio
 async def test_mock_generate_not_enough() -> None:
     model = get_model(
         "mockllm/model",

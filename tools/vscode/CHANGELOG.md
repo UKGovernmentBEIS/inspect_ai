@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.29
+
+- Improve behavior of log viewer when a task completes and the view is already displaying
+- Evaluation log files which exceed 100MB will be displayed without sample data (since the viewer becomes difficult to work with when files exceed this size).
+
 ## 0.3.28
 
 - Fix incorrect environment variable when setting model base url (thx @hanbyul-kim)

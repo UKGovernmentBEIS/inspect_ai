@@ -25,8 +25,7 @@ export async function activateLogview(
   const logviewManager = new InspectLogviewManager(
     logviewWebManager,
     settingsMgr,
-    envMgr,
-    host
+    envMgr
   );
 
   // logview commands

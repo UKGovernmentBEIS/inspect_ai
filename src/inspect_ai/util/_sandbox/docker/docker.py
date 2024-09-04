@@ -117,10 +117,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         environments: dict[str, SandboxEnvironment] = {}
         for service, service_info in services.items():
             # update the project w/ the working directory
-            project.working_dir = await container_working_dir(service, project)
+            working_dir = await container_working_dir(service, project)
 
             # create the docker sandbox environemnt
-            docker_env = DockerSandboxEnvironment(service, project)
+            docker_env = DockerSandboxEnvironment(service, project, working_dir)
 
             # save reference to environment (mark as default if requested)
             is_default = service_info.get("x-default", False) is True
@@ -166,10 +166,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     async def cli_cleanup(cls, id: str | None) -> None:
         await cli_cleanup(id)
 
-    def __init__(self, service: str, project: ComposeProject) -> None:
+    def __init__(self, service: str, project: ComposeProject, working_dir: str) -> None:
         super().__init__()
         self._service = service
         self._project = project
+        self._working_dir = working_dir
 
     @override
     async def exec(
@@ -184,9 +185,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # additional args
         args = []
 
-        final_cwd = Path(self._project.working_dir if cwd is None else cwd)
+        final_cwd = Path(self._working_dir if cwd is None else cwd)
         if not final_cwd.is_absolute():
-            final_cwd = self._project.working_dir / final_cwd
+            final_cwd = self._working_dir / final_cwd
 
         args.append("--workdir")
         args.append(str(final_cwd))
@@ -202,19 +203,23 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 args.append("--env")
                 args.append(f"{key}={value}")
 
-        return await compose_exec(
+        exec_result = await compose_exec(
             args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
             input=input,
         )
+        if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
+            raise PermissionError(f"Permission denied executing command: {exec_result}")
+
+        return exec_result
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
         sandbox_log(f"write_file: {file}")
 
         # resolve relative file paths
-        file = container_file(self._project, file)
+        file = self.container_file(file)
 
         # ensure that the directory exists
         parent = Path(file).parent.as_posix()
@@ -224,7 +229,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 if "permission denied" in result.stderr.lower():
                     raise PermissionError(errno.EACCES, "Permission denied.", parent)
                 else:
-                    msg = f"Failed to create container directory {parent}: {result.stderr}"
+                    msg = f"Failed to create container directory {parent}: {result}"
                     raise RuntimeError(msg)
 
         # We want to be able to write a file in the container,
@@ -259,7 +264,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # compose cp will leave the file owned by root
         await compose_cp(
             src=local_tmpfile.name,
-            dest=f"{self._service}:{container_file(self._project,container_tmpfile)}",
+            dest=f"{self._service}:{self.container_file(container_tmpfile)}",
             project=self._project,
         )
 
@@ -316,7 +321,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             # resolve relative file paths
             original_file = file
-            file = container_file(self._project, file)
+            file = self.container_file(file)
 
             # copy the file
             dest_file = os.path.join(temp_dir, os.path.basename(file))
@@ -353,6 +358,12 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 async with aiofiles.open(dest_file, "rb") as f:
                     return await f.read()
 
+    def container_file(self, file: str) -> str:
+        path = Path(file)
+        if not path.is_absolute():
+            path = Path(self._working_dir) / path
+        return path.as_posix()
+
 
 async def container_working_dir(
     service: str, project: ComposeProject, default: str = "/"
@@ -366,10 +377,3 @@ async def container_working_dir(
             + f"{result.stderr}"
         )
         return default
-
-
-def container_file(project: ComposeProject, file: str) -> str:
-    path = Path(file)
-    if not path.is_absolute():
-        path = Path(project.working_dir) / path
-    return path.as_posix()

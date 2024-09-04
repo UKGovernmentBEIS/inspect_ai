@@ -41,7 +41,8 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._generate_config import GenerateConfig
-from ._model_output import ModelCall, ModelOutput, ModelUsage
+from ._model_call import ModelCall
+from ._model_output import ModelOutput, ModelUsage
 
 logger = logging.getLogger(__name__)
 

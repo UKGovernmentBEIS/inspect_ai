@@ -69,6 +69,7 @@ book:
 
       - part: "Advanced"
         chapters:
+           - eval-sets.qmd
            - text: "Errors & Limits"
              href: errors-and-limits.qmd
            - caching.qmd
@@ -76,7 +77,6 @@ book:
            - agents-api.qmd
            - interactivity.qmd
            - eval-logs.qmd
-           - eval-suites.qmd
            - extensions.qmd
 
 
