@@ -13569,7 +13569,7 @@ const ChatView = ({ id, messages, style }) => {
         marginTop: "0.1em"
       }}
             >
-              ${index + 1})
+              ${index + 1}
             </div>
             <${ChatMessage}
               id=${`${id}-chat-messages`}
@@ -21977,7 +21977,7 @@ const WorkSpace = (props) => {
         if (!((_d2 = workspaceLog.contents) == null ? void 0 : _d2.samples) && ((_g = (_f2 = (_e2 = workspaceLog.contents) == null ? void 0 : _e2.eval) == null ? void 0 : _f2.dataset) == null ? void 0 : _g.samples) > 0 && ((_h = workspaceLog.contents) == null ? void 0 : _h.status) !== "error") {
           warnings.push(
             m$1`<${WarningBand}
-              message="This evaluation log is too large display samples."
+              message="This evaluation log is too large to display samples."
             />`
           );
         }

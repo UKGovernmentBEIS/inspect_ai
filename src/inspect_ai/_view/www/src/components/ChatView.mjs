@@ -78,7 +78,7 @@ export const ChatView = ({ id, messages, style }) => {
                 marginTop: "0.1em",
               }}
             >
-              ${index + 1})
+              ${index + 1}
             </div>
             <${ChatMessage}
               id=${`${id}-chat-messages`}
