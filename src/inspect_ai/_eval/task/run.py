@@ -356,6 +356,8 @@ async def task_run_sample(
                     )
                     for key, score in previous_sample.scores.items()
                 }
+            else:
+                return {}
 
     # use semaphore if provided
     semaphore_cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
