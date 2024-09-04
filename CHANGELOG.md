@@ -6,6 +6,7 @@
 - [Per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
 - [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
 - Task `metrics` now override built in scorer metrics (previously they were merged). This enables improved re-use of existing scorers where they only change required is a different set of metrics.
+- `write_log_dir_manifest()` to write a log header manifest for a log directory
 - Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
 - Fix issue with resolving Docker configuration files when not running from the task directory.
 - Treat Sancbox exec `cwd` that are relative paths as relative to sample working directry.
@@ -14,8 +15,8 @@
 - Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintended token usage)
 - Remove `chdir` option from `@tasks` (tasks now always chdir during execution).
 - Do not process `.env` files in task directories (all required vars should be specified in the global `.env`).
-- Roll back usage of `strict` mode for OpenAI tool calls (strict mode doesn't support optional parameters, breaking some existing code).
-- Added [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) and [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu_pro) benchmarks.
+- Only enable `strict` mode for OpenAI tool calls when all function parameters are required.
+- Added [MMMU](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmmu), [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) and [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu_pro) benchmarks.
 
 ## v0.3.25 (25 August 2024)
 

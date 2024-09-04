@@ -14,19 +14,20 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "exports": {
-    ".": "./src/App.mjs",
-    "./App.css": "./App.css"
+    ".": "./src/App.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.5.0",
     "eslint": "9.x",
     "globals": "^15.6.0",
     "prettier": "^3.3.3",
-    "vite": "^5.3.2"
+    "vite": "^5.3.2",
+    "vite-plugin-prismjs": "^0.0.11"
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",
     "bootstrap": "^5.3.3",
+    "bootstrap-icons": "^1.11.3",
     "clipboard": "^2.0.11",
     "fast-json-patch": "^3.1.1",
     "htm": "^3.1.1",
