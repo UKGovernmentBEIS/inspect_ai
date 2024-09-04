@@ -34,6 +34,7 @@
  * @property {string} system
  * @property {string} assistant
  * @property {string} tool
+ * @property {string} unknown
  */
 
 /**
@@ -173,6 +174,7 @@ export const ApplicationIcons = {
     system: "bi bi-cpu",
     assistant: "bi bi-robot",
     tool: "bi bi-tools",
+    unknown: "bi bi-patch-question",
   },
   running: "bi bi-stars",
   sample: "bi bi-database",

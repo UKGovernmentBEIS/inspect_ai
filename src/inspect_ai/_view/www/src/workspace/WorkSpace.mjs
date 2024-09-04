@@ -234,7 +234,7 @@ export const WorkSpace = (props) => {
         ) {
           warnings.push(
             html`<${WarningBand}
-              message="This evaluation log is too large display samples."
+              message="This evaluation log is too large to display samples."
             />`,
           );
         }

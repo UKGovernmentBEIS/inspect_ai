@@ -7791,7 +7791,8 @@ const ApplicationIcons = {
     user: "bi bi-person",
     system: "bi bi-cpu",
     assistant: "bi bi-robot",
-    tool: "bi bi-tools"
+    tool: "bi bi-tools",
+    unknown: "bi bi-patch-question"
   },
   running: "bi bi-stars",
   sample: "bi bi-database",
@@ -13552,12 +13553,37 @@ const ChatView = ({ id, messages, style }) => {
   }
   const result = m$1`
     <div style=${style}>
-      ${collapsedMessages.map((msg) => {
-    return m$1`<${ChatMessage}
-          id=${`${id}-chat-messages`}
-          message=${msg}
-          toolMessages=${toolMessages}
-        />`;
+      ${collapsedMessages.map((msg, index) => {
+    if (collapsedMessages.length > 1) {
+      return m$1` <div
+            style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content auto",
+        columnGap: "0.7em"
+      }}
+          >
+            <div
+              style=${{
+        fontSize: FontSize.smaller,
+        ...TextStyle.secondary,
+        marginTop: "0.1em"
+      }}
+            >
+              ${index + 1}
+            </div>
+            <${ChatMessage}
+              id=${`${id}-chat-messages`}
+              message=${msg}
+              toolMessages=${toolMessages}
+            />
+          </div>`;
+    } else {
+      return m$1` <${ChatMessage}
+            id=${`${id}-chat-messages`}
+            message=${msg}
+            toolMessages=${toolMessages}
+          />`;
+    }
   })}
     </div>
   `;
@@ -13574,54 +13600,38 @@ const normalizeContent = (content) => {
   }
 };
 const ChatMessage = ({ id, message, toolMessages }) => {
-  const iconCls = iconForMsg(message);
-  const icon = iconCls ? m$1`<i class="${iconCls}"></i>` : "";
   const collapse = message.role === "system";
   return m$1`
     <div
-      class="container-fluid ${message.role}"
+      class="${message.role}"
       style=${{
     fontSize: FontSize.base,
     fontWeight: "300",
     paddingBottom: ".5em",
-    justifyContent: "flex-start",
     marginLeft: "0",
     marginRight: "0",
     opacity: message.role === "system" ? "0.7" : "1",
     whiteSpace: "normal"
   }}
     >
-      <div class="row row-cols-2">
-        <div
-          class="col"
-          style=${{
-    flex: "0 1 1em",
-    paddingLeft: "0",
-    paddingRight: "0.5em",
-    marginLeft: "0",
-    fontWeight: "500"
-  }}
-        >
-          ${icon}
-        </div>
-        <div
-          class="col"
-          style=${{
-    flex: "1 0 auto",
-    marginLeft: ".3rem",
-    paddingLeft: "0"
-  }}
-        >
-          <div style=${{ fontWeight: "500", ...TextStyle.label }}>${message.role}</div>
-          <${ExpandablePanel} collapse=${collapse}>
-            <${MessageContents}
-              key=${`${id}-contents`}
-              message=${message}
-              toolMessages=${toolMessages}
-            />
-          </${ExpandablePanel}>
-        </div>
+      <div style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content auto",
+    columnGap: "0.3em",
+    fontWeight: "500",
+    marginBottom: "0.5em",
+    ...TextStyle.label
+  }}>
+        <i class="${iconForMsg(message)}"></i>
+        ${message.role}
       </div>
+      <${ExpandablePanel} collapse=${collapse}>
+        <${MessageContents}
+          key=${`${id}-contents`}
+          message=${message}
+          toolMessages=${toolMessages}
+        />
+      </${ExpandablePanel}>
     </div>
   `;
 };
@@ -13658,15 +13668,17 @@ const MessageContents = ({ message, toolMessages }) => {
   }
 };
 const iconForMsg = (msg) => {
-  let iconCls = ApplicationIcons.role.assistant;
   if (msg.role === "user") {
-    iconCls = ApplicationIcons.role.user;
+    return ApplicationIcons.role.user;
   } else if (msg.role === "system") {
-    iconCls = ApplicationIcons.role.system;
+    return ApplicationIcons.role.system;
   } else if (msg.role === "tool") {
-    iconCls = ApplicationIcons.role.tool;
+    return ApplicationIcons.role.tool;
+  } else if (msg.role === "assistant") {
+    return ApplicationIcons.role.assistant;
+  } else {
+    return ApplicationIcons.role.unknown;
   }
-  return iconCls;
 };
 const resolveToolMessage = (toolMessage) => {
   var _a;
@@ -21965,7 +21977,7 @@ const WorkSpace = (props) => {
         if (!((_d2 = workspaceLog.contents) == null ? void 0 : _d2.samples) && ((_g = (_f2 = (_e2 = workspaceLog.contents) == null ? void 0 : _e2.eval) == null ? void 0 : _f2.dataset) == null ? void 0 : _g.samples) > 0 && ((_h = workspaceLog.contents) == null ? void 0 : _h.status) !== "error") {
           warnings.push(
             m$1`<${WarningBand}
-              message="This evaluation log is too large display samples."
+              message="This evaluation log is too large to display samples."
             />`
           );
         }
