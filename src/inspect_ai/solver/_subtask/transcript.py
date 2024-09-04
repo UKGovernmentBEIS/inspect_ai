@@ -22,7 +22,8 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model_output import ModelCall, ModelOutput
+from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCallError

@@ -63,7 +63,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only."""
 
     parallel_tool_calls: bool | None
-    """Whether to enable parallel function calling during tool use. OpenAI and Groq only."""
+    """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
 
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
@@ -127,7 +127,7 @@ class GenerateConfig(BaseModel):
     """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Huggingface, and vLLM only."""
 
     parallel_tool_calls: bool | None = Field(default=None)
-    """Whether to enable parallel function calling during tool use. OpenAI and Groq only."""
+    """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""

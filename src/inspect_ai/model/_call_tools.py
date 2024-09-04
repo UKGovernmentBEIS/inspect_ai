@@ -84,6 +84,11 @@ async def call_tools(
                     "file_not_found",
                     f"File '{ex.filename}' was not found.",
                 )
+            except IsADirectoryError as ex:
+                message = f"{ex.strerror}."
+                if isinstance(ex.filename, str):
+                    message = f"{message} Filename '{ex.filename}'."
+                tool_error = ToolCallError("is_a_directory", message)
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
             except ToolError as ex:

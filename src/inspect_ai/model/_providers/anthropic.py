@@ -1,5 +1,6 @@
 import functools
 import os
+from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Tuple, cast
 
@@ -23,6 +24,7 @@ from anthropic.types import (
     ToolUseBlockParam,
     message_create_params,
 )
+from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
@@ -40,14 +42,15 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
-    ModelCall,
     ModelOutput,
     ModelUsage,
     StopReason,
 )
 from .util import model_base_url
+from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
 logger = getLogger(__name__)
 
@@ -150,7 +153,11 @@ class AnthropicAPI(ModelAPI):
             output = model_output_from_message(message, tools)
 
             # return output and call
-            call = ModelCall.create(request=request, response=message.model_dump())
+            call = ModelCall.create(
+                request=request,
+                response=message.model_dump(),
+                filter=model_call_filter,
+            )
 
             return output, call
 
@@ -561,3 +568,15 @@ async def message_param_content(
             type="image",
             source=dict(type="base64", media_type=cast(Any, media_type), data=image),
         )
+
+
+def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # remove base64 encoded images
+    if (
+        key == "source"
+        and isinstance(value, dict)
+        and value.get("type", None) == "base64"
+    ):
+        value = copy(value)
+        value.update(data=BASE_64_DATA_REMOVED_FROM_LOG)
+    return value

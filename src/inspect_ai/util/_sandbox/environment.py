@@ -123,8 +123,10 @@ class SandboxEnvironment(abc.ABC):
 
         Raises:
           TimeoutError: If the specified `timeout` expires.
-          UnicodeDecodeError: If an encoding error occurs while
-            reading the command output.
+          UnicodeDecodeError: If an error occurs while
+            decoding the command output.
+          PermissionError: If the user does not have
+            permission to execute the command.
         """
         ...
 
@@ -143,6 +145,8 @@ class SandboxEnvironment(abc.ABC):
         Raises:
           PermissionError: If the current user does not have permission to
             write to the specified path.
+          IsADirectoryError: If the file exists already and
+            is a directory.
         """
         ...
 
@@ -165,11 +169,13 @@ class SandboxEnvironment(abc.ABC):
           Contents of file (as str or bytes for binary files)
 
         Raises:
-          FileNotFoundError: If the specified file does not exist.
-          UnicodeDecodeError: If an encoding error occurs while
-            reading the file.
+          FileNotFoundError: If the file does not exist.
+          UnicodeDecodeError: If an encoding error occurs
+            while reading the file.
+            (only applicable when `text = True`)
           PermissionError: If the user does not have
             permission to read from the specified path.
+          IsADirectoryError: If the file is a directory.
         """
         ...
 

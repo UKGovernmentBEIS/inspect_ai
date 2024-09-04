@@ -28,6 +28,7 @@ class ToolCallError:
         "unicode_decode",
         "permission",
         "file_not_found",
+        "is_a_directory",
         "unknown",
     ]
 

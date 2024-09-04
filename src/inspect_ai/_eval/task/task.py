@@ -5,7 +5,6 @@ from typing import Any, Callable, Sequence, cast
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
-from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
@@ -115,23 +114,10 @@ class Task:
 
     @property
     def name(self) -> str:
-        if is_registry_object(self):
-            # lookup name in registry
-            name = registry_info(self).name
-
-            # warn if a custom name was added, as this will make it
-            # impossible find the task for retrying
-            if self._name is not None:
-                warn_once(
-                    logger,
-                    f"Ignoring name=\"{self._name}\" parameter for registered task '{name}' "
-                    + f'(tasks decorated with @task should not use the name parameter, use @task(name="{self._name}") instead).',
-                )
-
-            # return the name
-            return name
-        elif self._name is not None:
+        if self._name is not None:
             return self._name
+        elif is_registry_object(self):
+            return registry_info(self).name
         else:
             return "task"
 
@@ -169,7 +155,8 @@ class TaskInfo(BaseModel):
 @dataclass
 class PreviousTask:
     id: str
-    task: str
+    task: str | Task
+    task_args: dict[str, Any]
     log: EvalLog
 
 

@@ -34,9 +34,9 @@ from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
-    ModelCall,
     ModelOutput,
     ModelUsage,
     StopReason,
