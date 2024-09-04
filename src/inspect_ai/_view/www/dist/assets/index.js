@@ -7786,12 +7786,14 @@ const ApplicationIcons = {
   "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
   previous: "bi bi-chevron-left",
+  refresh: "bi bi-arrow-clockwise",
   role: {
     user: "bi bi-person",
     system: "bi bi-cpu",
     assistant: "bi bi-robot",
     tool: "bi bi-tools"
   },
+  running: "bi bi-stars",
   sample: "bi bi-database",
   samples: "bi bi-file-spreadsheet",
   scorer: "bi bi-calculator",
@@ -7906,7 +7908,7 @@ class AppErrorBoundary extends b {
     return this.props.children;
   }
 }
-const ProgressBar = ({ style, animating }) => {
+const ProgressBar = ({ style, containerStyle, animating }) => {
   const emptyStyle = {
     display: "flex",
     textAlign: "center",
@@ -7923,7 +7925,7 @@ const ProgressBar = ({ style, animating }) => {
   const progressContainerStyle = {
     width: "100%",
     height: "2px",
-    background: "none"
+    ...containerStyle
   };
   const progressBarStyle = {
     width: "5%",
@@ -7978,7 +7980,8 @@ const Sidebar = ({
     zIndex: 10,
     borderBottom: "solid var(--bs-light-border-subtle) 1px",
     paddingBottom: "0.5rem",
-    paddingTop: "0.5rem"
+    paddingTop: "0.5rem",
+    height: "3.6em"
   }}
       >
         <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
@@ -7999,7 +8002,7 @@ const Sidebar = ({
           <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "61px", zIndex: 3 }}>
+      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
         <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
       </div>
       <ul
@@ -8105,7 +8108,7 @@ const prettyDir = (path) => {
 };
 const EvalStatus = ({ logHeader }) => {
   var _a, _b;
-  switch (logHeader.status) {
+  switch (logHeader == null ? void 0 : logHeader.status) {
     case "error":
       return m$1`<${StatusError} message="Error" />`;
     case "cancelled":
@@ -8242,15 +8245,43 @@ const SidebarScores = ({ scores }) => {
   </div>`;
 };
 const StatusCancelled = ({ message }) => {
-  return m$1`<div style=${{ ...TextStyle.secondary }}>${message}</div>`;
+  return m$1`<div
+    style=${{
+    marginTop: "0.2em",
+    fontSize: FontSize.small,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+  >
+    ${message}
+  </div>`;
 };
 const StatusRunning = ({ message }) => {
-  return m$1`<div class="spinner-border spinner-border-sm" role="status">
-    <span class="visually-hidden">${message}</span>
+  return m$1` <div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "0.5em",
+    marginTop: "0.3em",
+    fontSize: FontSize.small,
+    ...TextStyle.secondary,
+    ...TextStyle.label
+  }}
+  >
+    <div>${message}</div>
   </div>`;
 };
 const StatusError = ({ message }) => {
-  return m$1`<div style=${{ color: "var(--bs-danger)" }}>${message}</div>`;
+  return m$1`<div
+    style=${{
+    color: "var(--bs-danger)",
+    marginTop: "0.2em",
+    fontSize: FontSize.small,
+    ...TextStyle.label
+  }}
+  >
+    ${message}
+  </div>`;
 };
 const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   if (log_dir) {
@@ -15375,7 +15406,7 @@ const EventSection = ({ title, style, children }) => {
 };
 const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   const stateObj = event.state;
-  stateManager.setState(stateObj);
+  stateManager.initializeState(stateObj);
   const sections = [];
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
     sections.push(m$1`<${EventSection} title="Files">
@@ -15437,8 +15468,15 @@ const tools_choice = {
     remove: []
   },
   render: (resolvedState) => {
+    const toolName = (toolChoice) => {
+      if (typeof toolChoice === "object") {
+        return toolChoice["name"];
+      } else {
+        return toolChoice;
+      }
+    };
     const toolsInfo = {
-      "Tool Choice": resolvedState.tool_choice
+      "Tool Choice": toolName(resolvedState.tool_choice)
     };
     if (resolvedState.tools.length > 0) {
       toolsInfo["Tools"] = m$1`<${Tools}
@@ -16899,7 +16937,7 @@ function format(delta, left2) {
   return defaultInstance.format(delta, left2);
 }
 const StateDiffView = ({ starting, ending, style }) => {
-  const changes = diff(unescapeNewlines(starting), unescapeNewlines(ending));
+  const changes = diff(starting, ending);
   const html_result = format(changes);
   return m$1`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
@@ -16918,7 +16956,8 @@ function unescapeNewlines(obj) {
 }
 const StateEventView = ({ id, event, depth, stateManager }) => {
   const startingState = stateManager.getState();
-  const resolvedState = stateManager.applyChanges(event.changes);
+  stateManager.applyChanges(event.changes);
+  const resolvedState = stateManager.getState();
   const summary = summarizeChanges(event.changes);
   const tabs = [
     m$1`<${StateDiffView}
@@ -16928,7 +16967,10 @@ const StateEventView = ({ id, event, depth, stateManager }) => {
       style=${{ margin: "1em 0" }}
     />`
   ];
-  const changePreview = generatePreview(event.changes, resolvedState);
+  const changePreview = generatePreview(
+    event.changes,
+    structuredClone(resolvedState)
+  );
   if (changePreview) {
     tabs.unshift(
       m$1`<div name="Summary" style=${{ margin: "1em 0" }}>
@@ -18362,8 +18404,8 @@ const initStateManager = () => {
      *
      * @param {Object} newState - The new state object to update with.
      */
-    setState: (newState) => {
-      state = structuredClone(newState);
+    initializeState: (newState) => {
+      state = newState;
     },
     /**
      * Updates the current state with a new state object.
@@ -18371,11 +18413,11 @@ const initStateManager = () => {
      * @param {import("../../types/log").Changes} changes - The new state object to update with.
      */
     applyChanges: (changes) => {
-      state = structuredClone(state);
-      changes.forEach((change) => {
-        applyOperation(state, change);
-      });
-      return state;
+      state = applyPatch(
+        structuredClone(state),
+        structuredClone(changes),
+        true
+      ).newDocument;
     }
   };
 };
@@ -18853,6 +18895,44 @@ class VirtualList extends b {
     return rows;
   }
 }
+const WarningBand = ({ message }) => {
+  const [hidden, setHidden] = h(false);
+  return m$1`
+    <div
+      style=${{
+    gridTemplateColumns: "max-content auto max-content",
+    alignItems: "center",
+    columnGap: "0.5em",
+    fontSize: FontSize.small,
+    color: "var(--bs-warning-text-emphasis)",
+    background: "var(--bs-warning-bg-subtle)",
+    borderBottom: "solid 1px var(--bs-light-border-subtle)",
+    padding: "0.3em 1em",
+    display: hidden ? "none" : "grid"
+  }}
+    >
+      <i class=${ApplicationIcons.logging.warning} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+    fontSize: FontSize["title-secondary"],
+    margin: "0",
+    padding: "0",
+    color: "var(--bs-warning-text-emphasis)",
+    height: FontSize["title-secondary"],
+    lineHeight: FontSize["title-secondary"]
+  }}
+        class="btn"
+        onclick=${() => {
+    setHidden(true);
+  }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
+    </div>
+  `;
+};
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 const SampleList = (props) => {
@@ -18985,7 +19065,7 @@ const SampleList = (props) => {
   const sampleCount = items == null ? void 0 : items.length;
   const percentError = errorCount / sampleCount * 100;
   const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
-  const warningRow = warningMessage ? m$1`<${WarningRow} message=${warningMessage} />` : "";
+  const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
@@ -19000,41 +19080,6 @@ const SampleList = (props) => {
       style=${listStyle}
     />
   </div>`;
-};
-const WarningRow = ({ message }) => {
-  const [hidden, setHidden] = h(false);
-  return m$1`
-    <div
-      style=${{
-    gridTemplateColumns: "max-content auto max-content",
-    columnGap: "0.5em",
-    fontSize: FontSize.small,
-    background: "var(--bs-warning-bg-subtle)",
-    borderBottom: "solid 1px var(--bs-light-border-subtle)",
-    padding: "0.3em 1em",
-    display: hidden ? "none" : "grid"
-  }}
-    >
-      <i class=${ApplicationIcons.logging.warning} />
-      ${message}
-      <button
-        title="Close"
-        style=${{
-    fontSize: FontSize["title-secondary"],
-    margin: "0",
-    padding: "0",
-    height: FontSize["title-secondary"],
-    lineHeight: FontSize["title-secondary"]
-  }}
-        class="btn"
-        onclick=${() => {
-    setHidden(true);
-  }}
-      >
-        <i class=${ApplicationIcons.close}></i>
-      </button>
-    </div>
-  `;
 };
 const SeparatorRow = ({ id, title, height }) => {
   return m$1`<div
@@ -20138,24 +20183,30 @@ const CanceledPanel = ({ sampleCount }) => {
   </div>`;
 };
 const RunningPanel = () => {
-  return m$1`<div
-    style=${{
-    marginTop: "0.5em",
-    display: "inline-grid",
-    gridTemplateColumns: "auto auto"
-  }}
-  >
-    <div class="spinner-border spinner-border-sm" role="status"></div>
+  return m$1`
     <div
       style=${{
-    marginLeft: "0.3em",
-    paddingTop: "0.2em",
-    fontSize: FontSize.smaller
+    marginTop: "0.5em",
+    display: "inline-grid",
+    gridTemplateColumns: "max-content max-content"
   }}
     >
-      Running
+      <div>
+        <i class=${ApplicationIcons.running} />
+      </div>
+      <div
+        style=${{
+    marginLeft: "0.3em",
+    paddingTop: "0.2em",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        Running
+      </div>
     </div>
-  </div>`;
+  `;
 };
 const ResultsPanel = ({ results }) => {
   var _a, _b;
@@ -20358,11 +20409,7 @@ async function eval_logs$1() {
   return logs.parsed;
 }
 async function eval_log$1(file, headerOnly) {
-  if (headerOnly) {
-    return await api$1("GET", `/api/logs/${file}?header-only=true`);
-  } else {
-    return await api$1("GET", `/api/logs/${file}`);
-  }
+  return await api$1("GET", `/api/logs/${file}?header-only=${headerOnly}`);
 }
 async function eval_log_headers$1(files) {
   const params = new URLSearchParams();
@@ -20393,12 +20440,15 @@ async function api$1(method, path, body) {
     throw new Error(`${response.status} - ${response.statusText} `);
   }
 }
+async function open_log_file$1() {
+}
 const browserApi = {
   client_events: client_events$1,
   eval_logs: eval_logs$1,
   eval_log: eval_log$1,
   eval_log_headers: eval_log_headers$1,
-  download_file: download_file$1
+  download_file: download_file$1,
+  open_log_file: open_log_file$1
 };
 var Space_Separator = /[\u1680\u2000-\u200A\u202F\u205F\u3000]/;
 var ID_Start = /[\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u09FC\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60\u0C61\u0C80\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D54-\u0D56\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u1884\u1887-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1C80-\u1C88\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312E\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEA\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6EF\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AE\uA7B0-\uA7B7\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]|\uD800[\uDC00-\uDC0B\uDC0D-\uDC26\uDC28-\uDC3A\uDC3C\uDC3D\uDC3F-\uDC4D\uDC50-\uDC5D\uDC80-\uDCFA\uDD40-\uDD74\uDE80-\uDE9C\uDEA0-\uDED0\uDF00-\uDF1F\uDF2D-\uDF4A\uDF50-\uDF75\uDF80-\uDF9D\uDFA0-\uDFC3\uDFC8-\uDFCF\uDFD1-\uDFD5]|\uD801[\uDC00-\uDC9D\uDCB0-\uDCD3\uDCD8-\uDCFB\uDD00-\uDD27\uDD30-\uDD63\uDE00-\uDF36\uDF40-\uDF55\uDF60-\uDF67]|\uD802[\uDC00-\uDC05\uDC08\uDC0A-\uDC35\uDC37\uDC38\uDC3C\uDC3F-\uDC55\uDC60-\uDC76\uDC80-\uDC9E\uDCE0-\uDCF2\uDCF4\uDCF5\uDD00-\uDD15\uDD20-\uDD39\uDD80-\uDDB7\uDDBE\uDDBF\uDE00\uDE10-\uDE13\uDE15-\uDE17\uDE19-\uDE33\uDE60-\uDE7C\uDE80-\uDE9C\uDEC0-\uDEC7\uDEC9-\uDEE4\uDF00-\uDF35\uDF40-\uDF55\uDF60-\uDF72\uDF80-\uDF91]|\uD803[\uDC00-\uDC48\uDC80-\uDCB2\uDCC0-\uDCF2]|\uD804[\uDC03-\uDC37\uDC83-\uDCAF\uDCD0-\uDCE8\uDD03-\uDD26\uDD50-\uDD72\uDD76\uDD83-\uDDB2\uDDC1-\uDDC4\uDDDA\uDDDC\uDE00-\uDE11\uDE13-\uDE2B\uDE80-\uDE86\uDE88\uDE8A-\uDE8D\uDE8F-\uDE9D\uDE9F-\uDEA8\uDEB0-\uDEDE\uDF05-\uDF0C\uDF0F\uDF10\uDF13-\uDF28\uDF2A-\uDF30\uDF32\uDF33\uDF35-\uDF39\uDF3D\uDF50\uDF5D-\uDF61]|\uD805[\uDC00-\uDC34\uDC47-\uDC4A\uDC80-\uDCAF\uDCC4\uDCC5\uDCC7\uDD80-\uDDAE\uDDD8-\uDDDB\uDE00-\uDE2F\uDE44\uDE80-\uDEAA\uDF00-\uDF19]|\uD806[\uDCA0-\uDCDF\uDCFF\uDE00\uDE0B-\uDE32\uDE3A\uDE50\uDE5C-\uDE83\uDE86-\uDE89\uDEC0-\uDEF8]|\uD807[\uDC00-\uDC08\uDC0A-\uDC2E\uDC40\uDC72-\uDC8F\uDD00-\uDD06\uDD08\uDD09\uDD0B-\uDD30\uDD46]|\uD808[\uDC00-\uDF99]|\uD809[\uDC00-\uDC6E\uDC80-\uDD43]|[\uD80C\uD81C-\uD820\uD840-\uD868\uD86A-\uD86C\uD86F-\uD872\uD874-\uD879][\uDC00-\uDFFF]|\uD80D[\uDC00-\uDC2E]|\uD811[\uDC00-\uDE46]|\uD81A[\uDC00-\uDE38\uDE40-\uDE5E\uDED0-\uDEED\uDF00-\uDF2F\uDF40-\uDF43\uDF63-\uDF77\uDF7D-\uDF8F]|\uD81B[\uDF00-\uDF44\uDF50\uDF93-\uDF9F\uDFE0\uDFE1]|\uD821[\uDC00-\uDFEC]|\uD822[\uDC00-\uDEF2]|\uD82C[\uDC00-\uDD1E\uDD70-\uDEFB]|\uD82F[\uDC00-\uDC6A\uDC70-\uDC7C\uDC80-\uDC88\uDC90-\uDC99]|\uD835[\uDC00-\uDC54\uDC56-\uDC9C\uDC9E\uDC9F\uDCA2\uDCA5\uDCA6\uDCA9-\uDCAC\uDCAE-\uDCB9\uDCBB\uDCBD-\uDCC3\uDCC5-\uDD05\uDD07-\uDD0A\uDD0D-\uDD14\uDD16-\uDD1C\uDD1E-\uDD39\uDD3B-\uDD3E\uDD40-\uDD44\uDD46\uDD4A-\uDD50\uDD52-\uDEA5\uDEA8-\uDEC0\uDEC2-\uDEDA\uDEDC-\uDEFA\uDEFC-\uDF14\uDF16-\uDF34\uDF36-\uDF4E\uDF50-\uDF6E\uDF70-\uDF88\uDF8A-\uDFA8\uDFAA-\uDFC2\uDFC4-\uDFCB]|\uD83A[\uDC00-\uDCC4\uDD00-\uDD43]|\uD83B[\uDE00-\uDE03\uDE05-\uDE1F\uDE21\uDE22\uDE24\uDE27\uDE29-\uDE32\uDE34-\uDE37\uDE39\uDE3B\uDE42\uDE47\uDE49\uDE4B\uDE4D-\uDE4F\uDE51\uDE52\uDE54\uDE57\uDE59\uDE5B\uDE5D\uDE5F\uDE61\uDE62\uDE64\uDE67-\uDE6A\uDE6C-\uDE72\uDE74-\uDE77\uDE79-\uDE7C\uDE7E\uDE80-\uDE89\uDE8B-\uDE9B\uDEA1-\uDEA3\uDEA5-\uDEA9\uDEAB-\uDEBB]|\uD869[\uDC00-\uDED6\uDF00-\uDFFF]|\uD86D[\uDC00-\uDF34\uDF40-\uDFFF]|\uD86E[\uDC00-\uDC1D\uDC20-\uDFFF]|\uD873[\uDC00-\uDEA1\uDEB0-\uDFFF]|\uD87A[\uDC00-\uDFE0]|\uD87E[\uDC00-\uDE1D]/;
@@ -21608,18 +21658,28 @@ async function eval_log_headers(files) {
 async function download_file(logFile) {
   vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
 }
+async function open_log_file(url, log_dir) {
+  const msg = {
+    type: "displayLogFile",
+    url,
+    log_dir
+  };
+  vscodeApi.postMessage(msg);
+}
 const vscodeApi$1 = {
   client_events,
   eval_logs,
   eval_log,
   eval_log_headers,
-  download_file
+  download_file,
+  open_log_file
 };
 function singleFileHttpApi() {
   const urlParams = new URLSearchParams(window.location.search);
   const fetchLogPath = urlParams.get("log_file");
   if (fetchLogPath) {
-    const api2 = httpApiForFile(fetchLogPath);
+    const resolvedLogPath = fetchLogPath.replace(" ", "+");
+    const api2 = httpApiForFile(resolvedLogPath);
     return api2;
   }
 }
@@ -21658,6 +21718,8 @@ function httpApiForFile(logFile) {
       }
     }
   };
+  async function open_log_file2() {
+  }
   return {
     client_events: async () => {
       return Promise.resolve([]);
@@ -21682,7 +21744,8 @@ function httpApiForFile(logFile) {
       const contents = await getContents();
       return Promise.resolve([contents.parsed]);
     },
-    download_file: download_file$1
+    download_file: download_file$1,
+    open_log_file: open_log_file2
   };
 }
 const api = window.acquireVsCodeApi ? vscodeApi$1 : singleFileHttpApi() || browserApi;
@@ -21750,7 +21813,7 @@ const WorkSpace = (props) => {
   const [currentTaskId, setCurrentTaskId] = h(
     (_b = (_a = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.run_id
   );
-  const [selectedTab, setSelectedTab] = h(kEvalTabId);
+  const [selectedTab, setSelectedTab] = h();
   const [scores, setScores] = h([]);
   const [score, setScore] = h(void 0);
   const [samplesDesc, setSamplesDesc] = h(void 0);
@@ -21770,9 +21833,9 @@ const WorkSpace = (props) => {
     setSort(kDefaultSort);
   }, [setEpoch, setFilter, setSort]);
   y(() => {
-    var _a2, _b2;
+    var _a2;
     if (workspaceLog.contents && ((_a2 = workspaceLog.contents.eval) == null ? void 0 : _a2.run_id) !== currentTaskId) {
-      const defaultTab = ((_b2 = workspaceLog.contents) == null ? void 0 : _b2.status) !== "error" ? kEvalTabId : kInfoTabId;
+      const defaultTab = Object.values(tabs)[0].id;
       setSelectedTab(defaultTab);
       if (divRef.current) {
         divRef.current.scrollTop = 0;
@@ -21822,13 +21885,13 @@ const WorkSpace = (props) => {
     setCurrentTaskId((_b2 = (_a2 = workspaceLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.run_id);
   }, [workspaceLog]);
   const tabs = T(() => {
-    var _a2, _b2, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e, _f;
     const resolvedTabs = {};
-    if (((_a2 = workspaceLog.contents) == null ? void 0 : _a2.status) !== "error") {
+    if (((_a2 = workspaceLog.contents) == null ? void 0 : _a2.status) !== "error" && ((_b2 = workspaceLog.contents) == null ? void 0 : _b2.samples)) {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        scrollable: ((_c = (_b2 = workspaceLog.contents) == null ? void 0 : _b2.samples) == null ? void 0 : _c.length) === 1,
-        label: ((_e = (_d = workspaceLog.contents) == null ? void 0 : _d.samples) == null ? void 0 : _e.length) > 1 ? "Samples" : "Sample",
+        scrollable: ((_d = (_c = workspaceLog.contents) == null ? void 0 : _c.samples) == null ? void 0 : _d.length) === 1,
+        label: ((_f = (_e = workspaceLog.contents) == null ? void 0 : _e.samples) == null ? void 0 : _f.length) > 1 ? "Samples" : "Sample",
         content: () => {
           var _a3, _b3, _c2, _d2, _e2;
           return m$1` <${SamplesTab}
@@ -21845,13 +21908,20 @@ const WorkSpace = (props) => {
           />`;
         },
         tools: () => {
-          var _a3, _b3, _c2, _d2, _e2;
-          if (((_b3 = (_a3 = workspaceLog.contents) == null ? void 0 : _a3.samples) == null ? void 0 : _b3.length) <= 1) {
+          var _a3, _b3, _c2, _d2, _e2, _f2;
+          if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) === "started") {
+            return m$1`<${ToolButton}
+              name=${m$1`Refresh`}
+              icon="${ApplicationIcons.refresh}"
+              onclick="${props.refreshLog}"
+            />`;
+          }
+          if (((_c2 = (_b3 = workspaceLog.contents) == null ? void 0 : _b3.samples) == null ? void 0 : _c2.length) <= 1) {
             return "";
           }
           return m$1`<${SampleTools}
             epoch=${epoch}
-            epochs=${(_e2 = (_d2 = (_c2 = workspaceLog.contents) == null ? void 0 : _c2.eval) == null ? void 0 : _d2.config) == null ? void 0 : _e2.epochs}
+            epochs=${(_f2 = (_e2 = (_d2 = workspaceLog.contents) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f2.epochs}
             setEpoch=${setEpoch}
             filter=${filter}
             filterChanged=${setFilter}
@@ -21870,13 +21940,14 @@ const WorkSpace = (props) => {
       label: "Info",
       scrollable: true,
       content: () => {
-        var _a3, _b3, _c2;
-        const infoCards = [
+        var _a3, _b3, _c2, _d2, _e2, _f2, _g, _h;
+        const infoCards = [];
+        infoCards.push([
           m$1`<${PlanCard}
             log="${workspaceLog.contents}"
             context=${context}
           />`
-        ];
+        ]);
         if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) !== "started") {
           infoCards.push(
             m$1`<${UsageCard}
@@ -21890,8 +21961,19 @@ const WorkSpace = (props) => {
             m$1`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`
           );
         }
-        return m$1`<div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-          ${infoCards}
+        const warnings = [];
+        if (!((_d2 = workspaceLog.contents) == null ? void 0 : _d2.samples) && ((_g = (_f2 = (_e2 = workspaceLog.contents) == null ? void 0 : _e2.eval) == null ? void 0 : _f2.dataset) == null ? void 0 : _g.samples) > 0 && ((_h = workspaceLog.contents) == null ? void 0 : _h.status) !== "error") {
+          warnings.push(
+            m$1`<${WarningBand}
+              message="This evaluation log is too large display samples."
+            />`
+          );
+        }
+        return m$1` <div style=${{ width: "100%" }}>
+          ${warnings}
+          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+            ${infoCards}
+          </div>
         </div>`;
       }
     };
@@ -22240,7 +22322,6 @@ const FindBand = ({ hideBand }) => {
 };
 function App({ api: api2, pollForLogs = true }) {
   const [selected, setSelected] = h(-1);
-  const [pendingLog, setPendingLog] = h(void 0);
   const [logs, setLogs] = h({ log_dir: "", files: [] });
   const [logHeaders, setLogHeaders] = h({});
   const [offcanvas, setOffcanvas] = h(false);
@@ -22262,7 +22343,7 @@ function App({ api: api2, pollForLogs = true }) {
   const mainAppRef = A();
   y(async () => {
     setHeadersLoading(true);
-    const chunkSize = 12;
+    const chunkSize = 8;
     const fileLists = [];
     for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
       let chunk = logs.files.slice(i2, i2 + chunkSize).map((log) => {
@@ -22281,7 +22362,9 @@ function App({ api: api2, pollForLogs = true }) {
           });
           return { ...prev, ...updatedHeaders };
         });
-        await sleep(5e3);
+        if (headers.length === chunkSize) {
+          await sleep(5e3);
+        }
       }
     } catch (e2) {
       console.log(e2);
@@ -22289,28 +22372,12 @@ function App({ api: api2, pollForLogs = true }) {
     }
     setHeadersLoading(false);
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-  const filteredLogs = T(() => {
-    const notRunning = Object.keys(logHeaders).filter((key2) => {
-      return logHeaders[key2].status !== "started";
-    });
-    const files = logs.files.filter((file) => {
-      return notRunning.includes(file.name);
-    });
-    return {
-      log_dir: logs.log_dir,
-      files
-    };
-  }, [logHeaders, logs]);
   y(async () => {
-    const targetLog = filteredLogs.files[selected];
+    const targetLog = logs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
         setStatus({ loading: true, error: void 0 });
-        const logContents = await api2.eval_log(
-          targetLog.name,
-          false,
-          capabilities
-        );
+        const logContents = await loadLog(targetLog.name);
         if (logContents) {
           const log = logContents.parsed;
           setCurrentLog({
@@ -22325,50 +22392,86 @@ function App({ api: api2, pollForLogs = true }) {
         setStatus({ loading: false, error: e2 });
       }
     }
-  }, [
-    selected,
-    filteredLogs,
-    capabilities,
-    currentLog,
-    setCurrentLog,
-    setStatus
-  ]);
-  const loadLogsImpl = q(async () => {
+  }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
+  const loadLogs = async () => {
     try {
       const result = await api2.eval_logs();
-      if (result) {
-        setLogs(result);
-      } else {
-        setLogs({ log_dir: "", files: [] });
+      return result;
+    } catch (e2) {
+      console.log(e2);
+      setStatus({ loading: false, error: e2 });
+    }
+  };
+  const loadLog = async (logFileName) => {
+    try {
+      const logContents = await api2.eval_log(logFileName, 100, capabilities);
+      return logContents;
+    } catch (e2) {
+      console.log(e2);
+      setStatus({ loading: false, error: e2 });
+    }
+  };
+  const refreshLog = q(async () => {
+    try {
+      setStatus({ loading: true, error: void 0 });
+      const targetLog = logs.files[selected];
+      const logContents = await loadLog(targetLog.name);
+      if (logContents) {
+        const log = logContents.parsed;
+        if (log.status !== "started") {
+          setLogHeaders((prev) => {
+            const updatedState = { ...prev };
+            const freshHeaders = {
+              eval: log.eval,
+              plan: log.plan,
+              results: log.results,
+              stats: log.stats,
+              status: log.status,
+              version: log.version
+            };
+            updatedState[targetLog.name] = freshHeaders;
+            return updatedState;
+          });
+        }
+        setCurrentLog({
+          contents: log,
+          name: targetLog.name,
+          raw: logContents.raw
+        });
+        setStatus({ loading: false, error: void 0 });
       }
     } catch (e2) {
       console.log(e2);
       setStatus({ loading: false, error: e2 });
     }
-  }, []);
-  const loadLogs = q(
-    throttle(() => {
-      loadLogsImpl();
-    }, 5e3),
-    [loadLogsImpl]
-  );
-  y(async () => {
-    if (pendingLog) {
-      const index = filteredLogs.files.findIndex((val) => {
-        return pendingLog.endsWith(val.name);
+  }, [logs, selected, setStatus, setCurrentLog, setLogHeaders]);
+  const showLogFile = q(
+    async (logUrl) => {
+      const index = logs.files.findIndex((val) => {
+        return logUrl.endsWith(val.name);
       });
       if (index > -1) {
         setSelected(index);
-        setPendingLog(void 0);
       } else {
-        if (!logs.files.find((val) => {
-          return pendingLog.endsWith(val.name);
-        })) {
-          await loadLogs();
-        }
+        const result = await loadLogs();
+        const idx = result.files.findIndex((file) => {
+          return logUrl.endsWith(file.name);
+        });
+        setLogs(result);
+        setSelected(idx > -1 ? idx : 0);
       }
-    }
-  }, [pendingLog, filteredLogs, setSelected, setPendingLog, loadLogs]);
+    },
+    [logs, setSelected, setLogs]
+  );
+  const refreshLogList = q(async () => {
+    const currentLog2 = logs.files[selected > -1 ? selected : 0];
+    const refreshedLogs = await loadLogs();
+    const newIndex = refreshedLogs.files.findIndex((file) => {
+      return currentLog2.name.endsWith(file.name);
+    });
+    setLogs(refreshedLogs);
+    setSelected(newIndex);
+  }, [logs, selected, setSelected, setLogs]);
   const onMessage = T(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
@@ -22376,12 +22479,28 @@ function App({ api: api2, pollForLogs = true }) {
         case "updateState": {
           if (e2.data.url) {
             const decodedUrl = decodeURIComponent(e2.data.url);
-            setPendingLog(decodedUrl);
+            showLogFile(decodedUrl);
           }
+          break;
+        }
+        case "backgroundUpdate": {
+          const decodedUrl = decodeURIComponent(e2.data.url);
+          const log_dir = e2.data.log_dir;
+          const isFocused = document.hasFocus();
+          if (!isFocused) {
+            if (log_dir === logs.log_dir) {
+              showLogFile(decodedUrl);
+            } else {
+              api2.open_log_file(e2.data.url, e2.data.log_dir);
+            }
+          } else {
+            refreshLogList();
+          }
+          break;
         }
       }
     };
-  }, [setPendingLog]);
+  }, [logs, showLogFile, refreshLogList]);
   y(() => {
     window.addEventListener("message", onMessage);
     return () => {
@@ -22405,18 +22524,20 @@ function App({ api: api2, pollForLogs = true }) {
     }
     setOffcanvas(true);
     const logPath = urlParams.get("task_file");
-    const load = logPath ? async () => {
-      setLogs({
+    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+    const load = resolvedLogPath ? async () => {
+      return {
         log_dir: "",
-        files: [{ name: logPath }]
-      });
+        files: [{ name: resolvedLogPath }]
+      };
     } : loadLogs;
     const embeddedState = document.getElementById("logview-state");
     if (embeddedState) {
       const state = JSON.parse(embeddedState.textContent);
       onMessage({ data: state });
     } else {
-      await load();
+      const result = await load();
+      setLogs(result);
     }
     if (selected === -1 && !embeddedState) {
       setSelected(0);
@@ -22429,17 +22550,18 @@ function App({ api: api2, pollForLogs = true }) {
             window.location.reload(true);
           }
           if (events.includes("refresh-evals")) {
-            await load();
+            const logs2 = await load();
+            setLogs(logs2);
             setSelected(0);
           }
         });
       }, 1e3);
     }
   }, []);
-  const fullScreen = filteredLogs.files.length === 1 && !filteredLogs.log_dir;
+  const fullScreen = logs.files.length === 1 && !logs.log_dir;
   const sidebar = !fullScreen && currentLog.contents ? m$1`
           <${Sidebar}
-            logs=${filteredLogs}
+            logs=${logs}
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
@@ -22462,7 +22584,7 @@ function App({ api: api2, pollForLogs = true }) {
       />`;
     } else {
       return m$1` <${WorkSpace}
-        logs=${filteredLogs}
+        logs=${logs}
         log=${currentLog}
         selected=${selected}
         fullScreen=${fullScreen}
@@ -22470,6 +22592,7 @@ function App({ api: api2, pollForLogs = true }) {
         capabilities=${capabilities}
         showFind=${showFind}
         setShowFind=${setShowFind}
+        refreshLog=${refreshLog}
       />`;
     }
   }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
@@ -22495,7 +22618,10 @@ function App({ api: api2, pollForLogs = true }) {
     }
   }}>
       ${showFind ? m$1`<${FindBand} hideBand=${hideFind} />` : ""}
-      <${ProgressBar} animating=${status.loading} />
+      <${ProgressBar} animating=${status.loading}  containerStyle=${{
+    background: "var(--bs-light)",
+    marginBottom: "-1px"
+  }}/>
       ${workspace}
     </div>
     </${AppErrorBoundary}>
