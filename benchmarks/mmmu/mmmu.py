@@ -1,4 +1,4 @@
-from mmmu_utils import create_content_and_answers_list, load_and_concatenate_datasets
+from utils import create_content_and_answers_list, load_and_concatenate_datasets
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
@@ -114,10 +114,12 @@ def record_to_sample_multiple_choice(record):
         input=[ChatMessageUser(content=content_list)],
         choices=answers_list,
         target=record["answer"],
-        metadata={"subfield": record["subfield"],
-                "explanation": record["explanation"],
-                "img_type": record["img_type"],
-                "topic_difficulty": record["topic_difficulty"]},
+        metadata={
+            "subfield": record["subfield"],
+            "explanation": record["explanation"],
+            "img_type": record["img_type"],
+            "topic_difficulty": record["topic_difficulty"],
+        },
     )
 
 
@@ -128,8 +130,10 @@ def record_to_sample_open_ended(record):
     return Sample(
         input=[ChatMessageUser(content=content_list)],
         target=record["answer"],
-        metadata={"subfield": record["subfield"],
-                "explanation": record["explanation"],
-                "img_type": record["img_type"],
-                "topic_difficulty": record["topic_difficulty"]},
+        metadata={
+            "subfield": record["subfield"],
+            "explanation": record["explanation"],
+            "img_type": record["img_type"],
+            "topic_difficulty": record["topic_difficulty"],
+        },
     )
