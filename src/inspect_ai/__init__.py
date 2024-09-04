@@ -3,6 +3,7 @@
 from importlib.metadata import version as importlib_version
 
 from inspect_ai._eval.eval import eval, eval_async, eval_retry, eval_retry_async
+from inspect_ai._eval.evalset import eval_set
 from inspect_ai._eval.list import list_tasks
 from inspect_ai._eval.registry import task
 from inspect_ai._eval.score import score, score_async
@@ -18,6 +19,7 @@ __all__ = [
     "eval_async",
     "eval_retry",
     "eval_retry_async",
+    "eval_set",
     "list_tasks",
     "score",
     "score_async",

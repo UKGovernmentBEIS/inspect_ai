@@ -203,12 +203,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 args.append("--env")
                 args.append(f"{key}={value}")
 
-        return await compose_exec(
+        exec_result = await compose_exec(
             args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
             input=input,
         )
+        if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
+            raise PermissionError(f"Permission denied executing command: {exec_result}")
+
+        return exec_result
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:

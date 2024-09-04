@@ -74,7 +74,7 @@ def task_create(name: str, model: ModelName, **kwargs: Any) -> Task:
     # required to consume it, so we don't warn for 'model')
     task = registry_lookup("task", name)
     if not task:
-        raise PrerequisiteError(f"Task named '{name}' not found.\n")
+        raise PrerequisiteError(f"Task named '{name}' not found.")
     task_info = registry_info(task)
     task_params: list[str] = task_info.metadata["params"]
     task_args: dict[str, Any] = {}

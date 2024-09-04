@@ -1,4 +1,10 @@
+from logging import getLogger
+
+from inspect_ai._util.logger import warn_once
+
 from ._file import EvalLogInfo, read_eval_log_headers
+
+logger = getLogger(__name__)
 
 
 def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
@@ -14,6 +20,11 @@ def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
     Returns:
       List of retryable eval logs found in the list of logs.
     """
+    warn_once(
+        logger,
+        "The retryable_eval_logs function is deprecated. Please use the eval_set() function instead.",
+    )
+
     # first collect up all of the headers (so we can look at status)
     log_headers = read_eval_log_headers(logs)
 

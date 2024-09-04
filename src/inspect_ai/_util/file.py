@@ -8,6 +8,8 @@ from typing import Any, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
 import fsspec  # type: ignore
+from fsspec.core import split_protocol  # type: ignore
+from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
@@ -77,6 +79,26 @@ def file(
             f.close()
 
 
+def basename(file: str) -> str:
+    """Get the base name of the file.
+
+    Works for all variations of fsspec providers, posix/windows/etc.
+
+    Args:
+       file (str): File name
+
+    Returns:
+       Base name for file
+    """
+    # windows paths aren't natively handled on posix so flip backslashes
+    if os.sep == "/":
+        file = file.replace("\\", "/")
+    normalized_path = make_path_posix(file)
+    _, path_without_protocol = split_protocol(normalized_path)
+    name: str = path_without_protocol.rstrip("/").split("/")[-1]
+    return name
+
+
 class FileInfo(BaseModel):
     name: str
     """Name of file."""
@@ -101,6 +123,11 @@ class FileSystem:
 
     def exists(self, path: str) -> bool:
         return self.fs.exists(path) is True
+
+    def rm(
+        self, path: str, recursive: bool = False, maxdepth: int | None = None
+    ) -> None:
+        self.fs.rm(path, recursive, maxdepth)
 
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
         self.fs.makedirs(path, exist_ok=exist_ok)
