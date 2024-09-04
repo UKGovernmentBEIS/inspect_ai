@@ -70,9 +70,7 @@ def code_acceptance():
             for i, test_case in enumerate(target.target):
                 try:
                     exec(test_case, globals())
-                    print(f"Passed {i} case {test_case}")
                 except AssertionError:
-                    print(f"Failed {i} case {test_case}")
                     passed = False
                     explanation += f"Failed Test Case {i+1}: {test_case}. Assertion failed.\n"
                 except Exception as e:
