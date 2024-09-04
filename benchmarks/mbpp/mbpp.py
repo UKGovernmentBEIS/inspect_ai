@@ -24,7 +24,7 @@ from inspect_ai.solver import TaskState, generate, prompt_template
 PROMPT_TEMPLATE = """
 You are an expert Python programmer. You will be given a task, and the tests that your code must pass.
 Write the Python function to solve the task. Do not give additional explanations, just output the
-Python function. Only use imports that are include in Python's standard library.
+Python function. Only use imports that are included in Python's standard library.
 """
 
 
