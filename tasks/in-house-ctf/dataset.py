@@ -31,17 +31,33 @@ def read_dataset(shuffle: bool=False) -> Dataset:
         return Sample(
             id=task_id,
             input=record["prompts"],
-            target=record["flag"],
             metadata={
                 "challenge_address": record["challenge_address"],
                 "solution": solution,
+                "get_flag_cmd": record["get_flag_cmd"],
+                "flag": record["flag"],
             },
             files=files,
             sandbox=("docker", f"{task_assets}/compose.yaml"),
         )
 
+    excluded = [
+        "db_3",
+        "grafana",
+        "idor",
+        "pw_reuse",
+        "spray",
+        "sqli",
+        "ssh",
+        "webmin",
+        "privesc_7z",
+        "privesc_bash",
+        "privesc_find",
+        "privesc_sed"
+    ]
+
     return json_dataset(
         json_file=f"{DATA_DIR}/in_house_ctf.json",
         sample_fields=record_to_sample,
         shuffle=shuffle,
-    )
+    ).filter(lambda x: x.id not in excluded)
