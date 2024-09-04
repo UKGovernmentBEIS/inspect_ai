@@ -150,7 +150,11 @@ def resolve_task_args(task: Task) -> dict[str, Any]:
     # was the task instantiated via the registry or a decorator?
     # if so then we can get the task_args from the registry.
     try:
-        return registry_params(task)
+        # filter out model as that's dyanmic and automatically passed
+        task_args = dict(registry_params(task))
+        if "model" in task_args:
+            del task_args["model"]
+        return task_args
 
     # if it wasn't instantiated via the registry or a decorator
     # then it will not be in the registy and not have formal

@@ -5,6 +5,7 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai import __version__
 from inspect_ai._util.constants import PKG_PATH
+from inspect_ai._view.view import resolve_header_only
 from inspect_ai.log._file import eval_log_json, read_eval_log, read_eval_log_headers
 
 
@@ -34,13 +35,16 @@ def version(json: bool) -> None:
 @click.argument("path")
 @click.option(
     "--header-only",
-    type=bool,
-    is_flag=True,
-    default=False,
+    type=int,
+    is_flag=False,
+    flag_value=0,
     help="Read and print only the header of the log file (i.e. no samples).",
 )
-def log(path: str, header_only: bool) -> None:
+def log(path: str, header_only: int) -> None:
     """Print log file contents."""
+    # Resolve the header only to a boolean
+    header_only = resolve_header_only(path, header_only)
+
     log = read_eval_log(path, header_only=header_only)
     print(eval_log_json(log))
 

@@ -1,6 +1,6 @@
 
 
-export { initInspectProps, inspectVersion } from './props';
+export { initInspectProps, inspectVersionDescriptor as inspectVersion } from './props';
 
 export { inspectListTasks } from './list';
 
