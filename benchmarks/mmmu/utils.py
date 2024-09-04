@@ -57,7 +57,6 @@ def create_content_and_answers_list(record, base_dir="temp_images"):
     for i in range(1, 8):
         image_path = save_image(record, i, subject_dir, question_number)
         if image_path:
-            content_list.append(ContentText(text=f"<image {i}>:"))
             content_list.append(ContentImage(image=image_path))
 
     # Parse the multiple-choice options
