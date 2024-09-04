@@ -1,6 +1,6 @@
 import re
 import string
-from typing import List
+from typing import Callable, List
 
 from inspect_ai.solver._task_state import TaskState
 
@@ -11,7 +11,9 @@ from ._target import Target
 
 
 @scorer(metrics=[mean(), stderr()])
-def f1() -> Scorer:
+def f1(
+    answer_fn: Callable[[str], str] | None = None,
+) -> Scorer:
     """Scorer which produces an F1 score
 
     Computes the `F1` score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).
@@ -19,11 +21,16 @@ def f1() -> Scorer:
 
     async def score(state: TaskState, target: Target) -> Score:
         # Get generated answer and extract relevant answer text
-        answer = state.output.completion
+        answer = (
+            answer_fn(state.output.completion) if answer_fn else state.output.completion
+        )
         targets = target.target
 
         f1_score = max_f1_score(answer, targets)
-        return Score(value=f1_score, answer=answer)
+        return Score(
+            value=f1_score,
+            answer=answer,
+        )
 
     return score
 
