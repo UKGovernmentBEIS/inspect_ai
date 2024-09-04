@@ -927,7 +927,7 @@ var prism = { exports: {} };
         var tokenList = new LinkedList();
         addAfter(tokenList, tokenList.head, text);
         matchGrammar(text, tokenList, grammar, tokenList.head, 0);
-        return toArray(tokenList);
+        return toArray2(tokenList);
       },
       /**
        * @namespace
@@ -1148,7 +1148,7 @@ var prism = { exports: {} };
       next.prev = node;
       list.length -= i2;
     }
-    function toArray(list) {
+    function toArray2(list) {
       var array = [];
       var node = list.head.next;
       while (node !== list.tail) {
@@ -14372,6 +14372,13 @@ const PlanColumn = ({ title, classes, style, children }) => {
 const isNumeric = (n2) => {
   return !isNaN(parseFloat(n2)) && isFinite(n2);
 };
+const toArray = (val) => {
+  if (Array.isArray(val)) {
+    return val;
+  } else {
+    return [val];
+  }
+};
 const kScoreTypePassFail = "passfail";
 const kScoreTypeCategorical = "categorical";
 const kScoreTypeNumeric = "numeric";
@@ -15449,7 +15456,9 @@ const SampleInitEventView = ({ id, depth, event, stateManager }) => {
         ${sections}
         </div>
         <${EventSection} title="Target">
-          ${event.sample.target}
+          ${toArray(event.sample.target).map((target) => {
+    return m$1`<div>${target}</div>`;
+  })}
         </${EventSection}>
       </div>
     </div>
@@ -21952,7 +21961,7 @@ const WorkSpace = (props) => {
       label: "Info",
       scrollable: true,
       content: () => {
-        var _a3, _b3, _c2, _d2, _e2, _f2, _g, _h;
+        var _a3, _b3, _c2, _d2, _e2, _f2, _g, _h, _i;
         const infoCards = [];
         infoCards.push([
           m$1`<${PlanCard}
@@ -21968,13 +21977,13 @@ const WorkSpace = (props) => {
             />`
           );
         }
-        if (((_c2 = workspaceLog.contents) == null ? void 0 : _c2.status) === "error") {
+        if (((_c2 = workspaceLog.contents) == null ? void 0 : _c2.status) === "error" && ((_d2 = workspaceLog.contents) == null ? void 0 : _d2.error)) {
           infoCards.unshift(
             m$1`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`
           );
         }
         const warnings = [];
-        if (!((_d2 = workspaceLog.contents) == null ? void 0 : _d2.samples) && ((_g = (_f2 = (_e2 = workspaceLog.contents) == null ? void 0 : _e2.eval) == null ? void 0 : _f2.dataset) == null ? void 0 : _g.samples) > 0 && ((_h = workspaceLog.contents) == null ? void 0 : _h.status) !== "error") {
+        if (!((_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples) && ((_h = (_g = (_f2 = workspaceLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = workspaceLog.contents) == null ? void 0 : _i.status) !== "error") {
           warnings.push(
             m$1`<${WarningBand}
               message="This evaluation log is too large to display samples."
