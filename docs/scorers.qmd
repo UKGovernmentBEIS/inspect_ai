@@ -341,7 +341,9 @@ Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* w
 
 ## Scoring Metrics
 
-Each scorer provides one or more built-in metrics (typically `accuracy` and `stderr`). In addition, you can specify other metrics (either built-in or custom) to compute when defining a `Task`:
+Each scorer provides one or more built-in metrics (typically `accuracy` and `stderr`) corresponding to the most typically useful metrics for that scorer.
+
+You can override scorer's built-in metrics by passing an alternate list of `metrics` to the `Task`. For example:
 
 ``` python
 Task(
@@ -350,9 +352,15 @@ Task(
         system_message(SYSTEM_MESSAGE),
         multiple_choice()
     ],
-    scorer=match(),
+    scorer=choice(),
     metrics=[custom_metric()]
 )
+```
+
+If you still want to compute the built-in metrics, we re-specify them along with the custom metrics:
+
+```python
+metrics=[accuracy(), stderr(), custom_metric()]
 ```
 
 ### Built-In Metrics
