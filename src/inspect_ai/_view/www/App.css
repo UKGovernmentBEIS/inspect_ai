@@ -62,6 +62,8 @@ body[class^="vscode-"] {
   --bs-secondary-bg: var(--vscode-list-inactiveSelectionBackground);
   --bs-border-color: var(--vscode-editorGroup-border);
   --bs-card-border-color: var(--vscode-editorGroup-border);
+  --bs-warning-bg-subtle: var(--vscode-statusBarItem-warningBackground);
+  --bs-warning-text-emphasis: var(--vscode-statusBarItem-warningForeground);
   --inspect-find-background: var(--vscode-editorWidget-background);
   --inspect-find-foreground: var(--vscode-editorWidget-foreground);
   --inspect-input-background: var(--vscode-input-background);
@@ -73,6 +75,11 @@ body[class^="vscode-"] {
 
 html.vscode {
   font-size: 13px;
+}
+
+html.vscode .sample-input {
+  line-height: 1.3em;
+  -webkit-line-clamp: 4 !important
 }
 
 body[class^="vscode-"] .modal-backdrop {
@@ -242,6 +249,7 @@ body {
   padding-top: 0;
   padding-bottom: 0;
   background-color: var(--bs-light);
+  top: 2px;
 }
 
 .navbar-title-grid {
@@ -624,7 +632,7 @@ table.table.table-sm td {
 }
 
 .tab-tools .btn {
-  font-size: 0.5rem;
+  font-size: 0.7rem;
   padding: 0.4em 0.8em;
 }
 
