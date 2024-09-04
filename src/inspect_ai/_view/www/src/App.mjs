@@ -1,3 +1,9 @@
+import "bootstrap/dist/css/bootstrap.css";
+import "bootstrap-icons/font/bootstrap-icons.css";
+import "prismjs/themes/prism.css";
+import "prismjs";
+import "../App.css";
+
 import { default as ClipboardJS } from "clipboard";
 import { Offcanvas } from "bootstrap";
 import { html } from "htm/preact";

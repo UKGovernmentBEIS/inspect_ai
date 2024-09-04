@@ -19,7 +19,8 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_output import ChatCompletionChoice, ModelCall, ModelOutput, ModelUsage
+from .._model_call import ModelCall
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     ChatAPIHandler,
     ChatAPIMessage,
