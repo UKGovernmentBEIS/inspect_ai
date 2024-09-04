@@ -14,13 +14,14 @@ from inspect_ai.solver import system_message, generate, TaskState
 
 SYSTEM_MESSAGE = """
 Using only the context provided in the question itself, you are tasked with answering a question in as few words as possible.
+If the question is unanswerable, answer with 'unanswerable'.
 """
 
 @task
 def squad():
    
     dataset = hf_dataset(
-        path="rajpurkar/squad",
+        path="rajpurkar/squad_v2",
         split="validation",
         sample_fields=record_to_sample,
         shuffle=True
@@ -33,12 +34,14 @@ def squad():
             generate()
         ],
         scorer=squad_f1_scorer()
+        # scorer=f1()
+        # scorer=exact()
     )
 
 def record_to_sample(record):
   return Sample(
       input=format_input(record),
-      target=record["answers"]["text"],
+      target=record["answers"]["text"] if record["answers"]["text"]  else "unanswerable",
       id=record["id"],
   )
 

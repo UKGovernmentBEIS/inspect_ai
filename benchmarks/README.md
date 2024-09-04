@@ -21,4 +21,4 @@ This directory contains evals for several benchmarks. Datasets for evals are not
 | CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge                 | <https://arxiv.org/pdf/1811.00937v2> |   [commonsense_qa.py](commonsense_qa/commonsense_qa.py) | Hugging Face |
 | MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark.            | <https://arxiv.org/abs/2311.16502>   |             [mmmu.py](mmmu/mmmu.py)       | Hugging Face |
 | CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge                 | <https://arxiv.org/pdf/1811.00937v2> |   [commonsense_qa.py](commonsense_qa/commonsense_qa.py) | Hugging Face |
-| SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles | <https://arxiv.org/abs/1606.05250>   |             [squad.py](squad/squad.py) | Hugging Face |
+| SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles | <https://arxiv.org/pdf/1806.03822>   |             [squad.py](squad/squad.py) | Hugging Face |
