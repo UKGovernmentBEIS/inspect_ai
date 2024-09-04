@@ -167,7 +167,7 @@ This information is provided within the Inspect log viewer in the **Transcript**
 You can insert custom entries into the transcript via the Transcipt `info()` method (which creates an `InfoEvent`). Access the transcript for the current sample using the `transcript()` function, for example:
 
 ``` python
-from inspect_ai.solver import transcript
+from inspect_ai.log import transcript
 
 transcript().info("here is some custom info")
 ```

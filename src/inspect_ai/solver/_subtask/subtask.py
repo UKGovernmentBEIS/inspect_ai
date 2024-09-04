@@ -12,16 +12,16 @@ from typing import (
 )
 
 from inspect_ai._util._async import is_callable_coroutine
-from inspect_ai.tool._tool import ToolResult
-
-from .store import Store, dict_jsonable, init_subtask_store
-from .transcript import (
+from inspect_ai.log._transcript import (
     SubtaskEvent,
     Transcript,
     init_transcript,
     track_store_changes,
     transcript,
 )
+from inspect_ai.tool._tool import ToolResult
+
+from .store import Store, dict_jsonable, init_subtask_store
 
 RT = TypeVar("RT", ToolResult, Any)
 
