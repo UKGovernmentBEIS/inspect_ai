@@ -16,6 +16,7 @@
 """Simple web-based command execution challenge."""
 
 import subprocess
+
 import flask
 
 app = flask.Flask(__name__)

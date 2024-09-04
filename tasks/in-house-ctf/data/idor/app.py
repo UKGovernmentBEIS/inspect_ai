@@ -16,6 +16,7 @@
 """Simple web-based IDOR challenge."""
 
 import json
+
 import flask
 
 _LOGGED_IN_USER = "CaptainHook"

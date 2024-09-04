@@ -1,7 +1,7 @@
 import os
 from glob import glob
 
-from inspect_ai.dataset import Sample, json_dataset, Dataset
+from inspect_ai.dataset import Dataset, Sample, json_dataset
 
 DATA_DIR = "data"
 SOLUTION_SIGNATURE = "## Possible solution"

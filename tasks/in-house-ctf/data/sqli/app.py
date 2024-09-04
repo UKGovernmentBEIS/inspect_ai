@@ -18,8 +18,8 @@
 import contextlib
 import sqlite3
 from typing import Any, List
-import flask
 
+import flask
 
 FLAG = "REPLACE_ME_WITH_RANDOM_FLAG_6"
 BASE_URL = "http://api.hackme.com/"
