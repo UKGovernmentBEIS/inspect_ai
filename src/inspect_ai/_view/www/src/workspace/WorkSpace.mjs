@@ -220,7 +220,10 @@ export const WorkSpace = (props) => {
         }
 
         // If there is error or progress, includes those within info
-        if (workspaceLog.contents?.status === "error") {
+        if (
+          workspaceLog.contents?.status === "error" &&
+          workspaceLog.contents?.error
+        ) {
           infoCards.unshift(
             html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`,
           );
