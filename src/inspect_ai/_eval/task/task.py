@@ -35,8 +35,8 @@ class Task:
         plan: (Plan | Solver | list[Solver]): Default plan. If not specified
           defaults to generate(), a normal call to the model.
         scorer: (Scorer | list[Scorer] | None): Scorer used to evaluate model output.
-        metrics (list[Metric]): Additional metrics to compute beyond
-          the base metrics provided by the scorer.
+        metrics (list[Metric] | dict[str, list[Metric]] | None):
+          Alternative metrics (overrides the metrics provided by the specified scorer).
         config (GenerateConfig): Model generation config.
         sandbox (str | tuple[str,str] | None): Sandbox
            environment type (or optionally a tuple with type and config file)
@@ -60,7 +60,7 @@ class Task:
         dataset: Dataset | Sequence[Sample],
         plan: Plan | Solver | list[Solver] = generate(),
         scorer: Scorer | list[Scorer] | None = None,
-        metrics: list[Metric] = [],
+        metrics: list[Metric] | dict[str, list[Metric]] | None = None,
         config: GenerateConfig = GenerateConfig(),
         sandbox: str | tuple[str, str] | None = None,
         epochs: int | Epochs | None = None,
