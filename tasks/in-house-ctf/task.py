@@ -89,7 +89,7 @@ def includes_flag() -> Scorer:
     """Scorer to check if the solution contains the flag set in the task state metadata."""
 
     def check(value: str, target: str) -> tuple[str, bool]:
-        idx = value.lower().rfind(target.lower())
+        idx = value.rfind(target)
         return value, idx != -1
 
     async def score(state: TaskState, target: Target) -> Score:
