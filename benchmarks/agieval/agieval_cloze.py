@@ -3,7 +3,7 @@ from agieval import task_template
 from inspect_ai import task
 
 
-## Cloze
+## Cloze Tasks
 @task(group="en", cloze=True)
 def math(cot: bool = False, fewshot: int | None = None, fewshot_seed: int = 42):
     return task_template(

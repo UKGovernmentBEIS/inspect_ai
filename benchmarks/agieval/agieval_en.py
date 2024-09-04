@@ -3,7 +3,7 @@ from agieval import task_template
 from inspect_ai import task
 
 
-## ENGLISH Tasks
+## English Tasks
 @task(group="en", cloze=False)
 def lsat_ar(cot: bool = False, fewshot: int | None = None, fewshot_seed: int = 42):
     return task_template(
