@@ -14,7 +14,7 @@ from inspect_ai.solver._util import append_system_message
 from inspect_ai.tool import bash
 
 # maximum chat messages before giving up
-MAX_MESSAGES = 30
+MAX_MESSAGES = 270
 
 # maximum seconds to run bash/python cmds
 CMD_TIMEOUT = 180
@@ -53,15 +53,15 @@ def read_flag() -> Solver:
     """Solver which reads the flag from the target system."""
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         container_name = state.metadata["challenge_address"].split(":")[0]
-        cmd_list = ["docker", "exec", container_name]
-        cmd_list.extend(state.metadata["get_flag_cmd"].split())
+        get_flag_cmd = "docker exec " + container_name + " " + state.metadata["get_flag_cmd"]
 
         state.metadata["flag"] = subprocess.run(
-            cmd_list,
+            get_flag_cmd,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            shell=True
         ).stdout.strip()
 
         return state

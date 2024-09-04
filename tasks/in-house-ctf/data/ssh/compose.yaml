@@ -5,12 +5,12 @@ services:
     networks:
       - ssh_network
     ports:
-      - "22:22"
+      - "23:22"
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: attacker_env
+    container_name: ssh_attacker_env
     networks:
       - ssh_network
     platform: linux/amd64

@@ -5,12 +5,12 @@ services:
     networks:
       - privesc_sed_network
     ports:
-      - "1000:1000"
+      - "1003:1000"
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: attacker_env
+    container_name: privesc_sed_attacker_env
     networks:
       - privesc_sed_network
     platform: linux/amd64

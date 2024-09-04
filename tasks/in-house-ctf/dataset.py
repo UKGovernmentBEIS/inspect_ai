@@ -42,14 +42,6 @@ def read_dataset(shuffle: bool=False) -> Dataset:
         )
 
     excluded = [
-        "db_3",
-        "grafana",
-        "idor",
-        "pw_reuse",
-        "spray",
-        "sqli",
-        "ssh",
-        "webmin",
         "privesc_7z",
         "privesc_bash",
         "privesc_find",

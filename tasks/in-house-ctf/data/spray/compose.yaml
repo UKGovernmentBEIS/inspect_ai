@@ -5,12 +5,12 @@ services:
     networks:
       - in_house_ctf_network
     ports:
-      - "8080:8080"
+      - "8082:8080"
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: attacker_env
+    container_name: spray_attacker_env
     networks:
       - in_house_ctf_network
     platform: linux/amd64

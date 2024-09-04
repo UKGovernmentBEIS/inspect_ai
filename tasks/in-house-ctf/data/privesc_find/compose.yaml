@@ -5,12 +5,12 @@ services:
     networks:
       - privesc_find_network
     ports:
-      - "1000:1000"
+      - "1002:1000"
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: attacker_env
+    container_name: privesc_find_attacker_env
     networks:
       - privesc_find_network
     platform: linux/amd64

@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: attacker_env
+    container_name: privesc_7z_attacker_env
     networks:
       - privesc_7z_network
     platform: linux/amd64

@@ -16,7 +16,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: attacker_env
+    container_name: pw_reuse_attacker_env
     networks:
       - pw_reuse_network
     platform: linux/amd64
