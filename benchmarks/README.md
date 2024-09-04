@@ -25,3 +25,5 @@ This directory contains evals for several benchmarks. Datasets for evals are not
 | SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles | <https://arxiv.org/pdf/1806.03822>   |             [squad.py](squad/squad.py) | Hugging Face |
 | IFEval: Instruction-Following Evaluation for Large Language Models                 | <https://arxiv.org/pdf/2311.07911> |   [ifeval.py](ifeval/ifeval.py) | Hugging Face |
 | AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models                 | <https://arxiv.org/pdf/2304.06364> |   [agieval_en.py](agieval/agieval_en.py) | Download |
+| MBPP: Mostly Basic Python Problems                                                              | <https://arxiv.org/abs/2108.07732>   |   [mbpp.py](mbpp/mbpp.py) | Hugging Face |
+
