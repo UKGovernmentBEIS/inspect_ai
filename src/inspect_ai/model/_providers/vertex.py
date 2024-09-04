@@ -1,16 +1,18 @@
 import json
 from copy import copy
-from typing import Any
+from typing import Any, cast
 
 import vertexai  # type: ignore
 from google.api_core.exceptions import TooManyRequests
 from google.protobuf.json_format import MessageToDict
+from pydantic import JsonValue
 from typing_extensions import override
 from vertexai.generative_models import (  # type: ignore
     Candidate,
     FinishReason,
     FunctionDeclaration,
     GenerationConfig,
+    GenerationResponse,
     GenerativeModel,
     HarmBlockThreshold,
     HarmCategory,
@@ -33,12 +35,14 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
     ModelUsage,
     StopReason,
 )
+from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
 SAFETY_SETTINGS = "safety_settings"
 VERTEX_INIT_ARGS = "vertex_init_args"
@@ -101,8 +105,9 @@ class VertexAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> tuple[ModelOutput, ModelCall]:
         parameters = GenerationConfig(
+            candidate_count=config.num_choices,
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
@@ -111,25 +116,37 @@ class VertexAPI(ModelAPI):
         )
 
         messages = await as_chat_messages(input)
+        vertex_tools = chat_tools(tools) if len(tools) > 0 else None
 
         response = await self.model.generate_content_async(
             contents=messages,
             safety_settings=self.safety_settings,
             generation_config=parameters,
-            tools=chat_tools(tools) if len(tools) > 0 else None,
-            stream=False,
+            tools=vertex_tools,
         )
-        choices = completion_choices_from_candidates(response.candidates)
-        choice = choices[0]
-        return ModelOutput(
+
+        # capture output
+        output = ModelOutput(
             model=self.model_name,
-            choices=[choice],
+            choices=completion_choices_from_candidates(response.candidates),
             usage=ModelUsage(
                 input_tokens=response.usage_metadata.prompt_token_count,
                 output_tokens=response.usage_metadata.candidates_token_count,
                 total_tokens=response.usage_metadata.total_token_count,
             ),
         )
+
+        # build call
+        call = model_call(
+            contents=messages,
+            safety_settings=self.safety_settings,
+            generation_config=parameters,
+            tools=vertex_tools,
+            response=response,
+        )
+
+        # return
+        return output, call
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -149,13 +166,46 @@ class VertexAPI(ModelAPI):
         return True
 
 
-async def as_chat_messages(messages: list[ChatMessage]) -> list[Content]:
+def model_call(
+    contents: list[Content],
+    generation_config: GenerationConfig,
+    safety_settings: dict[HarmCategory, HarmBlockThreshold],
+    tools: list[Tool] | None,
+    response: GenerationResponse,
+) -> ModelCall:
+    return ModelCall.create(
+        request=dict(
+            contents=[model_call_content(content) for content in contents],
+            generation_config=generation_config,
+            safety_settings=safety_settings,
+            tools=[tool.to_dict() for tool in tools] if tools is not None else None,
+        ),
+        response=response.to_dict(),
+        filter=model_call_filter,
+    )
+
+
+def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # remove images from raw api call
+    if key == "inline_data" and isinstance(value, dict) and "data" in value:
+        value = copy(value)
+        value.update(data=BASE_64_DATA_REMOVED_FROM_LOG)
+    return value
+
+
+def model_call_content(content: VertexContent) -> dict[str, Any]:
+    return cast(dict[str, Any], content.to_dict())
+
+
+async def as_chat_messages(messages: list[ChatMessage]) -> list[VertexContent]:
     # google does not support system messages so filter them out to start with
     system_messages = [message for message in messages if message.role == "system"]
     supported_messages = [message for message in messages if message.role != "system"]
 
     # build google chat messages
-    chat_messages = [await content_dict(message) for message in supported_messages]
+    chat_messages: list[VertexContent] = [
+        await content_dict(message) for message in supported_messages
+    ]
 
     # we want the system messages to be prepended to the first user message
     # (if there is no first user message then prepend one)

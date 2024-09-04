@@ -5,7 +5,6 @@ from typing import Any, Callable, Sequence, cast
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
-from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
@@ -43,6 +42,10 @@ class Task:
            environment type (or optionally a tuple with type and config file)
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
            reducer function(s) used to combine sample scores (defaults to "mean")
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
         max_messages (int | None): Limit on total messages in the conversation.
         name: (str | None): Task name. If not specified is automatically
           determined based on the name of the task directory (or "task")
@@ -61,6 +64,7 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         sandbox: str | tuple[str, str] | None = None,
         epochs: int | Epochs | None = None,
+        fail_on_error: bool | float | None = None,
         max_messages: int | None = None,
         name: str | None = None,
         version: int = 0,
@@ -103,29 +107,17 @@ class Task:
         self.sandbox = (sandbox, None) if isinstance(sandbox, str) else sandbox
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
+        self.fail_on_error = fail_on_error
         self.max_messages = max_messages
         self.version = version
         self._name = name
 
     @property
     def name(self) -> str:
-        if is_registry_object(self):
-            # lookup name in registry
-            name = registry_info(self).name
-
-            # warn if a custom name was added, as this will make it
-            # impossible find the task for retrying
-            if self._name is not None:
-                warn_once(
-                    logger,
-                    f"Ignoring name=\"{self._name}\" parameter for registered task '{name}' "
-                    + f'(tasks decorated with @task should not use the name parameter, use @task(name="{self._name}") instead).',
-                )
-
-            # return the name
-            return name
-        elif self._name is not None:
+        if self._name is not None:
             return self._name
+        elif is_registry_object(self):
+            return registry_info(self).name
         else:
             return "task"
 
@@ -163,7 +155,8 @@ class TaskInfo(BaseModel):
 @dataclass
 class PreviousTask:
     id: str
-    task: str
+    task: str | Task
+    task_args: dict[str, Any]
     log: EvalLog
 
 

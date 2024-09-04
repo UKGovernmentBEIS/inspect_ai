@@ -1,16 +1,24 @@
 import { html } from "htm/preact";
-import { useEffect, useMemo } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 
-import { sharedStyles } from "../Constants.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
+import { TextStyle } from "../appearance/Fonts.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { SampleError } from "./SampleError.mjs";
 
-import { shortenCompletion, arrayToString } from "../utils/Format.mjs";
+import {
+  shortenCompletion,
+  arrayToString,
+  formatNoDecimal,
+} from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
 import { inputString } from "../utils/Format.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 
-const kSampleHeight = 82;
-const kSeparatorHeight = 20;
+const kSampleHeight = 88;
+const kSeparatorHeight = 24;
 
 // Convert samples to a datastructure which contemplates grouping, etc...
 export const SampleList = (props) => {
@@ -102,7 +110,6 @@ export const SampleList = (props) => {
       return html`
         <${SeparatorRow}
           id=${`sample-group${item.number}`}
-          class="cool"
           title=${item.data}
           height=${kSeparatorHeight}
         />
@@ -138,23 +145,45 @@ export const SampleList = (props) => {
     style=${{
       display: "grid",
       ...gridColumnStyles(sampleDescriptor),
-      fontSize: "0.7rem",
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary,
       paddingBottom: "0.3em",
       paddingTop: "0.3em",
       borderBottom: "solid var(--bs-light-border-subtle) 1px",
     }}
   >
-    <div>#</div>
+    <div>Id</div>
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
     <div>Score</div>
   </div>`;
 
+  // Count any sample errors and display a bad alerting the user
+  // to any errors
+  const errorCount = items?.reduce((previous, item) => {
+    if (item.data.error) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
+  const sampleCount = items?.length;
+  const percentError = (errorCount / sampleCount) * 100;
+  const warningMessage =
+    errorCount > 0
+      ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
+      : undefined;
+
+  const warningRow = warningMessage
+    ? html`<${WarningRow} message=${warningMessage} />`
+    : "";
+
   return html` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
-    ${headerRow}
+    ${warningRow} ${headerRow}
     <${VirtualList}
       ref=${listRef}
       data=${items}
@@ -167,15 +196,51 @@ export const SampleList = (props) => {
   </div>`;
 };
 
+const WarningRow = ({ message }) => {
+  const [hidden, setHidden] = useState(false);
+
+  return html`
+    <div
+      style=${{
+        gridTemplateColumns: "max-content auto max-content",
+        columnGap: "0.5em",
+        fontSize: FontSize.small,
+        background: "var(--bs-warning-bg-subtle)",
+        borderBottom: "solid 1px var(--bs-light-border-subtle)",
+        padding: "0.3em 1em",
+        display: hidden ? "none" : "grid",
+      }}
+    >
+      <i class=${ApplicationIcons.logging.warning} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+          fontSize: FontSize["title-secondary"],
+          margin: "0",
+          padding: "0",
+          height: FontSize["title-secondary"],
+          lineHeight: FontSize["title-secondary"],
+        }}
+        class="btn"
+        onclick=${() => {
+          setHidden(true);
+        }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
+    </div>
+  `;
+};
+
 const SeparatorRow = ({ id, title, height }) => {
   return html`<div
     id=${id}
     style=${{
-      backgroundColor: "var(--bs-secondary-bg)",
       padding: ".25em 1em .25em 1em",
       textTransform: "uppercase",
-      color: "var(--bs-secondary)",
-      fontSize: "0.6rem",
+      ...TextStyle.secondary,
+      fontSize: FontSize.smaller,
       fontWeight: 600,
       borderBottom: "solid 1px var(--bs-border-color)",
       height: `${height}px`,
@@ -225,7 +290,7 @@ const SampleRow = ({
         paddingTop: "1em",
         paddingBottom: "1em",
         gridTemplateRows: `${height - 28}px`,
-        fontSize: "0.8em",
+        fontSize: FontSize.base,
         borderBottom: "solid var(--bs-border-color) 1px",
         cursor: "pointer",
         ...selectedStyle,
@@ -236,7 +301,7 @@ const SampleRow = ({
       <div
         class="sample-input"
         style=${{
-          ...sharedStyles.threeLineClamp,
+          ...ApplicationStyles.threeLineClamp,
           wordWrap: "anywhere",
           ...cellStyle,
         }}
@@ -246,7 +311,7 @@ const SampleRow = ({
       <div
         class="sample-target"
         style=${{
-          ...sharedStyles.threeLineClamp,
+          ...ApplicationStyles.threeLineClamp,
           ...cellStyle,
         }}
       >
@@ -259,7 +324,7 @@ const SampleRow = ({
       <div
         class="sample-answer"
         style=${{
-          ...sharedStyles.threeLineClamp,
+          ...ApplicationStyles.threeLineClamp,
           ...cellStyle,
         }}
       >
@@ -278,12 +343,14 @@ const SampleRow = ({
 
       <div
         style=${{
-          fontSize: "0.8rem",
+          fontSize: FontSize.small,
           ...cellStyle,
           display: "flex",
         }}
       >
-        ${sampleDescriptor?.selectedScore(sample).render()}
+        ${sample.error
+          ? html`<${SampleError} />`
+          : sampleDescriptor?.selectedScore(sample).render()}
       </div>
     </div>
   `;

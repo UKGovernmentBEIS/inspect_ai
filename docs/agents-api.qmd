@@ -1,0 +1,297 @@
+# Agents API {#sec-agents-api}
+
+
+## Overview
+
+This article describes advanced Inspect APIs available for creating evaluations with agents. You can also build agents evals using Inspect's default ReAct tool use loop or by bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
+
+1.  Sharing state across solvers and tools
+2.  Creating a custom tool use loop
+3.  Dynamically customising tool descriptions
+4.  Observability with sample transcripts.
+5.  Delegating work to sub-tasks
+6.  Sandboxing arbitrary code execution
+
+We'll assume that you already understand Inspect [Solvers](solvers.qmd) and [Tools](tools.qmd) (please review those articles as required before proceeding).
+
+## Use of `metadata`
+
+Before proceeding, it's important to point that some of the features described below were previously approximated by using the `metadata` field of `TaskState`, specifically `metadata` was often used as a catch-all storage location for:
+
+-   Carrying state between solvers and sometimes tools.
+-   Providing a place to log additional structured data.
+-   Recording calls to "helper" models used for elicitation or scoring.
+
+The `metadata` field no longer need be used for these scenarios (and in fact should now be treated as a read-only part of the `TaskState`). Below we'll describe how the `Store` can be used for state, how structured data can be logged to the sample `Transcript`, and how all model calls are now automatically recorded and included in the transcript.
+
+## Sharing State
+
+Sequences of solvers often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Inspect using the `Store`, which provides a scoped scratchpad for arbitrary values.
+
+The core of the `Store` interface is:
+
+``` python
+from inspect_ai.solver import Store
+
+class Store:
+    def get(self, key: str, default: VT) -> VT
+    def set(self, key: str, value: Any) -> None
+    def delete(self, key: str) -> None
+```
+
+Basic views on the store's collection (e.g. `items()`, `keys()`, `values()`) are also provided. Note that the `get()` method will automatically add the `default` to the store if it doesn't exist.
+
+The `Store` can be accessed via `TaskState` as follows:
+
+``` python
+history = state.store.get("history", [])
+```
+
+It is also possible the access the `Store` *for the current sample* using the `store()` function. This is the mechanism for tools to read and write the `Store`. For example:
+
+``` python
+from inspect_ai.solver import store
+from inspect_ai.tool import tool
+
+@tool
+def web_browser_back():
+   def execute() -> str:
+       history = store().get("web_browser:history", [])
+       return history.pop()
+```
+
+While there is no formal namespacing mechanism for the `Store`, this can be informally achieved using key prefixes as demonstrated above.
+
+You should generally try to use JSON serialisable Python types in the `Store` (e.g. objects should be dataclasses or Pydantic BaseModel) so that they can be recorded in the [Transcript](#sec-transcripts).
+
+While the default `Store` for a sample is shared globally between solvers and tools, a more narrowly scoped `Store` is created automatically for [Subtasks](#sec-subtasks).
+
+## Tool Use
+
+### Custom Loop
+
+The higher level `generate()` function passed to solvers includes a built-in tool use loop—when the model calls a tool, Inspect calls the underlying Python function and reports the result to the model, proceeding until the model stops calling tools. However, for more advanced agents you may want to intervene in the tool use loop in a variety of ways:
+
+1.  Urge the model to continue (or take a different path) if it gives up.
+2.  Exercise more fine grained control over which, when, and how many tool calls are made.
+3.  Redirect the model to another trajectory if its not on a productive course.
+4.  Have multiple `generate()` passes each with a distinct set of tools.
+
+To do this, create a solver that emulates the default tool use loop and provides additional customisation as required. Here is the code at the core of Inspect tool use in `generate()`:
+
+``` python
+model = get_model()
+state.output = await model.generate(
+    state.messages, state.tools
+)
+state.messages.append(output.message)
+state.messages.extend(
+    call_tools(state.output.message, state.tools)
+)
+```
+
+This does everything that default `generate()` does, save for an outer loop to continue calling the mode as long as it continues calling tools. You could implement the outer loop as follows:
+
+``` python
+model = get_model()
+while True:
+    state.output = await model.generate(
+        state.messages, state.tools
+    )
+    state.messages.append(state.output.message)
+    if state.output.message.tool_calls:
+        state.messages.extend(
+            call_tools(state.output.message, state.tools)
+        )
+    else:
+        break
+```
+
+Note that you don't necessarily even need to structure the agent using a loop. For example, you might have an inner function implementing the loop, while an outer function dynamically swaps out what tools are available. For example, imagine the above was implemented in a function named `tool_use_loop()`, you might have outer function like this:
+
+``` python
+# first pass w/ core tools
+state.tools = [decompile(), dissasemble(), bash()]
+state = await tool_use_loop(state)
+
+# second pass w/ prompt and python tool only
+state.tools = [python()]
+state = await tool_use_loop(state)
+```
+
+Taken together these APIs enable you to build a custom version of `generate()` with whatever structure and logic you need.
+
+### Tool Descriptions
+
+In some cases you may want to change the default descriptions created by a tool author—for example you might want to provide better disambiguation between multiple similar tools that are used together. You also might have need to do this during development of tools (to explore what descriptions are most useful to models).
+
+The `tool_with()` function enables you to take any tool and adapt its name and/or descriptions. For example:
+
+``` python
+from inspect_ai.tool import tool_with
+
+my_add = tool_with(
+  tool=add(), 
+  name="my_add",
+  description="a tool to add numbers", 
+  parameters={
+    "x": "the x argument",
+    "y": "the y argument"
+  })
+```
+
+You need not provide all of the parameters shown above, for example here are some examples where we modify just the main tool description or only a single parameter:
+
+``` python
+my_add = tool_with(add(), description="a tool to add numbers")
+my_add = tool_with(add(), parameters={"x": "the x argument"})
+```
+
+Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions)..
+
+## Transcripts {#sec-transcripts}
+
+Transcripts provide a rich per-sample sequential view of everything that occurs during plan execution and scoring, including:
+
+-   Model interactions (including the raw API call made to the provider).
+-   Tool calls (including a sub-transcript of activitywithin the tool)
+-   Changes (in [JSON Patch](https://jsonpatch.com/) format) to the `TaskState` for the `Sample`.
+-   Scoring (including a sub-transcript of interactions within the scorer).
+-   Custom `info()` messages inserted explicitly into the transcript.
+-   Python logger calls (`info` level or designated custom `log-level`).
+
+This information is provided within the Inspect log viewer in the **Transcript** tab (which sits alongside the Messages, Scoring, and Metadata tabs in the per-sample display).
+
+### Custom Info
+
+You can insert custom entries into the transcript via the Transcipt `info()` method (which creates an `InfoEvent`). Access the transcript for the current sample using the `transcript()` function, for example:
+
+``` python
+from inspect_ai.solver import transcript
+
+transcript().info("here is some custom info")
+```
+
+You can pass arbitrary JSON serialisable objects to `info()`.
+
+### Grouping with Steps
+
+You can create arbitrary groupings of transcript activity using the Transcript `step()` context manager. For example:
+
+``` python
+with transcript().step("reasoning"):
+    ...
+    state.store.set("next-action", next_action)
+```
+
+There are two reasons that you might want to create steps:
+
+1.  Any changes to the store which occur during a step will be collected into a `StoreEvent` that records the changes (in [JSON Patch](https://jsonpatch.com/) format) that occurred.
+2.  The Inspect log viewer will create a visual delineation for the step, which will make it easier to see the flow of activity within the transcript.
+
+## Subtasks {#sec-subtasks}
+
+Subtasks provide a mechanism for creating isolated, re-usable units of execution. You might implement a complex tool using a subtask or might use them in a multi-agent evaluation. The main characteristics of sub-tasks are:
+
+1.  They run in their own async coroutine.
+2.  They have their own isolated `Store` (no access to the sample `Store`).
+3.  They have their own isolated `Transcript`
+
+To create a subtask, declare an async function with the `@subtask` decorator. The function can take any arguments and return a value of any type. For example:
+
+``` python
+from inspect_ai.solver import Store, subtask
+
+@subtask
+async def web_search(keywords: str) -> str:
+    # get links for these keywords
+    links = await search_links(keywords)
+
+    # add links to the store so they end up in the transcript
+    store().set("links", links)
+
+    # summarise the links
+    return await fetch_and_summarise(links)
+```
+
+Note that we add `links` to the `store` not because we strictly need to for our implementation, but because we want the links to be recorded as part of the transcript.
+
+Call the subtask as you would any async function:
+
+``` python
+summary = await web_search(keywords="solar power")
+```
+
+A few things will occur automatically when you run a subtask:
+
+-   New isolated `Store` and `Transcript` objects will be created for the subtask (accessible via the `store()` and `transcript()` functions). Changes to the `Store` that occur during execution will be recorded in a `StoreEvent`.
+
+-   A `SubtaskEvent` will be added to the current transcript. The event will include the name of the subtask, its input and results, and a transcript of all events that occur within the subtask.
+
+You can also include one or more steps within a subtask.
+
+### Parallel Execution
+
+You can execute subtasks in parallel using `asyncio.gather()`. For example, to run 3 `web_search()` subtasks in parallel:
+
+
+``` python
+import asyncio
+
+searches = [
+  web_search(keywords="solar power"),
+  web_search(keywords="wind power"),
+  web_search(keywords="hydro power"),
+]
+
+results = await asyncio.gather(*searches)
+```
+
+Note that we don't `await` the subtasks when building up our list of `searches`. Rather, we let `asyncio.gather()` await all of them, returning only when all of the results are available.
+
+## Sandboxing
+
+Many agents provide models with the ability to execute arbitrary code. It's important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the `SandboxEnvironment` (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the `sandbox` parameter. For example:
+
+``` python
+@task
+def file_probe()
+    return Task(
+        dataset=dataset,
+        plan=[
+            use_tools([list_files()]), 
+            generate()
+        ],
+        sandbox="docker",
+        scorer=includes(),
+    )
+)
+```
+
+Use the `SandboxEnvironment` within a tool via the `sandbox()` function. For example, here's an implementation of the `list_files()` tool referenced above:
+
+``` python
+from inspect_ai.tool import ToolError, tool
+from inspect_ai.util import sandbox
+
+@tool
+def list_files():
+    async def execute(dir: str):
+        """List the files in a directory.
+
+        Args:
+            dir (str): Directory
+
+        Returns:
+            File listing of the directory
+        """
+        result = await sandbox().exec(["ls", dir])
+        if result.success:
+            return result.stdout
+        else:
+            raise ToolError(result.stderr)
+
+    return execute
+```
+
+See the section on [Sandbox Environments](agents.qmd#sec-sandbox-environments) for further details on using sandboxes with Inspect.

@@ -1,9 +1,9 @@
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from inspect_ai.tool import ToolCall
+from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessageAssistant
 
@@ -17,6 +17,12 @@ class ModelUsage(BaseModel):
 
     total_tokens: int = Field(default=0)
     """Total tokens used."""
+
+    input_tokens_cache_write: int | None = Field(default=None)
+    """Number of tokens written to the cache."""
+
+    input_tokens_cache_read: int | None = Field(default=None)
+    """Number of tokens retrieved from the cache."""
 
 
 StopReason = Literal["stop", "length", "tool_calls", "content_filter", "unknown"]
@@ -133,7 +139,7 @@ class ModelOutput(BaseModel):
 
     @staticmethod
     def for_tool_call(
-        model: str, tool_name: str, tool_arguments: dict[str, str]
+        model: str, tool_name: str, tool_arguments: dict[str, Any]
     ) -> "ModelOutput":
         """
         Returns a ModelOutput for requesting a tool call.

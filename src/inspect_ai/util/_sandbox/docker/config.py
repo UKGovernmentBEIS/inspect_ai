@@ -7,10 +7,19 @@ import aiofiles
 logger = getLogger(__name__)
 
 
-async def auto_compose(parent: str = "") -> str | None:
-    # compose file provides all the config we need
-    if has_compose_file(parent):
-        return None
+CONFIG_FILES = [
+    "compose.yaml",
+    "compose.yml",
+    "docker-compose.yaml",
+    "docker-compose.yml",
+]
+
+
+async def resolve_compose_file(parent: str = "") -> str | None:
+    # existing compose file provides all the config we need
+    compose = find_compose_file(parent)
+    if compose is not None:
+        return Path(os.path.join(parent, compose)).resolve().as_posix()
 
     # temporary auto-compose
     if has_auto_compose_file(parent):
@@ -25,17 +34,11 @@ async def auto_compose(parent: str = "") -> str | None:
         return await auto_compose_file(COMPOSE_GENERIC_YAML, parent)
 
 
-def has_compose_file(parent: str = "") -> bool:
-    compose_files = [
-        "compose.yaml",
-        "compose.yml",
-        "docker-compose.yaml",
-        "docker-compose.yml",
-    ]
-    for file in compose_files:
+def find_compose_file(parent: str = "") -> str | None:
+    for file in CONFIG_FILES:
         if os.path.isfile(os.path.join(parent, file)):
-            return True
-    return False
+            return file
+    return None
 
 
 def has_dockerfile(parent: str = "") -> bool:
@@ -52,7 +55,7 @@ def is_auto_compose_file(file: str) -> bool:
 
 async def ensure_auto_compose_file(file: str | None) -> None:
     if file is not None and is_auto_compose_file(file) and not os.path.exists(file):
-        await auto_compose(os.path.dirname(file))
+        await resolve_compose_file(os.path.dirname(file))
 
 
 def safe_cleanup_auto_compose(file: str | None) -> None:
@@ -74,6 +77,7 @@ services:
   default:
     image: "python:3.12-bookworm"
     command: "tail -f /dev/null"
+    init: true
     network_mode: none
     stop_grace_period: 1s
 """
@@ -84,6 +88,7 @@ services:
     build:
       context: "."
     command: "tail -f /dev/null"
+    init: true
     network_mode: none
     stop_grace_period: 1s
 """

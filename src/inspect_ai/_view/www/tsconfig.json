@@ -1,0 +1,9 @@
+{
+    "compilerOptions": {
+      "checkJs": true,
+      "target": "es5", // or a different target that suits your needs
+      "downlevelIteration": true,
+      "lib": ["es2017", "dom"] // Add "es2017" or later
+    },
+    "exclude": ["**/*.mjs"]
+}

@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 
 import { DownloadButton } from "../components/DownloadButton.mjs";
+import { FontSize } from "../appearance/Fonts.mjs";
 
 export const DownloadPanel = ({
   message,
@@ -17,7 +18,7 @@ export const DownloadPanel = ({
       justifyItems: "center",
     }}
   >
-    <div style=${{ fontSize: "0.9rem" }}>${message}</div>
+    <div style=${{ fontSize: FontSize.small }}>${message}</div>
     <${DownloadButton}
       label=${buttonLabel}
       logFile=${logFile}

@@ -1,7 +1,7 @@
 from typing import Callable, Literal
 
 from inspect_ai._util.text import strip_numeric_punctuation, strip_punctuation
-from inspect_ai.solver import TaskState
+from inspect_ai.solver._task_state import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
 from ._scorer import Scorer

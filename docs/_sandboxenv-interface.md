@@ -8,11 +8,12 @@ class SandboxEnvironment:
         input: str | bytes | None = None,
         cwd: str | None = None,
         env: dict[str, str] = {},
+        user: str | None = None,
         timeout: int | None = None,
     ) -> ExecResult[str]:
         """
         Raises:
-          FileNotFoundError: If the file does not exist.
+          TimeoutError: If the specified `timeout` expires.
           UnicodeDecodeError: If an error occurs while
             decoding the command output.
           PermissionError: If the user does not have
@@ -27,6 +28,8 @@ class SandboxEnvironment:
         Raises:
           PermissionError: If the user does not have
             permission to write to the specified path.
+          IsADirectoryError: If the file exists already and 
+            is a directory.
         """
         ...
 
@@ -38,8 +41,10 @@ class SandboxEnvironment:
           FileNotFoundError: If the file does not exist.
           UnicodeDecodeError: If an encoding error occurs 
             while reading the file.
+            (only applicable when `text = True`)
           PermissionError: If the user does not have
             permission to read from the specified path.
+          IsADirectoryError: If the file is a directory.
         """
         ...
 ```

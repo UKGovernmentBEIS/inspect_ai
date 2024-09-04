@@ -5,12 +5,12 @@ import { html } from "htm/preact";
 
 import { default as ansi } from "./ansi-output.js";
 
-export const ANSIDisplay = ({ output }) => {
+export const ANSIDisplay = ({ output, style }) => {
   const ansiOutput = new ansi.ANSIOutput();
   ansiOutput.processOutput(output);
 
   let firstOutput = false;
-  return html`<div class="ansi-display">
+  return html`<div class="ansi-display" style=${{ ...style }}>
     ${ansiOutput.outputLines.map((line) => {
       firstOutput = firstOutput || !!line.outputRuns.length;
       return html`<div class="ansi-display-line">

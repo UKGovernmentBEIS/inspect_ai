@@ -1,7 +1,7 @@
 import asyncio
 
 from inspect_ai.scorer._reducer.registry import create_reducers
-from inspect_ai.solver import TaskState
+from inspect_ai.solver._task_state import TaskState
 
 from ._metric import Score
 from ._reducer.types import ScoreReducer

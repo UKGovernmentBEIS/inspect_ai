@@ -2,7 +2,7 @@
 
 import { html, Component } from "htm/preact";
 import { createRef } from "preact";
-import { throttle } from "../utils/events.mjs";
+import { throttle } from "../utils/sync.mjs";
 
 const STYLE_INNER =
   "position:relative; overflow:hidden; width:100%; min-height:100%;";

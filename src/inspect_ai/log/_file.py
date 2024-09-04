@@ -12,18 +12,22 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_BUFFER_LOCAL,
     DEFAULT_LOG_BUFFER_REMOTE,
 )
-from inspect_ai._util.file import FileInfo, absolute_file_path, file, filesystem
+from inspect_ai._util.error import EvalError
+from inspect_ai._util.file import (
+    FileInfo,
+    absolute_file_path,
+    file,
+    filesystem,
+)
 
 from ._log import (
-    EvalError,
     EvalLog,
     EvalPlan,
     EvalResults,
     EvalSample,
     EvalSpec,
     EvalStats,
-    LogEvent,
-    LoggingMessage,
+    LogType,
     Recorder,
 )
 
@@ -94,6 +98,48 @@ def write_eval_log(log: EvalLog, log_file: str | FileInfo) -> None:
     log_file = log_file if isinstance(log_file, str) else log_file.name
     with file(log_file, "w") as f:
         f.write(eval_log_json(log))
+
+
+def write_log_dir_manifest(
+    log_dir: str,
+    *,
+    filename: str = "logs.json",
+    output_dir: str | None = None,
+    fs_options: dict[str, Any] = {},
+) -> None:
+    """Write a manifest for a log directory.
+
+    A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o samples)
+    keyed by log file names (names are relative to the log directory)
+
+    Args:
+      log_dir (str): Log directory to write manifest for.
+      filename (str): Manifest filename (defaults to "logs.json")
+      output_dir (str | None): Output directory for manifest (defaults to log_dir)
+      fs_options (dict[str,Any]): Optional. Additional arguments to pass through
+        to the filesystem provider (e.g. `S3FileSystem`).
+    """
+    # resolve log dir to full path
+    fs = filesystem(log_dir)
+    log_dir = fs.info(log_dir).name
+
+    # list eval logs
+    logs = list_eval_logs(log_dir)
+
+    # resolve to manifest (make filenames relative to the log dir)
+    names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
+    headers = read_eval_log_headers(logs)
+    manifest_logs = dict(zip(names, headers))
+
+    # form target path and write
+    output_dir = output_dir or log_dir
+    fs = filesystem(output_dir)
+    manifest = f"{output_dir}{fs.sep}{filename}"
+    manifest_json = to_json(
+        value=manifest_logs, indent=2, exclude_none=True, fallback=lambda _x: None
+    )
+    with file(manifest, mode="wb", fs_options=fs_options) as f:
+        f.write(manifest_json)
 
 
 def eval_log_json(log: EvalLog) -> str:
@@ -181,7 +227,6 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
         # prune if header_only
         if header_only:
             log.samples = None
-            log.logging.clear()
 
         # return log
         return log
@@ -191,6 +236,18 @@ def read_eval_log_headers(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
 ) -> list[EvalLog]:
     return [read_eval_log(log_file, header_only=True) for log_file in log_files]
+
+
+def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
+    # ensure that log dir has a trailing seperator
+    if not log_dir.endswith(sep):
+        log_dir = f"{log_dir}/"
+
+    # slice off log_dir from the front
+    log = info.name.replace(log_dir, "")
+
+    # manifests are web artifacts so always use forward slash
+    return log.replace("\\", "/")
 
 
 class FileRecorder(Recorder):
@@ -298,21 +355,26 @@ class JSONRecorder(FileRecorder):
 
     def log_start(self, eval: EvalSpec) -> str:
         # initialize file log for this eval
-        file = self._log_file_path(eval)
+        # compute an absolute path if it's a relative ref
+        # (so that the writes go to the correct place even
+        # if the working directory is switched for a task)
+        file = absolute_file_path(self._log_file_path(eval))
 
         # compute an absolute path if it's a relative ref
         # (so that the writes go to the correct place even
         # if the working directory is switched for a task)
         self.data[self._log_file_key(eval)] = JSONRecorder.JSONLogFile(
-            file=absolute_file_path(file), data=EvalLog(eval=eval)
+            file=file, data=EvalLog(eval=eval)
         )
+
+        # attempt to
         return file
 
-    def log_event(
+    def log(
         self,
         spec: EvalSpec,
-        type: LogEvent,
-        data: EvalPlan | EvalSample | EvalResults | LoggingMessage,
+        type: LogType,
+        data: EvalPlan | EvalSample | EvalResults,
         flush: bool = False,
     ) -> None:
         log = self.data[self._log_file_key(spec)]
@@ -322,14 +384,12 @@ class JSONRecorder(FileRecorder):
             if log.data.samples is None:
                 log.data.samples = []
             log.data.samples.append(cast(EvalSample, data))
-        elif type == "logging":
-            log.data.logging.append(cast(LoggingMessage, data))
         elif type == "results":
             log.data.results = cast(EvalResults, data)
         else:
             raise ValueError(f"Unknown event {type}")
         if flush:
-            self.flush_log(log.file, log.data)
+            self.flush_log(log)
 
     def log_cancelled(
         self,
@@ -353,10 +413,11 @@ class JSONRecorder(FileRecorder):
     def read_log(self, location: str) -> EvalLog:
         return read_eval_log(location)
 
-    def flush_log(self, location: str, log: EvalLog) -> None:
+    def flush_log(self, log: JSONLogFile) -> None:
         self.flush_pending += 1
         if self.flush_pending >= self.flush_buffer:
-            self.write_log(location, log)
+            # write the log and current batch of events
+            self.write_log(log.file, log.data)
 
     def write_log(self, location: str, log: EvalLog) -> None:
         # sort samples before writing as they can come in out of order
@@ -373,7 +434,9 @@ class JSONRecorder(FileRecorder):
                 )
             )
 
+        # write the log file
         write_eval_log(log, location)
+
         self.flush_pending = 0
 
     def read_latest_log(self) -> EvalLog:
@@ -392,5 +455,8 @@ class JSONRecorder(FileRecorder):
         if error:
             log.data.error = error
         self.write_log(log.file, log.data)
+
+        # stop tracking this data
         del self.data[self._log_file_key(spec)]
+
         return log.data

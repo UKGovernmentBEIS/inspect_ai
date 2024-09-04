@@ -1,14 +1,15 @@
 import ast
 import inspect
+import os
 from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
+from logging import getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, cast
+from typing import Any, Callable, cast
 
-from inspect_ai._eval.task.util import task_file
-from inspect_ai._util.dotenv import dotenv_environ
+from inspect_ai._eval.task.util import task_file, task_run_dir
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -19,6 +20,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.model import Model, ModelName
 from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
 from .registry import task_create
@@ -26,8 +28,10 @@ from .task import PreviousTask, Task, TaskInfo, Tasks
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.run import EvalSampleSource, eval_log_sample_source
 
+logger = getLogger(__name__)
 
-@dataclass
+
+@dataclass(frozen=True)
 class ResolvedTask:
     task: Task
     task_args: dict[str, Any]
@@ -37,6 +41,15 @@ class ResolvedTask:
     sequence: int
     id: str | None = field(default=None)
     sample_source: EvalSampleSource | None = field(default=None)
+
+    @property
+    def has_sandbox(self) -> bool:
+        if self.sandbox:
+            return True
+        else:
+            return any(
+                [True if sample.sandbox else False for sample in self.task.dataset]
+            )
 
 
 def resolve_tasks(
@@ -52,13 +65,7 @@ def resolve_tasks(
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
                 model=model,
-                sandbox=(
-                    (sandbox, None)
-                    if isinstance(sandbox, str)
-                    else sandbox
-                    if sandbox is not None
-                    else task.sandbox
-                ),
+                sandbox=resolve_task_sandbox(task, sandbox),
                 sequence=sequence,
             )
             for sequence, task in enumerate(tasks)
@@ -78,14 +85,28 @@ def resolve_tasks(
     if isinstance(tasks, PreviousTask):
         tasks = [tasks]
     if isinstance(tasks, list) and isinstance(tasks[0], PreviousTask):
+        # for previous tasks, prefer recreating from the registry (so we have
+        # a fresh instance) but also allow recycling of task instances for
+        # fully dynamic tasks
         previous_tasks = cast(list[PreviousTask], tasks)
-        loaded_tasks = load_tasks(
-            [task.task for task in previous_tasks], model, task_args
-        )
+        loaded_tasks: list[Task] = []
+        loaded_tasks_args: list[dict[str, Any]] = []
+        for previous_task in previous_tasks:
+            if isinstance(previous_task.task, Task):
+                loaded_task_args = task_args
+                loaded_task = previous_task.task
+            else:
+                loaded_task_args = previous_task.task_args
+                loaded_task = load_tasks([previous_task.task], model, loaded_task_args)[
+                    0
+                ]
+            loaded_tasks.append(loaded_task)
+            loaded_tasks_args.append(loaded_task_args)
+
         return [
             ResolvedTask(
                 task=loaded_task,
-                task_args=task_args,
+                task_args=loaded_task_args,
                 task_file=previous_task.log.eval.task_file,
                 model=model,
                 sandbox=previous_task.log.eval.sandbox,
@@ -95,8 +116,11 @@ def resolve_tasks(
                     previous_task.log, loaded_task.dataset
                 ),
             )
-            for sequence, loaded_task, previous_task in zip(
-                range(0, len(loaded_tasks)), loaded_tasks, previous_tasks
+            for sequence, loaded_task, loaded_task_args, previous_task in zip(
+                range(0, len(loaded_tasks)),
+                loaded_tasks,
+                loaded_tasks_args,
+                previous_tasks,
             )
         ]
 
@@ -126,13 +150,60 @@ def resolve_task_args(task: Task) -> dict[str, Any]:
     # was the task instantiated via the registry or a decorator?
     # if so then we can get the task_args from the registry.
     try:
-        return registry_params(task)
+        # filter out model as that's dyanmic and automatically passed
+        task_args = dict(registry_params(task))
+        if "model" in task_args:
+            del task_args["model"]
+        return task_args
 
     # if it wasn't instantiated via the registry or a decorator
     # then it will not be in the registy and not have formal
     # task args (as it was simply synthesized via ad-hoc code)
     except ValueError:
         return {}
+
+
+def resolve_task_sandbox(
+    task: Task, sandbox: SandboxEnvironmentSpec | None
+) -> tuple[str, str | None] | None:
+    # do the resolution
+    resolved_sandbox = (
+        (sandbox, None)
+        if isinstance(sandbox, str)
+        else sandbox
+        if sandbox is not None
+        else task.sandbox
+    )
+
+    # if we have a sandbox with no config, see if there are implcit
+    # config files available for the provider
+    if resolved_sandbox is not None:
+        # look for default
+        if resolved_sandbox[1] is None:
+            # get config files for this type
+            sandboxenv_type = registry_find_sandboxenv(resolved_sandbox[0])
+            config_files_fn = cast(
+                Callable[..., list[str]], getattr(sandboxenv_type, "config_files")
+            )
+            config_files = config_files_fn()
+
+            # probe for them in task src dir
+            src_dir = task_run_dir(task)
+            for config_file in config_files:
+                config_file_path = os.path.join(src_dir, config_file)
+                if os.path.isfile(config_file_path):
+                    resolved_sandbox = (resolved_sandbox[0], config_file)
+                    break
+
+        # resolve relative paths
+        if resolved_sandbox[1] is not None:
+            file_path = Path(resolved_sandbox[1])
+            if not file_path.is_absolute():
+                file_path = Path(task_run_dir(task)) / file_path
+                resolved_sandbox = (resolved_sandbox[0], file_path.as_posix())
+
+    # return resolved sandbox
+    return resolved_sandbox
 
 
 def load_tasks(
@@ -195,7 +266,7 @@ def create_tasks(
 
 
 def load_file_tasks(file: Path) -> list[RegistryInfo]:
-    with chdir_python(file.parent.as_posix()), dotenv_environ():
+    with chdir_python(file.parent.as_posix()):
         return _load_task_specs(file)
 
 
@@ -205,7 +276,7 @@ def create_file_tasks(
     task_specs: list[str] | list[RegistryInfo] | None = None,
     task_args: dict[str, Any] = {},
 ) -> list[Task]:
-    with chdir_python(file.parent.as_posix()), dotenv_environ():
+    with chdir_python(file.parent.as_posix()):
         # if we don't have task specs then go get them (also,
         # turn them into plain names)
         if task_specs is None:
@@ -222,9 +293,15 @@ def create_file_tasks(
             # (will be used later to ensure it runs in the directory)
             task = task_create(task_spec, model, **task_args)
             setattr(task, TASK_FILE_ATTR, file.as_posix())
-            if task.attribs.get("chdir", True):
-                setattr(task, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+            setattr(task, TASK_RUN_DIR_ATTR, file.parent.as_posix())
             tasks.append(task)
+
+            # warn about deprecated chdir attrib
+            if "chdir" in task.attribs:
+                logger.warning(
+                    "The 'chdir' task attribute is deprecated (tasks now always chdir)"
+                )
+
         return tasks
 
 

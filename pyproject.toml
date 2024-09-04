@@ -38,9 +38,11 @@ norecursedirs = [
     "tests/test_package",
     "tests/test_task_list",
 ]
+asyncio_mode = "auto"
 log_level = "warning"
 
 [tool.mypy]
+exclude = "examples/agents/"
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
@@ -67,11 +69,6 @@ check_untyped_defs = true
 disallow_untyped_decorators = true
 extra_checks = true
 disable_error_code = "unused-ignore"
-
-[[tool.mypy.overrides]]
-module = "pandas-stubs.*"
-ignore_errors = true
-
 
 [project]
 name = "inspect_ai"
@@ -104,42 +101,33 @@ inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
 dev = [
-    "accelerate",
-    "anthropic",
-    "boto3",
-    "datasets",
+    "anthropic", 
+    "boto3", 
     "google-cloud-aiplatform",
-    "google-generativeai",
+    "google-generativeai", 
+    "groq", 
     "ipython",
-    "ipywidgets",
-    "langchain",
-    "langchainhub",
     "mistralai",
     "mypy",
     "nbformat",
     "openai",
-    "pandas-stubs",
     "pre-commit",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
     "pytest-dotenv",
     "pytest-xdist",
-    "ruff",
-    "torch",
-    "transformers",
+    "ruff==0.6.3", # match version specified in .pre-commit-config.yaml
     "types-PyYAML",
     "types-aiofiles",
     "types-beautifulsoup4",
     "types-boto3",
     "types-botocore",
+    "types-jsonpatch",
     "types-jsonschema",
     "types-protobuf",
     "types-psutil",
-    "types-python-dateutil",
-    "wikipedia",
-    "groq",
-    "wikipedia",
+    "types-python-dateutil"
 ]
 doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]

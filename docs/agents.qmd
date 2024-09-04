@@ -16,7 +16,7 @@ We'll cover the basics of all of these approaches below.
 
 An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Sandbox Environments](#sec-sandbox-environments) section goes into more depth on this.
 
-## Tool Use Loop
+## Tool Use Loop {#sec-tool-use-loop}
 
 A basic agent can be implemented by providing tools to the model with `use_tools()` and then calling `generate()`. Every time the model calls a tool, the appropriate Python function is called and then the model is re-prompted to generate based on the output of the function. This is typically combined with a ReAct prompt that urges the model to reason about each action it takes. For example:
 
@@ -165,7 +165,11 @@ def generate_ctf():
 
 In this example we rely on the default `generate()` tool calling behaviour (`"loop"`). However, you can also imaging combining tool filtering with the more tailored tool calling logic described in [Tool Calls](#sec-tool-calls).
 
-## Agent Libraries
+### Agents API
+
+For more sophisticated agents, Inspect offers several additional advanced APIs for state management, sub-agents, and fine granined logging. See the [Agents API](agents-api.qmd) article for additional details.
+
+## Agent Libraries {#sec-agent-libraries}
 
 You can also adapt code from a research paper or 3rd party agent library to run within an Inspect solver. Below we'll provide an example of doing this for a [LangChain Agent](https://python.langchain.com/v0.2/docs/tutorials/agents/).
 
@@ -387,7 +391,9 @@ There are two sandbox environments built in to Inspect:
 | `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
 | `docker`         | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
 
-Sandbox environments can be bound at the `Task` level or at the `eval()` level (where `eval()` takes precedence). To bind a sandbox environment to a `Task`, use the `sandbox` option:
+Sandbox environments can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
+
+Here is a `Task` that defines a `sandbox` and corresponding sandbox config file:
 
 ``` python
 Task(
@@ -397,19 +403,34 @@ Task(
         generate()
     ]),
     scorer=match(),
-    sandbox="docker"
+    sandbox=("docker", "compose.yaml")
 )
 ```
 
-For this example, if there is a `compose.yaml` file in the task directory it will be used to provision Docker services (if there is no `compose.yaml` then the Docker's default Python 3.12 image will be used). You can specify an alternate config file using a tuple:
+In this example there is a `compose.yaml` file in the task directory that will be used to provision Docker services (if there is no config file specified then the Docker default Python 3.12 image will be used). For example:
 
 ``` python
-sandbox=("docker","my-compose.yaml")
+sandbox="docker"
 ```
 
 ### Per Sample Setup
 
-The `Sample` class includes `files` and `setup` fields that are used to specify per-sample file assets and setup logic.
+The `Sample` class includes `sandbox`, `files` and `setup` fields that are used to specify per-sample sandbox config, file assets, and setup logic.
+
+#### Sandbox {#sec-per-sample-sandbox}
+
+::: {.callout-note appearance="simple"}
+Note that per-sample `sandbox` specification is available only in the development version of Inspect. You can install the development version with:
+
+```bash
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+You can either define a default `sandbox` for an entire `Task` as illustrated abvove, or alternatively define a per-sample `sandbox`. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file.
+
+The `sandbox` can be specified as a string (e.g. `"docker`") or a list of sandbox type and config file (e.g. `["docker", "compose.yaml"]`).
+
 
 #### Files
 
@@ -451,13 +472,14 @@ Here's an example of a `compose.yaml` file that sets container resource limits a
 services:
   default: 
     build: .
+    init: true
     command: tail -f /dev/null
     cpus: 1.0
     mem_limit: 0.5gb
     network_mode: none
 ```
 
-The `command` is provided to prevent the container from exiting.
+The `init: true` entry enables the container to respond to shutdown requests. The `command` is provided to prevent the container from exiting after it starts.
 
 Here is what a simple `compose.yaml` would look like for a local pre-built image named `ctf-agent-environment` (resource and network limits excluded for brevity):
 
@@ -466,6 +488,7 @@ services:
   default: 
     image: ctf-agent-environment
     x-local: true
+    init: true
     command: tail -f /dev/null
 ```
 
@@ -475,6 +498,7 @@ The `ctf-agent-environment` is not an image that exists on a remote registry, so
 services:
   default: 
     image: ctf-agent-environment:1.0.0
+    init: true
     command: tail -f /dev/null
 ```
 
@@ -484,6 +508,7 @@ If we are using an image from a remote registry we similarly don't need to inclu
 services:
   default:
     image: python:3.12-bookworm
+    init: true
     command: tail -f /dev/null
 ```
 
@@ -498,11 +523,13 @@ services:
   default:
     image: ctf-agent-environment
     x-local: true
+    init: true
     cpus: 1.0
     mem_limit: 0.5gb
   victim:
     image: ctf-victim-environment
     x-local: true
+    init: true
     cpus: 1.0
     mem_limit: 1gb
 ```
@@ -527,12 +554,14 @@ services:
   default: 
     image: ctf-agent-environment
     x-local: true
+    init: true
     volumes:
       - ctf-challenge-volume:/shared-data
     
   writer:
     image: ctf-challenge-writer
     x-local: true
+    init: true
     volumes:
       - ctf-challenge-volume:/shared-data
 volumes:
@@ -550,6 +579,7 @@ services:
   default:
     image: ctf-agent-environment
     x-local: true
+    init: true
     cpus: 1.0
     mem_limit: ${SAMPLE_METDATA_MEMORY_LIMIT-0.5gb}
 ```

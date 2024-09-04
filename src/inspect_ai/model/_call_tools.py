@@ -46,13 +46,25 @@ async def call_tools(
        List of tool calls
     """
     if message.tool_calls:
+        from inspect_ai.solver._subtask.transcript import (
+            ToolEvent,
+            Transcript,
+            init_transcript,
+            track_store_changes,
+            transcript,
+        )
+
         tdefs = tool_defs(tools)
 
-        async def call_tool_task(call: ToolCall) -> ChatMessageTool:
+        async def call_tool_task(call: ToolCall) -> tuple[ChatMessageTool, ToolEvent]:
+            # create a transript for this call
+            init_transcript(Transcript(name=call.function))
+
             result: Any = ""
             tool_error: ToolCallError | None = None
             try:
-                result = await call_tool(tdefs, call)
+                with track_store_changes():
+                    result = await call_tool(tdefs, call)
             except TimeoutError:
                 tool_error = ToolCallError(
                     "timeout", "Command timed out before completing."
@@ -72,6 +84,11 @@ async def call_tools(
                     "file_not_found",
                     f"File '{ex.filename}' was not found.",
                 )
+            except IsADirectoryError as ex:
+                message = f"{ex.strerror}."
+                if isinstance(ex.filename, str):
+                    message = f"{message} Filename '{ex.filename}'."
+                tool_error = ToolCallError("is_a_directory", message)
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
             except ToolError as ex:
@@ -86,14 +103,34 @@ async def call_tools(
             else:
                 content = str(result)
 
+            # create event
+            event = ToolEvent(
+                id=call.id,
+                function=call.function,
+                arguments=call.arguments,
+                result=content,
+                error=tool_error,
+                events=transcript().events,
+            )
+
+            # return message and event
             return ChatMessageTool(
                 content=content,
                 tool_call_id=call.id,
+                function=call.function,
                 error=tool_error,
-            )
+            ), event
 
+        # call tools in parallel
         tasks = [call_tool_task(call) for call in message.tool_calls]
-        return await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
+
+        # fire tool events for each result
+        for event in [result[1] for result in results]:
+            transcript()._event(event)
+
+        # return tool messages
+        return [result[0] for result in results]
 
     else:
         return []
@@ -127,11 +164,18 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
-        return ToolParsingError(validation_errors)
+        raise ToolParsingError(validation_errors)
 
     # call the tool
     try:
-        return await tool_def.tool(**tool_params(call.arguments, tool_def.tool))
+        # get arguments (with creation of dataclasses, pydantic objects, etc.)
+        arguments = tool_params(call.arguments, tool_def.tool)
+
+        # call the tool
+        result = await tool_def.tool(**arguments)
+
+        # return result + events
+        return result
     except TypeError as ex:
         raise ToolParsingError(exception_message(ex))
 

@@ -1,5 +1,4 @@
 from importlib import metadata as importlib_metadata
-from logging import LogRecord
 from typing import Any, cast
 
 from shortuuid import uuid
@@ -7,7 +6,6 @@ from shortuuid import uuid
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.git import git_context
-from inspect_ai._util.logger import logger_records
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (
     registry_log_name,
@@ -26,9 +24,8 @@ from inspect_ai.log import (
     EvalSample,
     EvalSpec,
     EvalStats,
-    LoggingMessage,
 )
-from inspect_ai.log._log import LogEvent, Recorder
+from inspect_ai.log._log import LogType, Recorder
 from inspect_ai.model import (
     GenerateConfig,
     Model,
@@ -38,6 +35,7 @@ from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Plan, Solver, TaskState
+from inspect_ai.solver._subtask.transcript import eval_events, transcript
 
 
 class TaskLogger:
@@ -96,27 +94,29 @@ class TaskLogger:
         self._location = self.recorder.log_start(self.eval)
 
         # number of samples logged
-        self._samples_logged = 0
+        self._samples_completed = 0
 
     @property
     def location(self) -> str:
         return self._location
 
     @property
-    def samples_logged(self) -> int:
-        return self._samples_logged
+    def samples_completed(self) -> int:
+        return self._samples_completed
 
-    def log_event(
+    def log(
         self,
-        type: LogEvent,
-        data: EvalSample | EvalPlan | EvalResults | LoggingMessage,
+        type: LogType,
+        data: EvalSample | EvalPlan | EvalResults,
         flush: bool = False,
     ) -> None:
-        self.recorder.log_event(self.eval, type, data, flush)
+        self.recorder.log(self.eval, type, data, flush)
 
-        # track samples logged
+        # track sucessful samples logged
         if type == "sample":
-            self._samples_logged += 1
+            sample = cast(EvalSample, data)
+            if sample.error is None:
+                self._samples_completed += 1
 
     def log_sample(
         self,
@@ -124,10 +124,11 @@ class TaskLogger:
         sample: Sample,
         state: TaskState,
         scores: dict[str, SampleScore],
+        error: EvalError | None,
         flush: bool = False,
     ) -> None:
         # log
-        self.log_event(
+        self.log(
             "sample",
             EvalSample(
                 id=sample.id if isinstance(sample.id, int) else str(sample.id),
@@ -136,18 +137,28 @@ class TaskLogger:
                 choices=sample.choices,
                 target=sample.target,
                 metadata=state.metadata if state.metadata else {},
+                sandbox=(
+                    (sample.sandbox, None)
+                    if isinstance(sample.sandbox, str)
+                    else sample.sandbox
+                ),
+                files=list(sample.files.keys()) if sample.files else None,
+                setup=sample.setup,
                 messages=state.messages,
                 output=state.output,
                 scores=cast(dict[str, Score], scores),
+                store=dict(state.store.items()),
+                transcript=eval_events(transcript().events),
+                error=error,
             ),
             flush,
         )
 
     def log_plan(self, plan: EvalPlan) -> None:
-        self.log_event("plan", plan)
+        self.log("plan", plan)
 
     def log_results(self, results: EvalResults) -> None:
-        self.log_event("results", results)
+        self.log("results", results)
 
     def log_cancelled(self, stats: EvalStats) -> EvalLog:
         return self.recorder.log_cancelled(self.eval, stats)
@@ -178,18 +189,10 @@ def log_plan(
     if plan.finish:
         eval_plan.steps.append(eval_plan_step(plan.finish))
 
-    logger.log_event("plan", eval_plan)
+    logger.log("plan", eval_plan)
 
 
 def collect_eval_data(stats: EvalStats, logger: TaskLogger) -> None:
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()
-
-    # collect log output
-    log_logger_records(logger, logger_records())
-
-
-def log_logger_records(logger: TaskLogger, records: list[LogRecord]) -> None:
-    for record in records:
-        logger.log_event("logging", LoggingMessage.from_log_record(record))

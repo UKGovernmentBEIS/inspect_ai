@@ -1,14 +1,21 @@
 from collections.abc import Sequence
+from contextvars import ContextVar
+from copy import deepcopy
 from dataclasses import dataclass
 from random import Random
-from typing import Any, Union, overload
+from typing import Any, Union, cast, overload
 
+from pydantic_core import to_jsonable_python
+
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
     ModelName,
     ModelOutput,
 )
+from inspect_ai.model._call_tools import tools_info
+from inspect_ai.solver._subtask.store import Store, store_jsonable
 from inspect_ai.tool import Tool, ToolChoice
 
 
@@ -138,6 +145,9 @@ class TaskState:
         or `input_text` only
         """
 
+        self.metadata = metadata
+        """Metadata from the `Sample` for this `TaskState`"""
+
         self.messages = messages
         """
         Chat conversation history for sample.
@@ -165,8 +175,8 @@ class TaskState:
         self._max_messages = max_messages
         self._completed = completed
 
-        self.metadata = metadata
-        """Additional task state metadata."""
+        """Store for shared data"""
+        self.store = Store()
 
         if choices:
             self.choices = Choices(choices)
@@ -247,3 +257,42 @@ class TaskState:
     @tools.setter
     def tools(self, tools: list[Tool]) -> None:
         self._tools = tools
+
+
+def sample_state() -> TaskState | None:
+    return _sample_state.get(None)
+
+
+def set_sample_state(state: TaskState) -> None:
+    _sample_state.set(state)
+
+
+_sample_state: ContextVar[TaskState] = ContextVar("sample_state")
+
+
+def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
+    # use current sample state if none specified
+    if state is None:
+        state = sample_state()
+        if state is None:
+            return dict()
+
+    def as_jsonable(value: Any) -> Any:
+        return to_jsonable_python(value, exclude_none=True, fallback=lambda _x: None)
+
+    state_data = dict(
+        messages=as_jsonable(state.messages),
+        tools=tools_info(state.tools),
+        tool_choice=state.tool_choice,
+        store=store_jsonable(state.store),
+        output=state.output,
+        completed=state.completed,
+        metadata=as_jsonable(state.metadata),
+    )
+    jsonable = as_jsonable(state_data)
+    return cast(dict[str, Any], deepcopy(jsonable))
+
+
+def sample_jsonable(sample: Sample) -> dict[str, Any]:
+    jsonable = to_jsonable_python(sample, exclude_none=True, fallback=lambda _x: None)
+    return cast(dict[str, Any], deepcopy(jsonable))

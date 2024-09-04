@@ -7,8 +7,6 @@ from typing import Any
 from shortuuid import uuid
 from typing_extensions import Unpack
 
-from inspect_ai._display.logger import init_logger
-from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
@@ -45,6 +43,7 @@ def eval(
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
+    fail_on_error: bool | float | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -81,6 +80,10 @@ def eval(
            (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
            reducer function(s) used to combine sample scores (defaults to "mean")
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
         max_messages (int | None): Maximum number of messages to allow
            in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -117,6 +120,7 @@ def eval(
             log_dir=log_dir,
             limit=limit,
             epochs=epochs,
+            fail_on_error=fail_on_error,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -143,6 +147,7 @@ async def eval_async(
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
+    fail_on_error: bool | float | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -179,6 +184,9 @@ async def eval_async(
             (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+            (default); `False` to never fail on sample errors; Value between 0 and 1
+            to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
         max_messages (int | None): Maximum number of messages to allow
             in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -199,41 +207,28 @@ async def eval_async(
         List of EvalLog (one for each task)
     """
     # only a single call to eval_async can be active at a time, this is
-    # because when running a task a chdir to the task's directory (and a
+    # because when running a task a chdir to the task's directory (and
     # similar mutation of the Python sys.path) occurs. since this is a
     # change to global process state it cannot occur in parallel. for
-    # task parallelism, use eval_gather, which enforces the appropriate
-    # constraints on task parallelism and schedules multiple tasks for
-    # optimal concurrency
+    # task parallelism, pass multiple tasks to eval or eval_async (which
+    # will enforce the appropriate constraints on task parallelism)
     global _eval_async_running
     if _eval_async_running:
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
 
     _eval_async_running = True
     try:
-        # Provide .env and log support bootstrap for notebooks and invoking
-        # an eval as a plain Python script (as opposed to via inspect eval)
-        init_dotenv()
-        init_logger(log_level)
-
-        # init eval context
-        init_eval_context(max_subprocesses)
-
-        # resolve models
-        models = resolve_models(
-            model, model_base_url, model_args, GenerateConfig(**kwargs)
+        model, resolved_tasks = eval_init(
+            tasks=tasks,
+            model=model,
+            model_base_url=model_base_url,
+            model_args=model_args,
+            task_args=task_args,
+            sandbox=sandbox,
+            max_subprocesses=max_subprocesses,
+            log_level=log_level,
+            **kwargs,
         )
-
-        # resolve epochs
-        if isinstance(epochs, int):
-            epochs = Epochs(epochs)
-
-        # resolve tasks (set active model to resolve uses of the
-        # 'default' model in tools, solvers, and scorers)
-        resolved_tasks: list[ResolvedTask] = []
-        for m in models:
-            init_active_model(m)
-            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
         # warn and return empty string if we resolved no tasks
         if len(resolved_tasks) == 0:
@@ -245,6 +240,10 @@ async def eval_async(
         log_dir = absolute_file_path(log_dir)
         recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
 
+        # resolve epochs
+        if isinstance(epochs, int):
+            epochs = Epochs(epochs)
+
         # create config
         epochs_reducer = epochs.reducer if epochs else None
         eval_config = EvalConfig(
@@ -253,6 +252,7 @@ async def eval_async(
             epochs_reducer=reducer_log_names(epochs_reducer)
             if epochs_reducer
             else None,
+            fail_on_error=fail_on_error,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -267,7 +267,7 @@ async def eval_async(
         # (w/ optional multiple models) and the other for true multi-task
         # (which requires different scheduling and UI)
         run_id = uuid()
-        task_definitions = len(resolved_tasks) // len(models)
+        task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
 
         # single task definition (could be multi-model) or max_tasks capped to 1
@@ -296,7 +296,7 @@ async def eval_async(
                     break
 
             # return list of eval logs
-            return EvalLogs(results)
+            logs = EvalLogs(results)
 
         # multiple task definitions AND tasks not capped at 1
         else:
@@ -312,10 +312,13 @@ async def eval_async(
                 score=score,
                 **kwargs,
             )
-            return EvalLogs(results)
+            logs = EvalLogs(results)
 
     finally:
         _eval_async_running = False
+
+    # return logs
+    return logs
 
 
 # single call to eval_async at a time
@@ -488,6 +491,7 @@ async def eval_retry_async(
         task_args = eval_log.eval.task_args
         limit = eval_log.eval.config.limit
         epochs = eval_log.eval.config.epochs
+        fail_on_error = eval_log.eval.config.fail_on_error
         max_messages = eval_log.eval.config.max_messages
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
@@ -515,7 +519,9 @@ async def eval_retry_async(
         # run the eval
         log = (
             await eval_async(
-                tasks=PreviousTask(task=task, id=task_id, log=eval_log),
+                tasks=PreviousTask(
+                    id=task_id, task=task, task_args=task_args, log=eval_log
+                ),
                 model=model,
                 model_base_url=model_base_url,
                 model_args=model_args,
@@ -526,6 +532,7 @@ async def eval_retry_async(
                 log_dir=log_dir,
                 limit=limit,
                 epochs=epochs,
+                fail_on_error=fail_on_error,
                 max_messages=max_messages,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
@@ -542,6 +549,34 @@ async def eval_retry_async(
         eval_logs.append(log)
 
     return EvalLogs(eval_logs)
+
+
+def eval_init(
+    tasks: Tasks,
+    model: str | Model | list[str] | list[Model] | None = None,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] = dict(),
+    task_args: dict[str, Any] = dict(),
+    sandbox: SandboxEnvironmentSpec | None = None,
+    max_subprocesses: int | None = None,
+    log_level: str | None = None,
+    **kwargs: Unpack[GenerateConfigArgs],
+) -> tuple[list[Model], list[ResolvedTask]]:
+    # init eval context
+    init_eval_context(log_level, max_subprocesses)
+
+    # resolve models
+    generate_config = GenerateConfig(**kwargs)
+    models = resolve_models(model, model_base_url, model_args, generate_config)
+
+    # resolve tasks (set active model to resolve uses of the
+    # 'default' model in tools, solvers, and scorers)
+    resolved_tasks: list[ResolvedTask] = []
+    for m in models:
+        init_active_model(m, generate_config)
+        resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
+
+    return models, resolved_tasks
 
 
 # A list of eval logs is returned from eval(). We've already displayed

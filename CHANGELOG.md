@@ -2,15 +2,49 @@
 
 ## Unreleased
 
+- [Eval Sets](https://inspect.ai-safety-institute.org.uk/eval-sets.html) for running groups of tasks with automatic retries.
+- [Per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
+- [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
+- `write_log_dir_manifest()` to write a log header manifest for a log directory
+- Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
+- Fix issue with resolving Docker configuration files when not running from the task directory.
+- Treat Sancbox exec `cwd` that are relative paths as relative to sample working directry.
+- Filter base64 encoded images out of model API call logs.
+- Raise error when a Solver does not return a TaskState.
+- Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintended token usage)
+- Remove `chdir` option from `@tasks` (tasks now always chdir during execution).
+- Do not process `.env` files in task directories (all required vars should be specified in the global `.env`).
+- Only enable `strict` mode for OpenAI tool calls when all function parameters are required.
+- Added [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa) and [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu_pro) benchmarks.
+
+## v0.3.25 (25 August 2024)
+
+- [Store](https://inspect.ai-safety-institute.org.uk/agents-api.html#sharing-state) for manipulating arbitrary sample state from within solvers and tools.
+- [Transcript](https://inspect.ai-safety-institute.org.uk/agents-api.html#transcripts) for detailed sample level tracking of model and tool calls, state changes, logging, etc.
+- [Subtasks](https://inspect.ai-safety-institute.org.uk/agents-api.html#sec-subtasks) for delegating work to helper models, sub-agents, etc.
+- Integration with Anthropic [prompt caching](https://inspect.ai-safety-institute.org.uk/caching.html#sec-provider-caching).
+- [fail_on_error](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
+- Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
+- Add `function` field to `ChatMessageTool` to indicate the name of the function called.
+- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/race-h/) benchmark.
+
+## v0.3.24 (18 August 2024)
+
+- Support for tool calling for Llama 3.1 models on Bedrock.
+- Report JSON schema validation errors to model in tool response.
+- Support for `strict` mode in OpenAI tool calls (update to v1.40.0 of `openai` package required).
+
+## v0.3.23 (16 August 2024)
+
 - Support for tool calling for Llama 3.1 models on Azure AI and CloudFlare.
-- Support for Llama 3.1 models on Amazon Bedrock
+- Incrase default `max_tokens` from 1024 to 2048.
+- Record individual sample reductions along with results for multi-epoch evals.
 - Change default to not log base64 encoded versions of images, as this often resulted in extremely large log files (use `--log-images` to opt back in).
 - Update to new Mistral API (v1.0.1 of `mistralai` is now required).
-- Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
-- Record individual sample reductions along with results for multi-epoch evals.
+- Support for Llama 3.1 models on Amazon Bedrock
 - Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).
 - Improved resolution of AWS region for Bedrock (respecting already defined AWS_REGION and AWS_DEFAULT_REGION)
-- Incrase default `max_tokens` from 1024 to 2048.
+- Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
 - Added [HumanEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/humaneval), [WinoGrande](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/winogrande) and [Drop](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/drop) benchmarks.
 
 ## v0.3.22 (07 August 2024)

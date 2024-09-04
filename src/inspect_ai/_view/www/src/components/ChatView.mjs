@@ -1,28 +1,34 @@
-import Prism from "prismjs";
+// @ts-check
 import { html } from "htm/preact";
-import { useMemo, useRef } from "preact/hooks";
 
-import { icons } from "../Constants.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { resolveToolInput, ToolCallView } from "./Tools.mjs";
 
-// role
-// content
+/**
+ * Renders the ChatView component.
+ *
+ * @param {Object} props - The properties passed to the component.
+ * @param {string} props.id - The ID for the chat view.
+ * @param {import("../types/log").Messages} props.messages - The array of chat messages.
+ * @param {Object} [props.style] - Inline styles for the chat view.
+ * @returns {import("preact").JSX.Element} The component.
+ */
 export const ChatView = ({ id, messages, style }) => {
   // Filter tool messages into a sidelist that the chat stream
   // can use to lookup the tool responses
   const toolMessages = {};
-  const nonToolMessages = messages
-    .map((msg) => {
-      if (msg.role === "tool") {
-        toolMessages[msg.tool_call_id] = msg;
-      }
-      return msg;
-    })
-    .filter((msg) => {
-      return msg.role !== "tool";
-    });
+  const nonToolMessages = [];
+  for (const message of messages) {
+    if (message.role === "tool") {
+      toolMessages[message.tool_call_id] = message;
+    } else {
+      nonToolMessages.push(message);
+    }
+  }
 
   // Capture system messages (there could be multiple)
   const systemMessages = [];
@@ -54,8 +60,8 @@ export const ChatView = ({ id, messages, style }) => {
     collapsedMessages.unshift(systemMessage);
   }
 
-  return html`
-    <div style=${{ paddingTop: "0.5em", ...style }}>
+  const result = html`
+    <div style=${style}>
       ${collapsedMessages.map((msg) => {
         return html`<${ChatMessage}
           id=${`${id}-chat-messages`}
@@ -65,6 +71,8 @@ export const ChatView = ({ id, messages, style }) => {
       })}
     </div>
   `;
+
+  return result;
 };
 
 const normalizeContent = (content) => {
@@ -86,7 +94,7 @@ const ChatMessage = ({ id, message, toolMessages }) => {
     <div
       class="container-fluid ${message.role}"
       style=${{
-        fontSize: "0.9rem",
+        fontSize: FontSize.base,
         fontWeight: "300",
         paddingBottom: ".5em",
         justifyContent: "flex-start",
@@ -117,7 +125,7 @@ const ChatMessage = ({ id, message, toolMessages }) => {
             paddingLeft: "0",
           }}
         >
-          <div style=${{ fontWeight: "500" }}>${message.role}</div>
+          <div style=${{ fontWeight: "500", ...TextStyle.label }}>${message.role}</div>
           <${ExpandablePanel} collapse=${collapse}>
             <${MessageContents}
               key=${`${id}-contents`}
@@ -150,32 +158,19 @@ const MessageContents = ({ message, toolMessages }) => {
       const toolMessage = toolMessages[tool_call.id];
 
       // Extract tool input
-      const { input, functionCall, inputType } = resolveToolInput(tool_call);
+      const { input, functionCall, inputType } = resolveToolInput(
+        tool_call.function,
+        tool_call.arguments,
+      );
 
       // Resolve the tool output
       const resolvedToolOutput = resolveToolMessage(toolMessage);
-
-      return html`<p>
-        <i class="bi bi-tools" style=${{
-          marginRight: "0.2rem",
-          opacity: "0.4",
-        }}></i>
-        <code style=${{ fontSize: "0.7rem" }}>${functionCall}</code>
-        <div>
-          ${
-            toolMessage
-              ? html`
-              <div style=${{ marginLeft: "1.5em" }}>
-              <${ToolInput} type=${inputType} contents=${input}/>
-              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
-              <${MessageContent} contents=${resolvedToolOutput} />
-              </${ExpandablePanel}>
-              </div>
-              `
-              : ""
-          }
-        </div>
-        </p>`;
+      return html`<${ToolCallView}
+        functionCall=${functionCall}
+        input=${input}
+        inputType=${inputType}
+        output=${resolvedToolOutput}
+      />`;
     });
 
     if (toolCalls) {
@@ -187,51 +182,14 @@ const MessageContents = ({ message, toolMessages }) => {
   }
 };
 
-export const ToolInput = ({ type, contents }) => {
-  if (!contents) {
-    return "";
-  }
-
-  if (typeof contents === "object" || Array.isArray(contents)) {
-    contents = JSON.stringify(contents);
-  }
-
-  const toolInputRef = useRef();
-  useMemo(() => {
-    const tokens = Prism.languages[type];
-    if (toolInputRef.current && tokens) {
-      const html = Prism.highlight(contents, tokens, type);
-      toolInputRef.current.innerHTML = html;
-    }
-  }, [toolInputRef.current, type, contents]);
-
-  return html` <pre
-    class="tool-output"
-    style=${{
-      padding: "0.5em",
-      marginTop: "0.25em",
-      marginBottom: "1rem",
-    }}
-  >
-      <code ref=${toolInputRef} class="sourceCode${type
-    ? ` language-${type}`
-    : ""}" style=${{
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap",
-  }}>
-        ${contents}
-        </code>
-    </pre>`;
-};
-
 export const iconForMsg = (msg) => {
-  let iconCls = icons.role.assistant;
+  let iconCls = ApplicationIcons.role.assistant;
   if (msg.role === "user") {
-    iconCls = icons.role.user;
+    iconCls = ApplicationIcons.role.user;
   } else if (msg.role === "system") {
-    iconCls = icons.role.system;
+    iconCls = ApplicationIcons.role.system;
   } else if (msg.role === "tool") {
-    iconCls = icons.role.tool;
+    iconCls = ApplicationIcons.role.tool;
   }
   return iconCls;
 };
@@ -265,72 +223,4 @@ const resolveToolMessage = (toolMessage) => {
       }
     });
   }
-};
-
-const resolveToolInput = (tool_call) => {
-  const toolName = tool_call.function;
-
-  const extractInputMetadata = () => {
-    if (toolName === "bash") {
-      return ["cmd", "bash"];
-    } else if (toolName === "python") {
-      return ["code", "python"];
-    } else if (toolName === "web_search") {
-      return ["query", "text"];
-    } else {
-      return [undefined, undefined];
-    }
-  };
-  const [inputKey, inputType] = extractInputMetadata();
-
-  const extractInput = (inputKey, tool_call) => {
-    const formatArg = (key, value) => {
-      const quotedValue = typeof value === "string" ? `"${value}"` : value;
-      return `${key}: ${quotedValue}`;
-    };
-
-    if (tool_call.arguments) {
-      if (Object.keys(tool_call.arguments).length === 1) {
-        return {
-          input: tool_call.arguments[Object.keys(tool_call.arguments)[0]],
-          args: [],
-        };
-      } else if (tool_call.arguments[inputKey]) {
-        const input = tool_call.arguments[inputKey];
-        const args = Object.keys(tool_call.arguments)
-          .filter((key) => {
-            return key !== inputKey;
-          })
-          .map((key) => {
-            return formatArg(key, tool_call.arguments[key]);
-          });
-        return {
-          input,
-          args,
-        };
-      } else {
-        const args = Object.keys(tool_call.arguments).map((key) => {
-          return formatArg(key, tool_call.arguments[key]);
-        });
-
-        return {
-          input: undefined,
-          args: args,
-        };
-      }
-    }
-    return {
-      input: undefined,
-      args: [],
-    };
-  };
-  const { input, args } = extractInput(inputKey, tool_call);
-
-  const functionCall =
-    args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
-  return {
-    functionCall,
-    input,
-    inputType,
-  };
 };
