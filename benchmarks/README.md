@@ -20,4 +20,5 @@ This directory contains evals for several benchmarks. Datasets for evals are not
 | RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models. | <https://arxiv.org/abs/1704.04683>   |             [race-h.py](race-h/race-h.py) | Hugging Face |
 | MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark.            | <https://arxiv.org/abs/2311.16502>   |             [mmmu.py](mmmu/mmmu.py)       | Hugging Face |
 | CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge                 | <https://arxiv.org/pdf/1811.00937v2> |   [commonsense_qa.py](commonsense_qa/commonsense_qa.py) | Hugging Face |
+| XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's                      | <https://arxiv.org/abs/2308.01263>   |                         [xstest.py](xstest/xstest.py) | Hugging Face |
 | SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles | <https://arxiv.org/pdf/1806.03822>   |             [squad.py](squad/squad.py) | Hugging Face |
