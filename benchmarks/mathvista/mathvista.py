@@ -45,13 +45,13 @@ def MathVistaMultipleChoice() -> Task:
 
     return Task(
         dataset=dataset,
-        plan=[multi_choice_or_free_form_solver()],
-        scorer=multi_choice_or_free_form_scorer(),
+        plan=[mathvista_solver()],
+        scorer=mathvista_scorer(),
     )
 
 
 @scorer(metrics=[accuracy(), stderr()])
-def multi_choice_or_free_form_scorer():
+def mathvista_scorer():
     async def score(state: TaskState, target: Target) -> Score:
         match = re.search(
             ANSWER_PATTERN_LETTER
@@ -87,7 +87,7 @@ def multi_choice_or_free_form_scorer():
 
 
 @solver
-def multi_choice_or_free_form_solver() -> Solver:
+def mathvista_solver() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.metadata["question_type"] == "multi_choice":
             state.user_prompt.text = prompt(
