@@ -61,6 +61,7 @@ def mathvista_scorer():
             re.IGNORECASE,
         )
         if match:
+            # scoring pattern found in response
             groups = match.groups()
             found_match = match_first(matches=groups, target=target, ignore_case=True)
 
