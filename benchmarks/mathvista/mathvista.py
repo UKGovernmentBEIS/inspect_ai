@@ -27,7 +27,7 @@ Answer the following multiple choice question. The entire content of your respon
 """.strip()
 
 FREEFORM_TEMPLATE = r"""
-Answer the following question. The entire content of your response should be of the following format: 'ANSWER: $ANSWER' (without quotes) where $ANSWER is one your answer.
+Answer the following question. The entire content of your response should be of the following format: 'ANSWER: $ANSWER' (without quotes) where $ANSWER is your answer.
 
 {question}
 """
