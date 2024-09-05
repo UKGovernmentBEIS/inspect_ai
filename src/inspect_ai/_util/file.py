@@ -227,6 +227,21 @@ def default_fs_options(file: str) -> dict[str, Any]:
     return options
 
 
+def size_in_mb(file: str) -> float:
+    # Open the file using fsspec and retrieve the file's information
+    fs, path = fsspec.core.url_to_fs(file)
+
+    # Use the filesystem's info method to get the size
+    file_info = fs.info(path)
+
+    # Extract the size from the file information
+    file_size_in_bytes = cast(float, file_info["size"])
+
+    # Get the size in megabytes
+    file_size_in_mb = file_size_in_bytes / (1024 * 1024)
+    return file_size_in_mb
+
+
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
     # disable all S3 native caching
     s3=dict(default_fill_cache=False, default_cache_type="none", cache_regions=False)

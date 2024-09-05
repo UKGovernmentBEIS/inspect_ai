@@ -18,7 +18,8 @@ import { ApplicationIcons } from "../../../appearance/Icons.mjs";
  */
 export const StateEventView = ({ id, event, depth, stateManager }) => {
   const startingState = stateManager.getState();
-  const resolvedState = stateManager.applyChanges(event.changes);
+  stateManager.applyChanges(event.changes);
+  const resolvedState = stateManager.getState();
 
   const summary = summarizeChanges(event.changes);
 
@@ -30,7 +31,13 @@ export const StateEventView = ({ id, event, depth, stateManager }) => {
       style=${{ margin: "1em 0" }}
     />`,
   ];
-  const changePreview = generatePreview(event.changes, resolvedState);
+  // This clone is important since the state is used by preact as potential values that are rendered
+  // and as a result may be decorated with additional properties, etc..., resulting in DOM elements
+  // appearing attached to state.
+  const changePreview = generatePreview(
+    event.changes,
+    structuredClone(resolvedState),
+  );
   if (changePreview) {
     tabs.unshift(
       html`<div name="Summary" style=${{ margin: "1em 0" }}>

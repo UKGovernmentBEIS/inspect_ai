@@ -5,8 +5,8 @@ from inspect_ai._util.json import json_changes
 from inspect_ai._util.registry import (
     registry_log_name,
 )
-from inspect_ai.solver import Solver, TaskState, transcript
-from inspect_ai.solver._subtask.transcript import StateEvent
+from inspect_ai.log._transcript import StateEvent, transcript
+from inspect_ai.solver import Solver, TaskState
 from inspect_ai.solver._task_state import set_sample_state, state_jsonable
 
 

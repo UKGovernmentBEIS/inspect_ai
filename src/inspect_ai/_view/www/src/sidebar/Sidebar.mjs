@@ -36,6 +36,7 @@ export const Sidebar = ({
           borderBottom: "solid var(--bs-light-border-subtle) 1px",
           paddingBottom: "0.5rem",
           paddingTop: "0.5rem",
+          height: "3.6em",
         }}
       >
         <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
@@ -56,7 +57,7 @@ export const Sidebar = ({
           <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "61px", zIndex: 3 }}>
+      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
         <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
       </div>
       <ul
@@ -184,7 +185,7 @@ const prettyDir = (path) => {
 };
 
 const EvalStatus = ({ logHeader }) => {
-  switch (logHeader.status) {
+  switch (logHeader?.status) {
     case "error":
       return html`<${StatusError} message="Error" />`;
 
@@ -331,17 +332,45 @@ const SidebarScores = ({ scores }) => {
 };
 
 const StatusCancelled = ({ message }) => {
-  return html`<div style=${{ ...TextStyle.secondary }}>${message}</div>`;
+  return html`<div
+    style=${{
+      marginTop: "0.2em",
+      fontSize: FontSize.small,
+      ...TextStyle.label,
+      ...TextStyle.secondary,
+    }}
+  >
+    ${message}
+  </div>`;
 };
 
 const StatusRunning = ({ message }) => {
-  return html`<div class="spinner-border spinner-border-sm" role="status">
-    <span class="visually-hidden">${message}</span>
+  return html` <div
+    style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content max-content",
+      columnGap: "0.5em",
+      marginTop: "0.3em",
+      fontSize: FontSize.small,
+      ...TextStyle.secondary,
+      ...TextStyle.label,
+    }}
+  >
+    <div>${message}</div>
   </div>`;
 };
 
 const StatusError = ({ message }) => {
-  return html`<div style=${{ color: "var(--bs-danger)" }}>${message}</div>`;
+  return html`<div
+    style=${{
+      color: "var(--bs-danger)",
+      marginTop: "0.2em",
+      fontSize: FontSize.small,
+      ...TextStyle.label,
+    }}
+  >
+    ${message}
+  </div>`;
 };
 
 const LogDirectoryTitle = ({ log_dir, offcanvas }) => {

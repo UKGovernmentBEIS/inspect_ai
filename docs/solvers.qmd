@@ -95,48 +95,104 @@ Inspect has a number of built-in solvers, each of which can be customised in som
 
 -   `prompt_template()`
 
-    Modify the user prompt by substituting the current prompt into the `{prompt}` placeholder within the specified template. Also automatically substitutes any variables 
-    defined in sample `metadata` as well as any other custom named paramters passed in `params`.
+    Modify the user prompt by substituting the current prompt into the `{prompt}` placeholder within the specified template. Also automatically substitutes any variables defined in sample `metadata` as well as any other custom named paramters passed in `params`.
 
 -   `chain_of_thought()`
 
     Standard chain of thought template with `{prompt}` substitution variable. Asks the model to provide the final answer on a line by itself at the end for easier scoring.
 
--   `generate()`
-
-    As illustrated above, just a simple call to `generate(state)`. This is the default solver if no `plan` is specified.
-
--   `multiple_choice()`
-
-    A solver which presents A,B,C,D style `choices` from input samples (in a random order), calls `generate()` to yield model output, then maps the answer back to the correct index for scoring. Note that you don't need to call `generate()` separately when using this solver.
-
--   `self_critique()`
-
-    Prompts the model to critique the results of a previous call to `generate()` (note that this need not be the same model as they one you are evaluating—use the `model` parameter to choose another model). Makes use of `{question}` and `{completion}` template variables. Also automatically substitutes any variables defined in sample `metadata` 
-
 -   `use_tools()`
 
     Define the set tools available for use by the model during `generate()`.
 
-### Multiple Choice
+-   `generate()`
+
+    As illustrated above, just a simple call to `generate(state)`. This is the default solver if no `plan` is specified.
+
+-   `self_critique()`
+
+    Prompts the model to critique the results of a previous call to `generate()` (note that this need not be the same model as they one you are evaluating—use the `model` parameter to choose another model). Makes use of `{question}` and `{completion}` template variables. Also automatically substitutes any variables defined in sample `metadata`
+
+-   `multiple_choice()`
+
+    A solver which presents A,B,C,D style `choices` from input samples and calls `generate()` to yield model output. This solver should nearly always paired with the `choices()` scorer. Learn more about [Multiple Choice](#sec-multiple-choice) in the section below.
+
+## Multiple Choice {#sec-multiple-choice}
 
 Here is the declaration for the `multiple_choice()` solver:
 
 ``` python
+@solver
 def multiple_choice(
+    *,
+    template: str | None = None,
     multiple_correct: bool = False,
     shuffle: bool | Random = False,
-    template: str | None = None,
 ) -> Solver:
 ```
 
-By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided.
+We'll present an example and then discuss the various options below (in most cases you won't need to customise these). First though there are some special considerations to be aware of when using the `multiple_choice()` solver:
 
-If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).
+1.  The `Sample` must include the available `choices`. Choices should not include letters (as they are automatically included when presenting the choices to the model).
+2.  The `Sample` `target` should be a capital letter (e.g. A, B, C, D, etc.)
+3.  You should always pair it with the `choice()` scorer in your task definition.
+4.  It calls `generate()` internally, so you should not include `generate()` in your plan.
 
-Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required).
+### Example
 
-When using the `multiple_choice()` solver you should always pair it with the `choice()` scorer.
+Below is a full example of reading a dataset for use with `multiple choice()` and using it in an evaluation task. The underlying data in `mmlu.csv` has the following form:
+
+| Question | A | B | C | D | Answer |
+|------------|------------|------------|------------|------------|:----------:|
+| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0 | 4 | 2 | 6 | B |
+| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5. | 8 | 2 | 24 | 120 | C |
+
+: {tbl-colwidths=\[50,10,10,10,10,10\]}
+
+Here is the task definition:
+
+``` python
+@task
+def mmlu():
+    # read the dataset
+    dataset = csv_dataset(
+        "mmlu.csv", 
+        sample_fields=record_to_sample
+    )
+
+    # task with multiple choice() and choice() scorer
+    return Task(
+        dataset=task_dataset,
+        plan=multiple_choice(),
+        scorer=choice(),
+    )
+
+def record_to_sample(record):
+    return Sample(
+        input=record["Question"],
+        choices=[
+            str(record["A"]),
+            str(record["B"]),
+            str(record["C"]),
+            str(record["D"]),
+        ],
+        target=record["Answer"],
+    )
+```
+
+We use the `record_to_sample()` function to read the `choices` along with the `target` (which should always be a letter ,e.g. A, B, C, or D). Note that you should not include letter prefixes in the `choices`, as they will be included automatically when presenting the question to the model.
+
+### Options
+
+The following options are available for further customisation of the multiple choice solver:
+
+| Option | Description |
+|------------------------------------|------------------------------------|
+| `template` | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). |
+| `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. |
+| `shuffle` | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated). |
+
+: {tbl-colwidths=\[35,65\]}
 
 ### Self Critique
 
@@ -172,7 +228,7 @@ Typically solvers can be customised with parameters (e.g. `template` for prompt 
 Before presenting the examples we'll take a more in-depth look at the `TaskState` class. Task states consist of both lower level data members (e.g. `messages`, `output`) as well as a number of convenience properties. The core members of `TaskState` that are *modified* by solvers are `messages` / `user_prompt` and `output`:
 
 | Member | Type | Description |
-|------------------|------------------|-------------------------------------|
+|-------------------|-------------------|----------------------------------|
 | `messages` | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
 | `user_prompt` | ChatMessageUser | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering). |
 | `output` | ModelOutput | The 'final' model output once we've completed all solving. This field is automatically updated with the last "assistant" message by the `generate()` solver. |
@@ -184,21 +240,21 @@ Note that the `generate()` solver automatically updates both the `messages` and 
 There are two additional fields that solvers might modify (but they are typically for more advanced use cases):
 
 | Member | Type | Description |
-|------------------|------------------|-------------------------------------|
+|-------------------|-------------------|----------------------------------|
 | `metadata` | dict | Original metadata from `Sample`, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging). |
 | `completed` | bool | Solvers can set `completed = True` to cause the task to exit the plan immediately. |
 
 Sometimes its import to have access to the *original* prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the `input` and `input_text` properties:
 
 | Member | Type | Description |
-|------------------|------------------|------------------------------------|
+|-------------------|-------------------|----------------------------------|
 | `input` | str \| list\[ChatMessage\] | Original `Sample` input. |
 | `input_text` | str | Convenience function for accessing the initial input from the `Sample` as a string. |
 
 There are several other fields used to provide contextual data from either the task sample or evaluation:
 
 | Member | Type | Description |
-|------------------|------------------|-----------------------------------|
+|-------------------|-------------------|----------------------------------|
 | `sample_id` | int \| str | Unique ID for sample. |
 | `epoch` | int | Epoch for sample. |
 | `choices` | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
@@ -206,10 +262,10 @@ There are several other fields used to provide contextual data from either the t
 
 Finally, task states also include available tools as well as guidance for the model on which tools to use (if you haven't yet encountered the concept of tool use in language models, don't worry about understanding these fields, the [Tools](tools.qmd) article provides a more in-depth treatment):
 
-| Member | Type | Description |
-|------------------|-------------------|-----------------------------------|
-| `tools` | list\[Tool\] | Tools available to the model |
-| `tool_choice` | ToolChoice | Tool choice directive. |
+| Member        | Type         | Description                  |
+|---------------|--------------|------------------------------|
+| `tools`       | list\[Tool\] | Tools available to the model |
+| `tool_choice` | ToolChoice   | Tool choice directive.       |
 
 These fields are typically modified via the `use_tools()` solver, but they can also be modified directly for more advanced use cases.
 
@@ -243,7 +299,7 @@ A few things to note about this implementation:
 
 4.  We make use of the `user_prompt` property on the `TaskState`. This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property (so we are dealing with prompt as a string, recall that it can also be a list of messages).
 
-5. We make sample `metadata` available to the template as well as any `params` passed to the function.
+5.  We make sample `metadata` available to the template as well as any `params` passed to the function.
 
 ### Example: Self Critique
 
