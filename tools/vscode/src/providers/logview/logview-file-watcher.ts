@@ -59,7 +59,7 @@ export class LogViewFileWatcher implements Disposable {
                 `New log: ${workspaceRelativePath(toAbsolutePath(evalLogPath))}`
               );
               // Show the log file
-              const openAction = settingsMgr_.getSettings().logViewAuto
+              const openAction = settingsMgr_.getSettings().openLogView
                 ? "open"
                 : undefined;
               this.logviewManager_
