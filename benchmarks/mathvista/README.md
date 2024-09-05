@@ -11,7 +11,7 @@ Here is an example from the dataset:
 
 **Image:**
 
-![Image for example question](example_image.png)
+![Image for example question](example.png)
 
 **Correct answer:** "equal to"
 
