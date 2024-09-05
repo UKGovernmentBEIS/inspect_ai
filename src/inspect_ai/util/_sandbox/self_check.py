@@ -33,6 +33,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_file_is_directory,
         test_write_file_without_permissions,
         test_exec_timeout,
+        test_exec_permission_error,
         test_cwd_unspecified,
         test_cwd_custom,
         test_cwd_relative,
@@ -169,6 +170,12 @@ async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
         await sandbox_env.exec(["sleep", "2"], timeout=1)
 
 
+async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
+    with Raises(PermissionError):
+        # /etc/password is not an executable file so this should fail
+        await sandbox_env.exec(["/etc/passwd"])
+
+
 async def test_cwd_unspecified(sandbox_env: SandboxEnvironment) -> None:
     file_name = "test_cwd_unspecified.file"
     await sandbox_env.write_file(file_name, "ls me plz")
@@ -204,6 +211,8 @@ async def test_cwd_absolute(sandbox_env: SandboxEnvironment) -> None:
     assert "test_cwd_absolute.file" in current_dir_contents
     await _cleanup_file(sandbox_env, file_name)
 
+
+# TODO: write a test for when cwd doesn't exist
 
 # Generic type variable for exceptions
 E = TypeVar("E", bound=BaseException)

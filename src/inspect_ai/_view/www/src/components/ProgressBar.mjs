@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 
-export const ProgressBar = ({ style, animating }) => {
+export const ProgressBar = ({ style, containerStyle, animating }) => {
   const emptyStyle = {
     display: "flex",
     textAlign: "center",
@@ -18,7 +18,7 @@ export const ProgressBar = ({ style, animating }) => {
   const progressContainerStyle = {
     width: "100%",
     height: "2px",
-    background: "none",
+    ...containerStyle,
   };
 
   const progressBarStyle = {

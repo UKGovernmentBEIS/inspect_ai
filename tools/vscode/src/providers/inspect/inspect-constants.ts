@@ -13,3 +13,4 @@ export const kLogLevelEnv = "INSPECT_EVAL_MODEL";
 
 export const kInspectChangeEvalSignalVersion = "0.3.10";
 export const kInspectOpenInspectViewVersion = "0.3.16";
+export const kInspectMaxLogFileSizeVersion = "0.3.26";

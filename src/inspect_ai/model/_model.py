@@ -41,7 +41,8 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._generate_config import GenerateConfig
-from ._model_output import ModelCall, ModelOutput, ModelUsage
+from ._model_call import ModelCall
+from ._model_output import ModelOutput, ModelUsage
 
 logger = logging.getLogger(__name__)
 
@@ -402,7 +403,7 @@ class Model:
         output: ModelOutput,
         call: ModelCall | None,
     ) -> None:
-        from inspect_ai.solver._subtask.transcript import ModelEvent, transcript
+        from inspect_ai.log._transcript import ModelEvent, transcript
 
         if not self.api.provides_event():
             transcript()._event(

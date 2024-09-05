@@ -9,6 +9,7 @@ import { inspectLogInfo } from "../../inspect/logs";
 export interface LogviewState {
   log_file?: Uri;
   log_dir: Uri;
+  background_refresh?: boolean;
 }
 
 export interface LogviewOptions {
@@ -38,7 +39,7 @@ class ShowLogviewCommand implements Command {
   async execute(): Promise<void> {
     // ensure logview is visible
     try {
-      this.manager_.showInspectView();
+      await this.manager_.showInspectView();
     } catch (err: unknown) {
       await showError(
         "An error occurred while attempting to start Inspect View",

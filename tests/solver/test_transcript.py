@@ -1,12 +1,12 @@
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
+from inspect_ai.log import transcript
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
     Generate,
     TaskState,
     generate,
     solver,
-    transcript,
 )
 
 

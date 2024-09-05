@@ -9,9 +9,6 @@ from ._prompt import (
     system_message,
 )
 from ._solver import Generate, Solver, generate, solver
-from ._subtask.store import Store, store
-from ._subtask.subtask import Subtask, subtask
-from ._subtask.transcript import Transcript, transcript
 from ._task_state import Choice, Choices, TaskState
 from ._use_tools import use_tools
 
@@ -31,17 +28,12 @@ __all__ = [
     "Choices",
     "TaskState",
     "Generate",
-    "Store",
-    "store",
-    "Transcript",
-    "transcript",
-    "Subtask",
-    "subtask",
 ]
 
 
 _TOOL_MODULE_VERSION_3_18 = "0.3.18"
 _TOOL_MODULE_VERSION_3_19 = "0.3.19"
+_SUBTASKS_MODULE_VERSION = "0.3.26"
 _REMOVED_IN = "0.4"
 relocated_module_attribute(
     "Tool", "inspect_ai.tool.Tool", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
@@ -90,4 +82,40 @@ relocated_module_attribute(
 )
 relocated_module_attribute(
     "web_search", "inspect_ai.tool.web_search", _TOOL_MODULE_VERSION_3_19, _REMOVED_IN
+)
+relocated_module_attribute(
+    "Transcript",
+    "inspect_ai.log.Transcript",
+    _SUBTASKS_MODULE_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "transcript",
+    "inspect_ai.log.transcript",
+    _SUBTASKS_MODULE_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "Store",
+    "inspect_ai.util.Store",
+    _SUBTASKS_MODULE_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "store",
+    "inspect_ai.util.store",
+    _SUBTASKS_MODULE_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "Subtask",
+    "inspect_ai.util.Subtask",
+    _SUBTASKS_MODULE_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "subtask",
+    "inspect_ai.util.subtask",
+    _SUBTASKS_MODULE_VERSION,
+    _REMOVED_IN,
 )
