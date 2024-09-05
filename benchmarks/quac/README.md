@@ -1,4 +1,4 @@
-# QuAC: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Dialogs
+# QuAC: Question Answering in Context
 
 [QuAC](https://arxiv.org/abs/1808.07036) is a large-scale dataset for Question Answering in Context that contains 14K information-seeking QA dialogs (100K total questions). The dialogs involve two crowd workers: a student who poses questions to learn about a hidden Wikipedia text, and a teacher who answers by providing short excerpts from the text.
 
