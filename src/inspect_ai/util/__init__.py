@@ -13,6 +13,7 @@ from ._subprocess import (
     ExecResult,
     subprocess,
 )
+from ._subtask import Subtask, subtask
 
 __all__ = [
     "ExecResult",
@@ -27,4 +28,6 @@ __all__ = [
     "sandbox",
     "Store",
     "store",
+    "Subtask",
+    "subtask",
 ]

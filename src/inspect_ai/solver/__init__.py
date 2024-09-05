@@ -9,7 +9,6 @@ from ._prompt import (
     system_message,
 )
 from ._solver import Generate, Solver, generate, solver
-from ._subtask.subtask import Subtask, subtask
 from ._task_state import Choice, Choices, TaskState
 from ._use_tools import use_tools
 
@@ -29,8 +28,6 @@ __all__ = [
     "Choices",
     "TaskState",
     "Generate",
-    "Subtask",
-    "subtask",
 ]
 
 
@@ -107,6 +104,18 @@ relocated_module_attribute(
 relocated_module_attribute(
     "store",
     "inspect_ai.util.store",
+    _SUBTASKS_MODULE_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "Subtask",
+    "inspect_ai.util.Subtask",
+    _SUBTASKS_MODULE_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "subtask",
+    "inspect_ai.util.subtask",
     _SUBTASKS_MODULE_VERSION,
     _REMOVED_IN,
 )
