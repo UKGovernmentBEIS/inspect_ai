@@ -77,6 +77,14 @@ def swe_bench_instance(
     """Takes in a dataset and an instance_id, and returns a task which can be used to solve the issue"""
     
     sample = swebench_sample_from_id(dataset, instance_id)
+
+    scorer = swebench_scorer(sample.metadata["PASS_TO_PASS"], sample.metadata["test_patch"])
+
+    # Delete these environment variables, as they are too long - see https://github.com/UKGovernmentBEIS/inspect_ai/issues/331
+    del sample.metadata["PASS_TO_PASS"]
+    del sample.metadata["patch"]
+    del sample.metadata["test_patch"]
+
     docker_compose_file = get_compose_file(sample.metadata["environment_setup_commit"], instance_id)
 
     return Task(
@@ -87,7 +95,7 @@ def swe_bench_instance(
             "docker",
             str(docker_compose_file.absolute()),
         ),
-        scorer=swebench_scorer(),
+        scorer=scorer,
         max_messages=max_messages
     )
 
@@ -99,11 +107,6 @@ def swebench_sample_from_id(dataset : Dataset, instance_id : str) -> Sample:
     swebench_sample.input = INPUT_PROMPT.format(issue_text=dataset[0].input)
     swebench_sample.setup = get_setup_script(repo=swebench_sample.metadata["repo"],version=swebench_sample.metadata["version"],base_commit=swebench_sample.metadata["base_commit"])
 
-
-    # Delete these environment variables, as they are too long - see https://github.com/UKGovernmentBEIS/inspect_ai/issues/331
-    del swebench_sample.metadata["PASS_TO_PASS"]
-    del swebench_sample.metadata["patch"]
-    del swebench_sample.metadata["test_patch"]
 
     return swebench_sample
 

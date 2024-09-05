@@ -51,15 +51,12 @@ dataset = dataset.filter(lambda x: x["instance_id"] in instance_ids)
 dataset = dataset.map(lambda x: dict(x, resolved_by_swe_agent=resolved[instance_ids == x["instance_id"]][0]), num_proc=4)
 # Add swe-agent-patch
 dataset = dataset.map(lambda x: dict(x, swe_agent_patch=results_per_repo[results_per_repo["instance_id"] == x["instance_id"]]["swe_agent_patch"].values[0]), num_proc=4)
+dataset = dataset.map(lambda x: dict(x, resolved = resolved[list(instance_ids).index(x["instance_id"])]))
 
 
-# SWE-agent
 
 # Calculate the accuracy. Should be 0.42857142857142855
 accuracy = sum(resolved) / len(resolved)
-
-# Make the dataset of size one, for testing purposes
-dataset = dataset.filter(lambda x: x["repo"] == "matplotlib/matplotlib")
 
 # Save tbe dataset
 dataset_dir = Path(__file__).parent / "all_repos_swe_agent_50_percent.hf"
