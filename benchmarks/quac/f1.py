@@ -1,14 +1,14 @@
 import logging
 import re
 import string
-import nltk
-
 from collections import Counter
 from statistics import mean
 from typing import List
+
+import nltk
 from nltk.corpus import stopwords
 
-from inspect_ai.scorer import scorer, mean, stderr, Score, Target, CORRECT, INCORRECT
+from inspect_ai.scorer import CORRECT, INCORRECT, Score, Target, mean, scorer, stderr
 from inspect_ai.solver import (
     TaskState,
 )

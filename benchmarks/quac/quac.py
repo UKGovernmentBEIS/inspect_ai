@@ -1,5 +1,5 @@
-from typing import Dict, List
 from f1 import f1_scorer
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.hf import hf_dataset

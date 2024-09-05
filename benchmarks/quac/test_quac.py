@@ -1,10 +1,11 @@
 import pytest
+from f1 import f1_scorer
+
+from inspect_ai.dataset import Sample
 from inspect_ai.model._model import ModelName
-from inspect_ai.scorer import Target, Score
+from inspect_ai.scorer import Target
 from inspect_ai.scorer._metric import CORRECT, INCORRECT
 from inspect_ai.solver import TaskState
-from inspect_ai.dataset import Sample
-from f1 import f1_scorer, normalize_answer
 
 
 # Helper function to create a TaskState
