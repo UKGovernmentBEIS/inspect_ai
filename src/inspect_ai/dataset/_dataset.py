@@ -14,7 +14,7 @@ from typing import (
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model import ChatMessage
 from inspect_ai.util import SandboxEnvironmentSpec
 
 if TYPE_CHECKING:

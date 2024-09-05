@@ -1,6 +1,9 @@
 from inspect_ai._util.dict import omit
-from inspect_ai.model._chat_message import ChatMessageUser
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model import (
+    ChatMessageUser,
+    Model,
+    get_model,
+)
 from inspect_ai.util import resource
 
 from ._solver import Generate, Solver, solver

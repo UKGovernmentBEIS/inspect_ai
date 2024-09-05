@@ -1,4 +1,4 @@
-from inspect_ai.util._sandbox import sandbox
+from inspect_ai.util import sandbox
 
 from .._tool import Tool, ToolError, tool
 

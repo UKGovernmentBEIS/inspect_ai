@@ -10,8 +10,7 @@ from shutil import rmtree
 from dateutil.relativedelta import relativedelta
 
 from inspect_ai._util.appdirs import inspect_cache_dir
-from inspect_ai.tool._tool_choice import ToolChoice
-from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 from ._chat_message import ChatMessage
 from ._generate_config import GenerateConfig

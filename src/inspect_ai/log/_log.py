@@ -15,9 +15,12 @@ from rich.traceback import Traceback
 
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
-from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model_output import ModelOutput, ModelUsage
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    ModelOutput,
+    ModelUsage,
+)
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
 

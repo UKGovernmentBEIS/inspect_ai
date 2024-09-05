@@ -1,7 +1,7 @@
 import json
 from typing import Any, cast
 
-from inspect_ai.model._chat_message import (
+from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
