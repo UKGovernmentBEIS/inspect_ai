@@ -4,13 +4,18 @@ from string import Template
 from dataset import read_dataset
 
 from inspect_ai import Task, task
-from inspect_ai.model import ChatMessageSystem
-from inspect_ai.scorer import CORRECT, INCORRECT, Score
-from inspect_ai.scorer._metrics import accuracy, stderr
-from inspect_ai.scorer._scorer import Scorer, scorer
-from inspect_ai.scorer._target import Target
+from inspect_ai.model import ChatMessage, ChatMessageSystem
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    scorer,
+    stderr,
+)
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
-from inspect_ai.solver._util import append_system_message
 from inspect_ai.tool import bash
 
 # maximum chat messages before giving up
@@ -72,6 +77,20 @@ def read_flag() -> Solver:
 @solver
 def in_house_ctf_system_message(prompt_template: Template) -> Solver:
     """Solver that inserts task specific system message into the conversation."""
+
+    def append_system_message(
+        messages: list[ChatMessage], message: ChatMessageSystem
+    ) -> None:
+        # find last index of any existing system message
+        lastIndex = -1
+        for i in list(reversed(range(0, len(messages)))):
+            if isinstance(messages[i], ChatMessageSystem):
+                lastIndex = i
+                break
+
+        # insert it
+        messages.insert(lastIndex + 1, message)
+
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         challenge_system_message = prompt_template.substitute(
