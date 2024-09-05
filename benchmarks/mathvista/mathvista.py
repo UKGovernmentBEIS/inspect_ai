@@ -50,17 +50,61 @@ def MathVistaMultipleChoice() -> Task:
     )
 
 
-def get_multi_choice_as_letter(record: dict) -> chr:
-    choices = record["choices"]
-    labels = [chr(i) for i in range(ord("a"), ord("a") + len(choices))]
+@scorer(metrics=[accuracy(), stderr()])
+def multi_choice_or_free_form_scorer():
+    async def score(state: TaskState, target: Target) -> Score:
+        match = re.search(
+            ANSWER_PATTERN_LETTER
+            if state.metadata["question_type"] == "multi_choice"
+            else ANSWER_PATTERN_LINE,
+            state.output.completion,
+            re.IGNORECASE,
+        )
+        if match:
+            groups = match.groups()
+            found_match = match_first(matches=groups, target=target, ignore_case=True)
 
-    choices = dict(zip(labels, choices))
+            if found_match is None and len(groups) == 1:
+                answer = groups[0]
+            else:
+                answer = found_match
 
-    answer = record["answer"]
-    target = list(choices.values()).index(answer)
-    target = chr(ord("A") + int(target))
+            return Score(
+                value=CORRECT if found_match else INCORRECT,
+                answer=answer,
+                explanation=state.output.completion,
+            )
 
-    return target
+        else:
+            # didn't find the scoring pattern
+            return Score(
+                value=INCORRECT,
+                explanation="Scoring pattern not matched in output: "
+                + f"{state.output.completion}",
+            )
+
+    return score
+
+
+@solver
+def multi_choice_or_free_form_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.metadata["question_type"] == "multi_choice":
+            state.user_prompt.text = prompt(
+                question=state.user_prompt.text,
+                choices=state.choices,
+                template=SINGLE_ANSWER_TEMPLATE,
+            )
+
+            return await generate(state)
+
+        elif state.metadata["question_type"] == "free_form":
+            state.user_prompt.text = FREEFORM_TEMPLATE.format(
+                question=state.user_prompt.text
+            )
+            return await generate(state)
+
+    return solve
 
 
 def record_to_sample(record: dict) -> Sample:
@@ -103,58 +147,14 @@ def record_to_sample(record: dict) -> Sample:
         )
 
 
-@solver
-def multi_choice_or_free_form_solver() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        if state.metadata["question_type"] == "multi_choice":
-            state.user_prompt.text = prompt(
-                question=state.user_prompt.text,
-                choices=state.choices,
-                template=SINGLE_ANSWER_TEMPLATE,
-            )
+def get_multi_choice_as_letter(record: dict) -> chr:
+    choices = record["choices"]
+    labels = [chr(i) for i in range(ord("a"), ord("a") + len(choices))]
 
-            return await generate(state)
+    choices = dict(zip(labels, choices))
 
-        elif state.metadata["question_type"] == "free_form":
-            state.user_prompt.text = FREEFORM_TEMPLATE.format(
-                question=state.user_prompt.text
-            )
-            return await generate(state)
+    answer = record["answer"]
+    target = list(choices.values()).index(answer)
+    target = chr(ord("A") + int(target))
 
-    return solve
-
-
-@scorer(metrics=[accuracy(), stderr()])
-def multi_choice_or_free_form_scorer():
-    async def score(state: TaskState, target: Target) -> Score:
-        match = re.search(
-            ANSWER_PATTERN_LETTER
-            if state.metadata["question_type"] == "multi_choice"
-            else ANSWER_PATTERN_LINE,
-            state.output.completion,
-            re.IGNORECASE,
-        )
-        if match:
-            groups = match.groups()
-            found_match = match_first(matches=groups, target=target, ignore_case=True)
-
-            if found_match is None and len(groups) == 1:
-                answer = groups[0]
-            else:
-                answer = found_match
-
-            return Score(
-                value=CORRECT if found_match else INCORRECT,
-                answer=answer,
-                explanation=state.output.completion,
-            )
-
-        else:
-            # didn't find the scoring pattern
-            return Score(
-                value=INCORRECT,
-                explanation="Scoring pattern not matched in output: "
-                + f"{state.output.completion}",
-            )
-
-    return score
+    return target
