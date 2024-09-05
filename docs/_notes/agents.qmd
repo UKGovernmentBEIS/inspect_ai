@@ -1,0 +1,162 @@
+---
+title: "Inspect Agent Evals"
+---
+
+## Overview
+
+This document provides an overview of Inspect features useful in the creation of agent evaluations, including:
+
+1)  Approches to running agents within Inspect
+2)  Tool definition and parameter validation
+3)  Human in the loop for approval, scoring, etc.
+4)  Logging and observability
+5)  Sandboxing untrusted model code
+6)  Concurrency and parallelisation
+7)  Error handling, retries, and recovery
+8)  Extensibility points (tools, models, sandboxes, etc.)
+
+This discussion doesn't assume previous familiarity with Inspect (the basics are covered in the section below). For a more comprehensive treatment please see <https://inspect.ai-safety-institute.org.uk/>.
+
+## Inspect Basics
+
+Inspect evaluation tasks have three main components:
+
+1.  **Datasets** contain a set of labelled samples. Datasets are typically just a table with `input` and `target` columns, where `input` is a prompt and `target` is either literal value(s) or grading guidance.
+
+2.  **Solvers** are composed together in a *plan* to evaluate the `input` in the dataset. The most elemental solver, `generate()`, just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, tool-calling, critique, etc.
+
+3.  **Scorers** evaluate the final output of solvers. They may use text comparisons, model grading, or other custom schemes.
+
+Here is simplest possible Inspect task definition:
+
+``` python
+@task
+def addition():
+    return Task(
+        dataset=[Sample(input="What is 1+1?", target="2")],
+        plan=generate(),
+        scorer=match()
+    )
+```
+
+Here is a task definition that reads from an external dataset, does some additional elicitation in the plan, and uses a custom scorer that uses a model to judge mathematical expression equivalence:
+
+``` python
+@task
+def math():
+    return Task(
+       dataset=csv_dataset("math.csv"),
+       plan=[
+           system_message("system.txt"),
+           chain_of_thought(),
+           generate()
+       ],
+       scorer=expression_equivalence()
+    )
+```
+
+Here is a task definition that uses tool calls to solve a capture the flag challenge:
+
+``` python
+@task
+def ctf():
+    return Task(
+        dataset=json_dataset("ctf.json"),
+        plan=[
+            system_message("system.txt"),
+            use_tools([bash(), python()]),
+            generate(),
+        ],
+        scorer=includes(),       
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+The above examples hard code the plan, which isn't really what we want for doing research or comparing different agents on tasks. Here's a revised version that makes the plan a task parameter:
+
+``` python
+@task
+def ctf(plan = basic_ctf_agent()):
+    return Task(
+        dataset=json_dataset("ctf.json"),
+        plan=plan,
+        scorer=includes(),       
+        sandbox=("docker", "compose.yaml"),
+    )
+
+@plan
+def basic_ctf_agent(system = "system.txt"):
+    return Plan([
+        system_message(system),
+        use_tools([bash(), python()]),
+        generate(),
+    ])
+```
+
+We now have a task that can be run with any plan ("agent") and default ReAct agent that can be instantiated with different system prompts. Many varieties of agent are possible and we cover that in detail in the next section.
+
+## Agents in Inspect
+
+There are three general approaches to creating agents for use in Inspect evaluations:
+
+1.  *Default "autopilot" ReAct tool use loop*. This roughly corresponds to the last example above: present the model with a set of tools and prompt it to use them for as many turns as is required to submit an answer. This provides a convenient default baseline but is likely to be outperformed by more sophisticated approaches.
+
+2.  *Create an Inspect bridge to an external agent library or framework*. Most agent libraries take a prompt and/or list of messages as input, and yield text as an output. This corresponds well to the input and output of an Insepct Solver, so you can generally create a high order function that takes an agent developed with an external library and converts in into an Inspect agent. For example:
+
+    ``` python
+    from agents import my_ctf_agent 
+
+    @plan
+    def langchain_ctf_agent():
+        return Plan(langchain_solver(my_ctf_agent))
+    ```
+
+    Where the `agents` module includes a native CTF agent developed using the LangChain framework, and `langchain_solver()` is the bridging function that will work to adapt any LangChain agent for use with Inspect.
+
+3.  *Use Inspect's native agent development API.* Inspect has extensive internal facilities for creating agents, including state management, tool use, delegation to sub-agents, and rich observability
+
+4.  Native Framework (store/subtasks/tools/interactions) maximum observability
+
+## Tools
+
+-   Python functions w/ type annotations and doc comments
+-   JSON schema validation w/ error messages passed back to models
+-   Ability to handle complex types (Pydantic/@dataclass/TypedDict)
+-   Have their own transcript / can access the store
+
+## Human in the Loop
+
+-   input_screen
+
+## Logging and Observability
+
+![](transcript.png){.border}
+
+-   Scoring
+-   Messages
+-   Transcripts
+-   Model Usage
+-   Publishing
+
+## Sandboxing
+
+-   Sandbox abstraction
+-   Docker
+-   k8s / Other
+
+## Concurrency and Parallelisation
+
+-   Models/Samples/Tasks
+-   Throttle connections / subprocesses / other
+
+## Error Handling
+
+-   Retry (and re-use). Eval Set
+-   Fault Tolerances (fail on error)
+-   Limits (messages, others coming)
+
+## Extensibility
+
+-   Tools/Solvers/Scorers/Plans can live in Python packages
+-   Model Providers
+-   Sandboxes
