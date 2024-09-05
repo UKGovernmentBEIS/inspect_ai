@@ -1,4 +1,3 @@
-
 from typing import Dict, List
 from f1 import f1_scorer
 from inspect_ai import Task, task
@@ -14,30 +13,32 @@ def quac():
         sample_fields=record_to_sample,
         split="validation",
         shuffle=True,
-        trust=True
+        trust=True,
     )
     return Task(
         dataset=dataset,
         scorer=f1_scorer(),
         config=GenerateConfig(temperature=0.5),
     )
-    
+
+
 def record_to_sample(record) -> Sample:
     return Sample(
         input=format_input(record),
         target=format_target(record),
         id=record["dialogue_id"],
     )
-    
+
+
 def format_input(record) -> str:
     wikipedia_title = f"""Wikipedia Page Title: {record["wikipedia_page_title"]}"""
     background = f"""Background: {record["background"]}"""
     section_title = f"""Section Title: {record["section_title"]}"""
     context = f"""Context: {record["context"]}"""
-    
+
     questions = record["questions"]
     previous_questions_answers = []
-    
+
     # We just append everything but the last question for now
     for idx, question in enumerate(questions[:-1]):
         answer = record["answers"]["texts"][idx][0]
@@ -45,12 +46,23 @@ def format_input(record) -> str:
         answer = f"""answer: {answer}"""
         previous_questions_answers.append(question)
         previous_questions_answers.append(answer)
-        
-    # We use the last question as current question for now 
+
+    # We use the last question as current question for now
     current_question = questions[-1]
-    
-    input_str = "\n".join([wikipedia_title, background, section_title, context, "\n".join(previous_questions_answers), current_question, """answer:"""])
+
+    input_str = "\n".join(
+        [
+            wikipedia_title,
+            background,
+            section_title,
+            context,
+            "\n".join(previous_questions_answers),
+            current_question,
+            """answer:""",
+        ]
+    )
     return input_str
 
+
 def format_target(record):
-    return record["answers"]["texts"][-1] # get the answers for the last question only
+    return record["answers"]["texts"][-1]  # get the answers for the last question only
