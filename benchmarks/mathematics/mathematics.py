@@ -23,7 +23,7 @@ inspect eval mathematics/mathematics.py -T levels=4,5 -T subjects=algebra
 inspect eval mathematics/mathematics.py -T grader_model=openai/gpt-4o
 """
 
-from utils import (  # type: ignore
+from utils import (
     filter_dataset,
     record_to_sample,
     sample_to_fewshot,

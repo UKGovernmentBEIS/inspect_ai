@@ -38,6 +38,14 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 
     Scorer for model output that preceded answers with "ANSWER: ". Can extract letters, words, or the remainder of the line.
 
+-   `exact()`
+
+    Scorer which will normalize the text of the answer and target(s) and perform an exact matching comparison of the text. This scorer will return `CORRECT` when the answer is an exact match to one or more targets.
+
+-   `f1()`
+
+    Scorer which computes the `F1` score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).
+
 -   `model_graded_qa()`
 
     Have another model assess whether the model output is a correct answer based on the grading guidance contained in `target`. Has a built-in template that can be customised.
@@ -45,6 +53,10 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 -   `model_graded_fact()`
 
     Have another model assess whether the model output contains a fact that is set out in `target`. This is a more narrow assessment than `model_graded_qa()`, and is used when model output is too complex to be assessed using a simple `match()` or `pattern()` scorer.
+
+-   `choices()`
+
+    Specialised scorer that is used with the `multiple_choice()` solver.
 
 Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` and `stderr` as a metric). You can also provide your own custom metrics in `Task` definitions. For example:
 
@@ -341,7 +353,9 @@ Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* w
 
 ## Scoring Metrics
 
-Each scorer provides one or more built-in metrics (typically `accuracy` and `stderr`). In addition, you can specify other metrics (either built-in or custom) to compute when defining a `Task`:
+Each scorer provides one or more built-in metrics (typically `accuracy` and `stderr`) corresponding to the most typically useful metrics for that scorer.
+
+You can override scorer's built-in metrics by passing an alternate list of `metrics` to the `Task`. For example:
 
 ``` python
 Task(
@@ -350,9 +364,15 @@ Task(
         system_message(SYSTEM_MESSAGE),
         multiple_choice()
     ],
-    scorer=match(),
+    scorer=choice(),
     metrics=[custom_metric()]
 )
+```
+
+If you still want to compute the built-in metrics, we re-specify them along with the custom metrics:
+
+```python
+metrics=[accuracy(), stderr(), custom_metric()]
 ```
 
 ### Built-In Metrics

@@ -73,14 +73,13 @@ def test_inspect_metrics() -> None:
     registry_assert(accuracy(), f"{PKG_NAME}/accuracy")
 
 
-def test_extra_metrics() -> None:
-    # check that we get the extra metrics and de-duping works
+def test_alternative_metrics() -> None:
+    # check that we get the alternative metrics
     def check_log(log):
         assert log.results and (
             list(log.results.scores[0].metrics.keys())
             == [
                 "accuracy",
-                "stderr",
                 "accuracy1",
                 "Accuracy3",
                 "std",

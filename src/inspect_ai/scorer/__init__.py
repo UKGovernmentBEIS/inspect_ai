@@ -1,5 +1,6 @@
 from ._answer import AnswerPattern, answer
 from ._choice import choice
+from ._classification import exact, f1
 from ._match import includes, match
 from ._metric import (
     CORRECT,
@@ -41,6 +42,8 @@ __all__ = [
     "answer",
     "choice",
     "pattern",
+    "f1",
+    "exact",
     "AnswerPattern",
     "Scorer",
     "Target",

@@ -1,8 +1,9 @@
-import { applyOperation } from "fast-json-patch";
+import { applyPatch } from "fast-json-patch";
+
 /**
  * @typedef {Object} StateManager
  * @property {function(): Object} getState - Retrieves the current state object.
- * @property {function(Object): void} setState - Updates the current state with a new state object.
+ * @property {function(Object): void} initializeState - Initializes the current state with a new state object.
  * @property {function(import("../../types/log").Changes): Object} applyChanges - Updates the current state with a new state object.*
  */
 
@@ -28,8 +29,8 @@ export const initStateManager = () => {
      *
      * @param {Object} newState - The new state object to update with.
      */
-    setState: (newState) => {
-      state = structuredClone(newState);
+    initializeState: (newState) => {
+      state = newState;
     },
     /**
      * Updates the current state with a new state object.
@@ -37,12 +38,11 @@ export const initStateManager = () => {
      * @param {import("../../types/log").Changes} changes - The new state object to update with.
      */
     applyChanges: (changes) => {
-      state = structuredClone(state);
-      changes.forEach((change) => {
-        //@ts-ignore
-        applyOperation(state, change);
-      });
-      return state;
+      state = applyPatch(
+        structuredClone(state),
+        structuredClone(changes),
+        true,
+      ).newDocument;
     },
   };
 };

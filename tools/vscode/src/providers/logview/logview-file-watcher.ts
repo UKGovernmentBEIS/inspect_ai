@@ -9,11 +9,13 @@ import { toAbsolutePath, workspaceRelativePath } from "../../core/path";
 import { WorkspaceStateManager } from "../workspace/workspace-state-provider";
 import { withMinimumInspectVersion } from "../../inspect/version";
 import { kInspectChangeEvalSignalVersion } from "../inspect/inspect-constants";
+import { InspectSettingsManager } from "../settings/inspect-settings";
 
 export class LogViewFileWatcher implements Disposable {
   constructor(
     private readonly logviewManager_: InspectLogviewManager,
-    private readonly workspaceStateManager_: WorkspaceStateManager
+    private readonly workspaceStateManager_: WorkspaceStateManager,
+    private readonly settingsMgr_: InspectSettingsManager
   ) {
     log.appendLine("Watching for evaluation logs");
     this.lastEval_ = Date.now();
@@ -43,10 +45,18 @@ export class LogViewFileWatcher implements Disposable {
 
           if (evalLogPath) {
             if (!workspaceId || workspaceId === this.workspaceStateManager_.getWorkspaceInstance()) {
+
               log.appendLine(`New log: ${workspaceRelativePath(toAbsolutePath(evalLogPath))}`);
-              this.logviewManager_.showLogFile(Uri.parse(evalLogPath)).catch(async (err: Error) => {
-                await showError("Unable to preview log file - failed to start Inspect View", err);
-              });
+              if (settingsMgr_.getSettings().logViewAuto) {
+                // Show the log file
+                this.logviewManager_.showLogFile(Uri.parse(evalLogPath)).catch(async (err: Error) => {
+                  await showError("Unable to preview log file - failed to start Inspect View", err);
+                });
+              } else {
+                this.logviewManager_.showLogFileIfViewerOpen(Uri.parse(evalLogPath)).catch(async (err: Error) => {
+                  await showError("Unable to preview log file - failed to update the current view", err);
+                });
+              }
             }
           }
         }
