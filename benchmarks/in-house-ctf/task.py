@@ -14,7 +14,7 @@ from inspect_ai.solver._util import append_system_message
 from inspect_ai.tool import bash
 
 # maximum chat messages before giving up
-MAX_MESSAGES = 270
+MAX_MESSAGES = 30
 
 # maximum seconds to run bash/python cmds
 CMD_TIMEOUT = 180
