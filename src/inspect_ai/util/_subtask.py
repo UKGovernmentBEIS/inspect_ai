@@ -12,18 +12,12 @@ from typing import (
 )
 
 from inspect_ai._util._async import is_callable_coroutine
-from inspect_ai.tool._tool import ToolResult
+from inspect_ai._util.content import Content
+from inspect_ai.util._store import Store, dict_jsonable, init_subtask_store
 
-from .store import Store, dict_jsonable, init_subtask_store
-from .transcript import (
-    SubtaskEvent,
-    Transcript,
-    init_transcript,
-    track_store_changes,
-    transcript,
-)
+SubtaskResult = str | int | float | bool | list[Content]
 
-RT = TypeVar("RT", ToolResult, Any)
+RT = TypeVar("RT", SubtaskResult, Any)
 
 
 @runtime_checkable
@@ -67,6 +61,12 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
     """
 
     def create_subtask_wrapper(func: Subtask, name: str | None = None) -> Subtask:
+        from inspect_ai.log._transcript import (
+            SubtaskEvent,
+            track_store_changes,
+            transcript,
+        )
+
         @wraps(func)
         async def run_subtask(*args: Any, **kwargs: Any) -> RT:
             # resolve name
@@ -97,7 +97,7 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
                 init_subtask(subtask_name, store)
 
                 # run the subtask
-                with track_store_changes():
+                with track_store_changes():  # type: ignore
                     result = await func(*args, **kwargs)
 
                 # create a subtask event
@@ -134,5 +134,10 @@ def subtask(name: str | Subtask) -> Callable[..., Subtask] | Subtask:
 
 
 def init_subtask(name: str, store: Store) -> None:
+    from inspect_ai.log._transcript import (
+        Transcript,
+        init_transcript,
+    )
+
     init_subtask_store(store)
     init_transcript(Transcript(name=name))

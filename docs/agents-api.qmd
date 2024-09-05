@@ -31,7 +31,7 @@ Sequences of solvers often need to store and manipulate shared state. Further, t
 The core of the `Store` interface is:
 
 ``` python
-from inspect_ai.solver import Store
+from inspect_ai.util import Store
 
 class Store:
     def get(self, key: str, default: VT) -> VT
@@ -50,8 +50,8 @@ history = state.store.get("history", [])
 It is also possible the access the `Store` *for the current sample* using the `store()` function. This is the mechanism for tools to read and write the `Store`. For example:
 
 ``` python
-from inspect_ai.solver import store
 from inspect_ai.tool import tool
+from inspect_ai.util import store
 
 @tool
 def web_browser_back():
@@ -167,7 +167,7 @@ This information is provided within the Inspect log viewer in the **Transcript**
 You can insert custom entries into the transcript via the Transcipt `info()` method (which creates an `InfoEvent`). Access the transcript for the current sample using the `transcript()` function, for example:
 
 ``` python
-from inspect_ai.solver import transcript
+from inspect_ai.log import transcript
 
 transcript().info("here is some custom info")
 ```
@@ -200,7 +200,7 @@ Subtasks provide a mechanism for creating isolated, re-usable units of execution
 To create a subtask, declare an async function with the `@subtask` decorator. The function can take any arguments and return a value of any type. For example:
 
 ``` python
-from inspect_ai.solver import Store, subtask
+from inspect_ai.util import Store, subtask
 
 @subtask
 async def web_search(keywords: str) -> str:
