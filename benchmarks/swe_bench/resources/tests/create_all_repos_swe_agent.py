@@ -35,6 +35,9 @@ for result in os.listdir(logs_dir):
 results = pd.DataFrame.from_records(results)
 results["repo"] = results["instance_id"].apply(lambda x: x.split("__")[0])
 
+# Github patches which change binary files cannot actually be applied. We wil remove these entries in the dataset
+results = results[~results["swe_agent_patch"].str.contains("Binary files")]
+
 # Group by repository, and success. Then pick one from each group.
 results_per_repo = results.groupby(["repo", "resolved"])
 results_per_repo = results_per_repo.apply(lambda x: x.sample(1)).reset_index(drop=True)
@@ -48,6 +51,7 @@ dataset = dataset.filter(lambda x: x["instance_id"] in instance_ids)
 dataset = dataset.map(lambda x: dict(x, resolved_by_swe_agent=resolved[instance_ids == x["instance_id"]][0]), num_proc=4)
 # Add swe-agent-patch
 dataset = dataset.map(lambda x: dict(x, swe_agent_patch=results_per_repo[results_per_repo["instance_id"] == x["instance_id"]]["swe_agent_patch"].values[0]), num_proc=4)
+
 
 # SWE-agent
 

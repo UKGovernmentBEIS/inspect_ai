@@ -57,7 +57,7 @@ max_messages : int = DEFAULT_MAX_MESSAGES) -> list[Task]:
         sample_fields=FieldSpec(
             input="problem_statement",
             id="instance_id",
-            metadata=["base_commit","patch","test_patch","version","repo","environment_setup_commit","PASS_TO_PASS","FAIL_TO_PASS"],
+            metadata=["base_commit","patch","PASS_TO_PASS","test_patch","version","repo","environment_setup_commit"],
         )
     )
 
@@ -98,6 +98,12 @@ def swebench_sample_from_id(dataset : Dataset, instance_id : str) -> Sample:
     # Put the input in context
     swebench_sample.input = INPUT_PROMPT.format(issue_text=dataset[0].input)
     swebench_sample.setup = get_setup_script(repo=swebench_sample.metadata["repo"],version=swebench_sample.metadata["version"],base_commit=swebench_sample.metadata["base_commit"])
+
+
+    # Delete these environment variables, as they are too long - see https://github.com/UKGovernmentBEIS/inspect_ai/issues/331
+    del swebench_sample.metadata["PASS_TO_PASS"]
+    del swebench_sample.metadata["patch"]
+    del swebench_sample.metadata["test_patch"]
 
     return swebench_sample
 
@@ -191,7 +197,8 @@ GET_AGENT_PATCH = """cd /testbed/
 cat model.patch"""
 
 @scorer(metrics=[mean(), std()])
-def swebench_scorer() -> Scorer:
+def swebench_scorer(pass_to_pass : str, test_patch : str) -> Scorer:
+    # We have to have pass these as a parameter to the scorer, instead of passing theme metadata since otherwise they can be too large. See https://github.com/UKGovernmentBEIS/inspect_ai/issues/331
 
     async def scorer(state: TaskState, target: Target) -> Score:
 
@@ -200,7 +207,7 @@ def swebench_scorer() -> Scorer:
         agent_patch = await sandbox().exec(["bash","-c",GET_AGENT_PATCH])
 
         # Run the evaluation script
-        eval_script = get_eval_script(test_patch=state.metadata["test_patch"], repo=state.metadata["repo"],version=state.metadata["version"],base_commit=state.metadata["base_commit"])
+        eval_script = get_eval_script(test_patch=test_patch, repo=state.metadata["repo"],version=state.metadata["version"],base_commit=state.metadata["base_commit"])
         eval_output = await sandbox().exec(["bash","-c",eval_script])
         if not eval_output.success:
             raise RuntimeError(f"Test run failed. \n\nStderr: \n\n{eval_output.stderr}\n\nStdout: \n\n{eval_output.stdout}")
@@ -227,7 +234,7 @@ def swebench_scorer() -> Scorer:
             fail_to_pass_results = {}
             for k,v in test_outputs.items():
                 has_passed = "PASSED" == v
-                if k in state.metadata["PASS_TO_PASS"]:
+                if k in pass_to_pass:
                     pass_to_pass_results[k] = has_passed
                 else:
                     fail_to_pass_results[k] = has_passed
