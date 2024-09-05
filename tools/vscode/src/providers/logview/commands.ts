@@ -62,7 +62,7 @@ class OpenInInspectViewCommand implements Command {
       const logState = await inspectLogInfo(fileUri);
       if (logState.hasEvalKey && logState.hasStatusKey) {
         if (logState.status !== "started") {
-          await this.manager_.showLogFile(fileUri);
+          await this.manager_.showLogFile(fileUri, "activate");
         } else {
           // This is a running log, we don't yet support viewing these
           const close: MessageItem = { title: "Close" };
