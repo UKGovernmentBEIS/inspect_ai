@@ -65,13 +65,14 @@ def test_eval_set_dynamic() -> None:
             plan=[failing_solver(0.2), generate()],
             scorer=includes(),
         )
-        success, _ = eval_set(
+        success, logs = eval_set(
             tasks=[task1, task2],
             log_dir=log_dir,
-            model=[get_model("mockllm/model")],
+            model=[get_model("mockllm/model"), get_model("mockllm/model2")],
             retry_attempts=100,
             retry_wait=1,
         )
+        assert len(logs) == 4
         assert success
 
 
