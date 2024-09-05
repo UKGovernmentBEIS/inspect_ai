@@ -11,6 +11,6 @@ COPY . /usr/src/app
 
 USER app
 
-EXPOSE 8080
+EXPOSE 8082
 
 CMD [ "python", "/usr/src/app/app.py" ]
