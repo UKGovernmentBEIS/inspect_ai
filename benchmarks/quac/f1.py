@@ -2,7 +2,6 @@ import logging
 import re
 import string
 from collections import Counter
-from statistics import mean
 from typing import List
 
 import nltk
