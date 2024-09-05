@@ -39,19 +39,23 @@ results["repo"] = results["instance_id"].apply(lambda x: x.split("__")[0])
 results_per_repo = results.groupby(["repo", "resolved"])
 results_per_repo = results_per_repo.apply(lambda x: x.sample(1)).reset_index(drop=True)
 
-# We skip matplotlib as it takes too long to build the images (~2 hours)
-results_per_repo = results_per_repo[results_per_repo["repo"] != "matplotlib"]
 
 # Filter dataset by those instance ids, and add a "reolved_by_swe_agent" column.
 instance_ids = results_per_repo["instance_id"].values
 resolved = results_per_repo["resolved"].values
 
 dataset = dataset.filter(lambda x: x["instance_id"] in instance_ids)
-dataset = dataset.map(lambda x: dict(x, resolved_by_swe_agent=resolved[instance_ids == x["instance_id"]][0]))
+dataset = dataset.map(lambda x: dict(x, resolved_by_swe_agent=resolved[instance_ids == x["instance_id"]][0]), num_proc=4)
+# Add swe-agent-patch
+dataset = dataset.map(lambda x: dict(x, swe_agent_patch=results_per_repo[results_per_repo["instance_id"] == x["instance_id"]]["swe_agent_patch"].values[0]), num_proc=4)
 
-# Calculate the accuracy. Should be 0.42105263157894735.
+# SWE-agent
+
+# Calculate the accuracy. Should be 0.42857142857142855
 accuracy = sum(resolved) / len(resolved)
 
+# Make the dataset of size one, for testing purposes
+dataset = dataset.filter(lambda x: x["repo"] == "matplotlib/matplotlib")
 
 # Save tbe dataset
 dataset_dir = Path(__file__).parent / "all_repos_swe_agent_50_percent.hf"

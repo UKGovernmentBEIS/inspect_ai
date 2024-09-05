@@ -82,6 +82,7 @@ def swe_bench_instance(
     return Task(
         dataset=[sample],
         plan=plan,
+        name=instance_id,
         sandbox=(
             "docker",
             str(docker_compose_file.absolute()),

@@ -138,7 +138,7 @@ async def setup_sandbox_environment(
 
     await exec(["chmod", "+x", setup_file])
     await exec([setup_file])
-    env.exec(["rm", setup_file])
+    await env.exec(["rm", setup_file])
 
 
 def default_sandbox_environment(
