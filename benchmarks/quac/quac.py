@@ -1,3 +1,13 @@
+"""
+QuAC: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Dialogs
+
+Eunsol Choi, He He, Mohit Iyyer, Mark Yatskar, Wen-tau Yih†, Yejin Choi, Percy Liang, Luke Zettlemoyer
+https://arxiv.org/pdf/1808.07036
+
+# eval all subjects w/ 500 randomly selected samples
+inspect eval quac.py --limit 1000
+"""
+
 from f1 import f1_scorer
 
 from inspect_ai import Task, task
