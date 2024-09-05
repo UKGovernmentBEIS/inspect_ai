@@ -6,7 +6,8 @@
 - [Per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
 - [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
 - Task `metrics` now override built in scorer metrics (previously they were merged). This enables improved re-use of existing scorers where they only change required is a different set of metrics.
-- `write_log_dir_manifest()` to write a log header manifest for a log directory
+- `write_log_dir_manifest()` to write a log header manifest for a log directory.
+- Relocate `store()` and `@subtask` from solver to utils module; relocate `transcript()` from solver to log module.
 - Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
 - Fix issue with resolving Docker configuration files when not running from the task directory.
 - Treat Sandbox exec `cwd` that are relative paths as relative to sample working directry.
