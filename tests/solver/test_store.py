@@ -6,8 +6,9 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes, match
-from inspect_ai.solver import Generate, TaskState, generate, solver, store, use_tools
+from inspect_ai.solver import Generate, TaskState, generate, solver, use_tools
 from inspect_ai.tool import tool
+from inspect_ai.util._store import store
 
 
 def test_sample_store():

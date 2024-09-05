@@ -13,4 +13,4 @@ def test_basename():
     assert basename(f"/opt/files/{MYDIR}") == MYDIR
     assert basename(f"/opt/files/{MYDIR}/") == MYDIR
     assert basename(f"C:\\Documents\\{MYDIR}") == MYDIR
-    assert basename(f"C:\\Documents\\{MYDIR}/") == MYDIR
+    assert basename(f"C:\\Documents\\{MYDIR}\\") == MYDIR

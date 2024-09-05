@@ -269,6 +269,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--parallel-tool-calls/--no-parallel-tool-calls",
         type=bool,
         is_flag=True,
+        default=True,
         help="Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only.",
         envvar="INSPECT_EVAL_PARALLEL_TOOL_CALLS",
     )
@@ -332,6 +333,7 @@ def eval_command(
     no_score: bool | None,
     **kwargs: Unpack[CommonOptions],
 ) -> None:
+    """Evaluate tasks."""
     # read config
     config = config_from_locals(dict(locals()))
 
@@ -602,6 +604,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                     value = True
                 elif value.lower() == "false":
                     value = False
+            if key == "parallel_tool_calls":
+                if value is not False:
+                    value = None
             config[key] = value  # type: ignore
     return config
 

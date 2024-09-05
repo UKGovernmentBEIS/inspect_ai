@@ -12,6 +12,7 @@ import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { kInspectEnvValues } from "../inspect/inspect-constants";
 import { inspectVersion } from "../../inspect";
 import { InspectChangedEvent, InspectManager } from "../inspect/inspect-manager";
+import { inspectVersionDescriptor } from "../../inspect/props";
 
 export const kActiveTaskChanged = "activeTaskChanged";
 export const kInitialize = "initialize";
@@ -59,11 +60,11 @@ const kInspectModels: Record<string, string> = {
 };
 
 const inspectModels = () => {
-  const currentVersion = inspectVersion();
+  const descriptor = inspectVersionDescriptor();
   return Object.keys(kInspectModels).filter((key) => {
     const ver = kInspectModels[key];
-    if (currentVersion !== null) {
-      return currentVersion.compare(ver) > -1;
+    if (descriptor !== null) {
+      return descriptor.version.compare(ver) > -1;
     } else {
       return false;
     }
