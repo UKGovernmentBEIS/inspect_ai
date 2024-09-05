@@ -1,5 +1,8 @@
 ---
 title: "Inspect Agent Evals"
+format: 
+    pdf: default
+    typst: default
 ---
 
 ## Overview
@@ -11,11 +14,10 @@ This document provides an overview of Inspect features useful in the creation of
 3)  Human in the loop for approval, scoring, etc.
 4)  Logging and observability
 5)  Sandboxing untrusted model code
-6)  Concurrency and parallelisation
+6)  Concurrency and parallelism
 7)  Error handling, retries, and recovery
-8)  Extensibility points (tools, models, sandboxes, etc.)
 
-This discussion doesn't assume previous familiarity with Inspect (the basics are covered in the section below). For a more comprehensive treatment please see <https://inspect.ai-safety-institute.org.uk/>.
+This discussion doesn't assume previous familiarity with Inspect (the basics are covered in the section below). Here we provide only a high level roadmap to feature areas, please see the [full documentation](https://inspect.ai-safety-institute.org.uk/) for all of the details.
 
 ## Inspect Basics
 
@@ -97,66 +99,221 @@ We now have a task that can be run with any plan ("agent") and default ReAct age
 
 ## Agents in Inspect
 
-There are three general approaches to creating agents for use in Inspect evaluations:
+There are three main approaches to creating agents for use in Inspect evaluations.
 
-1.  *Default "autopilot" ReAct tool use loop*. This roughly corresponds to the last example above: present the model with a set of tools and prompt it to use them for as many turns as is required to submit an answer. This provides a convenient default baseline but is likely to be outperformed by more sophisticated approaches.
+### Default ReAct Loop
 
-2.  *Create an Inspect bridge to an external agent library or framework*. Most agent libraries take a prompt and/or list of messages as input, and yield text as an output. This corresponds well to the input and output of an Insepct Solver, so you can generally create a high order function that takes an agent developed with an external library and converts in into an Inspect agent. For example:
+This roughly corresponds to the last example above: present the model with a set of tools and prompt it to use them for as many turns as is required to submit an answer. We'll also soon be adding a more full featured `react_agent()` that can be used as the plan (it will support retries as well as custom prompts for failed submissions and encouraging the model to continue after it has given up).
 
-    ``` python
-    from agents import my_ctf_agent 
+The default ReAcT loop is useful for both establishing a baseline prior to creating more sophisticated agents as well as to measure a model's underlying agentic capabilities (i.e. how well does it do on tasks without serious elicitation).
 
-    @plan
-    def langchain_ctf_agent():
-        return Plan(langchain_solver(my_ctf_agent))
-    ```
+### External Agent Libraries
 
-    Where the `agents` module includes a native CTF agent developed using the LangChain framework, and `langchain_solver()` is the bridging function that will work to adapt any LangChain agent for use with Inspect.
+Most agent libraries take a prompt and/or list of messages as input, and yield text as an output. This corresponds well to the input and output of an Inspect Solver, so you can generally create a high order function that takes an agent developed with an external library and converts in into an Inspect agent. For example:
 
-3.  *Use Inspect's native agent development API.* Inspect has extensive internal facilities for creating agents, including state management, tool use, delegation to sub-agents, and rich observability
+``` python
+from agents import my_ctf_agent 
 
-4.  Native Framework (store/subtasks/tools/interactions) maximum observability
+@plan
+def langchain_ctf_agent():
+    return Plan(langchain_solver(my_ctf_agent))
+```
 
-## Tools
+Where the `agents` module includes a native CTF agent developed using the LangChain framework, and `langchain_solver()` is the bridging function that will work to adapt any LangChain agent for use with Inspect.
 
--   Python functions w/ type annotations and doc comments
--   JSON schema validation w/ error messages passed back to models
--   Ability to handle complex types (Pydantic/@dataclass/TypedDict)
--   Have their own transcript / can access the store
+When bridging to an agent library, you will typically want to take advantage of hooks in the library for:
 
-## Human in the Loop
+-   LLM interfaces (e.g. LangChain's `BaseChatModel`)—This is so that the Insepct model provider interface is used (and its observability features taken advantage of)
+-   Code execution—This is so that Inspect's sandboxes are used for untrusted model code.
+-   Logging—so that additional diagnostics are integrated into the Inspect log viewer.
 
--   input_screen
+### Inspect Agents API
+
+Inspect include a number of APIs useful in creating advanced agents, including:
+
+1.  The ability to [fully customise](https://inspect.ai-safety-institute.org.uk/agents-api.html#custom-loop) all interactions with the model as well as resolution and execution of tool calls.
+2.  The [Store](https://inspect.ai-safety-institute.org.uk/agents-api.html#sharing-state) for managing shared state across solvers and tools.
+3.  The [Subtask](https://inspect.ai-safety-institute.org.uk/agents-api.html#sec-subtasks) API for spawning delegated work in parallel.
+4.  Robust support for specifying and executing [Tools](#sec-tools).
+5.  Tracking and display of state changes across solvers, steps, subtasks, and tools
+6.  [Human in the Loop](#sec-human-in-the-loop) for approving model actions or other bespoke interactive scenarios.
+
+### Tool Use {#sec-tools}
+
+You can provide any Python function to the model using the `@tool` decorator. Type annotations and doc comments are used to fill in the JSON schema for the tool's parameters. For example:
+
+``` python
+@tool
+def add():
+    async def execute(x: int, y: int):
+        """
+        Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+
+        Returns:
+            The sum of the two numbers.
+        """
+        return x + y
+
+    return execute
+```
+
+Parameters can also use compound types (e.g. Pydantic `BaseModel` or Python's `@dataclass`, and `TypedDict`. Schemas of compound types are automatically discovered from type annotations, and model tool calls are validated against the schema (with violations automatically reported for correction by the model).
+
+### Human in the Loop {#sec-human-in-the-loop}
+
+The `input_screen()` function enables arbitrary console input and output during evaluations:
+
+``` python
+from inspect_ai.util import input_screen
+
+with input_screen() as console:
+    console.print("Some preamble text")
+    input = console.input("Please enter your name: ")
+```
+
+The `console` object provided by the context manager is from the [Rich](https://rich.readthedocs.io/) Python library used by Inspect, and has many other capabilities beyond simple text input (see the documentation on [Interactivity](https://inspect.ai-safety-institute.org.uk/interactivity.html) for additional details.
 
 ## Logging and Observability
 
+Inspect JSON log file format is comprehensive, and saves every input and output associated with evaluations. There is a programmatic API for the log file (the `EvalLog` class) and there is an interactive log viewer that can be accessed via the `inspect view` command or within the Inspect VS Code extension:
+
+![](https://inspect.ai-safety-institute.org.uk/images/inspect-view-main.png){.border}
+
+In addition, each sample contains a detailed transcript of all model interactions, tool calls, and changes to task or store state:
+
 ![](transcript.png){.border}
 
--   Scoring
--   Messages
--   Transcripts
--   Model Usage
--   Publishing
+You can also host a [standalone version](https://inspect.ai-safety-institute.org.uk/log-viewer.html#viewer-embedding) of the Inspect log viewer for publishing eval logs to a wider audience.
 
 ## Sandboxing
 
--   Sandbox abstraction
--   Docker
--   k8s / Other
+Inspect includes a `sandbox()` which enables for file manipulation and arbitrary command execution within a separately provisioned environment. This is useful for:
 
-## Concurrency and Parallelisation
+-   Creating tools that enable execution of arbitrary code (e.g. a tool that executes shell commands or Python code).
 
--   Models/Samples/Tasks
--   Throttle connections / subprocesses / other
+-   Pprovisioning per-sample file system resources.
+
+-   Providing access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
+
+For example, here is the source code for the built-in `bash()` tool:
+
+``` python
+@tool
+def bash(timeout: int | None = None) -> Tool:
+    """Bash shell command execution tool.
+
+    Execute bash shell commands using a sandbox environment (e.g. "docker").
+
+    Args:
+      timeout (int | None): Timeout (in seconds) for command. 
+    """
+
+    async def execute(cmd: str) -> str:
+        """
+        Use this function to execute bash commands.
+
+        Args:
+          cmd (str): The bash command to execute.
+
+        Returns:
+          The output of the command.
+        """
+        result = await sandbox().exec(cmd=["bash", "-c", cmd], timeout=timeout)
+        if result.success:
+            return result.stdout
+        else:
+            raise ToolError(
+                result.stderr if result.stderr else "error executing command"
+            )
+
+    return execute
+```
+
+Note that the tool simply calls the `sandbox().exec()` function (without reference to Docker) and the actual sandbox implementation is bound externally at the task level.
+
+Inspect ships with a sandbox implementation for [Docker](https://inspect.ai-safety-institute.org.uk/agents.html#sec-docker-configuration) and the sandbox facility can be extended with arbitrary other providers (UK AISI is currently working on a k8s provider that will be open sourced once completed).
+
+## Concurrency and Parallelism
+
+Inspect runs evaluations using a parallel async architecture, eagerly executing many samples in parallel while at the same time ensuring that that resources aren’t over-saturated by enforcing various limits (e.g. maximum number of concurrent model connections, maximum number of subprocesses, etc.).
+
+There are a progression of concurrency concerns, and while most evaluations can rely on the Inspect default behaviour, others will benefit from more customisation. Points of customisation include:
+
+1.  Model API connection concurrency.
+
+2.  Evaluating multiple models for a single task in parallel
+
+3.  Evaluating multiple tasks in parallel
+
+4.  Sandbox environment concurrency
+
+5.  Writing parallel code in custom tools, solvers, and scorers.
+
+The main limitation on concurrency tends to be the rate limits of model providers (depending on the provider and account, anywhere between 10 and 50 concurrent connections are often practical). Therefore, the most common way to parallelise is to run multiple models over multiple concurrent samples:
+
+![](https://inspect.ai-safety-institute.org.uk/images/inspect-multiple-models.png)
+
+See the article on [Parallellism](https://inspect.ai-safety-institute.org.uk/parallelism.html) for additional details on customising parallel execution behaviour.
 
 ## Error Handling
 
--   Retry (and re-use). Eval Set
--   Fault Tolerances (fail on error)
--   Limits (messages, others coming)
+Errors in agent evaluations are common for several reasons:
 
-## Extensibility
+1.  Model API rate limits are frequently encountered (especially for long running tasks) and model APIs in general can be unreliable.
+2.  Agents encounter runtime errors when attempting to execute tools or web requests (sometimes ending up "stuck" on the error).
+3.  Resource limits are sometimes encountered in sandbox containers (or even on the machine that hosts the containers).
 
--   Tools/Solvers/Scorers/Plans can live in Python packages
--   Model Providers
--   Sandboxes
+Consequently, error handling and retry strategies become paramount. Inspect has a number of tools to assist with this.
+
+### Eval Sets
+
+The `inspect eval-set` command and `eval_set()` function and provide several facilities for running sets of evaluations, including:
+
+1.  Automatically retrying failed evaluations (with a configurable retry strategy)
+2.  Re-using samples from failed tasks so that work is not repeated during retries.
+3.  Cleaning up log files from failed runs after a task is successfully completed.
+4.  The ability to re-run the command multiple times, with work picking up where the last invocation left off.
+
+See the article on [Eval Sets](https://inspect.ai-safety-institute.org.uk/eval-sets.html) for additional details.
+
+### Failure Threshold
+
+In some cases you might wish to tolerate some number of errors without failing the evaluation. This might be during development when errors are more commonplace, or could be to deal with a particularly unreliable API used in the evaluation.
+
+Add the `fail_on_error` option to your `Task` definition to establish this threshold. For example, here we indicate that we'll tolerate errors in up to 10% of the total sample count before failing:
+
+{{< pagebreak >}}
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        plan=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=120)]),
+            generate(),
+        ],
+        fail_on_error=0.1,
+        scorer=includes(),
+        sandbox="docker",
+    )
+```
+
+Failed samples are *not scored* and a warning indicating that some samples failed is both printed in the terminal and shown in Inspect View when this occurs.
+
+### Limits
+
+You also may want to set limits on tools, samples, or tasks. Currenty, Inspect supports two types of limits:
+
+1.  Timeouts on subprocess execution (the `bash()` and `python()` tools both take advantage of this)
+2.  The `max_messages` option to limit the number of messages exchanged for a sample.
+
+In the near future, we will also be adding support for the following additional limits:
+
+1.  Limit on total tokens used (for either samples or tasks)
+2.  Limit on total execution time (for either samples or tasks)
