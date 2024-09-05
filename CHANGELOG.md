@@ -10,6 +10,7 @@
 - Relocate `store()` and `@subtask` from solver to utils module; relocate `transcript()` from solver to log module.
 - Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
 - Fix issue with resolving Docker configuration files when not running from the task directory.
+- Only populate Docker compose config metadata values when they are used in the file.
 - Treat Sandbox exec `cwd` that are relative paths as relative to sample working directry.
 - Filter base64 encoded images out of model API call logs.
 - Raise error when a Solver does not return a TaskState.
