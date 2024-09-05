@@ -40,6 +40,12 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._file import eval_log_json
 from inspect_ai.log._log import eval_error
+from inspect_ai.log._transcript import (
+    ErrorEvent,
+    SampleInitEvent,
+    ScoreEvent,
+    transcript,
+)
 from inspect_ai.model import (
     CachePolicy,
     GenerateConfig,
@@ -52,14 +58,8 @@ from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
-from inspect_ai.solver._subtask.subtask import init_subtask
-from inspect_ai.solver._subtask.transcript import (
-    ErrorEvent,
-    SampleInitEvent,
-    ScoreEvent,
-    transcript,
-)
 from inspect_ai.solver._task_state import state_jsonable
+from inspect_ai.util._subtask import init_subtask
 
 from ..context import init_task_context
 from ..task import Task

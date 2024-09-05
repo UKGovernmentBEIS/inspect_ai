@@ -38,6 +38,14 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 
     Scorer for model output that preceded answers with "ANSWER: ". Can extract letters, words, or the remainder of the line.
 
+-   `exact()`
+
+    Scorer which will normalize the text of the answer and target(s) and perform an exact matching comparison of the text. This scorer will return `CORRECT` when the answer is an exact match to one or more targets.
+
+-   `f1()`
+
+    Scorer which computes the `F1` score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).
+
 -   `model_graded_qa()`
 
     Have another model assess whether the model output is a correct answer based on the grading guidance contained in `target`. Has a built-in template that can be customised.

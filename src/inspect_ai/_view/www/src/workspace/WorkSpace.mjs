@@ -220,7 +220,10 @@ export const WorkSpace = (props) => {
         }
 
         // If there is error or progress, includes those within info
-        if (workspaceLog.contents?.status === "error") {
+        if (
+          workspaceLog.contents?.status === "error" &&
+          workspaceLog.contents?.error
+        ) {
           infoCards.unshift(
             html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`,
           );
@@ -234,7 +237,7 @@ export const WorkSpace = (props) => {
         ) {
           warnings.push(
             html`<${WarningBand}
-              message="This evaluation log is too large display samples."
+              message="This evaluation log is too large to display samples."
             />`,
           );
         }
