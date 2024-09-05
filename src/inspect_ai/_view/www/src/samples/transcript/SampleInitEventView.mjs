@@ -4,6 +4,7 @@ import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
 import { EventSection } from "./EventSection.mjs";
+import { toArray } from "../../utils/Type.mjs";
 
 /**
  * Renders the SampleInitEventView component.
@@ -24,7 +25,7 @@ export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
 
   // Rememember the state (so other event viewers can use
   // it as a baseline when applying their state updates)
-  stateManager.setState(stateObj);
+  stateManager.initializeState(stateObj);
 
   const sections = [];
 
@@ -63,7 +64,9 @@ export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
         ${sections}
         </div>
         <${EventSection} title="Target">
-          ${event.sample.target}
+          ${toArray(event.sample.target).map((target) => {
+            return html`<div>${target}</div>`;
+          })}
         </${EventSection}>
       </div>
     </div>

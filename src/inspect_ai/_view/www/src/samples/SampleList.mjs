@@ -5,10 +5,16 @@ import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { TextStyle } from "../appearance/Fonts.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { SampleError } from "./SampleError.mjs";
 
-import { shortenCompletion, arrayToString } from "../utils/Format.mjs";
+import {
+  shortenCompletion,
+  arrayToString,
+  formatNoDecimal,
+} from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
+import { WarningBand } from "../components/WarningBand.mjs";
 import { inputString } from "../utils/Format.mjs";
 
 const kSampleHeight = 88;
@@ -154,10 +160,30 @@ export const SampleList = (props) => {
     <div>Score</div>
   </div>`;
 
+  // Count any sample errors and display a bad alerting the user
+  // to any errors
+  const errorCount = items?.reduce((previous, item) => {
+    if (item.data.error) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
+  const sampleCount = items?.length;
+  const percentError = (errorCount / sampleCount) * 100;
+  const warningMessage =
+    errorCount > 0
+      ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
+      : undefined;
+
+  const warningRow = warningMessage
+    ? html`<${WarningBand} message=${warningMessage} />`
+    : "";
+
   return html` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
-    ${headerRow}
+    ${warningRow} ${headerRow}
     <${VirtualList}
       ref=${listRef}
       data=${items}
@@ -285,7 +311,9 @@ const SampleRow = ({
           display: "flex",
         }}
       >
-        ${sampleDescriptor?.selectedScore(sample).render()}
+        ${sample.error
+          ? html`<${SampleError} />`
+          : sampleDescriptor?.selectedScore(sample).render()}
       </div>
     </div>
   `;

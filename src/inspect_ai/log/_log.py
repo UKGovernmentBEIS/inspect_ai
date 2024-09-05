@@ -14,7 +14,7 @@ from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
@@ -23,7 +23,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.solver._subtask.transcript import EvalEvents
+
+from ._transcript import EvalEvents
 
 SCORER_PLACEHOLDER = "88F74D2C"
 
@@ -37,6 +38,15 @@ class EvalConfig(BaseModel):
 
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
+
+    fail_on_error: bool | float | None = Field(default=None)
+    """Fail eval when sample errors occur.
+
+    `True` to fail on first sample error (default); `False` to never
+    fail on sample errors; Value between 0 and 1 to fail if a proportion
+    of total samples fails. Value greater than 1 to fail eval if a count
+    of samples fails.
+    """
 
     max_messages: int | None = Field(default=None)
     """Maximum messages to allow in a chat conversation."""
@@ -79,6 +89,15 @@ class EvalSample(BaseModel):
     target: str | list[str]
     """Sample target value(s)"""
 
+    sandbox: tuple[str, str | None] | None = Field(default=None)
+    """Sandbox environment type and optional config file."""
+
+    files: list[str] | None = Field(default=None)
+    """Files that go along with the sample (copied to SandboxEnvironment)"""
+
+    setup: str | None = Field(default=None)
+    """Setup script to run for sample (run within default SandboxEnvironment)."""
+
     messages: list[ChatMessage]
     """Chat conversation history for sample."""
 
@@ -104,6 +123,9 @@ class EvalSample(BaseModel):
 
     transcript: EvalEvents = Field(default_factory=EvalEvents)
     """Transcript of sample events."""
+
+    error: EvalError | None = Field(default=None)
+    """Error that halted sample."""
 
     @model_validator(mode="before")
     @classmethod
@@ -195,6 +217,15 @@ class EvalSampleReductions(BaseModel):
 
 
 class EvalResults(BaseModel):
+    total_samples: int = Field(default=0)
+    """Total samples in eval (dataset samples * epochs)"""
+
+    completed_samples: int = Field(default=0)
+    """Samples completed without error.
+
+    Will be equal to total_samples except when --fail-on-error is enabled.
+    """
+
     @property
     def scorer(self) -> EvalScore | None:
         """Scorer used to compute results (deprecated)."""
@@ -328,17 +359,6 @@ class EvalSpec(BaseModel):
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
-
-
-class EvalError(BaseModel):
-    message: str
-    """Error message."""
-
-    traceback: str
-    """Error traceback."""
-
-    traceback_ansi: str
-    """Error traceback with ANSI color codes."""
 
 
 def eval_error(

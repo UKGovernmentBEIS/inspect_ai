@@ -22,14 +22,11 @@ def use_tools(
     Returns:
         A solver that injects the tools and tool_choice into the task state.
     """
-    # resolve tools to list
-    if tools is not None:
-        tools = tools if isinstance(tools, list) else [tools]
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # set tools if specified
         if tools is not None:
-            state.tools = tools
+            state.tools = tools if isinstance(tools, list) else [tools]
 
         # set tool choice if specified
         if tool_choice is not None:

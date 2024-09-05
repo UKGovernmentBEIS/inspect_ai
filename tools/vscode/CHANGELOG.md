@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.30
+
+- Further refinement to Inspect View behavior when a task is complete. We will now refresh the viewer without bringing it the foreground when it is already displaying and a task completes. This will ensure that focus is handled correctly in the editor. Use `cmd+shift+L` to bring the viewer to the foreground (or show it if it isn't showing).
+- Rename 'Log View Auto' to 'Open Log View' since this better reflects the setting behavior (as it now controls whether the view is initially opened when a task is completed).
+
+## 0.3.29
+
+- Improve behavior of log viewer when a task completes and the view is already displaying
+- Evaluation log files which exceed 100MB will be displayed without sample data (since the viewer becomes difficult to work with when files exceed this size).
+
 ## 0.3.28
 
 - Fix incorrect environment variable when setting model base url (thx @hanbyul-kim)

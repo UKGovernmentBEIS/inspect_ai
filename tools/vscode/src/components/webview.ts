@@ -73,11 +73,13 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     }
   }
 
-  public revealWebview() {
+  public revealWebview(preserveEditorFocus: boolean) {
     if (this.activeView_) {
       this.activeView_.reveal();
       this.resolveOnShow();
-      this.preserveEditorFocus();
+      if (preserveEditorFocus) {
+        this.preserveEditorFocus();
+      }
     }
   }
 

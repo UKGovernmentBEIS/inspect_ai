@@ -15,7 +15,7 @@ import { format } from "jsondiffpatch/formatters/html";
  * @returns {import("preact").JSX.Element | undefined} The component.
  */
 export const StateDiffView = ({ starting, ending, style }) => {
-  const changes = diff(unescapeNewlines(starting), unescapeNewlines(ending));
+  const changes = diff(starting, ending);
   const html_result = format(changes);
   return html`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}

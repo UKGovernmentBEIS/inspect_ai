@@ -8,7 +8,8 @@ from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from ...model import ChatMessage, GenerateConfig, ModelAPI, ModelOutput
-from .._model_output import ChatCompletionChoice, ModelCall
+from .._model_call import ModelCall
+from .._model_output import ChatCompletionChoice
 from .util import (
     ChatAPIHandler,
     Llama31Handler,

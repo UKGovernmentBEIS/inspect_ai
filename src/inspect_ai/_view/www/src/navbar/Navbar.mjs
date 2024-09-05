@@ -173,29 +173,35 @@ const CanceledPanel = ({ sampleCount }) => {
 };
 
 const RunningPanel = () => {
-  return html`<div
-    style=${{
-      marginTop: "0.5em",
-      display: "inline-grid",
-      gridTemplateColumns: "auto auto",
-    }}
-  >
-    <div class="spinner-border spinner-border-sm" role="status"></div>
+  return html`
     <div
       style=${{
-        marginLeft: "0.3em",
-        paddingTop: "0.2em",
-        fontSize: FontSize.smaller,
+        marginTop: "0.5em",
+        display: "inline-grid",
+        gridTemplateColumns: "max-content max-content",
       }}
     >
-      Running
+      <div>
+        <i class=${ApplicationIcons.running} />
+      </div>
+      <div
+        style=${{
+          marginLeft: "0.3em",
+          paddingTop: "0.2em",
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+        }}
+      >
+        Running
+      </div>
     </div>
-  </div>`;
+  `;
 };
 
 const ResultsPanel = ({ results }) => {
   // Map the scores into a list of key/values
-  if (results.scores.length === 1) {
+  if (results?.scores?.length === 1) {
     const scorers = {};
     results.scores.map((score) => {
       scorers[score.name] = Object.keys(score.metrics).map((key) => {
@@ -236,7 +242,7 @@ const ResultsPanel = ({ results }) => {
         rowGap: "1em",
       }}
     >
-      ${results.scores.map((score, index) => {
+      ${results?.scores?.map((score, index) => {
         return html`<${MultiScorerMetric}
           scorer=${score}
           isFirst=${index === 0}

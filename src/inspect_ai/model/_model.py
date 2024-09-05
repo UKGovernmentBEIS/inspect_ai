@@ -41,7 +41,8 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._generate_config import GenerateConfig
-from ._model_output import ModelCall, ModelOutput, ModelUsage
+from ._model_call import ModelCall
+from ._model_output import ModelOutput, ModelUsage
 
 logger = logging.getLogger(__name__)
 
@@ -402,7 +403,7 @@ class Model:
         output: ModelOutput,
         call: ModelCall | None,
     ) -> None:
-        from inspect_ai.solver._subtask.transcript import ModelEvent, transcript
+        from inspect_ai.log._transcript import ModelEvent, transcript
 
         if not self.api.provides_event():
             transcript()._event(
@@ -714,12 +715,21 @@ def init_model_usage() -> None:
 def record_model_usage(model: str, usage: ModelUsage) -> None:
     model_usage = model_usage_context_var.get(None)
     if model_usage is not None:
-        total_usage = model_usage.get(model, None)
+        total_usage: ModelUsage | None = model_usage.get(model, None)
         if not total_usage:
             total_usage = ModelUsage()
         total_usage.input_tokens += usage.input_tokens
         total_usage.output_tokens += usage.output_tokens
         total_usage.total_tokens += usage.total_tokens
+        if usage.input_tokens_cache_write is not None:
+            if total_usage.input_tokens_cache_write is None:
+                total_usage.input_tokens_cache_write = 0
+            total_usage.input_tokens_cache_write += usage.input_tokens_cache_write
+        if usage.input_tokens_cache_read is not None:
+            if total_usage.input_tokens_cache_read is None:
+                total_usage.input_tokens_cache_read = 0
+            total_usage.input_tokens_cache_read += usage.input_tokens_cache_read
+
         model_usage[model] = total_usage
 
 

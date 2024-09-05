@@ -67,10 +67,20 @@ async function download_file(logFile) {
   vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
 }
 
+async function open_log_file(url, log_dir) {
+  const msg = {
+    type: "displayLogFile",
+    url: url,
+    log_dir: log_dir,
+  };
+  vscodeApi.postMessage(msg);
+}
+
 export default {
   client_events,
   eval_logs,
   eval_log,
   eval_log_headers,
   download_file,
+  open_log_file,
 };

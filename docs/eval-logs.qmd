@@ -49,7 +49,7 @@ If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file, then its lo
 If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a `.env` file. This is because the VS Code Python extension also [reads variables](https://code.visualstudio.com/docs/python/environments#_environment-variables) from `.env` files, and your updated `INSPECT_LOG_DIR` won't be re-read by VS Code until after a restart.
 :::
 
-See the [Amazon S3](#amazon-s3) section below for details on logging evaluations to Amazon S3 buckets.
+See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets.
 
 ## EvalLog
 
@@ -102,37 +102,13 @@ logs = list_eval_logs()
 
 Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False` to list only the log files at the root level.
 
-## Errors and Retries {#sec-errors-and-retries}
-
-When an evaluation task fails due to an error or is otherwise interrupted (e.g. by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g. due to network connectivity or a rate limit) and can be subsequently *retried*.
-
-For these cases, Inspect includes an `eval-retry` command and `eval_retry()` function that you can use to resume tasks interrupted by errors (including [preserving samples](#sec-sample-preservation) already completed within the original task). For example, if you had a failing task with log file `logs/2024-05-29T12-38-43_math_Gprr29Mv.json`, you could retry it from the shell with:
-
-``` bash
-$ inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json
-```
-
-Or from Python with:
-
-``` python
-eval_retry("logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json")
-```
-
-Note that `eval_retry()` does not overwrite the previous log file, but rather creates a new one (preserving the `task_id` from the original file).
-
-Here's an example of retrying a failed eval with a lower number of `max_connections` (the theory being that too many concurrent connections may have caused a rate limit error):
-
-``` python
-log = eval(my_task)[0]
-if log.status != "success":
-  eval_retry(log, max_connections = 3)
-```
+{{< include _errors_and_retries.md >}}
 
 {{< include _sample-preservation.md >}}
 
 ::: {.callout-note appearance="simple"}
-### Eval Suites
-We've discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on retrying tasks within [Eval Suites](eval-suites.qmd#sec-errors-and-retries)
+### Eval Sets
+We've discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on [Eval Sets](eval-sets.qmd)
 :::
 
 ## Amazon S3 {#sec-amazon-s3}
