@@ -78,11 +78,11 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
   }
   private activeLogDir_: Uri | null = null;
 
-  public async showLogFile(uri: Uri) {
+  public async showLogFile(uri: Uri, activation?: "open" | "activate") {
     // Get the directory name using posix path methods
     const log_dir = dirname(uri);
 
-    await this.showLogview({ log_file: uri, log_dir });
+    await this.showLogview({ log_file: uri, log_dir }, activation);
   }
 
   public async showLogFileIfOpen(uri: Uri) {
@@ -99,24 +99,31 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
     }
   }
 
-  public async showLogview(state: LogviewState) {
-    if (state.background_refresh) {
-      // Determine whether we are showing a log viewer for this directory
-      // If we aren't close the log viewer so a fresh one can be opened.
-      if (state.log_file) {
-        // Update the view state
-        this.updateViewState(state);
+  public async showLogview(
+    state: LogviewState,
+    activation?: "open" | "activate"
+  ) {
+    switch (activation) {
+      case "open":
+        await this.displayLogFile(state, activation);
+        break;
+      case "activate":
+        await this.displayLogFile(state, activation);
+        break;
+      default:
+        // No activation, just refresh this in the background
+        if (this.isVisible() && state.log_file) {
+          this.updateViewState(state);
 
-        // Signal the viewer to either perform a background refresh
-        // or to check whether the view is focused and call us back to
-        // display a log file
-        await this.activeView_?.backgroundUpdate(
-          state.log_file.path,
-          state.log_dir.toString()
-        );
-      }
-    } else {
-      this.displayLogFile(state);
+          // Signal the viewer to either perform a background refresh
+          // or to check whether the view is focused and call us back to
+          // display a log file
+          await this.activeView_?.backgroundUpdate(
+            state.log_file.path,
+            state.log_dir.toString()
+          );
+        }
+        return;
     }
   }
 
@@ -130,7 +137,10 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
     }
   }
 
-  public displayLogFile(state: LogviewState) {
+  public async displayLogFile(
+    state: LogviewState,
+    activation?: "open" | "activate"
+  ) {
     // Determine whether we are showing a log viewer for this directory
     // If we aren't close the log viewer so a fresh one can be opened.
     if (
@@ -150,7 +160,7 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
 
     // Ensure that we send the state once the view is loaded
     this.setOnShow(() => {
-      this.updateVisibleView().catch(() => {});
+      this.updateVisibleView().catch(() => { });
     });
 
     // If the view is closed, clear the state
@@ -161,12 +171,21 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
 
     // Actually reveal or show the webview
     if (this.activeView_) {
-      this.revealWebview();
+      if (activation === "activate") {
+        this.revealWebview(activation !== "activate");
+      } else if (state.log_file) {
+        await this.activeView_?.backgroundUpdate(
+          state.log_file.path,
+          state.log_dir.toString()
+        );
+      }
     } else {
-      this.showWebview(state, {
-        preserveFocus: true,
-        viewColumn: ViewColumn.Beside,
-      });
+      if (activation) {
+        this.showWebview(state, {
+          preserveFocus: activation !== "activate",
+          viewColumn: ViewColumn.Beside,
+        });
+      }
     }
 
     // TODO: there is probably a better way to handle this
@@ -212,7 +231,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
     super(context, state, webviewPanel);
     this._register(
       this._webviewPanel.webview.onDidReceiveMessage(
-        async (e: { type: string; url: string; [key: string]: unknown }) => {
+        async (e: { type: string; url: string;[key: string]: unknown }) => {
           switch (e.type) {
             case "openExternal":
               try {
@@ -251,9 +270,8 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
                   const state: LogviewState = {
                     log_file: Uri.parse(e.url),
                     log_dir: Uri.parse(e.log_dir as string),
-                    background_refresh: false,
                   };
-                  this._manager.displayLogFile(state);
+                  await this._manager.displayLogFile(state, "open");
                 } else {
                   await showError(
                     "Unable to display log file because of a missing log_dir or manager. This is an unexpected error, please report it."
@@ -339,8 +357,8 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       const stateScript =
         state && state.log_file
           ? `<script id="logview-state" type="application/json">${JSON.stringify(
-              stateMsg
-            )}</script>`
+            stateMsg
+          )}</script>`
           : "";
 
       // decorate the html tag
@@ -351,16 +369,11 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
         "<head>\n",
         `<head>
           <meta name="inspect-extension:version" content="${this.getExtensionVersion()}">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${
-      this._webviewPanel.webview.cspSource
-    } data:; font-src ${
-          this._webviewPanel.webview.cspSource
-        } data:; style-src ${
-          this._webviewPanel.webview.cspSource
-        } 'unsafe-inline'; worker-src 'self' ${
-          this._webviewPanel.webview.cspSource
-        } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${
-          this._webviewPanel.webview.cspSource
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this._webviewPanel.webview.cspSource
+        } data:; font-src ${this._webviewPanel.webview.cspSource
+        } data:; style-src ${this._webviewPanel.webview.cspSource
+        } 'unsafe-inline'; worker-src 'self' ${this._webviewPanel.webview.cspSource
+        } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this._webviewPanel.webview.cspSource
         };">
     ${stateScript}
     ${overrideCssHtml}
