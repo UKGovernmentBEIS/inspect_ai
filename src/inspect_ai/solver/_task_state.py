@@ -15,7 +15,7 @@ from inspect_ai.model import (
     ModelOutput,
 )
 from inspect_ai.model._call_tools import tools_info
-from inspect_ai.solver._subtask.store import Store, store_jsonable
+from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.tool import Tool, ToolChoice
 
 

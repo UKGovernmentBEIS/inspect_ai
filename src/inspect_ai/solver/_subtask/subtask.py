@@ -20,8 +20,7 @@ from inspect_ai.log._transcript import (
     transcript,
 )
 from inspect_ai.tool._tool import ToolResult
-
-from .store import Store, dict_jsonable, init_subtask_store
+from inspect_ai.util._store import Store, dict_jsonable, init_subtask_store
 
 RT = TypeVar("RT", ToolResult, Any)
 

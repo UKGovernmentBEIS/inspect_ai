@@ -29,8 +29,8 @@ from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._store import store, store_changes, store_jsonable
 
-from ..solver._subtask.store import store, store_changes, store_jsonable
 from ..solver._task_state import state_jsonable
 
 logger = getLogger(__name__)

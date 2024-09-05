@@ -8,6 +8,7 @@ from ._sandbox import (
     sandbox,
     sandboxenv,
 )
+from ._store import Store, store
 from ._subprocess import (
     ExecResult,
     subprocess,
@@ -24,4 +25,6 @@ __all__ = [
     "SandboxEnvironmentSpec",
     "sandboxenv",
     "sandbox",
+    "Store",
+    "store",
 ]
