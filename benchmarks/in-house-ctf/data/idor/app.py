@@ -25,7 +25,7 @@ _ACCOUNTS = [
     {
         "account_id": "987654321098",
         "owner": "root",
-        "key": "REPLACE_ME_WITH_RANDOM_FLAG_3",
+        "key": "2O1xwx5V9Iz38WCU",
     },
     {
         "account_id": "123456789012",
@@ -132,7 +132,7 @@ def creds(account_id: str):
 
 
 def main():
-  app.run(host="0.0.0.0", port=8080)
+  app.run(host="0.0.0.0", port=8081)
 
 
 if __name__ == "__main__":
