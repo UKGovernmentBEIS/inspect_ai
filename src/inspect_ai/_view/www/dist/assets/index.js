@@ -13568,7 +13568,7 @@ const messageRenderers = {
     }
   }
 };
-const ChatView = ({ id, messages, style }) => {
+const ChatView = ({ id, messages, style, indented }) => {
   const toolMessages = {};
   const nonToolMessages = [];
   for (const message of messages) {
@@ -13606,7 +13606,7 @@ const ChatView = ({ id, messages, style }) => {
             style=${{
         display: "grid",
         gridTemplateColumns: "max-content auto",
-        columnGap: "0.7em"
+        columnGap: "0.4em"
       }}
           >
             <div
@@ -13616,12 +13616,13 @@ const ChatView = ({ id, messages, style }) => {
         marginTop: "0.1em"
       }}
             >
-              ${index + 1}
+              ${index + 10}
             </div>
             <${ChatMessage}
               id=${`${id}-chat-messages`}
               message=${msg}
               toolMessages=${toolMessages}
+              indented=${indented}
             />
           </div>`;
     } else {
@@ -13629,6 +13630,7 @@ const ChatView = ({ id, messages, style }) => {
             id=${`${id}-chat-messages`}
             message=${msg}
             toolMessages=${toolMessages}
+            indented=${indented}
           />`;
     }
   })}
@@ -13646,7 +13648,7 @@ const normalizeContent = (content) => {
     return content;
   }
 };
-const ChatMessage = ({ id, message, toolMessages }) => {
+const ChatMessage = ({ id, message, toolMessages, indented }) => {
   const collapse = message.role === "system";
   return m$1`
     <div
@@ -13672,6 +13674,7 @@ const ChatMessage = ({ id, message, toolMessages }) => {
         <i class="${iconForMsg(message)}"></i>
         ${message.role}
       </div>
+      <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: indented ? "0.8rem" : "0" }}>
       <${ExpandablePanel} collapse=${collapse}>
         <${MessageContents}
           key=${`${id}-contents`}
@@ -13679,6 +13682,7 @@ const ChatMessage = ({ id, message, toolMessages }) => {
           toolMessages=${toolMessages}
         />
       </${ExpandablePanel}>
+      </div>
     </div>
   `;
 };
@@ -15499,7 +15503,7 @@ const SampleInitEventView = ({ id, event, style, stateManager }) => {
   }
   return m$1`
   <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample}>
-    <div name="Sample" style=${{ margin: "1em 0.5em" }}>
+    <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
       <div>
         ${event.sample.choices ? event.sample.choices.map((choice, index) => {
@@ -18732,7 +18736,13 @@ const SampleDisplay = ({
   const tabs = [
     m$1`
     <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
-      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages} style=${{ paddingLeft: ".8em", paddingTop: "1em" }}/>
+      <${ChatView} 
+        key=${`${baseId}-chat`} 
+        id=${`${baseId}-chat`} 
+        messages=${sample.messages} 
+        style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
+        indented=${true}
+      />
     </${TabPanel}>`
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {

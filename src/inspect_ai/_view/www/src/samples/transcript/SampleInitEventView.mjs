@@ -48,7 +48,7 @@ export const SampleInitEventView = ({ id, event, style, stateManager }) => {
 
   return html`
   <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample}>
-    <div name="Sample" style=${{ margin: "1em 0.5em" }}>
+    <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
       <div>
         ${

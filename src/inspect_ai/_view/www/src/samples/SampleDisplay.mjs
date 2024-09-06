@@ -76,9 +76,13 @@ export const SampleDisplay = ({
     <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${
       selectedTab === msgTabId
     }>
-      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
-        sample.messages
-      } style=${{ paddingLeft: ".8em", paddingTop: "1em" }}/>
+      <${ChatView} 
+        key=${`${baseId}-chat`} 
+        id=${`${baseId}-chat`} 
+        messages=${sample.messages} 
+        style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
+        indented=${true}
+      />
     </${TabPanel}>`,
   ];
 
