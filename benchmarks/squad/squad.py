@@ -10,7 +10,6 @@ If the question is unanswerable, answer with 'unanswerable' in all lowercase.
 
 @task
 def squad():
-   
     dataset = hf_dataset(
         path="rajpurkar/squad_v2",
         split="validation",
