@@ -33,30 +33,43 @@ export class LogViewFileWatcher implements Disposable {
           const contents = readFileSync(evalSignalFile, { encoding: "utf-8" });
 
           // Parse the eval signal file result
-          withMinimumInspectVersion(kInspectChangeEvalSignalVersion, () => {
-            // 0.3.10- or later
-            const contentsObj = JSON.parse(contents) as { location: string, workspace_id?: string };
-            evalLogPath = contentsObj.location;
-            workspaceId = contentsObj.workspace_id;
-          }, () => {
-            // 0.3.8 or earlier
-            evalLogPath = contents;
-          });
+          withMinimumInspectVersion(
+            kInspectChangeEvalSignalVersion,
+            () => {
+              // 0.3.10- or later
+              const contentsObj = JSON.parse(contents) as {
+                location: string;
+                workspace_id?: string;
+              };
+              evalLogPath = contentsObj.location;
+              workspaceId = contentsObj.workspace_id;
+            },
+            () => {
+              // 0.3.8 or earlier
+              evalLogPath = contents;
+            }
+          );
 
           if (evalLogPath) {
-            if (!workspaceId || workspaceId === this.workspaceStateManager_.getWorkspaceInstance()) {
-
-              log.appendLine(`New log: ${workspaceRelativePath(toAbsolutePath(evalLogPath))}`);
-              if (settingsMgr_.getSettings().logViewAuto) {
-                // Show the log file
-                this.logviewManager_.showLogFile(Uri.parse(evalLogPath)).catch(async (err: Error) => {
-                  await showError("Unable to preview log file - failed to start Inspect View", err);
+            if (
+              !workspaceId ||
+              workspaceId === this.workspaceStateManager_.getWorkspaceInstance()
+            ) {
+              log.appendLine(
+                `New log: ${workspaceRelativePath(toAbsolutePath(evalLogPath))}`
+              );
+              // Show the log file
+              const openAction = settingsMgr_.getSettings().openLogView
+                ? "open"
+                : undefined;
+              this.logviewManager_
+                .showLogFile(Uri.parse(evalLogPath), openAction)
+                .catch(async (err: Error) => {
+                  await showError(
+                    "Unable to preview log file - failed to start Inspect View",
+                    err
+                  );
                 });
-              } else {
-                this.logviewManager_.showLogFileIfViewerOpen(Uri.parse(evalLogPath)).catch(async (err: Error) => {
-                  await showError("Unable to preview log file - failed to update the current view", err);
-                });
-              }
             }
           }
         }

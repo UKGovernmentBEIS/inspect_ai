@@ -93,8 +93,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # create environment variables for sample metadata
         env: dict[str, str] = {}
-        for key, value in metadata.items():
-            env[f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"] = str(value)
+        if config and Path(config).exists():
+            # read the config file
+            with open(config, "r") as f:
+                config_text = f.read()
+
+            # only add metadata files if the key is in the file
+            for key, value in metadata.items():
+                key = f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"
+                if key in config_text:
+                    env[key] = str(value)
 
         # create project
         project = await ComposeProject.create(
