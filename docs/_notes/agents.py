@@ -1,5 +1,7 @@
 from inspect_ai.model import call_tools, ChatMessageUser, get_model
 
+from inspect_ai.scorer import score
+from inspect_ai.scorer._metric import value_to_float
 from inspect_ai.solver import Generate, Plan, Solver, TaskState, plan, system_message, use_tools
 from inspect_ai.tool import tool, Tool, ToolResult, ToolCall, tool_with
 from inspect_ai.util import store
@@ -38,6 +40,13 @@ def basic_agent(
     submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRITION,
     submit_tool_response: str = DEFAULT_SUBMIT_TOOL_RESPONSE
 ) -> Plan:
+    """Docs
+    
+    Note that you should have a termination condition!
+
+    Infinite attempts (max_messages or max_tokens)
+  
+    """
 
     # state shared between submit tool and agent_loop
     ANSWER = "basic_agent:answer"
@@ -101,7 +110,8 @@ def basic_agent(
                         # get the answer and score it (exit if correct)
                         answer = store().get(ANSWER)
                         state.output.completion = answer
-                        if score(state):
+                        answer_scores = await score(state)
+                        if value_to_float()(answer_scores[0].value) == 1.0:
                             break
                             
                         # check attempts
@@ -114,11 +124,6 @@ def basic_agent(
 
                 # no tool calls: model gave up without submitting
                 else:
-                    # check attempts
-                    attempts += 1
-                    if attempts >= max_attempts:
-                        break
-
                     # urge the model to continue 
                     state.messages.append(ChatMessageUser(content=continue_message))
                     
@@ -134,7 +139,3 @@ def basic_agent(
     ])
 
 
-
-# imagine we have a function that can call the scorer
-def score(state: TaskState) -> bool:
-    return True
