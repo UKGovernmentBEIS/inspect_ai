@@ -3,6 +3,7 @@ from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._metric import ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
+from inspect_ai.solver._plan import Plan
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_with import tool_with
