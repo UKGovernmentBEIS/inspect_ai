@@ -377,6 +377,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Extract the answer from model output using a regular expression.</p></li>
 <li><p><code>answer()</code></p>
 <p>Scorer for model output that preceded answers with “ANSWER:”. Can extract letters, words, or the remainder of the line.</p></li>
+<li><p><code>exact()</code></p>
+<p>Scorer which will normalize the text of the answer and target(s) and perform an exact matching comparison of the text. This scorer will return <code>CORRECT</code> when the answer is an exact match to one or more targets.</p></li>
+<li><p><code>f1()</code></p>
+<p>Scorer which computes the <code>F1</code> score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).</p></li>
 <li><p><code>model_graded_qa()</code></p>
 <p>Have another model assess whether the model output is a correct answer based on the grading guidance contained in <code>target</code>. Has a built-in template that can be customised.</p></li>
 <li><p><code>model_graded_fact()</code></p>
