@@ -5,6 +5,7 @@ from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.pattern import ANSWER_PATTERN_LETTER, ANSWER_PATTERN_LINE
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.model import ChatMessageUser
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -34,7 +35,7 @@ Answer the following question. The entire content of your response should be of 
 
 
 @task
-def MathVistaMultipleChoice() -> Task:
+def mathvista() -> Task:
     dataset = hf_dataset(
         path="AI4Math/MathVista",
         split="testmini",
@@ -106,13 +107,16 @@ def mathvista_solver() -> Solver:
             return await generate(state)
 
         else:
-            raise ValueError("Question type must be one of 'free_form' or 'multi_choice'. Received: %s" % state.metadata["question_type"])
+            raise ValueError(
+                "Question type must be one of 'free_form' or 'multi_choice'. Received: %s"
+                % state.metadata["question_type"]
+            )
 
     return solve
 
 
 def record_to_sample(record: dict) -> Sample:
-    message = [
+    message: list[ChatMessage] = [
         ChatMessageUser(
             content=[
                 ContentText(text=record["question"])
@@ -149,9 +153,11 @@ def record_to_sample(record: dict) -> Sample:
             },
             files={f"image:{record['image']}": record["image"]},
         )
+    else:
+        raise ValueError(f"Unexpected question_type: {record['question_type']}")
 
 
-def get_multi_choice_as_letter(record: dict) -> chr:
+def get_multi_choice_as_letter(record: dict) -> str:
     choices = record["choices"]
     labels = [chr(i) for i in range(ord("a"), ord("a") + len(choices))]
 
@@ -159,6 +165,4 @@ def get_multi_choice_as_letter(record: dict) -> chr:
 
     answer = record["answer"]
     target = list(choices.values()).index(answer)
-    target = chr(ord("A") + int(target))
-
-    return target
+    return chr(ord("A") + int(target))
