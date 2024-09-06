@@ -8397,7 +8397,13 @@ const Tab2 = ({ type, tab, index, style }) => {
     color: "var(--bs-body-color)",
     ...style,
     padding: "0.25rem 0.5rem",
-    borderRadius: "var(--bs-border-radius)"
+    borderTopLeftRadius: "var(--bs-border-radius)",
+    borderTopRightRadius: "var(--bs-border-radius)",
+    ...TextStyle.label,
+    fontSize: FontSize.small,
+    fontWeight: 500,
+    marginTop: "2px",
+    marginBottom: "-1px"
   };
   const pillStyle = {
     ...style
@@ -15186,7 +15192,7 @@ const EventPanel = ({
   };
   const titleEl = title || icon || filteredArrChilden.length > 1 ? m$1`<div
           style=${{
-    paddingLeft: "0.5em",
+    paddingLeft: "0.1em",
     display: "grid",
     gridTemplateColumns: "minmax(0, max-content) max-content minmax(0, max-content) auto minmax(0, max-content)",
     columnGap: "0.2em",
@@ -15263,8 +15269,8 @@ const EventPanel = ({
   const card = m$1` <div
     id=${id}
     style=${{
-    padding: "0.4em",
-    marginBottom: "0.4em",
+    padding: "0.7em",
+    marginBottom: "0.7em",
     border: "solid 1px var(--bs-light-border-subtle)",
     borderRadius: "var(--bs-border-radius)",
     ...style
@@ -18680,20 +18686,20 @@ const SampleDisplay = ({
   };
   const tabs = [
     m$1`
-    <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
+    <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
       <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages} style=${{ paddingLeft: ".8em", paddingTop: "1em" }}/>
     </${TabPanel}>`
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(m$1`
-      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
+      <${TabPanel} id=${transcriptTabId} title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
         <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(m$1`
-      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
+      <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
         <${SampleScoreView}
           sample=${sample}
           context=${context}
@@ -18706,7 +18712,7 @@ const SampleDisplay = ({
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(m$1`
-        <${TabPanel} id="${tabId}" title="${scorer}" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
+        <${TabPanel} id="${tabId}" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
             context=${context}
@@ -18724,7 +18730,6 @@ const SampleDisplay = ({
       <${TabPanel} 
           id=${metdataTabId} 
           title="Metadata" 
-          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
@@ -18739,7 +18744,6 @@ const SampleDisplay = ({
       <${TabPanel} 
           id=${errorTabId} 
           title="Error" 
-          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === errorTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
