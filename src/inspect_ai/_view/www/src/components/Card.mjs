@@ -24,7 +24,11 @@ export const CardHeader = ({ id, icon, label, classes, style, children }) => {
             paddingRight: "0.2rem",
           }}
         ></i>`
-      : ""}
+      : html`<span
+          style=${{
+            paddingRight: "0.2rem",
+          }}
+        ></span>`}
     ${label ? label : ""} ${children}
   </div> `;
 };
@@ -37,7 +41,7 @@ export const CardBody = ({ id, classes, style, children }) => {
       backgroundColor: "var(--bs-body-bg)",
       border: "solid 1px var(--bs-light-border-subtle)",
       borderRadius: "var(--bs-border-radius)",
-      margin: "0 0.4em 0.4em 0.4em",
+      margin: "0 8px 8px 8px",
       padding: "0.5em",
       ...style,
     }}

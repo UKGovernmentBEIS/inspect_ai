@@ -8500,7 +8500,11 @@ const CardHeader = ({ id, icon, label, classes, style, children }) => {
           style=${{
     paddingRight: "0.2rem"
   }}
-        ></i>` : ""}
+        ></i>` : m$1`<span
+          style=${{
+    paddingRight: "0.2rem"
+  }}
+        ></span>`}
     ${label ? label : ""} ${children}
   </div> `;
 };
@@ -8512,7 +8516,7 @@ const CardBody = ({ id, classes, style, children }) => {
     backgroundColor: "var(--bs-body-bg)",
     border: "solid 1px var(--bs-light-border-subtle)",
     borderRadius: "var(--bs-border-radius)",
-    margin: "0 0.4em 0.4em 0.4em",
+    margin: "0 8px 8px 8px",
     padding: "0.5em",
     ...style
   }}
@@ -15131,9 +15135,7 @@ const SampleScoreView = ({
         <div>
           <div style=${{ ...labelStyle }}>Target</div>
           <${MarkdownDiv}
-            markdown=${arrayToString(
-    arrayToString((sample == null ? void 0 : sample.target) || "none")
-  )}
+            markdown=${arrayToString(arrayToString((sample == null ? void 0 : sample.target) || "none"))}
             style=${{ paddingLeft: "0" }}
             class="no-last-para-padding"
           />
@@ -15236,7 +15238,11 @@ const EventPanel = ({
   }}
           ></div>
           <div
-            style=${{ justifySelf: "end", ...TextStyle.secondary, marginRight: "0.2em" }}
+            style=${{
+    justifySelf: "end",
+    ...TextStyle.secondary,
+    marginRight: "0.2em"
+  }}
             onclick=${() => {
     setCollapsed(!collapsed);
   }}
@@ -15269,8 +15275,8 @@ const EventPanel = ({
   const card = m$1` <div
     id=${id}
     style=${{
-    padding: "0.7em",
-    marginBottom: "0.7em",
+    padding: "8px",
+    marginBottom: "8px",
     border: "solid 1px var(--bs-light-border-subtle)",
     borderRadius: "var(--bs-border-radius)",
     ...style
