@@ -53,15 +53,26 @@ export const EventPanel = ({
     return `${id}-nav-pill-${index}`;
   };
 
+
+  const gridColumns = [];
+  if (hasCollapse) {
+    gridColumns.push("minmax(0, max-content)");
+  }
+  if (icon) {
+    gridColumns.push("max-content");
+  }
+  gridColumns.push("minmax(0, max-content)");
+  gridColumns.push("auto");
+  gridColumns.push("minmax(0, max-content)");
+  gridColumns.push("minmax(0, max-content)");
+
   const titleEl =
     title || icon || filteredArrChilden.length > 1
       ? html`<div
           style=${{
-            paddingLeft: "0.1em",
             display: "grid",
-            gridTemplateColumns:
-              "minmax(0, max-content) max-content minmax(0, max-content) auto minmax(0, max-content)",
-            columnGap: "0.2em",
+            gridTemplateColumns: gridColumns.join(" "),
+            columnGap: "0.3em",
             fontSize: FontSize.small,
             cursor: hasCollapse ? "pointer" : undefined,
           }}
@@ -88,7 +99,7 @@ export const EventPanel = ({
                   setCollapsed(!collapsed);
                 }}
               />`
-            : html`<div></div>`}
+            : ""}
           <div
             style=${{
               ...TextStyle.label,
@@ -164,7 +175,7 @@ export const EventPanel = ({
     <div
       class="tab-content"
       style=${{
-        padding: 0,
+        padding: "0",
         display: !hasCollapse || !collapsed ? "inherit" : "none",
       }}
     >

@@ -15235,12 +15235,22 @@ const EventPanel = ({
   const pillId = (index) => {
     return `${id}-nav-pill-${index}`;
   };
+  const gridColumns2 = [];
+  if (hasCollapse) {
+    gridColumns2.push("minmax(0, max-content)");
+  }
+  if (icon) {
+    gridColumns2.push("max-content");
+  }
+  gridColumns2.push("minmax(0, max-content)");
+  gridColumns2.push("auto");
+  gridColumns2.push("minmax(0, max-content)");
+  gridColumns2.push("minmax(0, max-content)");
   const titleEl = title || icon || filteredArrChilden.length > 1 ? m$1`<div
           style=${{
-    paddingLeft: "0.1em",
     display: "grid",
-    gridTemplateColumns: "minmax(0, max-content) max-content minmax(0, max-content) auto minmax(0, max-content)",
-    columnGap: "0.2em",
+    gridTemplateColumns: gridColumns2.join(" "),
+    columnGap: "0.3em",
     fontSize: FontSize.small,
     cursor: hasCollapse ? "pointer" : void 0
   }}
@@ -15261,7 +15271,7 @@ const EventPanel = ({
                 onclick=${() => {
     setCollapsed(!collapsed);
   }}
-              />` : m$1`<div></div>`}
+              />` : ""}
           <div
             style=${{
     ...TextStyle.label,
@@ -15329,7 +15339,7 @@ const EventPanel = ({
     <div
       class="tab-content"
       style=${{
-    padding: 0,
+    padding: "0",
     display: !hasCollapse || !collapsed ? "inherit" : "none"
   }}
     >
@@ -15530,7 +15540,7 @@ const SampleInitEventView = ({ id, event, style, stateManager }) => {
         </${EventSection}>
       </div>
     </div>
-    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0.5em" }} entries=${event.sample.metadata} />` : ""}
+    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0" }} entries=${event.sample.metadata} />` : ""}
 
   </${EventPanel}>`;
 };
@@ -17053,7 +17063,7 @@ const StateEventView = ({ id, event, style, stateManager }) => {
       starting=${startingState}
       ending=${resolvedState}
       name="Diff"
-      style=${{ margin: "1em 0.5em" }}
+      style=${{ margin: "1em 0em" }}
     />`
   ];
   const changePreview = generatePreview(
@@ -17062,7 +17072,7 @@ const StateEventView = ({ id, event, style, stateManager }) => {
   );
   if (changePreview) {
     tabs.unshift(
-      m$1`<div name="Summary" style=${{ margin: "1em 0.5em" }}>
+      m$1`<div name="Summary" style=${{ margin: "1em 0em" }}>
         ${changePreview}
       </div>`
     );
@@ -17250,7 +17260,7 @@ const SubtaskSummary = ({ input, result }) => {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr) max-content minmax(0, 1fr)",
     columnGap: "1em",
-    margin: "1em 0.5em"
+    margin: "1em 0"
   }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>
@@ -17480,7 +17490,7 @@ const ModelEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion" style=${{ margin: "1em 0.5em" }}>
+    <div name="Completion" style=${{ margin: "1em 0" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...outputMessages || []]}
@@ -17488,7 +17498,7 @@ const ModelEventView = ({ id, event, style }) => {
       />
     </div>
 
-    <div name="All" style=${{ margin: "1em 0.5em" }}>
+    <div name="All" style=${{ margin: "1em 0" }}>
 
       <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
       <${EventSection} title="Configuration" style=${tableSectionStyle}>
@@ -17514,7 +17524,7 @@ const ModelEventView = ({ id, event, style }) => {
 
     </div>
 
-    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0.5em", width: "100%" }} />` : ""}
+    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0", width: "100%" }} />` : ""}
    
   </${EventPanel}>`;
 };
@@ -17664,7 +17674,7 @@ const JSONPanel = ({ data, style }) => {
 const InfoEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
-    <${JSONPanel} data=${event.data} style=${{ margin: "1em 0.5em" }}/>
+    <${JSONPanel} data=${event.data} style=${{ margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
@@ -17673,7 +17683,7 @@ const ScoreEventView = ({ id, event, style }) => {
   
     <div
       name="Explanation"
-      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0.5em" }}
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0" }}
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
@@ -17690,7 +17700,7 @@ const ScoreEventView = ({ id, event, style }) => {
             <${MetaDataGrid}
               entries=${event.score.metadata}
               compact=${true}
-              style=${{ margin: "1em 0.5em" }}
+              style=${{ margin: "1em 0" }}
             />
           </div>` : void 0}
 
@@ -17707,10 +17717,10 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
   <div name="Summary">
     <${ExpandablePanel}>
-      ${event.result ? m$1`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0.5em" }} />` : m$1`<div style=${{ margin: "1em 0.5em", fontSize: FontSize.small }}>No output</div>`}
+      ${event.result ? m$1`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
     </${ExpandablePanel}>
   </div>
-  <div name="Transcript" style=${{ margin: "1em 0.5em" }}>
+  <div name="Transcript" style=${{ margin: "1em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
@@ -17732,7 +17742,7 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
 const ErrorEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
-    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0.5em" }}/>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
 class EventNode {

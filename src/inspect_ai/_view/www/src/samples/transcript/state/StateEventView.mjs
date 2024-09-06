@@ -27,7 +27,7 @@ export const StateEventView = ({ id, event, style, stateManager }) => {
       starting=${startingState}
       ending=${resolvedState}
       name="Diff"
-      style=${{ margin: "1em 0.5em" }}
+      style=${{ margin: "1em 0em" }}
     />`,
   ];
   // This clone is important since the state is used by preact as potential values that are rendered
@@ -39,7 +39,7 @@ export const StateEventView = ({ id, event, style, stateManager }) => {
   );
   if (changePreview) {
     tabs.unshift(
-      html`<div name="Summary" style=${{ margin: "1em 0.5em" }}>
+      html`<div name="Summary" style=${{ margin: "1em 0em" }}>
         ${changePreview}
       </div>`,
     );

@@ -34,10 +34,10 @@ export const ToolEventView = ({ id, event, style, stateManager, depth }) => {
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
   <div name="Summary">
     <${ExpandablePanel}>
-      ${event.result ? html`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0.5em" }} />` : html`<div style=${{ margin: "1em 0.5em", fontSize: FontSize.small }}>No output</div>`}
+      ${event.result ? html`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : html`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
     </${ExpandablePanel}>
   </div>
-  <div name="Transcript" style=${{ margin: "1em 0.5em" }}>
+  <div name="Transcript" style=${{ margin: "1em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
