@@ -108,7 +108,7 @@ dev = [
     "groq", 
     "ipython",
     "mistralai",
-    "moto[server]",
+    'moto[server]; platform_system == "Linux"',
     "mypy",
     "nbformat",
     "openai",

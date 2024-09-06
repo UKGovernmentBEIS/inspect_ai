@@ -46,6 +46,14 @@ def skip_if_no_transformers(func):
     return skip_if_no_package("transformers")(func)
 
 
+def skip_if_no_flask(func):
+    return skip_if_no_package("flask")(func)
+
+
+def skip_if_no_moto(func):
+    return skip_if_no_package("moto")(func)
+
+
 def skip_if_no_accelerate(func):
     return skip_if_no_package("accelerate")(func)
 

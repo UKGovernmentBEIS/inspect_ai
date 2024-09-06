@@ -6,8 +6,12 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from moto.server import ThreadedMotoServer
-from test_helpers.utils import failing_solver, failing_task
+from test_helpers.utils import (
+    failing_solver,
+    failing_task,
+    skip_if_no_flask,
+    skip_if_no_moto,
+)
 
 from inspect_ai import Task
 from inspect_ai._eval.evalset import (
@@ -176,6 +180,8 @@ def test_latest_completed_task_eval_logs() -> None:
 
 @pytest.fixture(scope="module")
 def mock_s3():
+    from moto.server import ThreadedMotoServer
+
     server = ThreadedMotoServer(port=19100)
     server.start()
 
@@ -202,6 +208,8 @@ def mock_s3():
     server.stop()
 
 
+@skip_if_no_flask
+@skip_if_no_moto
 def test_eval_set_s3(mock_s3) -> None:
     success, logs = eval_set(
         tasks=failing_task(rate=0, samples=1),
