@@ -17230,19 +17230,18 @@ const SubtaskSummary = ({ input, result }) => {
   return m$1` <div
     style=${{
     display: "grid",
-    gridTemplateColumns: "minmax(0,max-content) max-content minmax(0,max-content)",
+    gridTemplateColumns: "minmax(0, 1fr) max-content minmax(0, 1fr)",
     columnGap: "1em",
     margin: "1em 0.5em"
   }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>
-    <div style=${{ fontSize: FontSize.large, padding: "0 2em" }}>
-      <i class="${ApplicationIcons.arrows.right}" />
-    </div>
-
+    <div style=${{ fontSize: FontSize.large, padding: "0 2em" }}></div>
     <div style=${{ ...TextStyle.label }}>Output</div>
     <${Rendered} values=${input} />
-    <div></div>
+    <div style=${{ fontSize: FontSize["title-secondary"], padding: "0 2em" }}>
+      <i class="${ApplicationIcons.arrows.right}" />
+    </div>
     <${Rendered} values=${result} />
   </div>`;
 };
