@@ -176,29 +176,24 @@ def test_latest_completed_task_eval_logs() -> None:
 
 @pytest.fixture(scope="module")
 def mock_s3():
-    temp_dir = tempfile.mkdtemp()
-
     server = ThreadedMotoServer(port=19100)
     server.start()
 
     # Give the server a moment to start up
     time.sleep(1)
 
-    # Set environment variables for the client, preserving existing values if set:
-    existing_env = {
-        key: os.environ.get(key, None)
-        for key in ["AWS_ENDPOINT_URL"]
-    }
-
+    existing_endpoint = os.environ.get("AWS_ENDPOINT_URL", None)
     os.environ["AWS_ENDPOINT_URL"] = "http://127.0.0.1:19100"
 
     yield
 
-    os.environ.update(existing_env)
+    if existing_endpoint is None:
+        del os.environ["AWS_ENDPOINT_URL"]
+    else:
+        os.environ["AWS_ENDPOINT_URL"] = existing_endpoint
 
-    # Teardown: stop the server and remove the temporary directory
     server.stop()
-    os.system(f"rm -r {temp_dir}")
+
 
 def test_eval_set_s3(mock_s3) -> None:
     succces, logs = eval_set(
