@@ -8,6 +8,7 @@ Using only the context provided in the question itself, you are tasked with answ
 If the question is unanswerable, answer with 'unanswerable' in all lowercase.
 """
 
+
 @task
 def squad():
     dataset = hf_dataset(
@@ -19,24 +20,22 @@ def squad():
 
     return Task(
         dataset=dataset,
-        plan=[
-            system_message(SYSTEM_MESSAGE),
-            generate()
-        ],
-        scorer=[
-            f1(),
-            exact()
-        ]
+        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        scorer=[f1(), exact()],
     )
 
+
 def record_to_sample(record):
-  return Sample(
-      input=format_input(record),
-      target=record["answers"]["text"] if record["answers"]["text"]  else "unanswerable",
-      id=record["id"],
-  )
+    return Sample(
+        input=format_input(record),
+        target=record["answers"]["text"]
+        if record["answers"]["text"]
+        else "unanswerable",
+        id=record["id"],
+    )
+
 
 def format_input(record) -> str:
-  passage_str = f"""Context: {record["context"]}"""
-  question_str = f"""Question: {record["question"]}"""
-  return "\n".join([passage_str, question_str])
+    passage_str = f"""Context: {record["context"]}"""
+    question_str = f"""Question: {record["question"]}"""
+    return "\n".join([passage_str, question_str])
