@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad) benchmark.
+
 ## v0.3.27 (6 September 2024)
 
 - Fix missing timestamp issue with running `eval_set()` with an S3-backed log directory.
