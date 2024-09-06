@@ -108,6 +108,7 @@ dev = [
     "groq", 
     "ipython",
     "mistralai",
+    "moto[server]",
     "mypy",
     "nbformat",
     "openai",
