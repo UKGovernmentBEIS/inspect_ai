@@ -5,14 +5,6 @@ aliases:
 
 # Eval Sets {#sec-eval-sets}
 
-::: callout-note
-The eval set features described in this article are currently available only in the development version of Inspect. You can install the development version with:
-
-``` {.bash .code-overflow-wrap}
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 ## Overview
 
 Most of the examples in the documentation run a single evaluation task by either passing a script name to `inspect eval` or by calling the `eval()` function directly. While this is a good workflow for developing single evaluations, you'll often want to run several evaluations together as a *set*. This might be for the purpose of exploring hyperparameters, evaluating on multiple models at one time, or running a full benchmark suite.
