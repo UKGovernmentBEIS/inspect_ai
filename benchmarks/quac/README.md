@@ -27,11 +27,3 @@ The model is tasked to answer the questions by referring to the dialog history a
 ## Evaluation
 
 The evaluation is performed using word-level F1 score, implemented similarly to SQuAD. We are only evaluating on the last question instead of iterating over all questions in the text. 
-
-
-## TODOS:
-- I'm only evaluating on the last question instead of iterating over all questions in the text. 
-- Can we skip current state in a custom scorer easily? If not I need to create a workaround or implement that in the core library
-- I haven't implemented the Human Equivalence Score for questions (HEQ-Q) and for dialogs (HEQ-D) reported in the paper. However, it seems like other implementations don't have done that either ([GPT-3 Paper](https://paperswithcode.com/paper/language-models-are-few-shot-learners), and [LLama 3 Paper](https://paperswithcode.com/paper/the-llama-3-herd-of-models))
-- The paper introduces two new metrics: Human Equivalence Score for questions (HEQ-Q) and for dialogs (HEQ-D), which are not implemented here. 
-- I'm evaluating only on the last question of the full text (not the previous questions in the text)
