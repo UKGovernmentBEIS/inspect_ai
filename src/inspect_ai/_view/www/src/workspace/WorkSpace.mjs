@@ -447,7 +447,7 @@ const WorkspaceDisplay = ({
                 width: "5rem",
                 fontSize: FontSize.smaller,
                 textTransform: "uppercase",
-                borderRadius: "3px",
+                borderRadius: "var(--bs-border-radius)",
                 fontWeight: 600,
               },
             }} >

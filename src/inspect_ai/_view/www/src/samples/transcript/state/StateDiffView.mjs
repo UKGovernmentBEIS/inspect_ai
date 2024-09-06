@@ -19,7 +19,7 @@ export const StateDiffView = ({ starting, ending, style }) => {
   const html_result = format(changes);
   return html`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
-    style=${{ style }}
+    style=${{ ...style }}
   ></div>`;
 };
 function unescapeNewlines(obj) {
