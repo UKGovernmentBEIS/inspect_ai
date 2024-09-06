@@ -46,7 +46,7 @@ export const logviewTerminalLinkProvider = (manager: InspectLogviewManager) => {
       // Resolve the clicked link into a complete Uri to the file
       const logUri = await resolveLogFile(link.data);
       if (logUri) {
-        manager.showLogFile(logUri).catch(async (err: Error) => {
+        manager.showLogFile(logUri, "activate").catch(async (err: Error) => {
           await showError("Failed to preview log file - failed to start Inspect View", err);
         });
       } else {

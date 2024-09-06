@@ -23,7 +23,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.solver._subtask.transcript import EvalEvents
+
+from ._transcript import EvalEvents
 
 SCORER_PLACEHOLDER = "88F74D2C"
 

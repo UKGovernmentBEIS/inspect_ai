@@ -34,6 +34,7 @@
  * @property {string} system
  * @property {string} assistant
  * @property {string} tool
+ * @property {string} unknown
  */
 
 /**
@@ -98,7 +99,9 @@
  * @property {string} more
  * @property {string} next
  * @property {string} previous
+ * @property {string} refresh
  * @property {RoleIcons} role
+ * @property {string} running
  * @property {string} sample
  * @property {string} samples
  * @property {string} scorer
@@ -165,12 +168,15 @@ export const ApplicationIcons = {
   "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
   previous: "bi bi-chevron-left",
+  refresh: "bi bi-arrow-clockwise",
   role: {
     user: "bi bi-person",
     system: "bi bi-cpu",
     assistant: "bi bi-robot",
     tool: "bi bi-tools",
+    unknown: "bi bi-patch-question",
   },
+  running: "bi bi-stars",
   sample: "bi bi-database",
   samples: "bi bi-file-spreadsheet",
   scorer: "bi bi-calculator",

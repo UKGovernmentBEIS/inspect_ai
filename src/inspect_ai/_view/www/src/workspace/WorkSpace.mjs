@@ -25,6 +25,7 @@ import { Navbar } from "../navbar/Navbar.mjs";
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
+import { WarningBand } from "../components/WarningBand.mjs";
 
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
@@ -44,7 +45,7 @@ export const WorkSpace = (props) => {
   const [currentTaskId, setCurrentTaskId] = useState(
     workspaceLog?.contents?.eval?.run_id,
   );
-  const [selectedTab, setSelectedTab] = useState(kEvalTabId);
+  const [selectedTab, setSelectedTab] = useState();
   const [scores, setScores] = useState([]);
   const [score, setScore] = useState(undefined);
   const [samplesDesc, setSamplesDesc] = useState(undefined);
@@ -74,8 +75,7 @@ export const WorkSpace = (props) => {
       workspaceLog.contents &&
       workspaceLog.contents.eval?.run_id !== currentTaskId
     ) {
-      const defaultTab =
-        workspaceLog.contents?.status !== "error" ? kEvalTabId : kInfoTabId;
+      const defaultTab = Object.values(tabs)[0].id;
       setSelectedTab(defaultTab);
       if (divRef.current) {
         divRef.current.scrollTop = 0;
@@ -143,7 +143,10 @@ export const WorkSpace = (props) => {
 
     // The samples tab
     // Currently only appears when the result is successful
-    if (workspaceLog.contents?.status !== "error") {
+    if (
+      workspaceLog.contents?.status !== "error" &&
+      workspaceLog.contents?.samples
+    ) {
       resolvedTabs.samples = {
         id: kEvalTabId,
         scrollable: workspaceLog.contents?.samples?.length === 1,
@@ -164,6 +167,14 @@ export const WorkSpace = (props) => {
           />`;
         },
         tools: () => {
+          if (workspaceLog.contents?.status === "started") {
+            return html`<${ToolButton}
+              name=${html`Refresh`}
+              icon="${ApplicationIcons.refresh}"
+              onclick="${props.refreshLog}"
+            />`;
+          }
+
           // Don't show tools if there is a sample sample
           if (workspaceLog.contents?.samples?.length <= 1) {
             return "";
@@ -191,12 +202,13 @@ export const WorkSpace = (props) => {
       label: "Info",
       scrollable: true,
       content: () => {
-        const infoCards = [
+        const infoCards = [];
+        infoCards.push([
           html`<${PlanCard}
             log="${workspaceLog.contents}"
             context=${context}
           />`,
-        ];
+        ]);
 
         if (workspaceLog.contents?.status !== "started") {
           infoCards.push(
@@ -208,13 +220,33 @@ export const WorkSpace = (props) => {
         }
 
         // If there is error or progress, includes those within info
-        if (workspaceLog.contents?.status === "error") {
+        if (
+          workspaceLog.contents?.status === "error" &&
+          workspaceLog.contents?.error
+        ) {
           infoCards.unshift(
             html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`,
           );
         }
-        return html`<div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-          ${infoCards}
+
+        const warnings = [];
+        if (
+          !workspaceLog.contents?.samples &&
+          workspaceLog.contents?.eval?.dataset?.samples > 0 &&
+          workspaceLog.contents?.status !== "error"
+        ) {
+          warnings.push(
+            html`<${WarningBand}
+              message="This evaluation log is too large to display samples."
+            />`,
+          );
+        }
+
+        return html` <div style=${{ width: "100%" }}>
+          ${warnings}
+          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+            ${infoCards}
+          </div>
         </div>`;
       },
     };

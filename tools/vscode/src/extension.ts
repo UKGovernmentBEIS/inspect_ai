@@ -22,7 +22,7 @@ import { initPythonInterpreter } from "./core/python";
 import { initInspectProps } from "./inspect";
 import { activateInspectManager } from "./providers/inspect/inspect-manager";
 import { checkActiveWorkspaceFolder } from "./core/workspace";
-import { inspectBinPath, inspectVersion } from "./inspect/props";
+import { inspectBinPath, inspectVersionDescriptor } from "./inspect/props";
 import { extensionHost } from "./hooks";
 
 const kInspectMinimumVersion = "0.3.8";
@@ -88,15 +88,11 @@ export async function activate(context: ExtensionContext) {
 
   // Read the extension configuration
   const settingsMgr = new InspectSettingsManager(() => {
-    // If settings have changed, see if we need to stop or start the file watcher
-    if (logFileWatcher && !settingsMgr.getSettings().logViewAuto) {
-      stopLogWatcher();
-    } else if (
+    if (
       !logFileWatcher &&
-      settingsMgr.getSettings().logViewAuto &&
       inspectLogviewManager
     ) {
-      startLogWatcher(logviewWebviewManager, stateManager);
+      startLogWatcher(logviewWebviewManager, stateManager, settingsMgr);
     }
   });
 
@@ -128,9 +124,7 @@ export async function activate(context: ExtensionContext) {
   );
 
   // Activate the file watcher for this workspace
-  if (settingsMgr.getSettings().logViewAuto) {
-    startLogWatcher(logviewWebviewManager, stateManager);
-  }
+  startLogWatcher(logviewWebviewManager, stateManager, settingsMgr);
 
   // Activate Code Lens
   activateCodeLens(context);
@@ -160,11 +154,13 @@ let logFileWatcher: LogViewFileWatcher | undefined;
 
 const startLogWatcher = (
   logviewWebviewManager: InspectLogviewManager,
-  workspaceStateManager: WorkspaceStateManager
+  workspaceStateManager: WorkspaceStateManager,
+  settingsMgr: InspectSettingsManager
 ) => {
   logFileWatcher = new LogViewFileWatcher(
     logviewWebviewManager,
-    workspaceStateManager
+    workspaceStateManager,
+    settingsMgr
   );
 };
 
@@ -177,8 +173,8 @@ const stopLogWatcher = () => {
 
 const checkInspectVersion = async () => {
   if (inspectBinPath()) {
-    const version = inspectVersion();
-    if (version && version.compare(kInspectMinimumVersion) === -1) {
+    const descriptor = inspectVersionDescriptor();
+    if (descriptor && descriptor.version.compare(kInspectMinimumVersion) === -1) {
       const close: MessageItem = { title: "Close" };
       await window.showInformationMessage<MessageItem>(
         "The VS Code extension requires a newer version of Inspect. Please update " +
