@@ -21,12 +21,12 @@ import { formatNumber } from "../../utils/Format.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
- * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").ModelEvent} props.event - The event object to display.
+ * @param { Object } props.style - The style of this event.
  * @param {string} props.baseId - The baseId of the event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ModelEventView = ({ id, depth, event }) => {
+export const ModelEventView = ({ id, event, style }) => {
   const totalUsage = event.output.usage?.total_tokens;
   const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
 
@@ -47,9 +47,9 @@ export const ModelEventView = ({ id, depth, event }) => {
   };
 
   return html`
-  <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion">
+    <div name="Completion" style=${{ margin: "1em 0" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...(outputMessages || [])]}
@@ -128,7 +128,7 @@ export const APICodeCell = ({ id, contents }) => {
         background: "var(--bs-light)",
         width: "100%",
         padding: "0.5em",
-        borderRadius: "3px",
+        borderRadius: "var(--bs-border-radius)",
       }}
     >
       <code 

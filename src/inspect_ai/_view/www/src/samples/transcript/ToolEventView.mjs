@@ -16,12 +16,13 @@ import { FontSize } from "../../appearance/Fonts.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
- * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").ToolEvent} props.event - The event object to display.
- * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
+ * @param { Object } props.style - The style of this event.
+ * @param {import("./Types.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
+ * @param { number } props.depth - The depth of this event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ToolEventView = ({ id, depth, stateManager, event }) => {
+export const ToolEventView = ({ id, event, style, stateManager, depth }) => {
   // Extract tool input
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
@@ -30,13 +31,13 @@ export const ToolEventView = ({ id, depth, stateManager, event }) => {
   const title = `Tool: ${event.function}`;
 
   return html`
-  <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
+  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
   <div name="Summary">
     <${ExpandablePanel}>
       ${event.result ? html`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : html`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
     </${ExpandablePanel}>
   </div>
-  <div name="Transcript">
+  <div name="Transcript" style=${{ margin: "1em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
@@ -51,6 +52,7 @@ export const ToolEventView = ({ id, depth, stateManager, event }) => {
                 name="Transcript"
                 events=${event.events}
                 stateManager=${stateManager}
+                depth=${depth + 1}
               />`
             : ""
         }

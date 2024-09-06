@@ -1,6 +1,6 @@
 :root {
-  --bs-border-radius: 0;
-  --bs-border-radius-lg: 0;
+  --bs-border-radius: 3px;
+  --bs-border-radius-lg: 4px;
   --bs-popover-max-width: 50%;
   --inspect-find-background: var(--bs-body-bg);
   --inspect-find-foreground: var(--bs-body-color);
@@ -42,6 +42,8 @@ body[class^="vscode-"] .app-main-grid {
 }
 
 body[class^="vscode-"] {
+  --bs-border-radius: 0;
+  --bs-border-radius-lg: 0;
   --bs-body-bg: var(--vscode-editor-background);
   --bs-card-bg: var(--vscode-editor-background);
   --bs-table-bg: var(--vscode-editor-background);
@@ -240,7 +242,6 @@ body[class^="vscode-"] .sidebar .list-group {
 }
 
 body {
-  --bs-border-radius: "0";
   margin: 0;
   padding: 0;
 }

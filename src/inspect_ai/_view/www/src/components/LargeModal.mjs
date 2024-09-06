@@ -81,7 +81,7 @@ export const LargeModal = (props) => {
     tabindex="0"
     role="dialog"
     onkeyup=${onkeyup}
-    style=${{ borderRadius: "none" }}
+    style=${{ borderRadius: "var(--bs-border-radius)" }}
   >
     <div
       class="modal-dialog modal-dialog-scrollable"
