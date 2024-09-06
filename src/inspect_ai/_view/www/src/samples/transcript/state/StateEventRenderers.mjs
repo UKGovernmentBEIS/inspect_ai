@@ -43,8 +43,16 @@ const tools_choice = {
     remove: [],
   },
   render: (resolvedState) => {
+    const toolName = (toolChoice) => {
+      if (typeof toolChoice === "object" && toolChoice) {
+        return toolChoice["name"];
+      } else {
+        return toolChoice;
+      }
+    };
+
     const toolsInfo = {
-      "Tool Choice": resolvedState.tool_choice,
+      "Tool Choice": toolName(resolvedState.tool_choice),
     };
 
     if (resolvedState.tools.length > 0) {
@@ -59,7 +67,7 @@ const tools_choice = {
           display: "grid",
           gridTemplateColumns: "max-content max-content",
           columnGap: "1rem",
-          margin: "1em 0",
+          margin: "0",
         }}
       >
         ${Object.keys(toolsInfo).map((key) => {

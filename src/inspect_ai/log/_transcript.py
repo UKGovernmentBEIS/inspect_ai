@@ -25,13 +25,12 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
+from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-
-from .._task_state import state_jsonable
-from .store import store, store_changes, store_jsonable
+from inspect_ai.util._store import store, store_changes, store_jsonable
 
 logger = getLogger(__name__)
 

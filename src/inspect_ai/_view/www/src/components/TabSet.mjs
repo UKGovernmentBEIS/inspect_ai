@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 
 // styles: { tabSet:{}, tabBody: {}}
 export const TabSet = ({ id, type, classes, tools, styles, children }) => {
@@ -76,6 +77,13 @@ const Tab = ({ type, tab, index, style }) => {
     color: "var(--bs-body-color)",
     ...style,
     padding: "0.25rem 0.5rem",
+    borderTopLeftRadius: "var(--bs-border-radius)",
+    borderTopRightRadius: "var(--bs-border-radius)",
+    ...TextStyle.label,
+    fontSize: FontSize.small,
+    fontWeight: 500,
+    marginTop: "2px",
+    marginBottom: "-1px",
   };
   const pillStyle = {
     ...style,

@@ -4,18 +4,20 @@ import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { ChatView } from "../../components/ChatView.mjs";
 import { EventSection } from "./EventSection.mjs";
+import { toArray } from "../../utils/Type.mjs";
+import { ApplicationIcons } from "../../appearance/Icons.mjs";
 
 /**
  * Renders the SampleInitEventView component.
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
- * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").SampleInitEvent} props.event - The event object to display.
- * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
+ * @param {Object} props.style - The style for this view
+ * @param {import("./Types.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
+export const SampleInitEventView = ({ id, event, style, stateManager }) => {
   /**
    * @type {Record<string, unknown>}
    */
@@ -24,7 +26,7 @@ export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
 
   // Rememember the state (so other event viewers can use
   // it as a baseline when applying their state updates)
-  stateManager.setState(stateObj);
+  stateManager.initializeState(stateObj);
 
   const sections = [];
 
@@ -39,17 +41,16 @@ export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
 
   if (event.sample.setup) {
     sections.push(html`<${EventSection} title="Setup">
-      <pre style=${{ background: "var(--bs-light)", borderRadius: "3px" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
+      <pre style=${{ background: "var(--bs-light)", borderRadius: "var(--bs-border-radius)" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
       </${EventSection}>
   `);
   }
 
   return html`
-  <${EventPanel} id=${id} depth=${depth}>
-    
-    <div name="Sample">
+  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample}>
+    <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
-      <div style=${{ marginLeft: "2.1em", marginBottom: "1em" }}>
+      <div>
         ${
           event.sample.choices
             ? event.sample.choices.map((choice, index) => {
@@ -59,11 +60,26 @@ export const SampleInitEventView = ({ id, depth, event, stateManager }) => {
               })
             : ""
         }
-        <div style=${{ display: "flex", flexWrap: "wrap", gap: "1em", overflowWrap: "break-word" }}>
-        ${sections}
-        </div>
+        ${
+          sections.length > 0
+            ? html`
+                <div
+                  style=${{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "1em",
+                    overflowWrap: "break-word",
+                  }}
+                >
+                  ${sections}
+                </div>
+              `
+            : ""
+        }
         <${EventSection} title="Target">
-          ${event.sample.target}
+          ${toArray(event.sample.target).map((target) => {
+            return html`<div>${target}</div>`;
+          })}
         </${EventSection}>
       </div>
     </div>

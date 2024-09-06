@@ -1,5 +1,4 @@
 import logging
-import os
 from copy import deepcopy
 from typing import Any, Callable, NamedTuple, Set, cast
 
@@ -15,7 +14,7 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import basename, filesystem
 from inspect_ai._util.registry import is_registry_object
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import (
@@ -23,6 +22,7 @@ from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
     read_eval_log_headers,
+    write_log_dir_manifest,
 )
 from inspect_ai.model import (
     GenerateConfigArgs,
@@ -251,10 +251,14 @@ def eval_set(
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
+        # list all logs currently in the log directory (update manifest if there are some)
+        all_logs = list_all_eval_logs(log_dir)
+        if len(all_logs) > 0:
+            write_log_dir_manifest(log_dir)
+
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
         # for those that haven't run, schedule them into models => tasks groups
-        all_logs = list_all_eval_logs(log_dir)
         log_task_identifers = [log.task_identifier for log in all_logs]
         all_tasks = [(task_identifer(task), task) for task in resolved_tasks]
         pending_tasks = [
@@ -365,6 +369,9 @@ def eval_set(
         msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
     console.print(f"{msg}")
 
+    # update manifest
+    write_log_dir_manifest(log_dir)
+
     # return status + results
     return success, results
 
@@ -445,7 +452,9 @@ def latest_completed_task_eval_logs(
         id_logs = [id_log for id_log in id_logs if id_log[1].status != "started"]
 
         # sort by last file write time
-        id_logs.sort(key=lambda id_log: id_log[0].mtime, reverse=True)
+        id_logs.sort(
+            key=lambda id_log: (id_log[0].mtime if id_log[0].mtime else 0), reverse=True
+        )
 
         # take the most recent
         latest_completed_logs.append(id_logs[0])
@@ -484,7 +493,7 @@ def validate_eval_set_prerequisites(
     for log in all_logs:
         if log.task_identifier not in task_identifiers:
             raise PrerequisiteError(
-                f"[bold]ERROR[/bold]: Existing log file '{os.path.basename(log.info.name)}' in log_dir is not "
+                f"[bold]ERROR[/bold]: Existing log file '{basename(log.info.name)}' in log_dir is not "
                 + "associated with a task passed to eval_set (you must run eval_set "
                 + "in a fresh log directory)"
             )
@@ -569,22 +578,17 @@ def schedule_pending_tasks(pending_tasks: list[ResolvedTask]) -> list[TaskGroup]
             if task_models == models:
                 task_ids.append(task_id)
 
-        # go find the tasks that have this id
+        # find a task for each of these ids
         for task_id in task_ids:
-            for t in [
-                task
-                for task in pending_tasks
-                if task_id == task_identifer_without_model(task_identifer(task))
-            ]:
-                # add the task if its not already in there
-                if (
-                    next(
-                        (task for task in tasks if task.task == t.task),
-                        None,
+            tasks.append(
+                next(
+                    (
+                        task
+                        for task in pending_tasks
+                        if task_id == task_identifer_without_model(task_identifer(task))
                     )
-                    is None
-                ):
-                    tasks.append(t)
+                )
+            )
 
     # deterministic return order
     schedule.sort(key=lambda x: str(x[0]))

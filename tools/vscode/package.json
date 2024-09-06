@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.28",
+  "version": "0.3.30",
   "license": "MIT",
   "homepage": "https://inspect.ai-safety-institute.org.uk/",
   "repository": {
@@ -160,10 +160,10 @@
     "configuration": {
       "title": "Inspect AI",
       "properties": {
-        "inspect_ai.logViewAuto": {
+        "inspect_ai.openLogView": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically show the Inspect log view when evaluations in the workspace complete."
+          "description": "Open the Inspect log view when evaluations in the workspace complete."
         },
         "inspect_ai.logViewType": {
           "type": "string",

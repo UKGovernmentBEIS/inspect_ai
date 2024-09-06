@@ -5,6 +5,7 @@ from ._file import (
     list_eval_logs,
     read_eval_log,
     write_eval_log,
+    write_log_dir_manifest,
 )
 from ._log import (
     EvalConfig,
@@ -22,6 +23,7 @@ from ._log import (
 )
 from ._message import LoggingLevel, LoggingMessage
 from ._retry import retryable_eval_logs
+from ._transcript import Transcript, transcript
 
 __all__ = [
     "EvalConfig",
@@ -40,8 +42,11 @@ __all__ = [
     "EvalLogInfo",
     "LoggingLevel",
     "LoggingMessage",
+    "Transcript",
+    "transcript",
     "list_eval_logs",
     "read_eval_log",
     "write_eval_log",
+    "write_log_dir_manifest",
     "retryable_eval_logs",
 ]

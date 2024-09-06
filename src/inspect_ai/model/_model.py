@@ -403,7 +403,7 @@ class Model:
         output: ModelOutput,
         call: ModelCall | None,
     ) -> None:
-        from inspect_ai.solver._subtask.transcript import ModelEvent, transcript
+        from inspect_ai.log._transcript import ModelEvent, transcript
 
         if not self.api.provides_event():
             transcript()._event(

@@ -17,7 +17,6 @@ export const PlanCard = ({ log, context }) => {
       <${CardBody} id="${kPlanCardBodyId}" style=${{
         paddingTop: "0",
         paddingBottom: "0",
-        borderTop: "solid var(--bs-border-color) 1px",
       }}>
       
         <${PlanDetailView}
@@ -359,8 +358,9 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   return html`
     <div style=${{ paddingTop: "0", paddingBottom: "1em", marginLeft: "0" }}>
       <div
-        class="row"
         style=${{
+          display: "grid",
+          gridTemplateColumns: `repeat(${taskColumns.length}, auto)`,
           justifyContent: "space-between",
           flexWrap: "wrap",
           paddingBottom: "0.7rem",

@@ -12,6 +12,11 @@ import { existsSync } from "fs";
 
 const kPythonPackageName = "inspect_ai";
 
+export interface VersionDescriptor {
+  version: SemVer,
+  isDeveloperBuild: boolean
+}
+
 // we cache the results of these functions so long as
 // they (a) return success, and (b) the active python
 // interpreter hasn't been changed
@@ -20,7 +25,7 @@ class InspectPropsCache implements Disposable {
 
   constructor(
     private binPath_: AbsolutePath | null,
-    private version_: SemVer | null,
+    private version_: VersionDescriptor | null,
     private viewPath_: AbsolutePath | null
   ) {
     this.eventHandle_ = pythonInterpreter().onDidChange(() => {
@@ -40,12 +45,12 @@ class InspectPropsCache implements Disposable {
     this.binPath_ = binPath;
   }
 
-  get version(): SemVer | null {
+  get version(): VersionDescriptor | null {
     return this.version_;
   }
 
-  setVersion(version: SemVer) {
-    log.info(`Inspect version: ${version.toString()}`);
+  setVersion(version: VersionDescriptor) {
+    log.info(`Inspect version: ${version.version.toString()}`);
     this.version_ = version;
   }
 
@@ -70,7 +75,7 @@ export function initInspectProps(): Disposable {
 
 let inspectPropsCache_: InspectPropsCache;
 
-export function inspectVersion(): SemVer | null {
+export function inspectVersionDescriptor(): VersionDescriptor | null {
   if (inspectPropsCache_.version) {
     return inspectPropsCache_.version;
   } else {
@@ -86,11 +91,19 @@ export function inspectVersion(): SemVer | null {
           version: string;
           path: string;
         };
+
         const parsedVersion = coerce(version.version);
         if (parsedVersion) {
-          inspectPropsCache_.setVersion(parsedVersion);
+          const isDeveloperVersion = version.version.indexOf('.dev') > -1;
+          const inspectVersion = {
+            version: parsedVersion,
+            isDeveloperBuild: isDeveloperVersion
+          };
+          inspectPropsCache_.setVersion(inspectVersion);
+          return inspectVersion;
+        } else {
+          return null;
         }
-        return parsedVersion;
       } catch (error) {
         log.error("Error attempting to read Inspect version.");
         log.error(error instanceof Error ? error : String(error));
@@ -168,9 +181,9 @@ export function inspectBinPath(): AbsolutePath | null {
 }
 
 export function inspectLastEvalPath(): AbsolutePath | null {
-  const version = inspectVersion();
+  const descriptor = inspectVersionDescriptor();
   const fileName =
-    version && version.compare(kInspectChangeEvalSignalVersion) < 0
+    descriptor && descriptor.version.compare(kInspectChangeEvalSignalVersion) < 0
       ? "last-eval"
       : "last-eval-result";
   const lastEvalFile = join(

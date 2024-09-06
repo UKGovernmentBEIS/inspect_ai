@@ -30,7 +30,7 @@ def eval_results(
     scores: list[dict[str, SampleScore]],
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
-    metrics: list[Metric] = [],
+    metrics: list[Metric] | dict[str, list[Metric]] | None,
 ) -> EvalResults:
     # initialise results
     results = EvalResults(total_samples=samples, completed_samples=len(scores))
@@ -73,7 +73,7 @@ def eval_results(
 
                 # Compute metrics for this scorer
                 simple_scores = cast(list[Score], reduced_scores)
-                targets = target_metrics(scorer, metrics)
+                targets = metrics if metrics is not None else scorer_metrics(scorer)
                 if isinstance(targets, list):
                     # If there is a simple list of metrics
                     # just compute the metrics for this scorer
@@ -253,26 +253,3 @@ def metrics_unique_key(key: str, existing: list[str]) -> str:
             if index and (index >= key_index):
                 key_index = index + 1
         return f"{key}{key_index}"
-
-
-# build a list of metrics (scorer built-in metrics + de-duplicated additional metrics)
-def target_metrics(
-    scorer: Scorer, metrics: list[Metric]
-) -> list[Metric] | dict[str, list[Metric]]:
-    output_metrics = scorer_metrics(scorer)
-
-    if isinstance(output_metrics, dict):
-        if isinstance(metrics, dict):
-            output_metrics.update(metrics)
-        return output_metrics
-    else:
-        output_metrics_names = [registry_log_name(metric) for metric in output_metrics]
-        if isinstance(metrics, list):
-            output_metrics.extend(
-                [
-                    metric
-                    for metric in metrics
-                    if registry_log_name(metric) not in output_metrics_names
-                ]
-            )
-        return output_metrics

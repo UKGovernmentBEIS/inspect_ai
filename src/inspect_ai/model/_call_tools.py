@@ -46,7 +46,7 @@ async def call_tools(
        List of tool calls
     """
     if message.tool_calls:
-        from inspect_ai.solver._subtask.transcript import (
+        from inspect_ai.log._transcript import (
             ToolEvent,
             Transcript,
             init_transcript,
