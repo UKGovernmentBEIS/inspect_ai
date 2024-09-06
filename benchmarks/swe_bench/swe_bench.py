@@ -67,7 +67,6 @@ max_messages : int = DEFAULT_MAX_MESSAGES) -> list[Task]:
     return [swe_bench_instance(dataset,sample.id,plan,max_messages) for sample in dataset]
 
 
-@task
 def swe_bench_instance(
     dataset : Dataset,
     instance_id : str,

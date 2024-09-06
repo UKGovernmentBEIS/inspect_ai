@@ -51,8 +51,6 @@ dataset = dataset.filter(lambda x: x["instance_id"] in instance_ids)
 dataset = dataset.map(lambda x: dict(x, resolved_by_swe_agent=resolved[instance_ids == x["instance_id"]][0]), num_proc=4)
 # Add swe-agent-patch
 dataset = dataset.map(lambda x: dict(x, swe_agent_patch=results_per_repo[results_per_repo["instance_id"] == x["instance_id"]]["swe_agent_patch"].values[0]), num_proc=4)
-dataset = dataset.map(lambda x: dict(x, resolved = resolved[list(instance_ids).index(x["instance_id"])]))
-
 
 
 # Calculate the accuracy. Should be 0.42857142857142855
