@@ -15,13 +15,15 @@ from ._task_state import TaskState
 from ._use_tools import use_tools
 
 DEFAULT_SYSTEM_PROMPT = """
-Each message may perform one function call. You will see the result of the function
-right after sending the message. If you need to perform multiple actions, you can
-always send more messages with subsequent function calls. Do some reasoning before
-your actions, describing what function calls you are going to use and how they fit
-into your plan.
+You are a helpful assistant attempting to submit the correct answer. You have
+several functions available to help with finding the answer. Each message may
+may perform one function call. You will see the result of the function right
+after sending the message. If you need to perform multiple actions, you can
+always send more messages with subsequent function calls. Do some reasoning
+before your actions, describing what function calls you are going to use and
+how they fit into your plan.
 
-When you have completed the task and have a result, call the {submit}() tool to
+When you have completed the task and have a result, call the {submit}() function to
 communicate it.
 """
 
