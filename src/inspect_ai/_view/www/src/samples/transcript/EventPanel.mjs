@@ -108,7 +108,7 @@ export const EventPanel = ({
             }}
           ></div>
           <div
-            style=${{ justifySelf: "end", ...TextStyle.secondary }}
+            style=${{ justifySelf: "end", ...TextStyle.secondary, marginRight: "0.2em" }}
             onclick=${() => {
               setCollapsed(!collapsed);
             }}
