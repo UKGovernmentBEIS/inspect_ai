@@ -1,8 +1,12 @@
+import os
 import shutil
 import tempfile
+import time
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+from moto.server import ThreadedMotoServer
 from test_helpers.utils import failing_solver, failing_task
 
 from inspect_ai import Task
@@ -25,26 +29,26 @@ from inspect_ai.solver._solver import generate
 def test_eval_set() -> None:
     # run eval with a solver that fails 20% of the time
     with tempfile.TemporaryDirectory() as log_dir:
-        succces, logs = eval_set(
+        success, logs = eval_set(
             tasks=failing_task(rate=0.2, samples=10),
             log_dir=log_dir,
             retry_attempts=100,
             retry_wait=1,
             model="mockllm/model",
         )
-        assert succces
+        assert success
         assert logs[0].status == "success"
 
     # run eval that is guaranteed to fail
     with tempfile.TemporaryDirectory() as log_dir:
-        succces, logs = eval_set(
+        success, logs = eval_set(
             tasks=failing_task(rate=1, samples=10),
             log_dir=log_dir,
             retry_attempts=1,
             retry_wait=1,
             model="mockllm/model",
         )
-        assert not succces
+        assert not success
         assert logs[0].status == "error"
 
 
@@ -168,3 +172,43 @@ def test_latest_completed_task_eval_logs() -> None:
         assert len(list_eval_logs(clean_dir.as_posix())) == 1
     finally:
         shutil.rmtree(clean_dir, ignore_errors=True)
+
+
+@pytest.fixture(scope="module")
+def mock_s3():
+    server = ThreadedMotoServer(port=19100)
+    server.start()
+
+    # Give the server a moment to start up
+    time.sleep(1)
+
+    existing_env = {
+        key: os.environ.get(key, None)
+        for key in ["AWS_ENDPOINT_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+    }
+
+    os.environ["AWS_ENDPOINT_URL"] = "http://127.0.0.1:19100"
+    os.environ["AWS_ACCESS_KEY_ID"] = "unused_id_mock_s3"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "unused_key_mock_s3"
+
+    yield
+
+    for key, value in existing_env.items():
+        if value is None:
+            del os.environ[key]
+        else:
+            os.environ[key] = value
+
+    server.stop()
+
+
+def test_eval_set_s3(mock_s3) -> None:
+    success, logs = eval_set(
+        tasks=failing_task(rate=0, samples=1),
+        log_dir="s3://test-bucket",
+        retry_attempts=1,
+        retry_wait=1,
+        model="mockllm/model",
+    )
+    assert success
+    assert logs[0].status == "success"
