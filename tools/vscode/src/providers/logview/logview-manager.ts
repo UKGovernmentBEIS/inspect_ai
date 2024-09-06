@@ -5,6 +5,7 @@ import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { activeWorkspaceFolder } from "../../core/workspace";
 import { workspacePath } from "../../core/path";
 import { kInspectEnvValues } from "../inspect/inspect-constants";
+import { join } from "path";
 
 export class InspectLogviewManager {
   constructor(
@@ -13,7 +14,7 @@ export class InspectLogviewManager {
     private readonly envMgr_: WorkspaceEnvManager
   ) { }
 
-  public async showLogFile(logFile: Uri) {
+  public async showLogFile(logFile: Uri, activation?: "open" | "activate") {
     const settings = this.settingsMgr_.getSettings();
     if (settings.logViewType === "text" && logFile.scheme === "file") {
       await workspace.openTextDocument(logFile).then(async (doc) => {
@@ -23,12 +24,8 @@ export class InspectLogviewManager {
         });
       });
     } else {
-      await this.webViewManager_.showLogFile(logFile);
+      await this.webViewManager_.showLogFile(logFile, activation);
     }
-  }
-
-  public async showLogFileIfViewerOpen(logfile: Uri) {
-    await this.webViewManager_.showLogFileIfOpen(logfile);
   }
 
   public async showInspectView() {
@@ -42,12 +39,13 @@ export class InspectLogviewManager {
       log_uri = Uri.parse(env_log, true);
     } catch {
       // This isn't a uri, bud
-      log_uri = Uri.file(workspacePath(env_log).path);
+      const logDir = join(workspacePath(env_log).path, "logs");
+      log_uri = Uri.file(logDir);
     }
 
     // Show the log view for the log dir (or the workspace)
     const log_dir = log_uri || activeWorkspaceFolder().uri;
-    await this.webViewManager_.showLogview({ log_dir });
+    await this.webViewManager_.showLogview({ log_dir }, "activate");
   }
 
   public viewColumn() {

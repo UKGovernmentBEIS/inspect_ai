@@ -2,14 +2,14 @@ import { workspace } from "vscode";
 
 // Inspect Settings
 export interface InspectSettings {
-  logViewAuto: boolean;
+  openLogView: boolean;
   logViewType: InspectLogViewStyle;
 }
 export type InspectLogViewStyle = "html" | "text";
 
 // Settings namespace and constants
 const kInspectConfigSection = "inspect_ai";
-const kInspectConfigLogViewAuto = "logViewAuto";
+const kInspectConfigOpenLogView = "openLogView";
 const kInspectConfigLogViewType = "logViewType";
 
 // Manages the settings for the inspect extension
@@ -25,7 +25,7 @@ export class InspectSettingsManager {
       }
     });
   }
-  private settings_ : InspectSettings | undefined;
+  private settings_: InspectSettings | undefined;
 
   // get the current settings values
   getSettings(): InspectSettings {
@@ -40,11 +40,11 @@ export class InspectSettingsManager {
     const configuration = workspace.getConfiguration(kInspectConfigSection);
     const logViewType =
       configuration.get<InspectLogViewStyle>(kInspectConfigLogViewType) || "html";
-    const logViewAuto = configuration.get<boolean>(kInspectConfigLogViewAuto);
+    const openLogView = configuration.get<boolean>(kInspectConfigOpenLogView);
     return {
       logViewType,
-      logViewAuto: logViewAuto !== undefined ? logViewAuto : true,
+      openLogView: openLogView !== undefined ? openLogView : true,
     };
   }
-  
+
 }
