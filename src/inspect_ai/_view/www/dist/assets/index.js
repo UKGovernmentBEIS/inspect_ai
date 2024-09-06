@@ -17040,7 +17040,7 @@ const StateDiffView = ({ starting, ending, style }) => {
   const html_result = format(changes);
   return m$1`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
-    style=${{ style }}
+    style=${{ ...style }}
   ></div>`;
 };
 function unescapeNewlines(obj) {
@@ -17136,6 +17136,7 @@ const StepEventView = ({ event, children, style, stateManager }) => {
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
   return m$1`<${EventPanel}
+    id=${`$step-${event.name}`}
     title="${title}"
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}

@@ -21,6 +21,7 @@ export const StepEventView = ({ event, children, style, stateManager }) => {
   const text = summarize(children);
 
   return html`<${EventPanel}
+    id=${`$step-${event.name}`}
     title="${title}"
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
