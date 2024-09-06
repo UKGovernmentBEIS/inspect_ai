@@ -57,7 +57,7 @@ export const EventPanel = ({
     title || icon || filteredArrChilden.length > 1
       ? html`<div
           style=${{
-            paddingLeft: "0.5em",
+            paddingLeft: "0.1em",
             display: "grid",
             gridTemplateColumns:
               "minmax(0, max-content) max-content minmax(0, max-content) auto minmax(0, max-content)",
@@ -108,7 +108,11 @@ export const EventPanel = ({
             }}
           ></div>
           <div
-            style=${{ justifySelf: "end", ...TextStyle.secondary, marginRight: "0.2em" }}
+            style=${{
+              justifySelf: "end",
+              ...TextStyle.secondary,
+              marginRight: "0.2em",
+            }}
             onclick=${() => {
               setCollapsed(!collapsed);
             }}
@@ -149,8 +153,8 @@ export const EventPanel = ({
   const card = html` <div
     id=${id}
     style=${{
-      padding: "0.4em",
-      marginBottom: "0.4em",
+      padding: "0.7em",
+      marginBottom: "0.7em",
       border: "solid 1px var(--bs-light-border-subtle)",
       borderRadius: "var(--bs-border-radius)",
       ...style,
