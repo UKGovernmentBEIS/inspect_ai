@@ -4,19 +4,18 @@ import { html } from "htm/preact";
 import { EventPanel } from "../EventPanel.mjs";
 import { RenderableChangeTypes } from "./StateEventRenderers.mjs";
 import { StateDiffView } from "./StateDiffView.mjs";
-import { ApplicationIcons } from "../../../appearance/Icons.mjs";
 
 /**
  * Renders the StateEventView component.
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
- * @param { number } props.depth - The depth of this event.
  * @param {import("../../../types/log").StateEvent } props.event - The event object to display.
- * @param {import("../TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
+ * @param { Object } props.style - The style of this event.
+ * @param {import("../Types.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StateEventView = ({ id, event, depth, stateManager }) => {
+export const StateEventView = ({ id, event, style, stateManager }) => {
   const startingState = stateManager.getState();
   stateManager.applyChanges(event.changes);
   const resolvedState = stateManager.getState();
@@ -28,7 +27,7 @@ export const StateEventView = ({ id, event, depth, stateManager }) => {
       starting=${startingState}
       ending=${resolvedState}
       name="Diff"
-      style=${{ margin: "1em 0" }}
+      style=${{ margin: "1em 0em" }}
     />`,
   ];
   // This clone is important since the state is used by preact as potential values that are rendered
@@ -40,7 +39,7 @@ export const StateEventView = ({ id, event, depth, stateManager }) => {
   );
   if (changePreview) {
     tabs.unshift(
-      html`<div name="Summary" style=${{ margin: "1em 0" }}>
+      html`<div name="Summary" style=${{ margin: "1em 0em" }}>
         ${changePreview}
       </div>`,
     );
@@ -50,7 +49,7 @@ export const StateEventView = ({ id, event, depth, stateManager }) => {
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 
   return html`
-  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.metadata} text=${tabs.length === 1 ? summary : undefined} depth=${depth} collapse=${changePreview === undefined ? true : undefined}>
+  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : undefined} collapse=${changePreview === undefined ? true : undefined} style=${style}>
     ${tabs}
   </${EventPanel}>`;
 };
