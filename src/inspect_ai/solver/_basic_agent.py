@@ -1,18 +1,27 @@
-from inspect_ai.model import call_tools, ChatMessageUser, get_model
-
-from inspect_ai.scorer import score, ValueToFloat, value_to_float
-from inspect_ai.solver import Generate, Plan, Solver, TaskState, plan, system_message, use_tools
-from inspect_ai.tool import tool, Tool, ToolResult, ToolCall, tool_with
+from inspect_ai.model._call_tools import call_tools
+from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._model import get_model
+from inspect_ai.scorer._metric import ValueToFloat, value_to_float
+from inspect_ai.scorer._score import score
+from inspect_ai.tool._tool import Tool, ToolResult, tool
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util import store
 
-DEFAULT_SYSTEM_PROMPT="""
-Each message may perform one function call. You will see the result of the function
-right after sending the message. If you need to perform multiple actions, you can 
-always send more messages with subsequent function calls. Do some reasoning before 
-your actions, describing what function calls you are going to use and how they fit
-into your plan. 
+from ._plan import Plan, plan
+from ._prompt import system_message
+from ._solver import Generate, Solver
+from ._task_state import TaskState
+from ._use_tools import use_tools
 
-When you have completed the task and have a result, call the {submit}() tool to 
+DEFAULT_SYSTEM_PROMPT = """
+Each message may perform one function call. You will see the result of the function
+right after sending the message. If you need to perform multiple actions, you can
+always send more messages with subsequent function calls. Do some reasoning before
+your actions, describing what function calls you are going to use and how they fit
+into your plan.
+
+When you have completed the task and have a result, call the {submit}() tool to
 communicate it.
 """
 
@@ -27,6 +36,7 @@ DEFAULT_SUBMIT_TOOL_NAME = "submit"
 DEFAULT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer for evaluation."
 DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated for correctness."
 
+
 @plan
 def basic_agent(
     *,
@@ -38,37 +48,35 @@ def basic_agent(
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_tool_name: str = DEFAULT_SUBMIT_TOOL_NAME,
     submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRIPTION,
-    submit_tool_response: str = DEFAULT_SUBMIT_TOOL_RESPONSE
+    submit_tool_response: str = DEFAULT_SUBMIT_TOOL_RESPONSE,
 ) -> Plan:
     """Docs
-    
+
     Note that you should have a termination condition!
 
     Infinite attempts (max_messages or max_tokens)
-  
-    """
 
+    """
     # state shared between submit tool and agent_loop
     ANSWER = "basic_agent:answer"
 
     # submission tool
     @tool
     def submit() -> Tool:
-
         async def execute(answer: str) -> ToolResult:
             """Submit an answer for evaluation.
-            
+
             Args:
-              answer (str): Submitted answer 
+              answer (str): Submitted answer
             """
             # set the answer (it will evaluated by the main loop)
             store().set(ANSWER, answer)
 
             # thank the model for its submission!
             return submit_tool_response
-        
+
         return execute
-    
+
     # enable customisation of submit tool name/description
     submit_tool = [tool_with(submit(), submit_tool_name, submit_tool_description)]
 
@@ -81,18 +89,15 @@ def basic_agent(
 
     # main agent loop
     def agent_loop() -> Solver:
-
         # get a reference to the evaluated model
         model = get_model()
 
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-                     
             # track attempts
             attempts = 0
 
             # main loop
             while True:
-
                 # check for completed (if we hit a limit e.g. max_messages)
                 if state.completed:
                     break
@@ -116,29 +121,27 @@ def basic_agent(
                         answer_scores = await score(state)
                         if score_value(answer_scores[0].value) == 1.0:
                             break
-                            
+
                         # check attempts
                         attempts += 1
                         if attempts >= max_attempts:
                             break
 
                         # notify the model that it was incorrect
-                        state.messages.append(ChatMessageUser(content=incorrect_message))
+                        state.messages.append(
+                            ChatMessageUser(content=incorrect_message)
+                        )
 
                 # no tool calls: model gave up without submitting
                 else:
-                    # urge the model to continue 
+                    # urge the model to continue
                     state.messages.append(ChatMessageUser(content=continue_message))
-                    
+
             return state
 
         return solve
-    
+
     # return plan
-    return Plan([
-        system_message(system_prompt),
-        use_tools(tools + [submit_tool]),
-        agent_loop()
-    ])
-
-
+    return Plan(
+        [system_message(system_prompt), use_tools(tools + [submit_tool]), agent_loop()]
+    )
