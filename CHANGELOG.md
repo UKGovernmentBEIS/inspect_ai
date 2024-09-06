@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix missing timestamp issue with running `eval_set()` with an S3-backed log directory.
+- Correct rounding behavior for `f1()` and `exact()` scorers.
+- Correct normalized text comparison for `exact()` scorer.
 - Added [MathVista](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mathvista) benchmark.
 
 ## v0.3.26 (6 September 2024)
