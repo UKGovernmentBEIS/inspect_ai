@@ -8,7 +8,6 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util import store
 
-from ._plan import Plan, plan
 from ._prompt import system_message
 from ._solver import Generate, Solver
 from ._task_state import TaskState
@@ -39,7 +38,6 @@ DEFAULT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer for evaluation."
 DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated for correctness."
 
 
-@plan
 def basic_agent(
     *,
     tools: list[Tool] = [],
@@ -52,13 +50,14 @@ def basic_agent(
     submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRIPTION,
     submit_tool_response: str = DEFAULT_SUBMIT_TOOL_RESPONSE,
 ) -> Plan:
-    """Basic ReAcT agent.
+    """Basic ReAct agent.
 
-    Tool using loop that runs until the model submits an answer using a `submit()`
-    tool. Tailor the model's instructions using the `system_prompt` parameter.
-    Use `max_attempts` to support additional submissions if the initial submission(s)
-    are incorrect (submissions are evaluated using the task's main scorer, with a
-    correct ("C") or numerical value of 1.0 indicating a correct answer).
+    Agent that runs a tool use loop until the model submits an answer using the
+    `submit()` tool. Tailor the model's instructions using the `system_prompt`
+    parameter. Use `max_attempts` to support additional submissions if the
+    initial submission(s) are incorrect (submissions are evaluated using the task's
+    main scorer, with a correct ("C") or numerical value of 1.0 indicating a
+    correct answer).
 
     Note that when using the `basic_agent()`, you should always establish a boundary
     on model activity (e.g. setting the task `max_messages`) to prevent it from
