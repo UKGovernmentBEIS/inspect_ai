@@ -52,12 +52,35 @@ def basic_agent(
     submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRIPTION,
     submit_tool_response: str = DEFAULT_SUBMIT_TOOL_RESPONSE,
 ) -> Plan:
-    """Docs
+    """Basic ReAcT agent.
 
-    Note that you should have a termination condition!
+    Tool using loop that runs until the model submits an answer using a `submit()`
+    tool. Tailor the model's instructions using the `system_prompt` parameter.
+    Use `max_attempts` to support additional submissions if the initial submission(s)
+    are incorrect (submissions are evaluated using the task's main scorer, with a
+    correct ("C") or numerical value of 1.0 indicating a correct answer).
 
-    Infinite attempts (max_messages or max_tokens)
+    Note that when using the `basic_agent()`, you should always establish a boundary
+    on model activity (e.g. setting the task `max_messages`) to prevent it from
+    continuing on in a loop interminably.
 
+    Args:
+       tools (list[Tool]): Tools available for the agent.
+       system_prompt (str): System prompt for agent.
+       max_attempts (int): Maximum number of submissions to accept before terminating.
+       score_value (ValueToFloat): Function use to extract float from scores (defaults
+         to standard value_to_float())
+       incorrect_message (str): User message reply for an incorrect submission from
+         the model.
+       continue_message (str): User message to urge the model to continue when it
+         doesn't make a tool call.
+       submit_tool_name (str): Name for tool used to make submissions
+        (defaults to 'submit')
+       submit_tool_description (str): Description of submit tool
+       submit_tool_response (str): Submit tool return value for acknowledging submission.
+
+    Returns:
+        Plan for agent.
     """
     # state shared between submit tool and agent_loop
     ANSWER = "basic_agent:answer"
