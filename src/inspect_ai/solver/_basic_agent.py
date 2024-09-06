@@ -82,8 +82,8 @@ def basic_agent(
     # enable customisation of submit tool name/description
     submit_tool = [tool_with(submit(), submit_tool_name, submit_tool_description)]
 
-    # resolve score_value
-    score_value = score_value or value_to_float()
+    # resolve score_value function
+    score_value_fn = score_value or value_to_float()
 
     # helper to check if a submission was attempted
     def answer_submitted(tool_calls: list[ToolCall]) -> bool:
@@ -121,7 +121,7 @@ def basic_agent(
                         answer = store().get(ANSWER)
                         state.output.completion = answer
                         answer_scores = await score(state)
-                        if score_value(answer_scores[0].value) == 1.0:
+                        if score_value_fn(answer_scores[0].value) == 1.0:
                             break
 
                         # check attempts
