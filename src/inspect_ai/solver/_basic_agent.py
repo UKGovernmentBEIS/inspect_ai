@@ -3,14 +3,14 @@ from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._metric import ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
-from inspect_ai.solver._plan import Plan
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util import store
 
+from ._plan import Plan, plan
 from ._prompt import system_message
-from ._solver import Generate, Solver
+from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
 from ._use_tools import use_tools
 
@@ -39,6 +39,7 @@ DEFAULT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer for evaluation."
 DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated for correctness."
 
 
+@plan
 def basic_agent(
     *,
     tools: list[Tool] = [],
@@ -113,10 +114,8 @@ def basic_agent(
         return any([tool for tool in tool_calls if tool.function == "submit"])
 
     # main agent loop
-    def agent_loop() -> Solver:
-        # get a reference to the evaluated model
-        model = get_model()
-
+    @solver
+    def basic_agent_loop() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # track attempts
             attempts = 0
@@ -128,7 +127,7 @@ def basic_agent(
                     break
 
                 # generate output and append assistant message
-                state.output = await model.generate(state.messages, state.tools)
+                state.output = await get_model().generate(state.messages, state.tools)
                 state.messages.append(state.output.message)
 
                 # resolve tools calls (if any)
@@ -168,5 +167,9 @@ def basic_agent(
 
     # return plan
     return Plan(
-        [system_message(system_prompt), use_tools(tools + [submit_tool]), agent_loop()]
+        [
+            system_message(system_prompt),
+            use_tools(tools + [submit_tool]),
+            basic_agent_loop(),
+        ]
     )
