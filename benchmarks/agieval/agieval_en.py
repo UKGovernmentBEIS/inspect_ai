@@ -1,3 +1,21 @@
+"""
+AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models
+
+Wanjun Zhong, Ruixiang Cui, Yiduo Guo, Yaobo Liang, Shuai Lu, Yanlin Wang,
+Amin Saied, Weizhu Chen and Nan Duan
+https://arxiv.org/pdf/2304.06364
+
+# to run a specific task (eg: sat_math)
+inspect eval agieval_en.py@sat_math
+
+# to run agieval (english group)
+inspect eval agieval_en.py
+
+# to run agieval_en with fewshots and/or Chain of Thoughts
+inspect eval agieval_en.py  -T fewshot=5 cot=True
+
+"""
+
 from agieval import task_template
 
 from inspect_ai import task
