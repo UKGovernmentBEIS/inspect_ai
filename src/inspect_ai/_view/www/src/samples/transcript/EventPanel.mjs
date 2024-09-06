@@ -53,7 +53,6 @@ export const EventPanel = ({
     return `${id}-nav-pill-${index}`;
   };
 
-
   const gridColumns = [];
   if (hasCollapse) {
     gridColumns.push("minmax(0, max-content)");
