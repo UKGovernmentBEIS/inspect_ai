@@ -1,8 +1,12 @@
+import os
 import shutil
 import tempfile
+import time
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+from moto.server import ThreadedMotoServer
 from test_helpers.utils import failing_solver, failing_task
 
 from inspect_ai import Task
@@ -168,3 +172,41 @@ def test_latest_completed_task_eval_logs() -> None:
         assert len(list_eval_logs(clean_dir.as_posix())) == 1
     finally:
         shutil.rmtree(clean_dir, ignore_errors=True)
+
+
+@pytest.fixture(scope="module")
+def mock_s3():
+    temp_dir = tempfile.mkdtemp()
+
+    server = ThreadedMotoServer(port=19100)
+    server.start()
+
+    # Give the server a moment to start up
+    time.sleep(1)
+
+    # Set environment variables for the client, preserving existing values if set:
+    existing_env = {
+        key: os.environ.get(key, None)
+        for key in ["AWS_ENDPOINT_URL"]
+    }
+
+    os.environ["AWS_ENDPOINT_URL"] = "http://127.0.0.1:19100"
+
+    yield
+
+    os.environ.update(existing_env)
+
+    # Teardown: stop the server and remove the temporary directory
+    server.stop()
+    os.system(f"rm -r {temp_dir}")
+
+def test_eval_set_s3(mock_s3) -> None:
+    succces, logs = eval_set(
+        tasks=failing_task(rate=0, samples=1),
+        log_dir="s3://test-bucket",
+        retry_attempts=1,
+        retry_wait=1,
+        model="mockllm/model",
+    )
+    assert succces
+    assert logs[0].status == "success"
