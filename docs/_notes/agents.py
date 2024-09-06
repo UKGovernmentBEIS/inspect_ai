@@ -1,6 +1,6 @@
 from inspect_ai.model import call_tools, ChatMessageUser, get_model
 
-from inspect_ai.solver import Generate, Plan, Solver, TaskState, system_message, use_tools
+from inspect_ai.solver import Generate, Plan, Solver, TaskState, plan, system_message, use_tools
 from inspect_ai.tool import tool, Tool, ToolResult, ToolCall, tool_with
 from inspect_ai.util import store
 
@@ -26,11 +26,12 @@ DEFAULT_SUBMIT_TOOL_NAME = "submit"
 DEFAULT_SUBMIT_TOOL_DESCRITION = "Submit an answer for evaluation."
 DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated for correctness."
 
+@plan
 def basic_agent(
     tools: list[Tool] = [],
     *,
     max_attempts: int = 1,
-    preamble: str | Solver = DEFAULT_SYSTEM_PROMPT,
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_tool_name: str = DEFAULT_SUBMIT_TOOL_NAME,
@@ -40,10 +41,6 @@ def basic_agent(
 
     # state shared between submit tool and agent_loop
     ANSWER = "basic_agent:answer"
-
-    # resolve preamble solver
-    if isinstance(preamble, str):
-        preamble = system_message(preamble.format(submit=submit_tool_name))
 
     # submission tool
     @tool
@@ -131,7 +128,7 @@ def basic_agent(
     
     # return plan
     return Plan([
-        preamble,
+        system_message(system_prompt),
         use_tools(tools + [submit_tool]),
         agent_loop()
     ])
