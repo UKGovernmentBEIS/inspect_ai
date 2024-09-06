@@ -1,13 +1,7 @@
-from inspect_ai.model import call_tools
-from inspect_ai.model._chat_message import ChatMessageUser
-from inspect_ai.model._model import get_model
-from inspect_ai.solver import Plan
-from inspect_ai.solver import Generate, Solver, TaskState
-from inspect_ai.solver._prompt import system_message
-from inspect_ai.solver._use_tools import use_tools
-from inspect_ai.tool import tool, Tool, ToolResult
-from inspect_ai.tool._tool_call import ToolCall
-from inspect_ai.tool._tool_with import tool_with
+from inspect_ai.model import call_tools, ChatMessageUser, get_model
+
+from inspect_ai.solver import Generate, Plan, Solver, TaskState, system_message, use_tools
+from inspect_ai.tool import tool, Tool, ToolResult, ToolCall, tool_with
 from inspect_ai.util import store
 
 DEFAULT_SYSTEM_PROMPT="""
@@ -30,7 +24,7 @@ DEFAULT_CONTINUE_MESSAGE = "Please proceed to the next step using your best judg
 
 DEFAULT_SUBMIT_TOOL_NAME = "submit"
 DEFAULT_SUBMIT_TOOL_DESCRITION = "Submit an answer for evaluation."
-
+DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated for correctness."
 
 def basic_agent(
     tools: list[Tool] = [],
@@ -40,7 +34,8 @@ def basic_agent(
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_tool_name: str = DEFAULT_SUBMIT_TOOL_NAME,
-    submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRITION
+    submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRITION,
+    submit_tool_response: str = DEFAULT_SUBMIT_TOOL_RESPONSE
 ) -> Plan:
 
     # state shared between submit tool and agent_loop
@@ -60,11 +55,11 @@ def basic_agent(
             Args:
               answer (str): Submitted answer 
             """
-            if score(answer):
-                store().set(ANSWER, answer)
-                return "The submission is correct"
-            else:
-                return incorrect_message
+            # set the answer (it will evaluated by the main loop)
+            store().set(ANSWER, answer)
+
+            # thank the model for its submission!
+            return submit_tool_response
         
         return execute
     
@@ -104,34 +99,37 @@ def basic_agent(
                         await call_tools(state.output.message, state.tools)
                     )
 
-                    # do we have an answer? if so set completion and exit loop
-                    answer = store().get(ANSWER)
-                    if answer:
-                        state.output.completion = answer
-                        break
-
-                    # if an incorrect answer was submitted bump and check attempts
+                    # was an answer submitted?
                     if answer_submitted(state.output.message.tool_calls):
+                        # get the answer and score it (exit if correct)
+                        answer = store().get(ANSWER)
+                        state.output.completion = answer
+                        if score(state):
+                            break
+                            
+                        # check attempts
                         attempts += 1
                         if attempts >= max_attempts:
                             break
 
+                        # notify the model that it was incorrect
+                        state.messages.append(ChatMessageUser(content=incorrect_message))
+
                 # no tool calls: model gave up without submitting
                 else:
-                    # increment attempts
+                    # check attempts
                     attempts += 1
-
-                    # urge to continue if we are less than max_attempts, otherwise exit
-                    if attempts < max_attempts:
-                        state.messages.append(ChatMessageUser(content=continue_message))
-                    else:
+                    if attempts >= max_attempts:
                         break
 
+                    # urge the model to continue 
+                    state.messages.append(ChatMessageUser(content=continue_message))
+                    
             return state
 
         return solve
     
-    # basic agent plan
+    # return plan
     return Plan([
         preamble,
         use_tools(tools + [submit_tool]),
@@ -141,5 +139,5 @@ def basic_agent(
 
 
 # imagine we have a function that can call the scorer
-def score(answer: str) -> bool:
+def score(state: TaskState) -> bool:
     return True
