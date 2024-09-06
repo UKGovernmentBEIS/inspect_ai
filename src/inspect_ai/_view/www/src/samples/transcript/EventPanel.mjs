@@ -164,8 +164,8 @@ export const EventPanel = ({
   const card = html` <div
     id=${id}
     style=${{
-      padding: "8px",
-      marginBottom: "8px",
+      padding: "0.625rem",
+      marginBottom: "0.625rem",
       border: "solid 1px var(--bs-light-border-subtle)",
       borderRadius: "var(--bs-border-radius)",
       ...style,

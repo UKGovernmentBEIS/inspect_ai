@@ -13616,7 +13616,7 @@ const ChatView = ({ id, messages, style, indented }) => {
         marginTop: "0.1em"
       }}
             >
-              ${index + 10}
+              ${index + 1}
             </div>
             <${ChatMessage}
               id=${`${id}-chat-messages`}
@@ -15328,8 +15328,8 @@ const EventPanel = ({
   const card = m$1` <div
     id=${id}
     style=${{
-    padding: "8px",
-    marginBottom: "8px",
+    padding: "0.625rem",
+    marginBottom: "0.625rem",
     border: "solid 1px var(--bs-light-border-subtle)",
     borderRadius: "var(--bs-border-radius)",
     ...style
