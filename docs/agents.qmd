@@ -419,14 +419,6 @@ The `Sample` class includes `sandbox`, `files` and `setup` fields that are used 
 
 #### Sandbox {#sec-per-sample-sandbox}
 
-::: {.callout-note appearance="simple"}
-Note that per-sample `sandbox` specification is available only in the development version of Inspect. You can install the development version with:
-
-```bash
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 You can either define a default `sandbox` for an entire `Task` as illustrated abvove, or alternatively define a per-sample `sandbox`. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file.
 
 The `sandbox` can be specified as a string (e.g. `"docker`") or a list of sandbox type and config file (e.g. `["docker", "compose.yaml"]`).

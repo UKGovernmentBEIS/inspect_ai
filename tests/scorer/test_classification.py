@@ -66,4 +66,4 @@ async def test_f1_partial_match():
     state = simple_task_state(model_output="Paris")
     result = await scorer(state, Target(["Paris, Texas"]))
 
-    assert result.text == "0.7"
+    assert result.text == "0.67"

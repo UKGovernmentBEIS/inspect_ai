@@ -60,17 +60,19 @@ def max_f1_score(answer: str, targets: List[str]) -> float:
         if target[0].strip():
             f1_score = compute_f1(answer, target)
             max_f1 = max(max_f1, f1_score)
-    return round(max_f1, 1)
+    return round(max_f1, 2)
 
 
 def max_exact_score(answer: str, targets: List[str]) -> float:
     # Find the maximum exact score for this answer
     max_exact = 0.0
+    answer_words = _to_words(answer)
     for target in targets:
         if target[0].strip():
-            exact_score = compute_exact(answer, target)
+            target_words = _to_words(target)
+            exact_score = 1.0 if target_words == answer_words else 0.0
             max_exact = max(max_exact, exact_score)
-    return round(max_exact, 2)
+    return max_exact
 
 
 def compute_f1(answer: str, target: str) -> float:
@@ -79,10 +81,6 @@ def compute_f1(answer: str, target: str) -> float:
     target_words = _to_words(target)
 
     return _f1(answer_words=answer_words, target_words=target_words)
-
-
-def compute_exact(answer: str, target: str) -> float:
-    return answer == target
 
 
 def _to_words(

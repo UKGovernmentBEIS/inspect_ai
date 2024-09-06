@@ -293,7 +293,9 @@ def log_files_from_ls(
 ) -> list[EvalLogInfo]:
     return [
         log_file_info(file)
-        for file in sorted(ls, key=lambda file: file.mtime, reverse=descending)
+        for file in sorted(
+            ls, key=lambda file: (file.mtime if file.mtime else 0), reverse=descending
+        )
         if file.type == "file" and is_log_file(file.name, extensions)
     ]
 
