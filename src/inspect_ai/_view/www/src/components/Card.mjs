@@ -36,7 +36,7 @@ export const CardBody = ({ id, classes, style, children }) => {
     style=${{
       backgroundColor: "var(--bs-body-bg)",
       border: "solid 1px var(--bs-light-border-subtle)",
-      borderRadius: "3px",
+      borderRadius: "var(--bs-border-radius)",
       margin: "0 0.4em 0.4em 0.4em",
       padding: "0.5em",
       ...style,
@@ -54,7 +54,7 @@ export const Card = ({ id, classes, style, children }) => {
       style=${{
         backgroundColor: "var(--bs-light)",
         border: "solid 1px var(--bs-light-border-subtle)",
-        borderRadius: "3px",
+        borderRadius: "var(--bs-border-radius)",
         marginBottom: "1.5em",
         ...style,
       }}

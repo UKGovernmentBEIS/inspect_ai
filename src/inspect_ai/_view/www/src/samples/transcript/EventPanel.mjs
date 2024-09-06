@@ -152,7 +152,7 @@ export const EventPanel = ({
       padding: "0.4em",
       marginBottom: "0.4em",
       border: "solid 1px var(--bs-light-border-subtle)",
-      borderRadius: "4px",
+      borderRadius: "var(--bs-border-radius)",
       ...style,
     }}
   >
@@ -230,7 +230,7 @@ const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
         ...TextStyle.label,
         fontSize: FontSize.small,
         padding: "0.1rem  0.6rem",
-        borderRadius: "3px",
+        borderRadius: "var(--bs-border-radius)",
       }}
       class="nav-link ${active ? "active " : ""}"
       onclick=${() => {

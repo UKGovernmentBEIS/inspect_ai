@@ -76,7 +76,7 @@ const Tab = ({ type, tab, index, style }) => {
     color: "var(--bs-body-color)",
     ...style,
     padding: "0.25rem 0.5rem",
-    borderRadius: "3px",
+    borderRadius: "var(--bs-border-radius)",
   };
   const pillStyle = {
     ...style,

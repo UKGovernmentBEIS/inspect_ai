@@ -8397,7 +8397,7 @@ const Tab2 = ({ type, tab, index, style }) => {
     color: "var(--bs-body-color)",
     ...style,
     padding: "0.25rem 0.5rem",
-    borderRadius: "3px"
+    borderRadius: "var(--bs-border-radius)"
   };
   const pillStyle = {
     ...style
@@ -8505,7 +8505,7 @@ const CardBody = ({ id, classes, style, children }) => {
     style=${{
     backgroundColor: "var(--bs-body-bg)",
     border: "solid 1px var(--bs-light-border-subtle)",
-    borderRadius: "3px",
+    borderRadius: "var(--bs-border-radius)",
     margin: "0 0.4em 0.4em 0.4em",
     padding: "0.5em",
     ...style
@@ -8522,7 +8522,7 @@ const Card = ({ id, classes, style, children }) => {
       style=${{
     backgroundColor: "var(--bs-light)",
     border: "solid 1px var(--bs-light-border-subtle)",
-    borderRadius: "3px",
+    borderRadius: "var(--bs-border-radius)",
     marginBottom: "1.5em",
     ...style
   }}
@@ -15008,7 +15008,7 @@ const LargeModal = (props) => {
     tabindex="0"
     role="dialog"
     onkeyup=${onkeyup}
-    style=${{ borderRadius: "none" }}
+    style=${{ borderRadius: "var(--bs-border-radius)" }}
   >
     <div
       class="modal-dialog modal-dialog-scrollable"
@@ -15303,7 +15303,7 @@ const EventPanel = ({
     padding: "0.4em",
     marginBottom: "0.4em",
     border: "solid 1px var(--bs-light-border-subtle)",
-    borderRadius: "4px",
+    borderRadius: "var(--bs-border-radius)",
     ...style
   }}
   >
@@ -15360,7 +15360,7 @@ const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
     ...TextStyle.label,
     fontSize: FontSize.small,
     padding: "0.1rem  0.6rem",
-    borderRadius: "3px"
+    borderRadius: "var(--bs-border-radius)"
   }}
       class="nav-link ${active ? "active " : ""}"
       onclick=${() => {
@@ -15479,7 +15479,7 @@ const SampleInitEventView = ({ id, event, style, stateManager }) => {
   }
   if (event.sample.setup) {
     sections.push(m$1`<${EventSection} title="Setup">
-      <pre style=${{ background: "var(--bs-light)", borderRadius: "3px" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
+      <pre style=${{ background: "var(--bs-light)", borderRadius: "var(--bs-border-radius)" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
       </${EventSection}>
   `);
   }
@@ -17535,7 +17535,7 @@ const APICodeCell = ({ id, contents }) => {
     background: "var(--bs-light)",
     width: "100%",
     padding: "0.5em",
-    borderRadius: "3px"
+    borderRadius: "var(--bs-border-radius)"
   }}
     >
       <code 
@@ -17589,7 +17589,7 @@ const EventRow = ({ title, icon, style, children }) => {
     padding: "0.4em",
     marginBottom: "0.4em",
     border: "solid 1px var(--bs-light-border-subtle)",
-    borderRadius: "4px"
+    borderRadius: "var(--bs-border-radius)"
   }}
   >
     ${contentEl}
@@ -17628,7 +17628,7 @@ const JSONPanel = ({ data, style }) => {
     background: "var(--bs-light)",
     width: "100%",
     padding: "0.5em",
-    borderRadius: "3px",
+    borderRadius: "var(--bs-border-radius)",
     ...style
   }}
     >
@@ -22319,7 +22319,7 @@ const WorkspaceDisplay = ({
         width: "5rem",
         fontSize: FontSize.smaller,
         textTransform: "uppercase",
-        borderRadius: "3px",
+        borderRadius: "var(--bs-border-radius)",
         fontWeight: 600
       }
     }} >

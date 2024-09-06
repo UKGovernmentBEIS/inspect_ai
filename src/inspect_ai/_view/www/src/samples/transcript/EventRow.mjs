@@ -37,7 +37,7 @@ export const EventRow = ({ title, icon, style, children }) => {
       padding: "0.4em",
       marginBottom: "0.4em",
       border: "solid 1px var(--bs-light-border-subtle)",
-      borderRadius: "4px",
+      borderRadius: "var(--bs-border-radius)",
     }}
   >
     ${contentEl}

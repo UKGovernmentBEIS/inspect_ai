@@ -41,7 +41,7 @@ export const SampleInitEventView = ({ id, event, style, stateManager }) => {
 
   if (event.sample.setup) {
     sections.push(html`<${EventSection} title="Setup">
-      <pre style=${{ background: "var(--bs-light)", borderRadius: "3px" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
+      <pre style=${{ background: "var(--bs-light)", borderRadius: "var(--bs-border-radius)" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
       </${EventSection}>
   `);
   }
