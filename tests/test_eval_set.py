@@ -182,15 +182,22 @@ def mock_s3():
     # Give the server a moment to start up
     time.sleep(1)
 
-    existing_endpoint = os.environ.get("AWS_ENDPOINT_URL", None)
+    existing_env = {
+        key: os.environ.get(key, None)
+        for key in ["AWS_ENDPOINT_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+    }
+
     os.environ["AWS_ENDPOINT_URL"] = "http://127.0.0.1:19100"
+    os.environ["AWS_ACCESS_KEY_ID"] = "unused_id_mock_s3"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "unused_key_mock_s3"
 
     yield
 
-    if existing_endpoint is None:
-        del os.environ["AWS_ENDPOINT_URL"]
-    else:
-        os.environ["AWS_ENDPOINT_URL"] = existing_endpoint
+    for key, value in existing_env.items():
+        if value is None:
+            del os.environ[key]
+        else:
+            os.environ[key] = value
 
     server.stop()
 
