@@ -1,6 +1,6 @@
 :root {
-  --bs-border-radius: 0;
-  --bs-border-radius-lg: 0;
+  --bs-border-radius: 3px;
+  --bs-border-radius-lg: 4px;
   --bs-popover-max-width: 50%;
   --inspect-find-background: var(--bs-body-bg);
   --inspect-find-foreground: var(--bs-body-color);
@@ -42,6 +42,8 @@ body[class^="vscode-"] .app-main-grid {
 }
 
 body[class^="vscode-"] {
+  --bs-border-radius: 0;
+  --bs-border-radius-lg: 0;
   --bs-body-bg: var(--vscode-editor-background);
   --bs-card-bg: var(--vscode-editor-background);
   --bs-table-bg: var(--vscode-editor-background);
@@ -62,6 +64,8 @@ body[class^="vscode-"] {
   --bs-secondary-bg: var(--vscode-list-inactiveSelectionBackground);
   --bs-border-color: var(--vscode-editorGroup-border);
   --bs-card-border-color: var(--vscode-editorGroup-border);
+  --bs-warning-bg-subtle: var(--vscode-statusBarItem-warningBackground);
+  --bs-warning-text-emphasis: var(--vscode-statusBarItem-warningForeground);
   --inspect-find-background: var(--vscode-editorWidget-background);
   --inspect-find-foreground: var(--vscode-editorWidget-foreground);
   --inspect-input-background: var(--vscode-input-background);
@@ -73,6 +77,11 @@ body[class^="vscode-"] {
 
 html.vscode {
   font-size: 13px;
+}
+
+html.vscode .sample-input {
+  line-height: 1.3em;
+  -webkit-line-clamp: 4 !important
 }
 
 body[class^="vscode-"] .modal-backdrop {
@@ -233,7 +242,6 @@ body[class^="vscode-"] .sidebar .list-group {
 }
 
 body {
-  --bs-border-radius: "0";
   margin: 0;
   padding: 0;
 }
@@ -242,6 +250,7 @@ body {
   padding-top: 0;
   padding-bottom: 0;
   background-color: var(--bs-light);
+  top: 2px;
 }
 
 .navbar-title-grid {
@@ -253,11 +262,11 @@ body {
 @media (max-width: 575px) {
   .navbar .vertical-metric-label {
     font-size: 0.7rem !important;
-  }  
+  }
 }
 
 @media (max-width: 575px) {
-  .tab-tools  select { 
+  .tab-tools  select {
     width: 50px;
   }
 }
@@ -624,7 +633,7 @@ table.table.table-sm td {
 }
 
 .tab-tools .btn {
-  font-size: 0.5rem;
+  font-size: 0.7rem;
   padding: 0.4em 0.8em;
 }
 
@@ -863,3 +872,112 @@ ul.jsondiffpatch-textdiff {
   color: white;
   font-weight: bold;
 }
+
+/* PrismJS 1.29.0 https://prismjs.com/download.html#themes=prism-dark&languages=markup+css+clike+javascript+bash+python */
+/* This has been generated from the URL above, then scoped within the
+ * .vscode-dark class. If it needs to be regenerated, be sure to add that back in. */
+.vscode-dark code[class*="language-"],
+.vscode-dark pre[class*="language-"] {
+  color: #fff;
+  background: 0 0;
+  text-shadow: 0 -0.1em 0.2em #000;
+  font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+  font-size: 1em;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+@media print {
+  .vscode-dark code[class*="language-"],
+  .vscode-dark pre[class*="language-"] {
+    text-shadow: none;
+  }
+}
+.vscode-dark :not(pre) > code[class*="language-"],
+.vscode-dark pre[class*="language-"] {
+  background: #4c3f33;
+}
+.vscode-dark pre[class*="language-"] {
+  padding: 1em;
+  margin: 0.5em 0;
+  overflow: auto;
+  border: 0.3em solid #7a6651;
+  border-radius: 0.5em;
+  box-shadow: 1px 1px 0.5em #000 inset;
+}
+.vscode-dark :not(pre) > code[class*="language-"] {
+  padding: 0.15em 0.2em 0.05em;
+  border-radius: 0.3em;
+  border: 0.13em solid #7a6651;
+  box-shadow: 1px 1px 0.3em -0.1em #000 inset;
+  white-space: normal;
+}
+.vscode-dark .token.cdata,
+.vscode-dark .token.comment,
+.vscode-dark .token.doctype,
+.vscode-dark .token.prolog {
+  color: #997f66;
+}
+.vscode-dark .token.punctuation {
+  opacity: 0.7;
+}
+.vscode-dark .token.namespace {
+  opacity: 0.7;
+}
+.vscode-dark .token.boolean,
+.vscode-dark .token.constant,
+.vscode-dark .token.number,
+.vscode-dark .token.property,
+.vscode-dark .token.symbol,
+.vscode-dark .token.tag {
+  color: #d1939e;
+}
+.vscode-dark .token.attr-name,
+.vscode-dark .token.builtin,
+.vscode-dark .token.char,
+.vscode-dark .token.inserted,
+.vscode-dark .token.selector,
+.vscode-dark .token.string {
+  color: #bce051;
+}
+.vscode-dark .language-css .token.string,
+.vscode-dark .style .token.string,
+.vscode-dark .token.entity,
+.vscode-dark .token.operator,
+.vscode-dark .token.url,
+.vscode-dark .token.variable {
+  color: #f4b73d;
+}
+.vscode-dark .token.atrule,
+.vscode-dark .token.attr-value,
+.vscode-dark .token.keyword {
+  color: #d1939e;
+}
+.vscode-dark .token.important,
+.vscode-dark .token.regex {
+  color: #e90;
+}
+.vscode-dark .token.bold,
+.vscode-dark .token.important {
+  font-weight: 700;
+}
+.vscode-dark .token.italic {
+  font-style: italic;
+}
+.vscode-dark .token.entity {
+  cursor: help;
+}
+.vscode-dark .token.deleted {
+  color: red;
+}
+/* END PrismJS */

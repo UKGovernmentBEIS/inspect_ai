@@ -4,6 +4,8 @@ import { runProcess } from "../core/process";
 import { inspectBinPath } from "./props";
 import { createReadStream } from "fs";
 import { createInterface } from "readline";
+import { withMinimumInspectVersion } from "./version";
+import { kInspectMaxLogFileSizeVersion } from "../providers/inspect/inspect-constants";
 
 
 
@@ -20,13 +22,23 @@ export function inspectEvalLogs(cwd: AbsolutePath, log_dir?: Uri): string | unde
   }
 }
 
-export function inspectEvalLog(cwd: AbsolutePath, log: string, headerOnly: boolean): string | undefined {
+export function inspectEvalLog(cwd: AbsolutePath, log: string, headerOnly?: number): string | undefined {
   const inspectBin = inspectBinPath();
   if (inspectBin) {
     const cmdArgs = ["info", "log-file", log];
-    if (headerOnly) {
+    withMinimumInspectVersion(kInspectMaxLogFileSizeVersion, () => {
+      // This is a newer version of Inspect which includes support
+      // for a max size before only header is sent, provide a size
       cmdArgs.push("--header-only");
-    }
+      cmdArgs.push(String(headerOnly || 100));
+    }, () => {
+      // This is an old version of Inspect which respects only a boolean
+      // so send a boolean for header only if that is requested
+      if (headerOnly === 0) {
+        cmdArgs.push("--header-only");
+      }
+    });
+
     const output = runProcess(inspectBin, cmdArgs, cwd);
     return output;
   }

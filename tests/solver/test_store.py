@@ -1,10 +1,14 @@
-from test_helpers.utils import skip_if_no_openai
+from typing import Generator
+
+from test_helpers.tool_call_utils import get_tool_calls, get_tool_response
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
+from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes, match
-from inspect_ai.solver import Generate, TaskState, generate, solver, store, use_tools
+from inspect_ai.solver import Generate, TaskState, generate, solver, use_tools
 from inspect_ai.tool import tool
+from inspect_ai.util._store import store
 
 
 def test_sample_store():
@@ -30,7 +34,6 @@ def test_sample_store():
     assert log.samples[1].store["data"] == 2
 
 
-@skip_if_no_openai
 def test_tool_store():
     @tool(prompt="If you are asked to get a cookie, call the get_cookie function.")
     def get_cookie():
@@ -54,11 +57,36 @@ def test_tool_store():
 
     task = Task(
         dataset=[
-            Sample(input="Get the cookie using the available tools.", target="42"),
+            Sample(input="Get the cookie using the available tools.", target="ignored"),
         ],
         plan=[use_tools(get_cookie()), store_solver(), generate()],
         scorer=includes(),
     )
 
-    log = eval(task, model="openai/gpt-4-turbo")[0]
-    assert log.results.metrics["accuracy"].value == 1
+    def custom_outputs() -> Generator[ModelOutput, None, None]:
+        yield ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name="get_cookie",
+            tool_arguments={},
+        )
+        while True:
+            yield ModelOutput.from_content(
+                model="mockllm/model",
+                content="finished",
+            )
+
+    log = eval(
+        task,
+        get_model(
+            "mockllm/model",
+            custom_outputs=custom_outputs(),
+        ),
+        max_messages=5,
+    )[0]
+    assert (
+        get_tool_response(
+            log.samples[0].messages,
+            get_tool_calls(log.samples[0].messages, "get_cookie")[0],
+        ).text
+        == "42"
+    )

@@ -13,7 +13,7 @@ export function runProcess(
     cwd: cwd?.path,
     encoding: "utf-8",
     windowsHide: true,
-    maxBuffer: 1000 * 1000 * 100
+    maxBuffer: 1000 * 1000 * 125
   };
 
   cmd = typeof (cmd) === "string" ? cmd : cmd.path;

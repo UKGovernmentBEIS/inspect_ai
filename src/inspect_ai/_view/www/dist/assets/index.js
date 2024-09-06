@@ -15,24 +15,24 @@ var __publicField = (obj, key2, value) => __defNormalProp(obj, typeof key2 !== "
         continue;
       }
       for (const node of mutation.addedNodes) {
-        if (node.tagName === "LINK" && node.rel === "modulepreload")
-          processPreload(node);
+        if (node.tagName === "LINK" && node.rel === "modulepreload") processPreload(node);
       }
     }
-  }).observe(document, { childList: true, subtree: true });
+  }).observe(document, {
+    childList: true,
+    subtree: true
+  });
   function getFetchOpts(link) {
     const fetchOpts = {};
     if (link.integrity) fetchOpts.integrity = link.integrity;
     if (link.referrerPolicy) fetchOpts.referrerPolicy = link.referrerPolicy;
-    if (link.crossOrigin === "use-credentials")
-      fetchOpts.credentials = "include";
+    if (link.crossOrigin === "use-credentials") fetchOpts.credentials = "include";
     else if (link.crossOrigin === "anonymous") fetchOpts.credentials = "omit";
     else fetchOpts.credentials = "same-origin";
     return fetchOpts;
   }
   function processPreload(link) {
-    if (link.ep)
-      return;
+    if (link.ep) return;
     link.ep = true;
     const fetchOpts = getFetchOpts(link);
     fetch(link.href, fetchOpts);
@@ -304,6 +304,1462 @@ var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof win
 function getDefaultExportFromCjs(x2) {
   return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
 }
+var prism = { exports: {} };
+(function(module) {
+  var _self = typeof window !== "undefined" ? window : typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope ? self : {};
+  /**
+   * Prism: Lightweight, robust, elegant syntax highlighting
+   *
+   * @license MIT <https://opensource.org/licenses/MIT>
+   * @author Lea Verou <https://lea.verou.me>
+   * @namespace
+   * @public
+   */
+  var Prism2 = function(_self2) {
+    var lang = /(?:^|\s)lang(?:uage)?-([\w-]+)(?=\s|$)/i;
+    var uniqueId = 0;
+    var plainTextGrammar = {};
+    var _2 = {
+      /**
+       * By default, Prism will attempt to highlight all code elements (by calling {@link Prism.highlightAll}) on the
+       * current page after the page finished loading. This might be a problem if e.g. you wanted to asynchronously load
+       * additional languages or plugins yourself.
+       *
+       * By setting this value to `true`, Prism will not automatically highlight all code elements on the page.
+       *
+       * You obviously have to change this value before the automatic highlighting started. To do this, you can add an
+       * empty Prism object into the global scope before loading the Prism script like this:
+       *
+       * ```js
+       * window.Prism = window.Prism || {};
+       * Prism.manual = true;
+       * // add a new <script> to load Prism's script
+       * ```
+       *
+       * @default false
+       * @type {boolean}
+       * @memberof Prism
+       * @public
+       */
+      manual: _self2.Prism && _self2.Prism.manual,
+      /**
+       * By default, if Prism is in a web worker, it assumes that it is in a worker it created itself, so it uses
+       * `addEventListener` to communicate with its parent instance. However, if you're using Prism manually in your
+       * own worker, you don't want it to do this.
+       *
+       * By setting this value to `true`, Prism will not add its own listeners to the worker.
+       *
+       * You obviously have to change this value before Prism executes. To do this, you can add an
+       * empty Prism object into the global scope before loading the Prism script like this:
+       *
+       * ```js
+       * window.Prism = window.Prism || {};
+       * Prism.disableWorkerMessageHandler = true;
+       * // Load Prism's script
+       * ```
+       *
+       * @default false
+       * @type {boolean}
+       * @memberof Prism
+       * @public
+       */
+      disableWorkerMessageHandler: _self2.Prism && _self2.Prism.disableWorkerMessageHandler,
+      /**
+       * A namespace for utility methods.
+       *
+       * All function in this namespace that are not explicitly marked as _public_ are for __internal use only__ and may
+       * change or disappear at any time.
+       *
+       * @namespace
+       * @memberof Prism
+       */
+      util: {
+        encode: function encode(tokens) {
+          if (tokens instanceof Token) {
+            return new Token(tokens.type, encode(tokens.content), tokens.alias);
+          } else if (Array.isArray(tokens)) {
+            return tokens.map(encode);
+          } else {
+            return tokens.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\u00a0/g, " ");
+          }
+        },
+        /**
+         * Returns the name of the type of the given value.
+         *
+         * @param {any} o
+         * @returns {string}
+         * @example
+         * type(null)      === 'Null'
+         * type(undefined) === 'Undefined'
+         * type(123)       === 'Number'
+         * type('foo')     === 'String'
+         * type(true)      === 'Boolean'
+         * type([1, 2])    === 'Array'
+         * type({})        === 'Object'
+         * type(String)    === 'Function'
+         * type(/abc+/)    === 'RegExp'
+         */
+        type: function(o2) {
+          return Object.prototype.toString.call(o2).slice(8, -1);
+        },
+        /**
+         * Returns a unique number for the given object. Later calls will still return the same number.
+         *
+         * @param {Object} obj
+         * @returns {number}
+         */
+        objId: function(obj) {
+          if (!obj["__id"]) {
+            Object.defineProperty(obj, "__id", { value: ++uniqueId });
+          }
+          return obj["__id"];
+        },
+        /**
+         * Creates a deep clone of the given object.
+         *
+         * The main intended use of this function is to clone language definitions.
+         *
+         * @param {T} o
+         * @param {Record<number, any>} [visited]
+         * @returns {T}
+         * @template T
+         */
+        clone: function deepClone2(o2, visited) {
+          visited = visited || {};
+          var clone2;
+          var id;
+          switch (_2.util.type(o2)) {
+            case "Object":
+              id = _2.util.objId(o2);
+              if (visited[id]) {
+                return visited[id];
+              }
+              clone2 = /** @type {Record<string, any>} */
+              {};
+              visited[id] = clone2;
+              for (var key2 in o2) {
+                if (o2.hasOwnProperty(key2)) {
+                  clone2[key2] = deepClone2(o2[key2], visited);
+                }
+              }
+              return (
+                /** @type {any} */
+                clone2
+              );
+            case "Array":
+              id = _2.util.objId(o2);
+              if (visited[id]) {
+                return visited[id];
+              }
+              clone2 = [];
+              visited[id] = clone2;
+              /** @type {Array} */
+              /** @type {any} */
+              o2.forEach(function(v2, i2) {
+                clone2[i2] = deepClone2(v2, visited);
+              });
+              return (
+                /** @type {any} */
+                clone2
+              );
+            default:
+              return o2;
+          }
+        },
+        /**
+         * Returns the Prism language of the given element set by a `language-xxxx` or `lang-xxxx` class.
+         *
+         * If no language is set for the element or the element is `null` or `undefined`, `none` will be returned.
+         *
+         * @param {Element} element
+         * @returns {string}
+         */
+        getLanguage: function(element) {
+          while (element) {
+            var m2 = lang.exec(element.className);
+            if (m2) {
+              return m2[1].toLowerCase();
+            }
+            element = element.parentElement;
+          }
+          return "none";
+        },
+        /**
+         * Sets the Prism `language-xxxx` class of the given element.
+         *
+         * @param {Element} element
+         * @param {string} language
+         * @returns {void}
+         */
+        setLanguage: function(element, language) {
+          element.className = element.className.replace(RegExp(lang, "gi"), "");
+          element.classList.add("language-" + language);
+        },
+        /**
+         * Returns the script element that is currently executing.
+         *
+         * This does __not__ work for line script element.
+         *
+         * @returns {HTMLScriptElement | null}
+         */
+        currentScript: function() {
+          if (typeof document === "undefined") {
+            return null;
+          }
+          if ("currentScript" in document && 1 < 2) {
+            return (
+              /** @type {any} */
+              document.currentScript
+            );
+          }
+          try {
+            throw new Error();
+          } catch (err) {
+            var src = (/at [^(\r\n]*\((.*):[^:]+:[^:]+\)$/i.exec(err.stack) || [])[1];
+            if (src) {
+              var scripts = document.getElementsByTagName("script");
+              for (var i2 in scripts) {
+                if (scripts[i2].src == src) {
+                  return scripts[i2];
+                }
+              }
+            }
+            return null;
+          }
+        },
+        /**
+         * Returns whether a given class is active for `element`.
+         *
+         * The class can be activated if `element` or one of its ancestors has the given class and it can be deactivated
+         * if `element` or one of its ancestors has the negated version of the given class. The _negated version_ of the
+         * given class is just the given class with a `no-` prefix.
+         *
+         * Whether the class is active is determined by the closest ancestor of `element` (where `element` itself is
+         * closest ancestor) that has the given class or the negated version of it. If neither `element` nor any of its
+         * ancestors have the given class or the negated version of it, then the default activation will be returned.
+         *
+         * In the paradoxical situation where the closest ancestor contains __both__ the given class and the negated
+         * version of it, the class is considered active.
+         *
+         * @param {Element} element
+         * @param {string} className
+         * @param {boolean} [defaultActivation=false]
+         * @returns {boolean}
+         */
+        isActive: function(element, className, defaultActivation) {
+          var no = "no-" + className;
+          while (element) {
+            var classList = element.classList;
+            if (classList.contains(className)) {
+              return true;
+            }
+            if (classList.contains(no)) {
+              return false;
+            }
+            element = element.parentElement;
+          }
+          return !!defaultActivation;
+        }
+      },
+      /**
+       * This namespace contains all currently loaded languages and the some helper functions to create and modify languages.
+       *
+       * @namespace
+       * @memberof Prism
+       * @public
+       */
+      languages: {
+        /**
+         * The grammar for plain, unformatted text.
+         */
+        plain: plainTextGrammar,
+        plaintext: plainTextGrammar,
+        text: plainTextGrammar,
+        txt: plainTextGrammar,
+        /**
+         * Creates a deep copy of the language with the given id and appends the given tokens.
+         *
+         * If a token in `redef` also appears in the copied language, then the existing token in the copied language
+         * will be overwritten at its original position.
+         *
+         * ## Best practices
+         *
+         * Since the position of overwriting tokens (token in `redef` that overwrite tokens in the copied language)
+         * doesn't matter, they can technically be in any order. However, this can be confusing to others that trying to
+         * understand the language definition because, normally, the order of tokens matters in Prism grammars.
+         *
+         * Therefore, it is encouraged to order overwriting tokens according to the positions of the overwritten tokens.
+         * Furthermore, all non-overwriting tokens should be placed after the overwriting ones.
+         *
+         * @param {string} id The id of the language to extend. This has to be a key in `Prism.languages`.
+         * @param {Grammar} redef The new tokens to append.
+         * @returns {Grammar} The new language created.
+         * @public
+         * @example
+         * Prism.languages['css-with-colors'] = Prism.languages.extend('css', {
+         *     // Prism.languages.css already has a 'comment' token, so this token will overwrite CSS' 'comment' token
+         *     // at its original position
+         *     'comment': { ... },
+         *     // CSS doesn't have a 'color' token, so this token will be appended
+         *     'color': /\b(?:red|green|blue)\b/
+         * });
+         */
+        extend: function(id, redef) {
+          var lang2 = _2.util.clone(_2.languages[id]);
+          for (var key2 in redef) {
+            lang2[key2] = redef[key2];
+          }
+          return lang2;
+        },
+        /**
+         * Inserts tokens _before_ another token in a language definition or any other grammar.
+         *
+         * ## Usage
+         *
+         * This helper method makes it easy to modify existing languages. For example, the CSS language definition
+         * not only defines CSS highlighting for CSS documents, but also needs to define highlighting for CSS embedded
+         * in HTML through `<style>` elements. To do this, it needs to modify `Prism.languages.markup` and add the
+         * appropriate tokens. However, `Prism.languages.markup` is a regular JavaScript object literal, so if you do
+         * this:
+         *
+         * ```js
+         * Prism.languages.markup.style = {
+         *     // token
+         * };
+         * ```
+         *
+         * then the `style` token will be added (and processed) at the end. `insertBefore` allows you to insert tokens
+         * before existing tokens. For the CSS example above, you would use it like this:
+         *
+         * ```js
+         * Prism.languages.insertBefore('markup', 'cdata', {
+         *     'style': {
+         *         // token
+         *     }
+         * });
+         * ```
+         *
+         * ## Special cases
+         *
+         * If the grammars of `inside` and `insert` have tokens with the same name, the tokens in `inside`'s grammar
+         * will be ignored.
+         *
+         * This behavior can be used to insert tokens after `before`:
+         *
+         * ```js
+         * Prism.languages.insertBefore('markup', 'comment', {
+         *     'comment': Prism.languages.markup.comment,
+         *     // tokens after 'comment'
+         * });
+         * ```
+         *
+         * ## Limitations
+         *
+         * The main problem `insertBefore` has to solve is iteration order. Since ES2015, the iteration order for object
+         * properties is guaranteed to be the insertion order (except for integer keys) but some browsers behave
+         * differently when keys are deleted and re-inserted. So `insertBefore` can't be implemented by temporarily
+         * deleting properties which is necessary to insert at arbitrary positions.
+         *
+         * To solve this problem, `insertBefore` doesn't actually insert the given tokens into the target object.
+         * Instead, it will create a new object and replace all references to the target object with the new one. This
+         * can be done without temporarily deleting properties, so the iteration order is well-defined.
+         *
+         * However, only references that can be reached from `Prism.languages` or `insert` will be replaced. I.e. if
+         * you hold the target object in a variable, then the value of the variable will not change.
+         *
+         * ```js
+         * var oldMarkup = Prism.languages.markup;
+         * var newMarkup = Prism.languages.insertBefore('markup', 'comment', { ... });
+         *
+         * assert(oldMarkup !== Prism.languages.markup);
+         * assert(newMarkup === Prism.languages.markup);
+         * ```
+         *
+         * @param {string} inside The property of `root` (e.g. a language id in `Prism.languages`) that contains the
+         * object to be modified.
+         * @param {string} before The key to insert before.
+         * @param {Grammar} insert An object containing the key-value pairs to be inserted.
+         * @param {Object<string, any>} [root] The object containing `inside`, i.e. the object that contains the
+         * object to be modified.
+         *
+         * Defaults to `Prism.languages`.
+         * @returns {Grammar} The new grammar object.
+         * @public
+         */
+        insertBefore: function(inside, before, insert, root2) {
+          root2 = root2 || /** @type {any} */
+          _2.languages;
+          var grammar = root2[inside];
+          var ret = {};
+          for (var token2 in grammar) {
+            if (grammar.hasOwnProperty(token2)) {
+              if (token2 == before) {
+                for (var newToken2 in insert) {
+                  if (insert.hasOwnProperty(newToken2)) {
+                    ret[newToken2] = insert[newToken2];
+                  }
+                }
+              }
+              if (!insert.hasOwnProperty(token2)) {
+                ret[token2] = grammar[token2];
+              }
+            }
+          }
+          var old = root2[inside];
+          root2[inside] = ret;
+          _2.languages.DFS(_2.languages, function(key2, value) {
+            if (value === old && key2 != inside) {
+              this[key2] = ret;
+            }
+          });
+          return ret;
+        },
+        // Traverse a language definition with Depth First Search
+        DFS: function DFS(o2, callback, type, visited) {
+          visited = visited || {};
+          var objId = _2.util.objId;
+          for (var i2 in o2) {
+            if (o2.hasOwnProperty(i2)) {
+              callback.call(o2, i2, o2[i2], type || i2);
+              var property = o2[i2];
+              var propertyType = _2.util.type(property);
+              if (propertyType === "Object" && !visited[objId(property)]) {
+                visited[objId(property)] = true;
+                DFS(property, callback, null, visited);
+              } else if (propertyType === "Array" && !visited[objId(property)]) {
+                visited[objId(property)] = true;
+                DFS(property, callback, i2, visited);
+              }
+            }
+          }
+        }
+      },
+      plugins: {},
+      /**
+       * This is the most high-level function in Prism’s API.
+       * It fetches all the elements that have a `.language-xxxx` class and then calls {@link Prism.highlightElement} on
+       * each one of them.
+       *
+       * This is equivalent to `Prism.highlightAllUnder(document, async, callback)`.
+       *
+       * @param {boolean} [async=false] Same as in {@link Prism.highlightAllUnder}.
+       * @param {HighlightCallback} [callback] Same as in {@link Prism.highlightAllUnder}.
+       * @memberof Prism
+       * @public
+       */
+      highlightAll: function(async, callback) {
+        _2.highlightAllUnder(document, async, callback);
+      },
+      /**
+       * Fetches all the descendants of `container` that have a `.language-xxxx` class and then calls
+       * {@link Prism.highlightElement} on each one of them.
+       *
+       * The following hooks will be run:
+       * 1. `before-highlightall`
+       * 2. `before-all-elements-highlight`
+       * 3. All hooks of {@link Prism.highlightElement} for each element.
+       *
+       * @param {ParentNode} container The root element, whose descendants that have a `.language-xxxx` class will be highlighted.
+       * @param {boolean} [async=false] Whether each element is to be highlighted asynchronously using Web Workers.
+       * @param {HighlightCallback} [callback] An optional callback to be invoked on each element after its highlighting is done.
+       * @memberof Prism
+       * @public
+       */
+      highlightAllUnder: function(container, async, callback) {
+        var env = {
+          callback,
+          container,
+          selector: 'code[class*="language-"], [class*="language-"] code, code[class*="lang-"], [class*="lang-"] code'
+        };
+        _2.hooks.run("before-highlightall", env);
+        env.elements = Array.prototype.slice.apply(env.container.querySelectorAll(env.selector));
+        _2.hooks.run("before-all-elements-highlight", env);
+        for (var i2 = 0, element; element = env.elements[i2++]; ) {
+          _2.highlightElement(element, async === true, env.callback);
+        }
+      },
+      /**
+       * Highlights the code inside a single element.
+       *
+       * The following hooks will be run:
+       * 1. `before-sanity-check`
+       * 2. `before-highlight`
+       * 3. All hooks of {@link Prism.highlight}. These hooks will be run by an asynchronous worker if `async` is `true`.
+       * 4. `before-insert`
+       * 5. `after-highlight`
+       * 6. `complete`
+       *
+       * Some the above hooks will be skipped if the element doesn't contain any text or there is no grammar loaded for
+       * the element's language.
+       *
+       * @param {Element} element The element containing the code.
+       * It must have a class of `language-xxxx` to be processed, where `xxxx` is a valid language identifier.
+       * @param {boolean} [async=false] Whether the element is to be highlighted asynchronously using Web Workers
+       * to improve performance and avoid blocking the UI when highlighting very large chunks of code. This option is
+       * [disabled by default](https://prismjs.com/faq.html#why-is-asynchronous-highlighting-disabled-by-default).
+       *
+       * Note: All language definitions required to highlight the code must be included in the main `prism.js` file for
+       * asynchronous highlighting to work. You can build your own bundle on the
+       * [Download page](https://prismjs.com/download.html).
+       * @param {HighlightCallback} [callback] An optional callback to be invoked after the highlighting is done.
+       * Mostly useful when `async` is `true`, since in that case, the highlighting is done asynchronously.
+       * @memberof Prism
+       * @public
+       */
+      highlightElement: function(element, async, callback) {
+        var language = _2.util.getLanguage(element);
+        var grammar = _2.languages[language];
+        _2.util.setLanguage(element, language);
+        var parent = element.parentElement;
+        if (parent && parent.nodeName.toLowerCase() === "pre") {
+          _2.util.setLanguage(parent, language);
+        }
+        var code = element.textContent;
+        var env = {
+          element,
+          language,
+          grammar,
+          code
+        };
+        function insertHighlightedCode(highlightedCode) {
+          env.highlightedCode = highlightedCode;
+          _2.hooks.run("before-insert", env);
+          env.element.innerHTML = env.highlightedCode;
+          _2.hooks.run("after-highlight", env);
+          _2.hooks.run("complete", env);
+          callback && callback.call(env.element);
+        }
+        _2.hooks.run("before-sanity-check", env);
+        parent = env.element.parentElement;
+        if (parent && parent.nodeName.toLowerCase() === "pre" && !parent.hasAttribute("tabindex")) {
+          parent.setAttribute("tabindex", "0");
+        }
+        if (!env.code) {
+          _2.hooks.run("complete", env);
+          callback && callback.call(env.element);
+          return;
+        }
+        _2.hooks.run("before-highlight", env);
+        if (!env.grammar) {
+          insertHighlightedCode(_2.util.encode(env.code));
+          return;
+        }
+        if (async && _self2.Worker) {
+          var worker = new Worker(_2.filename);
+          worker.onmessage = function(evt) {
+            insertHighlightedCode(evt.data);
+          };
+          worker.postMessage(JSON.stringify({
+            language: env.language,
+            code: env.code,
+            immediateClose: true
+          }));
+        } else {
+          insertHighlightedCode(_2.highlight(env.code, env.grammar, env.language));
+        }
+      },
+      /**
+       * Low-level function, only use if you know what you’re doing. It accepts a string of text as input
+       * and the language definitions to use, and returns a string with the HTML produced.
+       *
+       * The following hooks will be run:
+       * 1. `before-tokenize`
+       * 2. `after-tokenize`
+       * 3. `wrap`: On each {@link Token}.
+       *
+       * @param {string} text A string with the code to be highlighted.
+       * @param {Grammar} grammar An object containing the tokens to use.
+       *
+       * Usually a language definition like `Prism.languages.markup`.
+       * @param {string} language The name of the language definition passed to `grammar`.
+       * @returns {string} The highlighted HTML.
+       * @memberof Prism
+       * @public
+       * @example
+       * Prism.highlight('var foo = true;', Prism.languages.javascript, 'javascript');
+       */
+      highlight: function(text, grammar, language) {
+        var env = {
+          code: text,
+          grammar,
+          language
+        };
+        _2.hooks.run("before-tokenize", env);
+        if (!env.grammar) {
+          throw new Error('The language "' + env.language + '" has no grammar.');
+        }
+        env.tokens = _2.tokenize(env.code, env.grammar);
+        _2.hooks.run("after-tokenize", env);
+        return Token.stringify(_2.util.encode(env.tokens), env.language);
+      },
+      /**
+       * This is the heart of Prism, and the most low-level function you can use. It accepts a string of text as input
+       * and the language definitions to use, and returns an array with the tokenized code.
+       *
+       * When the language definition includes nested tokens, the function is called recursively on each of these tokens.
+       *
+       * This method could be useful in other contexts as well, as a very crude parser.
+       *
+       * @param {string} text A string with the code to be highlighted.
+       * @param {Grammar} grammar An object containing the tokens to use.
+       *
+       * Usually a language definition like `Prism.languages.markup`.
+       * @returns {TokenStream} An array of strings and tokens, a token stream.
+       * @memberof Prism
+       * @public
+       * @example
+       * let code = `var foo = 0;`;
+       * let tokens = Prism.tokenize(code, Prism.languages.javascript);
+       * tokens.forEach(token => {
+       *     if (token instanceof Prism.Token && token.type === 'number') {
+       *         console.log(`Found numeric literal: ${token.content}`);
+       *     }
+       * });
+       */
+      tokenize: function(text, grammar) {
+        var rest = grammar.rest;
+        if (rest) {
+          for (var token2 in rest) {
+            grammar[token2] = rest[token2];
+          }
+          delete grammar.rest;
+        }
+        var tokenList = new LinkedList();
+        addAfter(tokenList, tokenList.head, text);
+        matchGrammar(text, tokenList, grammar, tokenList.head, 0);
+        return toArray2(tokenList);
+      },
+      /**
+       * @namespace
+       * @memberof Prism
+       * @public
+       */
+      hooks: {
+        all: {},
+        /**
+         * Adds the given callback to the list of callbacks for the given hook.
+         *
+         * The callback will be invoked when the hook it is registered for is run.
+         * Hooks are usually directly run by a highlight function but you can also run hooks yourself.
+         *
+         * One callback function can be registered to multiple hooks and the same hook multiple times.
+         *
+         * @param {string} name The name of the hook.
+         * @param {HookCallback} callback The callback function which is given environment variables.
+         * @public
+         */
+        add: function(name, callback) {
+          var hooks = _2.hooks.all;
+          hooks[name] = hooks[name] || [];
+          hooks[name].push(callback);
+        },
+        /**
+         * Runs a hook invoking all registered callbacks with the given environment variables.
+         *
+         * Callbacks will be invoked synchronously and in the order in which they were registered.
+         *
+         * @param {string} name The name of the hook.
+         * @param {Object<string, any>} env The environment variables of the hook passed to all callbacks registered.
+         * @public
+         */
+        run: function(name, env) {
+          var callbacks = _2.hooks.all[name];
+          if (!callbacks || !callbacks.length) {
+            return;
+          }
+          for (var i2 = 0, callback; callback = callbacks[i2++]; ) {
+            callback(env);
+          }
+        }
+      },
+      Token
+    };
+    _self2.Prism = _2;
+    function Token(type, content, alias, matchedStr) {
+      this.type = type;
+      this.content = content;
+      this.alias = alias;
+      this.length = (matchedStr || "").length | 0;
+    }
+    Token.stringify = function stringify3(o2, language) {
+      if (typeof o2 == "string") {
+        return o2;
+      }
+      if (Array.isArray(o2)) {
+        var s2 = "";
+        o2.forEach(function(e2) {
+          s2 += stringify3(e2, language);
+        });
+        return s2;
+      }
+      var env = {
+        type: o2.type,
+        content: stringify3(o2.content, language),
+        tag: "span",
+        classes: ["token", o2.type],
+        attributes: {},
+        language
+      };
+      var aliases = o2.alias;
+      if (aliases) {
+        if (Array.isArray(aliases)) {
+          Array.prototype.push.apply(env.classes, aliases);
+        } else {
+          env.classes.push(aliases);
+        }
+      }
+      _2.hooks.run("wrap", env);
+      var attributes = "";
+      for (var name in env.attributes) {
+        attributes += " " + name + '="' + (env.attributes[name] || "").replace(/"/g, "&quot;") + '"';
+      }
+      return "<" + env.tag + ' class="' + env.classes.join(" ") + '"' + attributes + ">" + env.content + "</" + env.tag + ">";
+    };
+    function matchPattern(pattern, pos2, text, lookbehind) {
+      pattern.lastIndex = pos2;
+      var match = pattern.exec(text);
+      if (match && lookbehind && match[1]) {
+        var lookbehindLength = match[1].length;
+        match.index += lookbehindLength;
+        match[0] = match[0].slice(lookbehindLength);
+      }
+      return match;
+    }
+    function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
+      for (var token2 in grammar) {
+        if (!grammar.hasOwnProperty(token2) || !grammar[token2]) {
+          continue;
+        }
+        var patterns = grammar[token2];
+        patterns = Array.isArray(patterns) ? patterns : [patterns];
+        for (var j2 = 0; j2 < patterns.length; ++j2) {
+          if (rematch && rematch.cause == token2 + "," + j2) {
+            return;
+          }
+          var patternObj = patterns[j2];
+          var inside = patternObj.inside;
+          var lookbehind = !!patternObj.lookbehind;
+          var greedy = !!patternObj.greedy;
+          var alias = patternObj.alias;
+          if (greedy && !patternObj.pattern.global) {
+            var flags = patternObj.pattern.toString().match(/[imsuy]*$/)[0];
+            patternObj.pattern = RegExp(patternObj.pattern.source, flags + "g");
+          }
+          var pattern = patternObj.pattern || patternObj;
+          for (var currentNode = startNode.next, pos2 = startPos; currentNode !== tokenList.tail; pos2 += currentNode.value.length, currentNode = currentNode.next) {
+            if (rematch && pos2 >= rematch.reach) {
+              break;
+            }
+            var str = currentNode.value;
+            if (tokenList.length > text.length) {
+              return;
+            }
+            if (str instanceof Token) {
+              continue;
+            }
+            var removeCount = 1;
+            var match;
+            if (greedy) {
+              match = matchPattern(pattern, pos2, text, lookbehind);
+              if (!match || match.index >= text.length) {
+                break;
+              }
+              var from = match.index;
+              var to = match.index + match[0].length;
+              var p2 = pos2;
+              p2 += currentNode.value.length;
+              while (from >= p2) {
+                currentNode = currentNode.next;
+                p2 += currentNode.value.length;
+              }
+              p2 -= currentNode.value.length;
+              pos2 = p2;
+              if (currentNode.value instanceof Token) {
+                continue;
+              }
+              for (var k2 = currentNode; k2 !== tokenList.tail && (p2 < to || typeof k2.value === "string"); k2 = k2.next) {
+                removeCount++;
+                p2 += k2.value.length;
+              }
+              removeCount--;
+              str = text.slice(pos2, p2);
+              match.index -= pos2;
+            } else {
+              match = matchPattern(pattern, 0, str, lookbehind);
+              if (!match) {
+                continue;
+              }
+            }
+            var from = match.index;
+            var matchStr = match[0];
+            var before = str.slice(0, from);
+            var after = str.slice(from + matchStr.length);
+            var reach = pos2 + str.length;
+            if (rematch && reach > rematch.reach) {
+              rematch.reach = reach;
+            }
+            var removeFrom = currentNode.prev;
+            if (before) {
+              removeFrom = addAfter(tokenList, removeFrom, before);
+              pos2 += before.length;
+            }
+            removeRange(tokenList, removeFrom, removeCount);
+            var wrapped = new Token(token2, inside ? _2.tokenize(matchStr, inside) : matchStr, alias, matchStr);
+            currentNode = addAfter(tokenList, removeFrom, wrapped);
+            if (after) {
+              addAfter(tokenList, currentNode, after);
+            }
+            if (removeCount > 1) {
+              var nestedRematch = {
+                cause: token2 + "," + j2,
+                reach
+              };
+              matchGrammar(text, tokenList, grammar, currentNode.prev, pos2, nestedRematch);
+              if (rematch && nestedRematch.reach > rematch.reach) {
+                rematch.reach = nestedRematch.reach;
+              }
+            }
+          }
+        }
+      }
+    }
+    function LinkedList() {
+      var head = { value: null, prev: null, next: null };
+      var tail = { value: null, prev: head, next: null };
+      head.next = tail;
+      this.head = head;
+      this.tail = tail;
+      this.length = 0;
+    }
+    function addAfter(list, node, value) {
+      var next = node.next;
+      var newNode = { value, prev: node, next };
+      node.next = newNode;
+      next.prev = newNode;
+      list.length++;
+      return newNode;
+    }
+    function removeRange(list, node, count) {
+      var next = node.next;
+      for (var i2 = 0; i2 < count && next !== list.tail; i2++) {
+        next = next.next;
+      }
+      node.next = next;
+      next.prev = node;
+      list.length -= i2;
+    }
+    function toArray2(list) {
+      var array = [];
+      var node = list.head.next;
+      while (node !== list.tail) {
+        array.push(node.value);
+        node = node.next;
+      }
+      return array;
+    }
+    if (!_self2.document) {
+      if (!_self2.addEventListener) {
+        return _2;
+      }
+      if (!_2.disableWorkerMessageHandler) {
+        _self2.addEventListener("message", function(evt) {
+          var message = JSON.parse(evt.data);
+          var lang2 = message.language;
+          var code = message.code;
+          var immediateClose = message.immediateClose;
+          _self2.postMessage(_2.highlight(code, _2.languages[lang2], lang2));
+          if (immediateClose) {
+            _self2.close();
+          }
+        }, false);
+      }
+      return _2;
+    }
+    var script = _2.util.currentScript();
+    if (script) {
+      _2.filename = script.src;
+      if (script.hasAttribute("data-manual")) {
+        _2.manual = true;
+      }
+    }
+    function highlightAutomaticallyCallback() {
+      if (!_2.manual) {
+        _2.highlightAll();
+      }
+    }
+    if (!_2.manual) {
+      var readyState = document.readyState;
+      if (readyState === "loading" || readyState === "interactive" && script && script.defer) {
+        document.addEventListener("DOMContentLoaded", highlightAutomaticallyCallback);
+      } else {
+        if (window.requestAnimationFrame) {
+          window.requestAnimationFrame(highlightAutomaticallyCallback);
+        } else {
+          window.setTimeout(highlightAutomaticallyCallback, 16);
+        }
+      }
+    }
+    return _2;
+  }(_self);
+  if (module.exports) {
+    module.exports = Prism2;
+  }
+  if (typeof commonjsGlobal !== "undefined") {
+    commonjsGlobal.Prism = Prism2;
+  }
+  Prism2.languages.markup = {
+    "comment": {
+      pattern: /<!--(?:(?!<!--)[\s\S])*?-->/,
+      greedy: true
+    },
+    "prolog": {
+      pattern: /<\?[\s\S]+?\?>/,
+      greedy: true
+    },
+    "doctype": {
+      // https://www.w3.org/TR/xml/#NT-doctypedecl
+      pattern: /<!DOCTYPE(?:[^>"'[\]]|"[^"]*"|'[^']*')+(?:\[(?:[^<"'\]]|"[^"]*"|'[^']*'|<(?!!--)|<!--(?:[^-]|-(?!->))*-->)*\]\s*)?>/i,
+      greedy: true,
+      inside: {
+        "internal-subset": {
+          pattern: /(^[^\[]*\[)[\s\S]+(?=\]>$)/,
+          lookbehind: true,
+          greedy: true,
+          inside: null
+          // see below
+        },
+        "string": {
+          pattern: /"[^"]*"|'[^']*'/,
+          greedy: true
+        },
+        "punctuation": /^<!|>$|[[\]]/,
+        "doctype-tag": /^DOCTYPE/i,
+        "name": /[^\s<>'"]+/
+      }
+    },
+    "cdata": {
+      pattern: /<!\[CDATA\[[\s\S]*?\]\]>/i,
+      greedy: true
+    },
+    "tag": {
+      pattern: /<\/?(?!\d)[^\s>\/=$<%]+(?:\s(?:\s*[^\s>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+(?=[\s>]))|(?=[\s/>])))+)?\s*\/?>/,
+      greedy: true,
+      inside: {
+        "tag": {
+          pattern: /^<\/?[^\s>\/]+/,
+          inside: {
+            "punctuation": /^<\/?/,
+            "namespace": /^[^\s>\/:]+:/
+          }
+        },
+        "special-attr": [],
+        "attr-value": {
+          pattern: /=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+)/,
+          inside: {
+            "punctuation": [
+              {
+                pattern: /^=/,
+                alias: "attr-equals"
+              },
+              {
+                pattern: /^(\s*)["']|["']$/,
+                lookbehind: true
+              }
+            ]
+          }
+        },
+        "punctuation": /\/?>/,
+        "attr-name": {
+          pattern: /[^\s>\/]+/,
+          inside: {
+            "namespace": /^[^\s>\/:]+:/
+          }
+        }
+      }
+    },
+    "entity": [
+      {
+        pattern: /&[\da-z]{1,8};/i,
+        alias: "named-entity"
+      },
+      /&#x?[\da-f]{1,8};/i
+    ]
+  };
+  Prism2.languages.markup["tag"].inside["attr-value"].inside["entity"] = Prism2.languages.markup["entity"];
+  Prism2.languages.markup["doctype"].inside["internal-subset"].inside = Prism2.languages.markup;
+  Prism2.hooks.add("wrap", function(env) {
+    if (env.type === "entity") {
+      env.attributes["title"] = env.content.replace(/&amp;/, "&");
+    }
+  });
+  Object.defineProperty(Prism2.languages.markup.tag, "addInlined", {
+    /**
+     * Adds an inlined language to markup.
+     *
+     * An example of an inlined language is CSS with `<style>` tags.
+     *
+     * @param {string} tagName The name of the tag that contains the inlined language. This name will be treated as
+     * case insensitive.
+     * @param {string} lang The language key.
+     * @example
+     * addInlined('style', 'css');
+     */
+    value: function addInlined(tagName, lang) {
+      var includedCdataInside = {};
+      includedCdataInside["language-" + lang] = {
+        pattern: /(^<!\[CDATA\[)[\s\S]+?(?=\]\]>$)/i,
+        lookbehind: true,
+        inside: Prism2.languages[lang]
+      };
+      includedCdataInside["cdata"] = /^<!\[CDATA\[|\]\]>$/i;
+      var inside = {
+        "included-cdata": {
+          pattern: /<!\[CDATA\[[\s\S]*?\]\]>/i,
+          inside: includedCdataInside
+        }
+      };
+      inside["language-" + lang] = {
+        pattern: /[\s\S]+/,
+        inside: Prism2.languages[lang]
+      };
+      var def = {};
+      def[tagName] = {
+        pattern: RegExp(/(<__[^>]*>)(?:<!\[CDATA\[(?:[^\]]|\](?!\]>))*\]\]>|(?!<!\[CDATA\[)[\s\S])*?(?=<\/__>)/.source.replace(/__/g, function() {
+          return tagName;
+        }), "i"),
+        lookbehind: true,
+        greedy: true,
+        inside
+      };
+      Prism2.languages.insertBefore("markup", "cdata", def);
+    }
+  });
+  Object.defineProperty(Prism2.languages.markup.tag, "addAttribute", {
+    /**
+     * Adds an pattern to highlight languages embedded in HTML attributes.
+     *
+     * An example of an inlined language is CSS with `style` attributes.
+     *
+     * @param {string} attrName The name of the tag that contains the inlined language. This name will be treated as
+     * case insensitive.
+     * @param {string} lang The language key.
+     * @example
+     * addAttribute('style', 'css');
+     */
+    value: function(attrName, lang) {
+      Prism2.languages.markup.tag.inside["special-attr"].push({
+        pattern: RegExp(
+          /(^|["'\s])/.source + "(?:" + attrName + ")" + /\s*=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+(?=[\s>]))/.source,
+          "i"
+        ),
+        lookbehind: true,
+        inside: {
+          "attr-name": /^[^\s=]+/,
+          "attr-value": {
+            pattern: /=[\s\S]+/,
+            inside: {
+              "value": {
+                pattern: /(^=\s*(["']|(?!["'])))\S[\s\S]*(?=\2$)/,
+                lookbehind: true,
+                alias: [lang, "language-" + lang],
+                inside: Prism2.languages[lang]
+              },
+              "punctuation": [
+                {
+                  pattern: /^=/,
+                  alias: "attr-equals"
+                },
+                /"|'/
+              ]
+            }
+          }
+        }
+      });
+    }
+  });
+  Prism2.languages.html = Prism2.languages.markup;
+  Prism2.languages.mathml = Prism2.languages.markup;
+  Prism2.languages.svg = Prism2.languages.markup;
+  Prism2.languages.xml = Prism2.languages.extend("markup", {});
+  Prism2.languages.ssml = Prism2.languages.xml;
+  Prism2.languages.atom = Prism2.languages.xml;
+  Prism2.languages.rss = Prism2.languages.xml;
+  (function(Prism3) {
+    var string = /(?:"(?:\\(?:\r\n|[\s\S])|[^"\\\r\n])*"|'(?:\\(?:\r\n|[\s\S])|[^'\\\r\n])*')/;
+    Prism3.languages.css = {
+      "comment": /\/\*[\s\S]*?\*\//,
+      "atrule": {
+        pattern: RegExp("@[\\w-](?:" + /[^;{\s"']|\s+(?!\s)/.source + "|" + string.source + ")*?" + /(?:;|(?=\s*\{))/.source),
+        inside: {
+          "rule": /^@[\w-]+/,
+          "selector-function-argument": {
+            pattern: /(\bselector\s*\(\s*(?![\s)]))(?:[^()\s]|\s+(?![\s)])|\((?:[^()]|\([^()]*\))*\))+(?=\s*\))/,
+            lookbehind: true,
+            alias: "selector"
+          },
+          "keyword": {
+            pattern: /(^|[^\w-])(?:and|not|only|or)(?![\w-])/,
+            lookbehind: true
+          }
+          // See rest below
+        }
+      },
+      "url": {
+        // https://drafts.csswg.org/css-values-3/#urls
+        pattern: RegExp("\\burl\\((?:" + string.source + "|" + /(?:[^\\\r\n()"']|\\[\s\S])*/.source + ")\\)", "i"),
+        greedy: true,
+        inside: {
+          "function": /^url/i,
+          "punctuation": /^\(|\)$/,
+          "string": {
+            pattern: RegExp("^" + string.source + "$"),
+            alias: "url"
+          }
+        }
+      },
+      "selector": {
+        pattern: RegExp(`(^|[{}\\s])[^{}\\s](?:[^{};"'\\s]|\\s+(?![\\s{])|` + string.source + ")*(?=\\s*\\{)"),
+        lookbehind: true
+      },
+      "string": {
+        pattern: string,
+        greedy: true
+      },
+      "property": {
+        pattern: /(^|[^-\w\xA0-\uFFFF])(?!\s)[-_a-z\xA0-\uFFFF](?:(?!\s)[-\w\xA0-\uFFFF])*(?=\s*:)/i,
+        lookbehind: true
+      },
+      "important": /!important\b/i,
+      "function": {
+        pattern: /(^|[^-a-z0-9])[-a-z0-9]+(?=\()/i,
+        lookbehind: true
+      },
+      "punctuation": /[(){};:,]/
+    };
+    Prism3.languages.css["atrule"].inside.rest = Prism3.languages.css;
+    var markup = Prism3.languages.markup;
+    if (markup) {
+      markup.tag.addInlined("style", "css");
+      markup.tag.addAttribute("style", "css");
+    }
+  })(Prism2);
+  Prism2.languages.clike = {
+    "comment": [
+      {
+        pattern: /(^|[^\\])\/\*[\s\S]*?(?:\*\/|$)/,
+        lookbehind: true,
+        greedy: true
+      },
+      {
+        pattern: /(^|[^\\:])\/\/.*/,
+        lookbehind: true,
+        greedy: true
+      }
+    ],
+    "string": {
+      pattern: /(["'])(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1/,
+      greedy: true
+    },
+    "class-name": {
+      pattern: /(\b(?:class|extends|implements|instanceof|interface|new|trait)\s+|\bcatch\s+\()[\w.\\]+/i,
+      lookbehind: true,
+      inside: {
+        "punctuation": /[.\\]/
+      }
+    },
+    "keyword": /\b(?:break|catch|continue|do|else|finally|for|function|if|in|instanceof|new|null|return|throw|try|while)\b/,
+    "boolean": /\b(?:false|true)\b/,
+    "function": /\b\w+(?=\()/,
+    "number": /\b0x[\da-f]+\b|(?:\b\d+(?:\.\d*)?|\B\.\d+)(?:e[+-]?\d+)?/i,
+    "operator": /[<>]=?|[!=]=?=?|--?|\+\+?|&&?|\|\|?|[?*/~^%]/,
+    "punctuation": /[{}[\];(),.:]/
+  };
+  Prism2.languages.javascript = Prism2.languages.extend("clike", {
+    "class-name": [
+      Prism2.languages.clike["class-name"],
+      {
+        pattern: /(^|[^$\w\xA0-\uFFFF])(?!\s)[_$A-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\.(?:constructor|prototype))/,
+        lookbehind: true
+      }
+    ],
+    "keyword": [
+      {
+        pattern: /((?:^|\})\s*)catch\b/,
+        lookbehind: true
+      },
+      {
+        pattern: /(^|[^.]|\.\.\.\s*)\b(?:as|assert(?=\s*\{)|async(?=\s*(?:function\b|\(|[$\w\xA0-\uFFFF]|$))|await|break|case|class|const|continue|debugger|default|delete|do|else|enum|export|extends|finally(?=\s*(?:\{|$))|for|from(?=\s*(?:['"]|$))|function|(?:get|set)(?=\s*(?:[#\[$\w\xA0-\uFFFF]|$))|if|implements|import|in|instanceof|interface|let|new|null|of|package|private|protected|public|return|static|super|switch|this|throw|try|typeof|undefined|var|void|while|with|yield)\b/,
+        lookbehind: true
+      }
+    ],
+    // Allow for all non-ASCII characters (See http://stackoverflow.com/a/2008444)
+    "function": /#?(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*(?:\.\s*(?:apply|bind|call)\s*)?\()/,
+    "number": {
+      pattern: RegExp(
+        /(^|[^\w$])/.source + "(?:" + // constant
+        (/NaN|Infinity/.source + "|" + // binary integer
+        /0[bB][01]+(?:_[01]+)*n?/.source + "|" + // octal integer
+        /0[oO][0-7]+(?:_[0-7]+)*n?/.source + "|" + // hexadecimal integer
+        /0[xX][\dA-Fa-f]+(?:_[\dA-Fa-f]+)*n?/.source + "|" + // decimal bigint
+        /\d+(?:_\d+)*n/.source + "|" + // decimal number (integer or float) but no bigint
+        /(?:\d+(?:_\d+)*(?:\.(?:\d+(?:_\d+)*)?)?|\.\d+(?:_\d+)*)(?:[Ee][+-]?\d+(?:_\d+)*)?/.source) + ")" + /(?![\w$])/.source
+      ),
+      lookbehind: true
+    },
+    "operator": /--|\+\+|\*\*=?|=>|&&=?|\|\|=?|[!=]==|<<=?|>>>?=?|[-+*/%&|^!=<>]=?|\.{3}|\?\?=?|\?\.?|[~:]/
+  });
+  Prism2.languages.javascript["class-name"][0].pattern = /(\b(?:class|extends|implements|instanceof|interface|new)\s+)[\w.\\]+/;
+  Prism2.languages.insertBefore("javascript", "keyword", {
+    "regex": {
+      pattern: RegExp(
+        // lookbehind
+        // eslint-disable-next-line regexp/no-dupe-characters-character-class
+        /((?:^|[^$\w\xA0-\uFFFF."'\])\s]|\b(?:return|yield))\s*)/.source + // Regex pattern:
+        // There are 2 regex patterns here. The RegExp set notation proposal added support for nested character
+        // classes if the `v` flag is present. Unfortunately, nested CCs are both context-free and incompatible
+        // with the only syntax, so we have to define 2 different regex patterns.
+        /\//.source + "(?:" + /(?:\[(?:[^\]\\\r\n]|\\.)*\]|\\.|[^/\\\[\r\n])+\/[dgimyus]{0,7}/.source + "|" + // `v` flag syntax. This supports 3 levels of nested character classes.
+        /(?:\[(?:[^[\]\\\r\n]|\\.|\[(?:[^[\]\\\r\n]|\\.|\[(?:[^[\]\\\r\n]|\\.)*\])*\])*\]|\\.|[^/\\\[\r\n])+\/[dgimyus]{0,7}v[dgimyus]{0,7}/.source + ")" + // lookahead
+        /(?=(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/)*(?:$|[\r\n,.;:})\]]|\/\/))/.source
+      ),
+      lookbehind: true,
+      greedy: true,
+      inside: {
+        "regex-source": {
+          pattern: /^(\/)[\s\S]+(?=\/[a-z]*$)/,
+          lookbehind: true,
+          alias: "language-regex",
+          inside: Prism2.languages.regex
+        },
+        "regex-delimiter": /^\/|\/$/,
+        "regex-flags": /^[a-z]+$/
+      }
+    },
+    // This must be declared before keyword because we use "function" inside the look-forward
+    "function-variable": {
+      pattern: /#?(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*[=:]\s*(?:async\s*)?(?:\bfunction\b|(?:\((?:[^()]|\([^()]*\))*\)|(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*)\s*=>))/,
+      alias: "function"
+    },
+    "parameter": [
+      {
+        pattern: /(function(?:\s+(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*)?\s*\(\s*)(?!\s)(?:[^()\s]|\s+(?![\s)])|\([^()]*\))+(?=\s*\))/,
+        lookbehind: true,
+        inside: Prism2.languages.javascript
+      },
+      {
+        pattern: /(^|[^$\w\xA0-\uFFFF])(?!\s)[_$a-z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*=>)/i,
+        lookbehind: true,
+        inside: Prism2.languages.javascript
+      },
+      {
+        pattern: /(\(\s*)(?!\s)(?:[^()\s]|\s+(?![\s)])|\([^()]*\))+(?=\s*\)\s*=>)/,
+        lookbehind: true,
+        inside: Prism2.languages.javascript
+      },
+      {
+        pattern: /((?:\b|\s|^)(?!(?:as|async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|enum|export|extends|finally|for|from|function|get|if|implements|import|in|instanceof|interface|let|new|null|of|package|private|protected|public|return|set|static|super|switch|this|throw|try|typeof|undefined|var|void|while|with|yield)(?![$\w\xA0-\uFFFF]))(?:(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*\s*)\(\s*|\]\s*\(\s*)(?!\s)(?:[^()\s]|\s+(?![\s)])|\([^()]*\))+(?=\s*\)\s*\{)/,
+        lookbehind: true,
+        inside: Prism2.languages.javascript
+      }
+    ],
+    "constant": /\b[A-Z](?:[A-Z_]|\dx?)*\b/
+  });
+  Prism2.languages.insertBefore("javascript", "string", {
+    "hashbang": {
+      pattern: /^#!.*/,
+      greedy: true,
+      alias: "comment"
+    },
+    "template-string": {
+      pattern: /`(?:\\[\s\S]|\$\{(?:[^{}]|\{(?:[^{}]|\{[^}]*\})*\})+\}|(?!\$\{)[^\\`])*`/,
+      greedy: true,
+      inside: {
+        "template-punctuation": {
+          pattern: /^`|`$/,
+          alias: "string"
+        },
+        "interpolation": {
+          pattern: /((?:^|[^\\])(?:\\{2})*)\$\{(?:[^{}]|\{(?:[^{}]|\{[^}]*\})*\})+\}/,
+          lookbehind: true,
+          inside: {
+            "interpolation-punctuation": {
+              pattern: /^\$\{|\}$/,
+              alias: "punctuation"
+            },
+            rest: Prism2.languages.javascript
+          }
+        },
+        "string": /[\s\S]+/
+      }
+    },
+    "string-property": {
+      pattern: /((?:^|[,{])[ \t]*)(["'])(?:\\(?:\r\n|[\s\S])|(?!\2)[^\\\r\n])*\2(?=\s*:)/m,
+      lookbehind: true,
+      greedy: true,
+      alias: "property"
+    }
+  });
+  Prism2.languages.insertBefore("javascript", "operator", {
+    "literal-property": {
+      pattern: /((?:^|[,{])[ \t]*)(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*:)/m,
+      lookbehind: true,
+      alias: "property"
+    }
+  });
+  if (Prism2.languages.markup) {
+    Prism2.languages.markup.tag.addInlined("script", "javascript");
+    Prism2.languages.markup.tag.addAttribute(
+      /on(?:abort|blur|change|click|composition(?:end|start|update)|dblclick|error|focus(?:in|out)?|key(?:down|up)|load|mouse(?:down|enter|leave|move|out|over|up)|reset|resize|scroll|select|slotchange|submit|unload|wheel)/.source,
+      "javascript"
+    );
+  }
+  Prism2.languages.js = Prism2.languages.javascript;
+  (function() {
+    if (typeof Prism2 === "undefined" || typeof document === "undefined") {
+      return;
+    }
+    if (!Element.prototype.matches) {
+      Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
+    }
+    var LOADING_MESSAGE = "Loading…";
+    var FAILURE_MESSAGE = function(status, message) {
+      return "✖ Error " + status + " while fetching file: " + message;
+    };
+    var FAILURE_EMPTY_MESSAGE = "✖ Error: File does not exist or is empty";
+    var EXTENSIONS = {
+      "js": "javascript",
+      "py": "python",
+      "rb": "ruby",
+      "ps1": "powershell",
+      "psm1": "powershell",
+      "sh": "bash",
+      "bat": "batch",
+      "h": "c",
+      "tex": "latex"
+    };
+    var STATUS_ATTR = "data-src-status";
+    var STATUS_LOADING = "loading";
+    var STATUS_LOADED = "loaded";
+    var STATUS_FAILED = "failed";
+    var SELECTOR = "pre[data-src]:not([" + STATUS_ATTR + '="' + STATUS_LOADED + '"]):not([' + STATUS_ATTR + '="' + STATUS_LOADING + '"])';
+    function loadFile(src, success, error) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", src, true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState == 4) {
+          if (xhr.status < 400 && xhr.responseText) {
+            success(xhr.responseText);
+          } else {
+            if (xhr.status >= 400) {
+              error(FAILURE_MESSAGE(xhr.status, xhr.statusText));
+            } else {
+              error(FAILURE_EMPTY_MESSAGE);
+            }
+          }
+        }
+      };
+      xhr.send(null);
+    }
+    function parseRange(range) {
+      var m2 = /^\s*(\d+)\s*(?:(,)\s*(?:(\d+)\s*)?)?$/.exec(range || "");
+      if (m2) {
+        var start2 = Number(m2[1]);
+        var comma = m2[2];
+        var end2 = m2[3];
+        if (!comma) {
+          return [start2, start2];
+        }
+        if (!end2) {
+          return [start2, void 0];
+        }
+        return [start2, Number(end2)];
+      }
+      return void 0;
+    }
+    Prism2.hooks.add("before-highlightall", function(env) {
+      env.selector += ", " + SELECTOR;
+    });
+    Prism2.hooks.add("before-sanity-check", function(env) {
+      var pre = (
+        /** @type {HTMLPreElement} */
+        env.element
+      );
+      if (pre.matches(SELECTOR)) {
+        env.code = "";
+        pre.setAttribute(STATUS_ATTR, STATUS_LOADING);
+        var code = pre.appendChild(document.createElement("CODE"));
+        code.textContent = LOADING_MESSAGE;
+        var src = pre.getAttribute("data-src");
+        var language = env.language;
+        if (language === "none") {
+          var extension = (/\.(\w+)$/.exec(src) || [, "none"])[1];
+          language = EXTENSIONS[extension] || extension;
+        }
+        Prism2.util.setLanguage(code, language);
+        Prism2.util.setLanguage(pre, language);
+        var autoloader = Prism2.plugins.autoloader;
+        if (autoloader) {
+          autoloader.loadLanguages(language);
+        }
+        loadFile(
+          src,
+          function(text) {
+            pre.setAttribute(STATUS_ATTR, STATUS_LOADED);
+            var range = parseRange(pre.getAttribute("data-range"));
+            if (range) {
+              var lines = text.split(/\r\n?|\n/g);
+              var start2 = range[0];
+              var end2 = range[1] == null ? lines.length : range[1];
+              if (start2 < 0) {
+                start2 += lines.length;
+              }
+              start2 = Math.max(0, Math.min(start2 - 1, lines.length));
+              if (end2 < 0) {
+                end2 += lines.length;
+              }
+              end2 = Math.max(0, Math.min(end2, lines.length));
+              text = lines.slice(start2, end2).join("\n");
+              if (!pre.hasAttribute("data-start")) {
+                pre.setAttribute("data-start", String(start2 + 1));
+              }
+            }
+            code.textContent = text;
+            Prism2.highlightElement(code);
+          },
+          function(error) {
+            pre.setAttribute(STATUS_ATTR, STATUS_FAILED);
+            code.textContent = error;
+          }
+        );
+      }
+    });
+    Prism2.plugins.fileHighlight = {
+      /**
+       * Executes the File Highlight plugin for all matching `pre` elements under the given container.
+       *
+       * Note: Elements which are already loaded or currently loading will not be touched by this method.
+       *
+       * @param {ParentNode} [container=document]
+       */
+      highlight: function highlight(container) {
+        var elements = (container || document).querySelectorAll(SELECTOR);
+        for (var i2 = 0, element; element = elements[i2++]; ) {
+          Prism2.highlightElement(element);
+        }
+      }
+    };
+    var logged = false;
+    Prism2.fileHighlight = function() {
+      if (!logged) {
+        console.warn("Prism.fileHighlight is deprecated. Use `Prism.plugins.fileHighlight.highlight` instead.");
+        logged = true;
+      }
+      Prism2.plugins.fileHighlight.highlight.apply(this, arguments);
+    };
+  })();
+})(prism);
+var prismExports = prism.exports;
+const Prism$1 = /* @__PURE__ */ getDefaultExportFromCjs(prismExports);
 var clipboard = { exports: {} };
 /*!
  * clipboard.js v2.0.11
@@ -6330,12 +7786,15 @@ const ApplicationIcons = {
   "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
   previous: "bi bi-chevron-left",
+  refresh: "bi bi-arrow-clockwise",
   role: {
     user: "bi bi-person",
     system: "bi bi-cpu",
     assistant: "bi bi-robot",
-    tool: "bi bi-tools"
+    tool: "bi bi-tools",
+    unknown: "bi bi-patch-question"
   },
+  running: "bi bi-stars",
   sample: "bi bi-database",
   samples: "bi bi-file-spreadsheet",
   scorer: "bi bi-calculator",
@@ -6450,7 +7909,7 @@ class AppErrorBoundary extends b {
     return this.props.children;
   }
 }
-const ProgressBar = ({ style, animating }) => {
+const ProgressBar = ({ style, containerStyle, animating }) => {
   const emptyStyle = {
     display: "flex",
     textAlign: "center",
@@ -6467,7 +7926,7 @@ const ProgressBar = ({ style, animating }) => {
   const progressContainerStyle = {
     width: "100%",
     height: "2px",
-    background: "none"
+    ...containerStyle
   };
   const progressBarStyle = {
     width: "5%",
@@ -6522,7 +7981,8 @@ const Sidebar = ({
     zIndex: 10,
     borderBottom: "solid var(--bs-light-border-subtle) 1px",
     paddingBottom: "0.5rem",
-    paddingTop: "0.5rem"
+    paddingTop: "0.5rem",
+    height: "3.6em"
   }}
       >
         <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
@@ -6543,7 +8003,7 @@ const Sidebar = ({
           <i class=${ApplicationIcons.close}></i>
         </button>
       </div>
-      <div style=${{ marginTop: "61px", zIndex: 3 }}>
+      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
         <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
       </div>
       <ul
@@ -6649,7 +8109,7 @@ const prettyDir = (path) => {
 };
 const EvalStatus = ({ logHeader }) => {
   var _a, _b;
-  switch (logHeader.status) {
+  switch (logHeader == null ? void 0 : logHeader.status) {
     case "error":
       return m$1`<${StatusError} message="Error" />`;
     case "cancelled":
@@ -6786,15 +8246,43 @@ const SidebarScores = ({ scores }) => {
   </div>`;
 };
 const StatusCancelled = ({ message }) => {
-  return m$1`<div style=${{ ...TextStyle.secondary }}>${message}</div>`;
+  return m$1`<div
+    style=${{
+    marginTop: "0.2em",
+    fontSize: FontSize.small,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+  >
+    ${message}
+  </div>`;
 };
 const StatusRunning = ({ message }) => {
-  return m$1`<div class="spinner-border spinner-border-sm" role="status">
-    <span class="visually-hidden">${message}</span>
+  return m$1` <div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "0.5em",
+    marginTop: "0.3em",
+    fontSize: FontSize.small,
+    ...TextStyle.secondary,
+    ...TextStyle.label
+  }}
+  >
+    <div>${message}</div>
   </div>`;
 };
 const StatusError = ({ message }) => {
-  return m$1`<div style=${{ color: "var(--bs-danger)" }}>${message}</div>`;
+  return m$1`<div
+    style=${{
+    color: "var(--bs-danger)",
+    marginTop: "0.2em",
+    fontSize: FontSize.small,
+    ...TextStyle.label
+  }}
+  >
+    ${message}
+  </div>`;
 };
 const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
   if (log_dir) {
@@ -6828,1462 +8316,6 @@ const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
     </span>`;
   }
 };
-var prism = { exports: {} };
-(function(module) {
-  var _self = typeof window !== "undefined" ? window : typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope ? self : {};
-  /**
-   * Prism: Lightweight, robust, elegant syntax highlighting
-   *
-   * @license MIT <https://opensource.org/licenses/MIT>
-   * @author Lea Verou <https://lea.verou.me>
-   * @namespace
-   * @public
-   */
-  var Prism2 = function(_self2) {
-    var lang = /(?:^|\s)lang(?:uage)?-([\w-]+)(?=\s|$)/i;
-    var uniqueId = 0;
-    var plainTextGrammar = {};
-    var _2 = {
-      /**
-       * By default, Prism will attempt to highlight all code elements (by calling {@link Prism.highlightAll}) on the
-       * current page after the page finished loading. This might be a problem if e.g. you wanted to asynchronously load
-       * additional languages or plugins yourself.
-       *
-       * By setting this value to `true`, Prism will not automatically highlight all code elements on the page.
-       *
-       * You obviously have to change this value before the automatic highlighting started. To do this, you can add an
-       * empty Prism object into the global scope before loading the Prism script like this:
-       *
-       * ```js
-       * window.Prism = window.Prism || {};
-       * Prism.manual = true;
-       * // add a new <script> to load Prism's script
-       * ```
-       *
-       * @default false
-       * @type {boolean}
-       * @memberof Prism
-       * @public
-       */
-      manual: _self2.Prism && _self2.Prism.manual,
-      /**
-       * By default, if Prism is in a web worker, it assumes that it is in a worker it created itself, so it uses
-       * `addEventListener` to communicate with its parent instance. However, if you're using Prism manually in your
-       * own worker, you don't want it to do this.
-       *
-       * By setting this value to `true`, Prism will not add its own listeners to the worker.
-       *
-       * You obviously have to change this value before Prism executes. To do this, you can add an
-       * empty Prism object into the global scope before loading the Prism script like this:
-       *
-       * ```js
-       * window.Prism = window.Prism || {};
-       * Prism.disableWorkerMessageHandler = true;
-       * // Load Prism's script
-       * ```
-       *
-       * @default false
-       * @type {boolean}
-       * @memberof Prism
-       * @public
-       */
-      disableWorkerMessageHandler: _self2.Prism && _self2.Prism.disableWorkerMessageHandler,
-      /**
-       * A namespace for utility methods.
-       *
-       * All function in this namespace that are not explicitly marked as _public_ are for __internal use only__ and may
-       * change or disappear at any time.
-       *
-       * @namespace
-       * @memberof Prism
-       */
-      util: {
-        encode: function encode(tokens) {
-          if (tokens instanceof Token) {
-            return new Token(tokens.type, encode(tokens.content), tokens.alias);
-          } else if (Array.isArray(tokens)) {
-            return tokens.map(encode);
-          } else {
-            return tokens.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\u00a0/g, " ");
-          }
-        },
-        /**
-         * Returns the name of the type of the given value.
-         *
-         * @param {any} o
-         * @returns {string}
-         * @example
-         * type(null)      === 'Null'
-         * type(undefined) === 'Undefined'
-         * type(123)       === 'Number'
-         * type('foo')     === 'String'
-         * type(true)      === 'Boolean'
-         * type([1, 2])    === 'Array'
-         * type({})        === 'Object'
-         * type(String)    === 'Function'
-         * type(/abc+/)    === 'RegExp'
-         */
-        type: function(o2) {
-          return Object.prototype.toString.call(o2).slice(8, -1);
-        },
-        /**
-         * Returns a unique number for the given object. Later calls will still return the same number.
-         *
-         * @param {Object} obj
-         * @returns {number}
-         */
-        objId: function(obj) {
-          if (!obj["__id"]) {
-            Object.defineProperty(obj, "__id", { value: ++uniqueId });
-          }
-          return obj["__id"];
-        },
-        /**
-         * Creates a deep clone of the given object.
-         *
-         * The main intended use of this function is to clone language definitions.
-         *
-         * @param {T} o
-         * @param {Record<number, any>} [visited]
-         * @returns {T}
-         * @template T
-         */
-        clone: function deepClone2(o2, visited) {
-          visited = visited || {};
-          var clone2;
-          var id;
-          switch (_2.util.type(o2)) {
-            case "Object":
-              id = _2.util.objId(o2);
-              if (visited[id]) {
-                return visited[id];
-              }
-              clone2 = /** @type {Record<string, any>} */
-              {};
-              visited[id] = clone2;
-              for (var key2 in o2) {
-                if (o2.hasOwnProperty(key2)) {
-                  clone2[key2] = deepClone2(o2[key2], visited);
-                }
-              }
-              return (
-                /** @type {any} */
-                clone2
-              );
-            case "Array":
-              id = _2.util.objId(o2);
-              if (visited[id]) {
-                return visited[id];
-              }
-              clone2 = [];
-              visited[id] = clone2;
-              /** @type {Array} */
-              /** @type {any} */
-              o2.forEach(function(v2, i2) {
-                clone2[i2] = deepClone2(v2, visited);
-              });
-              return (
-                /** @type {any} */
-                clone2
-              );
-            default:
-              return o2;
-          }
-        },
-        /**
-         * Returns the Prism language of the given element set by a `language-xxxx` or `lang-xxxx` class.
-         *
-         * If no language is set for the element or the element is `null` or `undefined`, `none` will be returned.
-         *
-         * @param {Element} element
-         * @returns {string}
-         */
-        getLanguage: function(element) {
-          while (element) {
-            var m2 = lang.exec(element.className);
-            if (m2) {
-              return m2[1].toLowerCase();
-            }
-            element = element.parentElement;
-          }
-          return "none";
-        },
-        /**
-         * Sets the Prism `language-xxxx` class of the given element.
-         *
-         * @param {Element} element
-         * @param {string} language
-         * @returns {void}
-         */
-        setLanguage: function(element, language) {
-          element.className = element.className.replace(RegExp(lang, "gi"), "");
-          element.classList.add("language-" + language);
-        },
-        /**
-         * Returns the script element that is currently executing.
-         *
-         * This does __not__ work for line script element.
-         *
-         * @returns {HTMLScriptElement | null}
-         */
-        currentScript: function() {
-          if (typeof document === "undefined") {
-            return null;
-          }
-          if ("currentScript" in document && 1 < 2) {
-            return (
-              /** @type {any} */
-              document.currentScript
-            );
-          }
-          try {
-            throw new Error();
-          } catch (err) {
-            var src = (/at [^(\r\n]*\((.*):[^:]+:[^:]+\)$/i.exec(err.stack) || [])[1];
-            if (src) {
-              var scripts = document.getElementsByTagName("script");
-              for (var i2 in scripts) {
-                if (scripts[i2].src == src) {
-                  return scripts[i2];
-                }
-              }
-            }
-            return null;
-          }
-        },
-        /**
-         * Returns whether a given class is active for `element`.
-         *
-         * The class can be activated if `element` or one of its ancestors has the given class and it can be deactivated
-         * if `element` or one of its ancestors has the negated version of the given class. The _negated version_ of the
-         * given class is just the given class with a `no-` prefix.
-         *
-         * Whether the class is active is determined by the closest ancestor of `element` (where `element` itself is
-         * closest ancestor) that has the given class or the negated version of it. If neither `element` nor any of its
-         * ancestors have the given class or the negated version of it, then the default activation will be returned.
-         *
-         * In the paradoxical situation where the closest ancestor contains __both__ the given class and the negated
-         * version of it, the class is considered active.
-         *
-         * @param {Element} element
-         * @param {string} className
-         * @param {boolean} [defaultActivation=false]
-         * @returns {boolean}
-         */
-        isActive: function(element, className, defaultActivation) {
-          var no = "no-" + className;
-          while (element) {
-            var classList = element.classList;
-            if (classList.contains(className)) {
-              return true;
-            }
-            if (classList.contains(no)) {
-              return false;
-            }
-            element = element.parentElement;
-          }
-          return !!defaultActivation;
-        }
-      },
-      /**
-       * This namespace contains all currently loaded languages and the some helper functions to create and modify languages.
-       *
-       * @namespace
-       * @memberof Prism
-       * @public
-       */
-      languages: {
-        /**
-         * The grammar for plain, unformatted text.
-         */
-        plain: plainTextGrammar,
-        plaintext: plainTextGrammar,
-        text: plainTextGrammar,
-        txt: plainTextGrammar,
-        /**
-         * Creates a deep copy of the language with the given id and appends the given tokens.
-         *
-         * If a token in `redef` also appears in the copied language, then the existing token in the copied language
-         * will be overwritten at its original position.
-         *
-         * ## Best practices
-         *
-         * Since the position of overwriting tokens (token in `redef` that overwrite tokens in the copied language)
-         * doesn't matter, they can technically be in any order. However, this can be confusing to others that trying to
-         * understand the language definition because, normally, the order of tokens matters in Prism grammars.
-         *
-         * Therefore, it is encouraged to order overwriting tokens according to the positions of the overwritten tokens.
-         * Furthermore, all non-overwriting tokens should be placed after the overwriting ones.
-         *
-         * @param {string} id The id of the language to extend. This has to be a key in `Prism.languages`.
-         * @param {Grammar} redef The new tokens to append.
-         * @returns {Grammar} The new language created.
-         * @public
-         * @example
-         * Prism.languages['css-with-colors'] = Prism.languages.extend('css', {
-         *     // Prism.languages.css already has a 'comment' token, so this token will overwrite CSS' 'comment' token
-         *     // at its original position
-         *     'comment': { ... },
-         *     // CSS doesn't have a 'color' token, so this token will be appended
-         *     'color': /\b(?:red|green|blue)\b/
-         * });
-         */
-        extend: function(id, redef) {
-          var lang2 = _2.util.clone(_2.languages[id]);
-          for (var key2 in redef) {
-            lang2[key2] = redef[key2];
-          }
-          return lang2;
-        },
-        /**
-         * Inserts tokens _before_ another token in a language definition or any other grammar.
-         *
-         * ## Usage
-         *
-         * This helper method makes it easy to modify existing languages. For example, the CSS language definition
-         * not only defines CSS highlighting for CSS documents, but also needs to define highlighting for CSS embedded
-         * in HTML through `<style>` elements. To do this, it needs to modify `Prism.languages.markup` and add the
-         * appropriate tokens. However, `Prism.languages.markup` is a regular JavaScript object literal, so if you do
-         * this:
-         *
-         * ```js
-         * Prism.languages.markup.style = {
-         *     // token
-         * };
-         * ```
-         *
-         * then the `style` token will be added (and processed) at the end. `insertBefore` allows you to insert tokens
-         * before existing tokens. For the CSS example above, you would use it like this:
-         *
-         * ```js
-         * Prism.languages.insertBefore('markup', 'cdata', {
-         *     'style': {
-         *         // token
-         *     }
-         * });
-         * ```
-         *
-         * ## Special cases
-         *
-         * If the grammars of `inside` and `insert` have tokens with the same name, the tokens in `inside`'s grammar
-         * will be ignored.
-         *
-         * This behavior can be used to insert tokens after `before`:
-         *
-         * ```js
-         * Prism.languages.insertBefore('markup', 'comment', {
-         *     'comment': Prism.languages.markup.comment,
-         *     // tokens after 'comment'
-         * });
-         * ```
-         *
-         * ## Limitations
-         *
-         * The main problem `insertBefore` has to solve is iteration order. Since ES2015, the iteration order for object
-         * properties is guaranteed to be the insertion order (except for integer keys) but some browsers behave
-         * differently when keys are deleted and re-inserted. So `insertBefore` can't be implemented by temporarily
-         * deleting properties which is necessary to insert at arbitrary positions.
-         *
-         * To solve this problem, `insertBefore` doesn't actually insert the given tokens into the target object.
-         * Instead, it will create a new object and replace all references to the target object with the new one. This
-         * can be done without temporarily deleting properties, so the iteration order is well-defined.
-         *
-         * However, only references that can be reached from `Prism.languages` or `insert` will be replaced. I.e. if
-         * you hold the target object in a variable, then the value of the variable will not change.
-         *
-         * ```js
-         * var oldMarkup = Prism.languages.markup;
-         * var newMarkup = Prism.languages.insertBefore('markup', 'comment', { ... });
-         *
-         * assert(oldMarkup !== Prism.languages.markup);
-         * assert(newMarkup === Prism.languages.markup);
-         * ```
-         *
-         * @param {string} inside The property of `root` (e.g. a language id in `Prism.languages`) that contains the
-         * object to be modified.
-         * @param {string} before The key to insert before.
-         * @param {Grammar} insert An object containing the key-value pairs to be inserted.
-         * @param {Object<string, any>} [root] The object containing `inside`, i.e. the object that contains the
-         * object to be modified.
-         *
-         * Defaults to `Prism.languages`.
-         * @returns {Grammar} The new grammar object.
-         * @public
-         */
-        insertBefore: function(inside, before, insert, root2) {
-          root2 = root2 || /** @type {any} */
-          _2.languages;
-          var grammar = root2[inside];
-          var ret = {};
-          for (var token2 in grammar) {
-            if (grammar.hasOwnProperty(token2)) {
-              if (token2 == before) {
-                for (var newToken2 in insert) {
-                  if (insert.hasOwnProperty(newToken2)) {
-                    ret[newToken2] = insert[newToken2];
-                  }
-                }
-              }
-              if (!insert.hasOwnProperty(token2)) {
-                ret[token2] = grammar[token2];
-              }
-            }
-          }
-          var old = root2[inside];
-          root2[inside] = ret;
-          _2.languages.DFS(_2.languages, function(key2, value) {
-            if (value === old && key2 != inside) {
-              this[key2] = ret;
-            }
-          });
-          return ret;
-        },
-        // Traverse a language definition with Depth First Search
-        DFS: function DFS(o2, callback, type, visited) {
-          visited = visited || {};
-          var objId = _2.util.objId;
-          for (var i2 in o2) {
-            if (o2.hasOwnProperty(i2)) {
-              callback.call(o2, i2, o2[i2], type || i2);
-              var property = o2[i2];
-              var propertyType = _2.util.type(property);
-              if (propertyType === "Object" && !visited[objId(property)]) {
-                visited[objId(property)] = true;
-                DFS(property, callback, null, visited);
-              } else if (propertyType === "Array" && !visited[objId(property)]) {
-                visited[objId(property)] = true;
-                DFS(property, callback, i2, visited);
-              }
-            }
-          }
-        }
-      },
-      plugins: {},
-      /**
-       * This is the most high-level function in Prism’s API.
-       * It fetches all the elements that have a `.language-xxxx` class and then calls {@link Prism.highlightElement} on
-       * each one of them.
-       *
-       * This is equivalent to `Prism.highlightAllUnder(document, async, callback)`.
-       *
-       * @param {boolean} [async=false] Same as in {@link Prism.highlightAllUnder}.
-       * @param {HighlightCallback} [callback] Same as in {@link Prism.highlightAllUnder}.
-       * @memberof Prism
-       * @public
-       */
-      highlightAll: function(async, callback) {
-        _2.highlightAllUnder(document, async, callback);
-      },
-      /**
-       * Fetches all the descendants of `container` that have a `.language-xxxx` class and then calls
-       * {@link Prism.highlightElement} on each one of them.
-       *
-       * The following hooks will be run:
-       * 1. `before-highlightall`
-       * 2. `before-all-elements-highlight`
-       * 3. All hooks of {@link Prism.highlightElement} for each element.
-       *
-       * @param {ParentNode} container The root element, whose descendants that have a `.language-xxxx` class will be highlighted.
-       * @param {boolean} [async=false] Whether each element is to be highlighted asynchronously using Web Workers.
-       * @param {HighlightCallback} [callback] An optional callback to be invoked on each element after its highlighting is done.
-       * @memberof Prism
-       * @public
-       */
-      highlightAllUnder: function(container, async, callback) {
-        var env = {
-          callback,
-          container,
-          selector: 'code[class*="language-"], [class*="language-"] code, code[class*="lang-"], [class*="lang-"] code'
-        };
-        _2.hooks.run("before-highlightall", env);
-        env.elements = Array.prototype.slice.apply(env.container.querySelectorAll(env.selector));
-        _2.hooks.run("before-all-elements-highlight", env);
-        for (var i2 = 0, element; element = env.elements[i2++]; ) {
-          _2.highlightElement(element, async === true, env.callback);
-        }
-      },
-      /**
-       * Highlights the code inside a single element.
-       *
-       * The following hooks will be run:
-       * 1. `before-sanity-check`
-       * 2. `before-highlight`
-       * 3. All hooks of {@link Prism.highlight}. These hooks will be run by an asynchronous worker if `async` is `true`.
-       * 4. `before-insert`
-       * 5. `after-highlight`
-       * 6. `complete`
-       *
-       * Some the above hooks will be skipped if the element doesn't contain any text or there is no grammar loaded for
-       * the element's language.
-       *
-       * @param {Element} element The element containing the code.
-       * It must have a class of `language-xxxx` to be processed, where `xxxx` is a valid language identifier.
-       * @param {boolean} [async=false] Whether the element is to be highlighted asynchronously using Web Workers
-       * to improve performance and avoid blocking the UI when highlighting very large chunks of code. This option is
-       * [disabled by default](https://prismjs.com/faq.html#why-is-asynchronous-highlighting-disabled-by-default).
-       *
-       * Note: All language definitions required to highlight the code must be included in the main `prism.js` file for
-       * asynchronous highlighting to work. You can build your own bundle on the
-       * [Download page](https://prismjs.com/download.html).
-       * @param {HighlightCallback} [callback] An optional callback to be invoked after the highlighting is done.
-       * Mostly useful when `async` is `true`, since in that case, the highlighting is done asynchronously.
-       * @memberof Prism
-       * @public
-       */
-      highlightElement: function(element, async, callback) {
-        var language = _2.util.getLanguage(element);
-        var grammar = _2.languages[language];
-        _2.util.setLanguage(element, language);
-        var parent = element.parentElement;
-        if (parent && parent.nodeName.toLowerCase() === "pre") {
-          _2.util.setLanguage(parent, language);
-        }
-        var code = element.textContent;
-        var env = {
-          element,
-          language,
-          grammar,
-          code
-        };
-        function insertHighlightedCode(highlightedCode) {
-          env.highlightedCode = highlightedCode;
-          _2.hooks.run("before-insert", env);
-          env.element.innerHTML = env.highlightedCode;
-          _2.hooks.run("after-highlight", env);
-          _2.hooks.run("complete", env);
-          callback && callback.call(env.element);
-        }
-        _2.hooks.run("before-sanity-check", env);
-        parent = env.element.parentElement;
-        if (parent && parent.nodeName.toLowerCase() === "pre" && !parent.hasAttribute("tabindex")) {
-          parent.setAttribute("tabindex", "0");
-        }
-        if (!env.code) {
-          _2.hooks.run("complete", env);
-          callback && callback.call(env.element);
-          return;
-        }
-        _2.hooks.run("before-highlight", env);
-        if (!env.grammar) {
-          insertHighlightedCode(_2.util.encode(env.code));
-          return;
-        }
-        if (async && _self2.Worker) {
-          var worker = new Worker(_2.filename);
-          worker.onmessage = function(evt) {
-            insertHighlightedCode(evt.data);
-          };
-          worker.postMessage(JSON.stringify({
-            language: env.language,
-            code: env.code,
-            immediateClose: true
-          }));
-        } else {
-          insertHighlightedCode(_2.highlight(env.code, env.grammar, env.language));
-        }
-      },
-      /**
-       * Low-level function, only use if you know what you’re doing. It accepts a string of text as input
-       * and the language definitions to use, and returns a string with the HTML produced.
-       *
-       * The following hooks will be run:
-       * 1. `before-tokenize`
-       * 2. `after-tokenize`
-       * 3. `wrap`: On each {@link Token}.
-       *
-       * @param {string} text A string with the code to be highlighted.
-       * @param {Grammar} grammar An object containing the tokens to use.
-       *
-       * Usually a language definition like `Prism.languages.markup`.
-       * @param {string} language The name of the language definition passed to `grammar`.
-       * @returns {string} The highlighted HTML.
-       * @memberof Prism
-       * @public
-       * @example
-       * Prism.highlight('var foo = true;', Prism.languages.javascript, 'javascript');
-       */
-      highlight: function(text, grammar, language) {
-        var env = {
-          code: text,
-          grammar,
-          language
-        };
-        _2.hooks.run("before-tokenize", env);
-        if (!env.grammar) {
-          throw new Error('The language "' + env.language + '" has no grammar.');
-        }
-        env.tokens = _2.tokenize(env.code, env.grammar);
-        _2.hooks.run("after-tokenize", env);
-        return Token.stringify(_2.util.encode(env.tokens), env.language);
-      },
-      /**
-       * This is the heart of Prism, and the most low-level function you can use. It accepts a string of text as input
-       * and the language definitions to use, and returns an array with the tokenized code.
-       *
-       * When the language definition includes nested tokens, the function is called recursively on each of these tokens.
-       *
-       * This method could be useful in other contexts as well, as a very crude parser.
-       *
-       * @param {string} text A string with the code to be highlighted.
-       * @param {Grammar} grammar An object containing the tokens to use.
-       *
-       * Usually a language definition like `Prism.languages.markup`.
-       * @returns {TokenStream} An array of strings and tokens, a token stream.
-       * @memberof Prism
-       * @public
-       * @example
-       * let code = `var foo = 0;`;
-       * let tokens = Prism.tokenize(code, Prism.languages.javascript);
-       * tokens.forEach(token => {
-       *     if (token instanceof Prism.Token && token.type === 'number') {
-       *         console.log(`Found numeric literal: ${token.content}`);
-       *     }
-       * });
-       */
-      tokenize: function(text, grammar) {
-        var rest = grammar.rest;
-        if (rest) {
-          for (var token2 in rest) {
-            grammar[token2] = rest[token2];
-          }
-          delete grammar.rest;
-        }
-        var tokenList = new LinkedList();
-        addAfter(tokenList, tokenList.head, text);
-        matchGrammar(text, tokenList, grammar, tokenList.head, 0);
-        return toArray(tokenList);
-      },
-      /**
-       * @namespace
-       * @memberof Prism
-       * @public
-       */
-      hooks: {
-        all: {},
-        /**
-         * Adds the given callback to the list of callbacks for the given hook.
-         *
-         * The callback will be invoked when the hook it is registered for is run.
-         * Hooks are usually directly run by a highlight function but you can also run hooks yourself.
-         *
-         * One callback function can be registered to multiple hooks and the same hook multiple times.
-         *
-         * @param {string} name The name of the hook.
-         * @param {HookCallback} callback The callback function which is given environment variables.
-         * @public
-         */
-        add: function(name, callback) {
-          var hooks = _2.hooks.all;
-          hooks[name] = hooks[name] || [];
-          hooks[name].push(callback);
-        },
-        /**
-         * Runs a hook invoking all registered callbacks with the given environment variables.
-         *
-         * Callbacks will be invoked synchronously and in the order in which they were registered.
-         *
-         * @param {string} name The name of the hook.
-         * @param {Object<string, any>} env The environment variables of the hook passed to all callbacks registered.
-         * @public
-         */
-        run: function(name, env) {
-          var callbacks = _2.hooks.all[name];
-          if (!callbacks || !callbacks.length) {
-            return;
-          }
-          for (var i2 = 0, callback; callback = callbacks[i2++]; ) {
-            callback(env);
-          }
-        }
-      },
-      Token
-    };
-    _self2.Prism = _2;
-    function Token(type, content, alias, matchedStr) {
-      this.type = type;
-      this.content = content;
-      this.alias = alias;
-      this.length = (matchedStr || "").length | 0;
-    }
-    Token.stringify = function stringify3(o2, language) {
-      if (typeof o2 == "string") {
-        return o2;
-      }
-      if (Array.isArray(o2)) {
-        var s2 = "";
-        o2.forEach(function(e2) {
-          s2 += stringify3(e2, language);
-        });
-        return s2;
-      }
-      var env = {
-        type: o2.type,
-        content: stringify3(o2.content, language),
-        tag: "span",
-        classes: ["token", o2.type],
-        attributes: {},
-        language
-      };
-      var aliases = o2.alias;
-      if (aliases) {
-        if (Array.isArray(aliases)) {
-          Array.prototype.push.apply(env.classes, aliases);
-        } else {
-          env.classes.push(aliases);
-        }
-      }
-      _2.hooks.run("wrap", env);
-      var attributes = "";
-      for (var name in env.attributes) {
-        attributes += " " + name + '="' + (env.attributes[name] || "").replace(/"/g, "&quot;") + '"';
-      }
-      return "<" + env.tag + ' class="' + env.classes.join(" ") + '"' + attributes + ">" + env.content + "</" + env.tag + ">";
-    };
-    function matchPattern(pattern, pos2, text, lookbehind) {
-      pattern.lastIndex = pos2;
-      var match = pattern.exec(text);
-      if (match && lookbehind && match[1]) {
-        var lookbehindLength = match[1].length;
-        match.index += lookbehindLength;
-        match[0] = match[0].slice(lookbehindLength);
-      }
-      return match;
-    }
-    function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
-      for (var token2 in grammar) {
-        if (!grammar.hasOwnProperty(token2) || !grammar[token2]) {
-          continue;
-        }
-        var patterns = grammar[token2];
-        patterns = Array.isArray(patterns) ? patterns : [patterns];
-        for (var j2 = 0; j2 < patterns.length; ++j2) {
-          if (rematch && rematch.cause == token2 + "," + j2) {
-            return;
-          }
-          var patternObj = patterns[j2];
-          var inside = patternObj.inside;
-          var lookbehind = !!patternObj.lookbehind;
-          var greedy = !!patternObj.greedy;
-          var alias = patternObj.alias;
-          if (greedy && !patternObj.pattern.global) {
-            var flags = patternObj.pattern.toString().match(/[imsuy]*$/)[0];
-            patternObj.pattern = RegExp(patternObj.pattern.source, flags + "g");
-          }
-          var pattern = patternObj.pattern || patternObj;
-          for (var currentNode = startNode.next, pos2 = startPos; currentNode !== tokenList.tail; pos2 += currentNode.value.length, currentNode = currentNode.next) {
-            if (rematch && pos2 >= rematch.reach) {
-              break;
-            }
-            var str = currentNode.value;
-            if (tokenList.length > text.length) {
-              return;
-            }
-            if (str instanceof Token) {
-              continue;
-            }
-            var removeCount = 1;
-            var match;
-            if (greedy) {
-              match = matchPattern(pattern, pos2, text, lookbehind);
-              if (!match || match.index >= text.length) {
-                break;
-              }
-              var from = match.index;
-              var to = match.index + match[0].length;
-              var p2 = pos2;
-              p2 += currentNode.value.length;
-              while (from >= p2) {
-                currentNode = currentNode.next;
-                p2 += currentNode.value.length;
-              }
-              p2 -= currentNode.value.length;
-              pos2 = p2;
-              if (currentNode.value instanceof Token) {
-                continue;
-              }
-              for (var k2 = currentNode; k2 !== tokenList.tail && (p2 < to || typeof k2.value === "string"); k2 = k2.next) {
-                removeCount++;
-                p2 += k2.value.length;
-              }
-              removeCount--;
-              str = text.slice(pos2, p2);
-              match.index -= pos2;
-            } else {
-              match = matchPattern(pattern, 0, str, lookbehind);
-              if (!match) {
-                continue;
-              }
-            }
-            var from = match.index;
-            var matchStr = match[0];
-            var before = str.slice(0, from);
-            var after = str.slice(from + matchStr.length);
-            var reach = pos2 + str.length;
-            if (rematch && reach > rematch.reach) {
-              rematch.reach = reach;
-            }
-            var removeFrom = currentNode.prev;
-            if (before) {
-              removeFrom = addAfter(tokenList, removeFrom, before);
-              pos2 += before.length;
-            }
-            removeRange(tokenList, removeFrom, removeCount);
-            var wrapped = new Token(token2, inside ? _2.tokenize(matchStr, inside) : matchStr, alias, matchStr);
-            currentNode = addAfter(tokenList, removeFrom, wrapped);
-            if (after) {
-              addAfter(tokenList, currentNode, after);
-            }
-            if (removeCount > 1) {
-              var nestedRematch = {
-                cause: token2 + "," + j2,
-                reach
-              };
-              matchGrammar(text, tokenList, grammar, currentNode.prev, pos2, nestedRematch);
-              if (rematch && nestedRematch.reach > rematch.reach) {
-                rematch.reach = nestedRematch.reach;
-              }
-            }
-          }
-        }
-      }
-    }
-    function LinkedList() {
-      var head = { value: null, prev: null, next: null };
-      var tail = { value: null, prev: head, next: null };
-      head.next = tail;
-      this.head = head;
-      this.tail = tail;
-      this.length = 0;
-    }
-    function addAfter(list, node, value) {
-      var next = node.next;
-      var newNode = { value, prev: node, next };
-      node.next = newNode;
-      next.prev = newNode;
-      list.length++;
-      return newNode;
-    }
-    function removeRange(list, node, count) {
-      var next = node.next;
-      for (var i2 = 0; i2 < count && next !== list.tail; i2++) {
-        next = next.next;
-      }
-      node.next = next;
-      next.prev = node;
-      list.length -= i2;
-    }
-    function toArray(list) {
-      var array = [];
-      var node = list.head.next;
-      while (node !== list.tail) {
-        array.push(node.value);
-        node = node.next;
-      }
-      return array;
-    }
-    if (!_self2.document) {
-      if (!_self2.addEventListener) {
-        return _2;
-      }
-      if (!_2.disableWorkerMessageHandler) {
-        _self2.addEventListener("message", function(evt) {
-          var message = JSON.parse(evt.data);
-          var lang2 = message.language;
-          var code = message.code;
-          var immediateClose = message.immediateClose;
-          _self2.postMessage(_2.highlight(code, _2.languages[lang2], lang2));
-          if (immediateClose) {
-            _self2.close();
-          }
-        }, false);
-      }
-      return _2;
-    }
-    var script = _2.util.currentScript();
-    if (script) {
-      _2.filename = script.src;
-      if (script.hasAttribute("data-manual")) {
-        _2.manual = true;
-      }
-    }
-    function highlightAutomaticallyCallback() {
-      if (!_2.manual) {
-        _2.highlightAll();
-      }
-    }
-    if (!_2.manual) {
-      var readyState = document.readyState;
-      if (readyState === "loading" || readyState === "interactive" && script && script.defer) {
-        document.addEventListener("DOMContentLoaded", highlightAutomaticallyCallback);
-      } else {
-        if (window.requestAnimationFrame) {
-          window.requestAnimationFrame(highlightAutomaticallyCallback);
-        } else {
-          window.setTimeout(highlightAutomaticallyCallback, 16);
-        }
-      }
-    }
-    return _2;
-  }(_self);
-  if (module.exports) {
-    module.exports = Prism2;
-  }
-  if (typeof commonjsGlobal !== "undefined") {
-    commonjsGlobal.Prism = Prism2;
-  }
-  Prism2.languages.markup = {
-    "comment": {
-      pattern: /<!--(?:(?!<!--)[\s\S])*?-->/,
-      greedy: true
-    },
-    "prolog": {
-      pattern: /<\?[\s\S]+?\?>/,
-      greedy: true
-    },
-    "doctype": {
-      // https://www.w3.org/TR/xml/#NT-doctypedecl
-      pattern: /<!DOCTYPE(?:[^>"'[\]]|"[^"]*"|'[^']*')+(?:\[(?:[^<"'\]]|"[^"]*"|'[^']*'|<(?!!--)|<!--(?:[^-]|-(?!->))*-->)*\]\s*)?>/i,
-      greedy: true,
-      inside: {
-        "internal-subset": {
-          pattern: /(^[^\[]*\[)[\s\S]+(?=\]>$)/,
-          lookbehind: true,
-          greedy: true,
-          inside: null
-          // see below
-        },
-        "string": {
-          pattern: /"[^"]*"|'[^']*'/,
-          greedy: true
-        },
-        "punctuation": /^<!|>$|[[\]]/,
-        "doctype-tag": /^DOCTYPE/i,
-        "name": /[^\s<>'"]+/
-      }
-    },
-    "cdata": {
-      pattern: /<!\[CDATA\[[\s\S]*?\]\]>/i,
-      greedy: true
-    },
-    "tag": {
-      pattern: /<\/?(?!\d)[^\s>\/=$<%]+(?:\s(?:\s*[^\s>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+(?=[\s>]))|(?=[\s/>])))+)?\s*\/?>/,
-      greedy: true,
-      inside: {
-        "tag": {
-          pattern: /^<\/?[^\s>\/]+/,
-          inside: {
-            "punctuation": /^<\/?/,
-            "namespace": /^[^\s>\/:]+:/
-          }
-        },
-        "special-attr": [],
-        "attr-value": {
-          pattern: /=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+)/,
-          inside: {
-            "punctuation": [
-              {
-                pattern: /^=/,
-                alias: "attr-equals"
-              },
-              {
-                pattern: /^(\s*)["']|["']$/,
-                lookbehind: true
-              }
-            ]
-          }
-        },
-        "punctuation": /\/?>/,
-        "attr-name": {
-          pattern: /[^\s>\/]+/,
-          inside: {
-            "namespace": /^[^\s>\/:]+:/
-          }
-        }
-      }
-    },
-    "entity": [
-      {
-        pattern: /&[\da-z]{1,8};/i,
-        alias: "named-entity"
-      },
-      /&#x?[\da-f]{1,8};/i
-    ]
-  };
-  Prism2.languages.markup["tag"].inside["attr-value"].inside["entity"] = Prism2.languages.markup["entity"];
-  Prism2.languages.markup["doctype"].inside["internal-subset"].inside = Prism2.languages.markup;
-  Prism2.hooks.add("wrap", function(env) {
-    if (env.type === "entity") {
-      env.attributes["title"] = env.content.replace(/&amp;/, "&");
-    }
-  });
-  Object.defineProperty(Prism2.languages.markup.tag, "addInlined", {
-    /**
-     * Adds an inlined language to markup.
-     *
-     * An example of an inlined language is CSS with `<style>` tags.
-     *
-     * @param {string} tagName The name of the tag that contains the inlined language. This name will be treated as
-     * case insensitive.
-     * @param {string} lang The language key.
-     * @example
-     * addInlined('style', 'css');
-     */
-    value: function addInlined(tagName, lang) {
-      var includedCdataInside = {};
-      includedCdataInside["language-" + lang] = {
-        pattern: /(^<!\[CDATA\[)[\s\S]+?(?=\]\]>$)/i,
-        lookbehind: true,
-        inside: Prism2.languages[lang]
-      };
-      includedCdataInside["cdata"] = /^<!\[CDATA\[|\]\]>$/i;
-      var inside = {
-        "included-cdata": {
-          pattern: /<!\[CDATA\[[\s\S]*?\]\]>/i,
-          inside: includedCdataInside
-        }
-      };
-      inside["language-" + lang] = {
-        pattern: /[\s\S]+/,
-        inside: Prism2.languages[lang]
-      };
-      var def = {};
-      def[tagName] = {
-        pattern: RegExp(/(<__[^>]*>)(?:<!\[CDATA\[(?:[^\]]|\](?!\]>))*\]\]>|(?!<!\[CDATA\[)[\s\S])*?(?=<\/__>)/.source.replace(/__/g, function() {
-          return tagName;
-        }), "i"),
-        lookbehind: true,
-        greedy: true,
-        inside
-      };
-      Prism2.languages.insertBefore("markup", "cdata", def);
-    }
-  });
-  Object.defineProperty(Prism2.languages.markup.tag, "addAttribute", {
-    /**
-     * Adds an pattern to highlight languages embedded in HTML attributes.
-     *
-     * An example of an inlined language is CSS with `style` attributes.
-     *
-     * @param {string} attrName The name of the tag that contains the inlined language. This name will be treated as
-     * case insensitive.
-     * @param {string} lang The language key.
-     * @example
-     * addAttribute('style', 'css');
-     */
-    value: function(attrName, lang) {
-      Prism2.languages.markup.tag.inside["special-attr"].push({
-        pattern: RegExp(
-          /(^|["'\s])/.source + "(?:" + attrName + ")" + /\s*=\s*(?:"[^"]*"|'[^']*'|[^\s'">=]+(?=[\s>]))/.source,
-          "i"
-        ),
-        lookbehind: true,
-        inside: {
-          "attr-name": /^[^\s=]+/,
-          "attr-value": {
-            pattern: /=[\s\S]+/,
-            inside: {
-              "value": {
-                pattern: /(^=\s*(["']|(?!["'])))\S[\s\S]*(?=\2$)/,
-                lookbehind: true,
-                alias: [lang, "language-" + lang],
-                inside: Prism2.languages[lang]
-              },
-              "punctuation": [
-                {
-                  pattern: /^=/,
-                  alias: "attr-equals"
-                },
-                /"|'/
-              ]
-            }
-          }
-        }
-      });
-    }
-  });
-  Prism2.languages.html = Prism2.languages.markup;
-  Prism2.languages.mathml = Prism2.languages.markup;
-  Prism2.languages.svg = Prism2.languages.markup;
-  Prism2.languages.xml = Prism2.languages.extend("markup", {});
-  Prism2.languages.ssml = Prism2.languages.xml;
-  Prism2.languages.atom = Prism2.languages.xml;
-  Prism2.languages.rss = Prism2.languages.xml;
-  (function(Prism3) {
-    var string = /(?:"(?:\\(?:\r\n|[\s\S])|[^"\\\r\n])*"|'(?:\\(?:\r\n|[\s\S])|[^'\\\r\n])*')/;
-    Prism3.languages.css = {
-      "comment": /\/\*[\s\S]*?\*\//,
-      "atrule": {
-        pattern: RegExp("@[\\w-](?:" + /[^;{\s"']|\s+(?!\s)/.source + "|" + string.source + ")*?" + /(?:;|(?=\s*\{))/.source),
-        inside: {
-          "rule": /^@[\w-]+/,
-          "selector-function-argument": {
-            pattern: /(\bselector\s*\(\s*(?![\s)]))(?:[^()\s]|\s+(?![\s)])|\((?:[^()]|\([^()]*\))*\))+(?=\s*\))/,
-            lookbehind: true,
-            alias: "selector"
-          },
-          "keyword": {
-            pattern: /(^|[^\w-])(?:and|not|only|or)(?![\w-])/,
-            lookbehind: true
-          }
-          // See rest below
-        }
-      },
-      "url": {
-        // https://drafts.csswg.org/css-values-3/#urls
-        pattern: RegExp("\\burl\\((?:" + string.source + "|" + /(?:[^\\\r\n()"']|\\[\s\S])*/.source + ")\\)", "i"),
-        greedy: true,
-        inside: {
-          "function": /^url/i,
-          "punctuation": /^\(|\)$/,
-          "string": {
-            pattern: RegExp("^" + string.source + "$"),
-            alias: "url"
-          }
-        }
-      },
-      "selector": {
-        pattern: RegExp(`(^|[{}\\s])[^{}\\s](?:[^{};"'\\s]|\\s+(?![\\s{])|` + string.source + ")*(?=\\s*\\{)"),
-        lookbehind: true
-      },
-      "string": {
-        pattern: string,
-        greedy: true
-      },
-      "property": {
-        pattern: /(^|[^-\w\xA0-\uFFFF])(?!\s)[-_a-z\xA0-\uFFFF](?:(?!\s)[-\w\xA0-\uFFFF])*(?=\s*:)/i,
-        lookbehind: true
-      },
-      "important": /!important\b/i,
-      "function": {
-        pattern: /(^|[^-a-z0-9])[-a-z0-9]+(?=\()/i,
-        lookbehind: true
-      },
-      "punctuation": /[(){};:,]/
-    };
-    Prism3.languages.css["atrule"].inside.rest = Prism3.languages.css;
-    var markup = Prism3.languages.markup;
-    if (markup) {
-      markup.tag.addInlined("style", "css");
-      markup.tag.addAttribute("style", "css");
-    }
-  })(Prism2);
-  Prism2.languages.clike = {
-    "comment": [
-      {
-        pattern: /(^|[^\\])\/\*[\s\S]*?(?:\*\/|$)/,
-        lookbehind: true,
-        greedy: true
-      },
-      {
-        pattern: /(^|[^\\:])\/\/.*/,
-        lookbehind: true,
-        greedy: true
-      }
-    ],
-    "string": {
-      pattern: /(["'])(?:\\(?:\r\n|[\s\S])|(?!\1)[^\\\r\n])*\1/,
-      greedy: true
-    },
-    "class-name": {
-      pattern: /(\b(?:class|extends|implements|instanceof|interface|new|trait)\s+|\bcatch\s+\()[\w.\\]+/i,
-      lookbehind: true,
-      inside: {
-        "punctuation": /[.\\]/
-      }
-    },
-    "keyword": /\b(?:break|catch|continue|do|else|finally|for|function|if|in|instanceof|new|null|return|throw|try|while)\b/,
-    "boolean": /\b(?:false|true)\b/,
-    "function": /\b\w+(?=\()/,
-    "number": /\b0x[\da-f]+\b|(?:\b\d+(?:\.\d*)?|\B\.\d+)(?:e[+-]?\d+)?/i,
-    "operator": /[<>]=?|[!=]=?=?|--?|\+\+?|&&?|\|\|?|[?*/~^%]/,
-    "punctuation": /[{}[\];(),.:]/
-  };
-  Prism2.languages.javascript = Prism2.languages.extend("clike", {
-    "class-name": [
-      Prism2.languages.clike["class-name"],
-      {
-        pattern: /(^|[^$\w\xA0-\uFFFF])(?!\s)[_$A-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\.(?:constructor|prototype))/,
-        lookbehind: true
-      }
-    ],
-    "keyword": [
-      {
-        pattern: /((?:^|\})\s*)catch\b/,
-        lookbehind: true
-      },
-      {
-        pattern: /(^|[^.]|\.\.\.\s*)\b(?:as|assert(?=\s*\{)|async(?=\s*(?:function\b|\(|[$\w\xA0-\uFFFF]|$))|await|break|case|class|const|continue|debugger|default|delete|do|else|enum|export|extends|finally(?=\s*(?:\{|$))|for|from(?=\s*(?:['"]|$))|function|(?:get|set)(?=\s*(?:[#\[$\w\xA0-\uFFFF]|$))|if|implements|import|in|instanceof|interface|let|new|null|of|package|private|protected|public|return|static|super|switch|this|throw|try|typeof|undefined|var|void|while|with|yield)\b/,
-        lookbehind: true
-      }
-    ],
-    // Allow for all non-ASCII characters (See http://stackoverflow.com/a/2008444)
-    "function": /#?(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*(?:\.\s*(?:apply|bind|call)\s*)?\()/,
-    "number": {
-      pattern: RegExp(
-        /(^|[^\w$])/.source + "(?:" + // constant
-        (/NaN|Infinity/.source + "|" + // binary integer
-        /0[bB][01]+(?:_[01]+)*n?/.source + "|" + // octal integer
-        /0[oO][0-7]+(?:_[0-7]+)*n?/.source + "|" + // hexadecimal integer
-        /0[xX][\dA-Fa-f]+(?:_[\dA-Fa-f]+)*n?/.source + "|" + // decimal bigint
-        /\d+(?:_\d+)*n/.source + "|" + // decimal number (integer or float) but no bigint
-        /(?:\d+(?:_\d+)*(?:\.(?:\d+(?:_\d+)*)?)?|\.\d+(?:_\d+)*)(?:[Ee][+-]?\d+(?:_\d+)*)?/.source) + ")" + /(?![\w$])/.source
-      ),
-      lookbehind: true
-    },
-    "operator": /--|\+\+|\*\*=?|=>|&&=?|\|\|=?|[!=]==|<<=?|>>>?=?|[-+*/%&|^!=<>]=?|\.{3}|\?\?=?|\?\.?|[~:]/
-  });
-  Prism2.languages.javascript["class-name"][0].pattern = /(\b(?:class|extends|implements|instanceof|interface|new)\s+)[\w.\\]+/;
-  Prism2.languages.insertBefore("javascript", "keyword", {
-    "regex": {
-      pattern: RegExp(
-        // lookbehind
-        // eslint-disable-next-line regexp/no-dupe-characters-character-class
-        /((?:^|[^$\w\xA0-\uFFFF."'\])\s]|\b(?:return|yield))\s*)/.source + // Regex pattern:
-        // There are 2 regex patterns here. The RegExp set notation proposal added support for nested character
-        // classes if the `v` flag is present. Unfortunately, nested CCs are both context-free and incompatible
-        // with the only syntax, so we have to define 2 different regex patterns.
-        /\//.source + "(?:" + /(?:\[(?:[^\]\\\r\n]|\\.)*\]|\\.|[^/\\\[\r\n])+\/[dgimyus]{0,7}/.source + "|" + // `v` flag syntax. This supports 3 levels of nested character classes.
-        /(?:\[(?:[^[\]\\\r\n]|\\.|\[(?:[^[\]\\\r\n]|\\.|\[(?:[^[\]\\\r\n]|\\.)*\])*\])*\]|\\.|[^/\\\[\r\n])+\/[dgimyus]{0,7}v[dgimyus]{0,7}/.source + ")" + // lookahead
-        /(?=(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/)*(?:$|[\r\n,.;:})\]]|\/\/))/.source
-      ),
-      lookbehind: true,
-      greedy: true,
-      inside: {
-        "regex-source": {
-          pattern: /^(\/)[\s\S]+(?=\/[a-z]*$)/,
-          lookbehind: true,
-          alias: "language-regex",
-          inside: Prism2.languages.regex
-        },
-        "regex-delimiter": /^\/|\/$/,
-        "regex-flags": /^[a-z]+$/
-      }
-    },
-    // This must be declared before keyword because we use "function" inside the look-forward
-    "function-variable": {
-      pattern: /#?(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*[=:]\s*(?:async\s*)?(?:\bfunction\b|(?:\((?:[^()]|\([^()]*\))*\)|(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*)\s*=>))/,
-      alias: "function"
-    },
-    "parameter": [
-      {
-        pattern: /(function(?:\s+(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*)?\s*\(\s*)(?!\s)(?:[^()\s]|\s+(?![\s)])|\([^()]*\))+(?=\s*\))/,
-        lookbehind: true,
-        inside: Prism2.languages.javascript
-      },
-      {
-        pattern: /(^|[^$\w\xA0-\uFFFF])(?!\s)[_$a-z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*=>)/i,
-        lookbehind: true,
-        inside: Prism2.languages.javascript
-      },
-      {
-        pattern: /(\(\s*)(?!\s)(?:[^()\s]|\s+(?![\s)])|\([^()]*\))+(?=\s*\)\s*=>)/,
-        lookbehind: true,
-        inside: Prism2.languages.javascript
-      },
-      {
-        pattern: /((?:\b|\s|^)(?!(?:as|async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|enum|export|extends|finally|for|from|function|get|if|implements|import|in|instanceof|interface|let|new|null|of|package|private|protected|public|return|set|static|super|switch|this|throw|try|typeof|undefined|var|void|while|with|yield)(?![$\w\xA0-\uFFFF]))(?:(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*\s*)\(\s*|\]\s*\(\s*)(?!\s)(?:[^()\s]|\s+(?![\s)])|\([^()]*\))+(?=\s*\)\s*\{)/,
-        lookbehind: true,
-        inside: Prism2.languages.javascript
-      }
-    ],
-    "constant": /\b[A-Z](?:[A-Z_]|\dx?)*\b/
-  });
-  Prism2.languages.insertBefore("javascript", "string", {
-    "hashbang": {
-      pattern: /^#!.*/,
-      greedy: true,
-      alias: "comment"
-    },
-    "template-string": {
-      pattern: /`(?:\\[\s\S]|\$\{(?:[^{}]|\{(?:[^{}]|\{[^}]*\})*\})+\}|(?!\$\{)[^\\`])*`/,
-      greedy: true,
-      inside: {
-        "template-punctuation": {
-          pattern: /^`|`$/,
-          alias: "string"
-        },
-        "interpolation": {
-          pattern: /((?:^|[^\\])(?:\\{2})*)\$\{(?:[^{}]|\{(?:[^{}]|\{[^}]*\})*\})+\}/,
-          lookbehind: true,
-          inside: {
-            "interpolation-punctuation": {
-              pattern: /^\$\{|\}$/,
-              alias: "punctuation"
-            },
-            rest: Prism2.languages.javascript
-          }
-        },
-        "string": /[\s\S]+/
-      }
-    },
-    "string-property": {
-      pattern: /((?:^|[,{])[ \t]*)(["'])(?:\\(?:\r\n|[\s\S])|(?!\2)[^\\\r\n])*\2(?=\s*:)/m,
-      lookbehind: true,
-      greedy: true,
-      alias: "property"
-    }
-  });
-  Prism2.languages.insertBefore("javascript", "operator", {
-    "literal-property": {
-      pattern: /((?:^|[,{])[ \t]*)(?!\s)[_$a-zA-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\s*:)/m,
-      lookbehind: true,
-      alias: "property"
-    }
-  });
-  if (Prism2.languages.markup) {
-    Prism2.languages.markup.tag.addInlined("script", "javascript");
-    Prism2.languages.markup.tag.addAttribute(
-      /on(?:abort|blur|change|click|composition(?:end|start|update)|dblclick|error|focus(?:in|out)?|key(?:down|up)|load|mouse(?:down|enter|leave|move|out|over|up)|reset|resize|scroll|select|slotchange|submit|unload|wheel)/.source,
-      "javascript"
-    );
-  }
-  Prism2.languages.js = Prism2.languages.javascript;
-  (function() {
-    if (typeof Prism2 === "undefined" || typeof document === "undefined") {
-      return;
-    }
-    if (!Element.prototype.matches) {
-      Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
-    }
-    var LOADING_MESSAGE = "Loading…";
-    var FAILURE_MESSAGE = function(status, message) {
-      return "✖ Error " + status + " while fetching file: " + message;
-    };
-    var FAILURE_EMPTY_MESSAGE = "✖ Error: File does not exist or is empty";
-    var EXTENSIONS = {
-      "js": "javascript",
-      "py": "python",
-      "rb": "ruby",
-      "ps1": "powershell",
-      "psm1": "powershell",
-      "sh": "bash",
-      "bat": "batch",
-      "h": "c",
-      "tex": "latex"
-    };
-    var STATUS_ATTR = "data-src-status";
-    var STATUS_LOADING = "loading";
-    var STATUS_LOADED = "loaded";
-    var STATUS_FAILED = "failed";
-    var SELECTOR = "pre[data-src]:not([" + STATUS_ATTR + '="' + STATUS_LOADED + '"]):not([' + STATUS_ATTR + '="' + STATUS_LOADING + '"])';
-    function loadFile(src, success, error) {
-      var xhr = new XMLHttpRequest();
-      xhr.open("GET", src, true);
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState == 4) {
-          if (xhr.status < 400 && xhr.responseText) {
-            success(xhr.responseText);
-          } else {
-            if (xhr.status >= 400) {
-              error(FAILURE_MESSAGE(xhr.status, xhr.statusText));
-            } else {
-              error(FAILURE_EMPTY_MESSAGE);
-            }
-          }
-        }
-      };
-      xhr.send(null);
-    }
-    function parseRange(range) {
-      var m2 = /^\s*(\d+)\s*(?:(,)\s*(?:(\d+)\s*)?)?$/.exec(range || "");
-      if (m2) {
-        var start2 = Number(m2[1]);
-        var comma = m2[2];
-        var end2 = m2[3];
-        if (!comma) {
-          return [start2, start2];
-        }
-        if (!end2) {
-          return [start2, void 0];
-        }
-        return [start2, Number(end2)];
-      }
-      return void 0;
-    }
-    Prism2.hooks.add("before-highlightall", function(env) {
-      env.selector += ", " + SELECTOR;
-    });
-    Prism2.hooks.add("before-sanity-check", function(env) {
-      var pre = (
-        /** @type {HTMLPreElement} */
-        env.element
-      );
-      if (pre.matches(SELECTOR)) {
-        env.code = "";
-        pre.setAttribute(STATUS_ATTR, STATUS_LOADING);
-        var code = pre.appendChild(document.createElement("CODE"));
-        code.textContent = LOADING_MESSAGE;
-        var src = pre.getAttribute("data-src");
-        var language = env.language;
-        if (language === "none") {
-          var extension = (/\.(\w+)$/.exec(src) || [, "none"])[1];
-          language = EXTENSIONS[extension] || extension;
-        }
-        Prism2.util.setLanguage(code, language);
-        Prism2.util.setLanguage(pre, language);
-        var autoloader = Prism2.plugins.autoloader;
-        if (autoloader) {
-          autoloader.loadLanguages(language);
-        }
-        loadFile(
-          src,
-          function(text) {
-            pre.setAttribute(STATUS_ATTR, STATUS_LOADED);
-            var range = parseRange(pre.getAttribute("data-range"));
-            if (range) {
-              var lines = text.split(/\r\n?|\n/g);
-              var start2 = range[0];
-              var end2 = range[1] == null ? lines.length : range[1];
-              if (start2 < 0) {
-                start2 += lines.length;
-              }
-              start2 = Math.max(0, Math.min(start2 - 1, lines.length));
-              if (end2 < 0) {
-                end2 += lines.length;
-              }
-              end2 = Math.max(0, Math.min(end2, lines.length));
-              text = lines.slice(start2, end2).join("\n");
-              if (!pre.hasAttribute("data-start")) {
-                pre.setAttribute("data-start", String(start2 + 1));
-              }
-            }
-            code.textContent = text;
-            Prism2.highlightElement(code);
-          },
-          function(error) {
-            pre.setAttribute(STATUS_ATTR, STATUS_FAILED);
-            code.textContent = error;
-          }
-        );
-      }
-    });
-    Prism2.plugins.fileHighlight = {
-      /**
-       * Executes the File Highlight plugin for all matching `pre` elements under the given container.
-       *
-       * Note: Elements which are already loaded or currently loading will not be touched by this method.
-       *
-       * @param {ParentNode} [container=document]
-       */
-      highlight: function highlight(container) {
-        var elements = (container || document).querySelectorAll(SELECTOR);
-        for (var i2 = 0, element; element = elements[i2++]; ) {
-          Prism2.highlightElement(element);
-        }
-      }
-    };
-    var logged = false;
-    Prism2.fileHighlight = function() {
-      if (!logged) {
-        console.warn("Prism.fileHighlight is deprecated. Use `Prism.plugins.fileHighlight.highlight` instead.");
-        logged = true;
-      }
-      Prism2.plugins.fileHighlight.highlight.apply(this, arguments);
-    };
-  })();
-})(prism);
-var prismExports = prism.exports;
-const Prism$1 = /* @__PURE__ */ getDefaultExportFromCjs(prismExports);
 const EmptyPanel = ({ id, classes, height, style, children }) => {
   const emptyStyle = {
     display: "flex",
@@ -8364,7 +8396,14 @@ const Tab2 = ({ type, tab, index, style }) => {
   const tabStyle = {
     color: "var(--bs-body-color)",
     ...style,
-    padding: "0.25rem 0.5rem"
+    padding: "0.25rem 0.5rem",
+    borderTopLeftRadius: "var(--bs-border-radius)",
+    borderTopRightRadius: "var(--bs-border-radius)",
+    ...TextStyle.label,
+    fontSize: FontSize.small,
+    fontWeight: 500,
+    marginTop: "2px",
+    marginBottom: "-1px"
   };
   const pillStyle = {
     ...style
@@ -8442,29 +8481,73 @@ const ghCommitUrl = (origin, commit) => {
   return `${baseUrl}/commit/${commit}`;
 };
 const CardHeader = ({ id, icon, label, classes, style, children }) => {
-  return m$1`<div class="card-header ${classes || ""}" ...${{ id, style }}>
+  return m$1`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content auto",
+    columnGap: "0em",
+    padding: "0.5em 0.5em 0.5em 0.5em",
+    fontSize: FontSize.small,
+    fontWeight: 600,
+    ...TextStyle.label,
+    ...style
+  }}
+  >
     ${icon ? m$1`<i
           class="${icon}"
           style=${{
     paddingRight: "0.2rem"
   }}
-        ></i>` : ""}
+        ></i>` : m$1`<span
+          style=${{
+    paddingRight: "0.2rem"
+  }}
+        ></span>`}
     ${label ? label : ""} ${children}
   </div> `;
 };
 const CardBody = ({ id, classes, style, children }) => {
-  return m$1`<div class="card-body ${classes || ""}" ...${{ id, style }}>
+  return m$1`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+    backgroundColor: "var(--bs-body-bg)",
+    border: "solid 1px var(--bs-light-border-subtle)",
+    borderRadius: "var(--bs-border-radius)",
+    margin: "0 8px 8px 8px",
+    padding: "0.5em",
+    ...style
+  }}
+  >
     ${children}
   </div>`;
 };
 const Card = ({ id, classes, style, children }) => {
   return m$1`
-    <div class="card ${classes || ""}" ...${{ id, style }}>${children}</div>
+    <div
+      class="${classes || ""}"
+      ...${{ id }}
+      style=${{
+    backgroundColor: "var(--bs-light)",
+    border: "solid 1px var(--bs-light-border-subtle)",
+    borderRadius: "var(--bs-border-radius)",
+    marginBottom: "1.5em",
+    ...style
+  }}
+    >
+      ${children}
+    </div>
   `;
 };
-var e, t, r = { exports: {} };
+var e, t, r = {
+  exports: {}
+};
 e = r, t = function(e2, t2) {
-  Object.defineProperty(t2, "__esModule", { value: true }), t2.ANSIOutput = t2.ANSIColor = t2.ANSIFont = t2.ANSIStyle = void 0;
+  Object.defineProperty(t2, "__esModule", {
+    value: true
+  }), t2.ANSIOutput = t2.ANSIColor = t2.ANSIFont = t2.ANSIStyle = void 0;
   let r2 = 0;
   const n2 = () => ("" + ++r2).padStart(16, "0");
   var o2, i2, s2, a2, u2, l2, g2;
@@ -8502,13 +8585,8 @@ e = r, t = function(e2, t2) {
       this.flushBuffer();
     }
     flushBuffer() {
-      for (let e3 = this._outputLines.length; e3 < this._outputLine + 1; e3++)
-        this._outputLines.push(new d2());
-      this._buffer && (this._outputLines[this._outputLine].insert(
-        this._buffer,
-        this._outputColumn,
-        this._sgrState
-      ), this._outputColumn += this._buffer.length, this._buffer = "");
+      for (let e3 = this._outputLines.length; e3 < this._outputLine + 1; e3++) this._outputLines.push(new d2());
+      this._buffer && (this._outputLines[this._outputLine].insert(this._buffer, this._outputColumn, this._sgrState), this._outputColumn += this._buffer.length, this._buffer = "");
     }
     processCharacter(e3) {
       switch (e3) {
@@ -8564,10 +8642,7 @@ e = r, t = function(e2, t2) {
     }
     processCUB() {
       const e3 = this._controlSequence.match(/^([0-9]*)D$/);
-      e3 && (this._outputColumn = Math.max(
-        this._outputColumn - k2(e3[1], 1, 1),
-        0
-      ));
+      e3 && (this._outputColumn = Math.max(this._outputColumn - k2(e3[1], 1, 1), 0));
     }
     processCUP() {
       const e3 = this._controlSequence.match(/^([0-9]*)(?:;?([0-9]*))H$/);
@@ -8575,26 +8650,18 @@ e = r, t = function(e2, t2) {
     }
     processED() {
       const e3 = this._controlSequence.match(/^([0-9]*)J$/);
-      if (e3)
-        switch (p2(e3[1], 0)) {
-          case 0:
-            this._outputLines[this._outputLine].clearToEndOfLine(
-              this._outputColumn
-            );
-            for (let e4 = this._outputLine + 1; e4 < this._outputLines.length; e4++)
-              this._outputLines[e4].clearEntireLine();
-            break;
-          case 1:
-            this._outputLines[this._outputLine].clearToBeginningOfLine(
-              this._outputColumn
-            );
-            for (let e4 = 0; e4 < this._outputLine; e4++)
-              this._outputLines[e4].clearEntireLine();
-            break;
-          case 2:
-            for (let e4 = 0; e4 < this._outputLines.length; e4++)
-              this._outputLines[e4].clearEntireLine();
-        }
+      if (e3) switch (p2(e3[1], 0)) {
+        case 0:
+          this._outputLines[this._outputLine].clearToEndOfLine(this._outputColumn);
+          for (let e4 = this._outputLine + 1; e4 < this._outputLines.length; e4++) this._outputLines[e4].clearEntireLine();
+          break;
+        case 1:
+          this._outputLines[this._outputLine].clearToBeginningOfLine(this._outputColumn);
+          for (let e4 = 0; e4 < this._outputLine; e4++) this._outputLines[e4].clearEntireLine();
+          break;
+        case 2:
+          for (let e4 = 0; e4 < this._outputLines.length; e4++) this._outputLines[e4].clearEntireLine();
+      }
     }
     processEL() {
       const e3 = this._controlSequence.match(/^([0-9]*)K$/);
@@ -8616,67 +8683,66 @@ e = r, t = function(e2, t2) {
       const e3 = this._sgrState ? this._sgrState.copy() : new c2(), t3 = this._controlSequence.slice(0, -1).split(";").map((e4) => "" === e4 ? a2.Reset : parseInt(e4, 10));
       for (let r3 = 0; r3 < t3.length; r3++) {
         const n3 = () => {
-          if (r3 + 1 !== t3.length)
-            switch (t3[++r3]) {
-              case u2.Color256: {
-                if (r3 + 1 === t3.length) return;
-                const e4 = t3[++r3];
-                switch (e4) {
-                  case l2.Black:
-                    return s2.Black;
-                  case l2.Red:
-                    return s2.Red;
-                  case l2.Green:
-                    return s2.Green;
-                  case l2.Yellow:
-                    return s2.Yellow;
-                  case l2.Blue:
-                    return s2.Blue;
-                  case l2.Magenta:
-                    return s2.Magenta;
-                  case l2.Cyan:
-                    return s2.Cyan;
-                  case l2.White:
-                    return s2.White;
-                  case l2.BrightBlack:
-                    return s2.BrightBlack;
-                  case l2.BrightRed:
-                    return s2.BrightRed;
-                  case l2.BrightGreen:
-                    return s2.BrightGreen;
-                  case l2.BrightYellow:
-                    return s2.BrightYellow;
-                  case l2.BrightBlue:
-                    return s2.BrightBlue;
-                  case l2.BrightMagenta:
-                    return s2.BrightMagenta;
-                  case l2.BrightCyan:
-                    return s2.BrightCyan;
-                  case l2.BrightWhite:
-                    return s2.BrightWhite;
-                  default:
-                    if (e4 % 1 != 0) return;
-                    if (e4 >= 16 && e4 <= 231) {
-                      let t4 = e4 - 16, r4 = t4 % 6;
-                      t4 = (t4 - r4) / 6;
-                      let n4 = t4 % 6;
-                      t4 = (t4 - n4) / 6;
-                      let o3 = t4;
-                      return r4 = Math.round(255 * r4 / 5), n4 = Math.round(255 * n4 / 5), o3 = Math.round(255 * o3 / 5), "#" + _2(o3) + _2(n4) + _2(r4);
-                    }
-                    if (e4 >= 232 && e4 <= 255) {
-                      const t4 = Math.round((e4 - 232) / 23 * 255), r4 = _2(t4);
-                      return "#" + r4 + r4 + r4;
-                    }
-                    return;
-                }
-              }
-              case u2.ColorRGB: {
-                const e4 = [0, 0, 0];
-                for (let n4 = 0; n4 < 3 && r3 + 1 < t3.length; n4++) e4[n4] = t3[++r3];
-                return "#" + _2(e4[0]) + _2(e4[1]) + _2(e4[2]);
+          if (r3 + 1 !== t3.length) switch (t3[++r3]) {
+            case u2.Color256: {
+              if (r3 + 1 === t3.length) return;
+              const e4 = t3[++r3];
+              switch (e4) {
+                case l2.Black:
+                  return s2.Black;
+                case l2.Red:
+                  return s2.Red;
+                case l2.Green:
+                  return s2.Green;
+                case l2.Yellow:
+                  return s2.Yellow;
+                case l2.Blue:
+                  return s2.Blue;
+                case l2.Magenta:
+                  return s2.Magenta;
+                case l2.Cyan:
+                  return s2.Cyan;
+                case l2.White:
+                  return s2.White;
+                case l2.BrightBlack:
+                  return s2.BrightBlack;
+                case l2.BrightRed:
+                  return s2.BrightRed;
+                case l2.BrightGreen:
+                  return s2.BrightGreen;
+                case l2.BrightYellow:
+                  return s2.BrightYellow;
+                case l2.BrightBlue:
+                  return s2.BrightBlue;
+                case l2.BrightMagenta:
+                  return s2.BrightMagenta;
+                case l2.BrightCyan:
+                  return s2.BrightCyan;
+                case l2.BrightWhite:
+                  return s2.BrightWhite;
+                default:
+                  if (e4 % 1 != 0) return;
+                  if (e4 >= 16 && e4 <= 231) {
+                    let t4 = e4 - 16, r4 = t4 % 6;
+                    t4 = (t4 - r4) / 6;
+                    let n4 = t4 % 6;
+                    t4 = (t4 - n4) / 6;
+                    let o3 = t4;
+                    return r4 = Math.round(255 * r4 / 5), n4 = Math.round(255 * n4 / 5), o3 = Math.round(255 * o3 / 5), "#" + _2(o3) + _2(n4) + _2(r4);
+                  }
+                  if (e4 >= 232 && e4 <= 255) {
+                    const t4 = Math.round((e4 - 232) / 23 * 255), r4 = _2(t4);
+                    return "#" + r4 + r4 + r4;
+                  }
+                  return;
               }
             }
+            case u2.ColorRGB: {
+              const e4 = [0, 0, 0];
+              for (let n4 = 0; n4 < 3 && r3 + 1 < t3.length; n4++) e4[n4] = t3[++r3];
+              return "#" + _2(e4[0]) + _2(e4[1]) + _2(e4[2]);
+            }
+          }
         };
         switch (t3[r3]) {
           case a2.Reset:
@@ -8944,27 +9010,26 @@ e = r, t = function(e2, t2) {
       return this._styles ? [...this._styles] : void 0;
     }
     get foregroundColor() {
-      if (this._backgroundColor && !this._foregroundColor)
-        switch (this._backgroundColor) {
-          case s2.Black:
-          case s2.BrightBlack:
-          case s2.Red:
-          case s2.BrightRed:
-            return s2.White;
-          case s2.Green:
-          case s2.BrightGreen:
-          case s2.Yellow:
-          case s2.BrightYellow:
-          case s2.Blue:
-          case s2.BrightBlue:
-          case s2.Magenta:
-          case s2.BrightMagenta:
-          case s2.Cyan:
-          case s2.BrightCyan:
-          case s2.White:
-          case s2.BrightWhite:
-            return s2.Black;
-        }
+      if (this._backgroundColor && !this._foregroundColor) switch (this._backgroundColor) {
+        case s2.Black:
+        case s2.BrightBlack:
+        case s2.Red:
+        case s2.BrightRed:
+          return s2.White;
+        case s2.Green:
+        case s2.BrightGreen:
+        case s2.Yellow:
+        case s2.BrightYellow:
+        case s2.Blue:
+        case s2.BrightBlue:
+        case s2.Magenta:
+        case s2.BrightMagenta:
+        case s2.Cyan:
+        case s2.BrightCyan:
+        case s2.White:
+        case s2.BrightWhite:
+          return s2.Black;
+      }
       return this._foregroundColor;
     }
     get backgroundColor() {
@@ -9086,10 +9151,7 @@ e = r, t = function(e2, t2) {
         const e4 = this._outputRuns[i3], t4 = e4.text.slice(-l3);
         a3.push(new B2(t4, e4.sgrState));
       }
-      this._outputRuns.splice(n3, i3 - n3 + 1, ...a3), this._outputRuns.length > 1 && (this._outputRuns = B2.optimizeOutputRuns(this._outputRuns)), this._totalLength = this._outputRuns.reduce(
-        (e4, t4) => e4 + t4.text.length,
-        0
-      );
+      this._outputRuns.splice(n3, i3 - n3 + 1, ...a3), this._outputRuns.length > 1 && (this._outputRuns = B2.optimizeOutputRuns(this._outputRuns)), this._totalLength = this._outputRuns.reduce((e4, t4) => e4 + t4.text.length, 0);
     }
     get id() {
       return this._id;
@@ -13506,7 +13568,7 @@ const messageRenderers = {
     }
   }
 };
-const ChatView = ({ id, messages, style }) => {
+const ChatView = ({ id, messages, style, indented }) => {
   const toolMessages = {};
   const nonToolMessages = [];
   for (const message of messages) {
@@ -13538,12 +13600,39 @@ const ChatView = ({ id, messages, style }) => {
   }
   const result = m$1`
     <div style=${style}>
-      ${collapsedMessages.map((msg) => {
-    return m$1`<${ChatMessage}
-          id=${`${id}-chat-messages`}
-          message=${msg}
-          toolMessages=${toolMessages}
-        />`;
+      ${collapsedMessages.map((msg, index) => {
+    if (collapsedMessages.length > 1) {
+      return m$1` <div
+            style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content auto",
+        columnGap: "0.4em"
+      }}
+          >
+            <div
+              style=${{
+        fontSize: FontSize.smaller,
+        ...TextStyle.secondary,
+        marginTop: "0.1em"
+      }}
+            >
+              ${index + 1}
+            </div>
+            <${ChatMessage}
+              id=${`${id}-chat-messages`}
+              message=${msg}
+              toolMessages=${toolMessages}
+              indented=${indented}
+            />
+          </div>`;
+    } else {
+      return m$1` <${ChatMessage}
+            id=${`${id}-chat-messages`}
+            message=${msg}
+            toolMessages=${toolMessages}
+            indented=${indented}
+          />`;
+    }
   })}
     </div>
   `;
@@ -13559,54 +13648,40 @@ const normalizeContent = (content) => {
     return content;
   }
 };
-const ChatMessage = ({ id, message, toolMessages }) => {
-  const iconCls = iconForMsg(message);
-  const icon = iconCls ? m$1`<i class="${iconCls}"></i>` : "";
+const ChatMessage = ({ id, message, toolMessages, indented }) => {
   const collapse = message.role === "system";
   return m$1`
     <div
-      class="container-fluid ${message.role}"
+      class="${message.role}"
       style=${{
     fontSize: FontSize.base,
     fontWeight: "300",
     paddingBottom: ".5em",
-    justifyContent: "flex-start",
     marginLeft: "0",
     marginRight: "0",
     opacity: message.role === "system" ? "0.7" : "1",
     whiteSpace: "normal"
   }}
     >
-      <div class="row row-cols-2">
-        <div
-          class="col"
-          style=${{
-    flex: "0 1 1em",
-    paddingLeft: "0",
-    paddingRight: "0.5em",
-    marginLeft: "0",
-    fontWeight: "500"
-  }}
-        >
-          ${icon}
-        </div>
-        <div
-          class="col"
-          style=${{
-    flex: "1 0 auto",
-    marginLeft: ".3rem",
-    paddingLeft: "0"
-  }}
-        >
-          <div style=${{ fontWeight: "500", ...TextStyle.label }}>${message.role}</div>
-          <${ExpandablePanel} collapse=${collapse}>
-            <${MessageContents}
-              key=${`${id}-contents`}
-              message=${message}
-              toolMessages=${toolMessages}
-            />
-          </${ExpandablePanel}>
-        </div>
+      <div style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content auto",
+    columnGap: "0.3em",
+    fontWeight: "500",
+    marginBottom: "0.5em",
+    ...TextStyle.label
+  }}>
+        <i class="${iconForMsg(message)}"></i>
+        ${message.role}
+      </div>
+      <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: indented ? "0.8rem" : "0" }}>
+      <${ExpandablePanel} collapse=${collapse}>
+        <${MessageContents}
+          key=${`${id}-contents`}
+          message=${message}
+          toolMessages=${toolMessages}
+        />
+      </${ExpandablePanel}>
       </div>
     </div>
   `;
@@ -13644,15 +13719,17 @@ const MessageContents = ({ message, toolMessages }) => {
   }
 };
 const iconForMsg = (msg) => {
-  let iconCls = ApplicationIcons.role.assistant;
   if (msg.role === "user") {
-    iconCls = ApplicationIcons.role.user;
+    return ApplicationIcons.role.user;
   } else if (msg.role === "system") {
-    iconCls = ApplicationIcons.role.system;
+    return ApplicationIcons.role.system;
   } else if (msg.role === "tool") {
-    iconCls = ApplicationIcons.role.tool;
+    return ApplicationIcons.role.tool;
+  } else if (msg.role === "assistant") {
+    return ApplicationIcons.role.assistant;
+  } else {
+    return ApplicationIcons.role.unknown;
   }
-  return iconCls;
 };
 const resolveToolMessage = (toolMessage) => {
   var _a;
@@ -13984,8 +14061,7 @@ const PlanCard = ({ log, context }) => {
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
       <${CardBody} id="${kPlanCardBodyId}" style=${{
     paddingTop: "0",
-    paddingBottom: "0",
-    borderTop: "solid var(--bs-border-color) 1px"
+    paddingBottom: "0"
   }}>
       
         <${PlanDetailView}
@@ -14286,8 +14362,9 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   return m$1`
     <div style=${{ paddingTop: "0", paddingBottom: "1em", marginLeft: "0" }}>
       <div
-        class="row"
         style=${{
+    display: "grid",
+    gridTemplateColumns: `repeat(${taskColumns.length}, auto)`,
     justifyContent: "space-between",
     flexWrap: "wrap",
     paddingBottom: "0.7rem",
@@ -14345,6 +14422,13 @@ const PlanColumn = ({ title, classes, style, children }) => {
 };
 const isNumeric = (n2) => {
   return !isNaN(parseFloat(n2)) && isFinite(n2);
+};
+const toArray = (val) => {
+  if (Array.isArray(val)) {
+    return val;
+  } else {
+    return [val];
+  }
 };
 const kScoreTypePassFail = "passfail";
 const kScoreTypeCategorical = "categorical";
@@ -14938,7 +15022,7 @@ const LargeModal = (props) => {
     tabindex="0"
     role="dialog"
     onkeyup=${onkeyup}
-    style=${{ borderRadius: "none" }}
+    style=${{ borderRadius: "var(--bs-border-radius)" }}
   >
     <div
       class="modal-dialog modal-dialog-scrollable"
@@ -15135,9 +15219,9 @@ const EventPanel = ({
   text,
   icon,
   titleColor,
-  depth = 0,
   collapse,
   style,
+  titleStyle,
   children
 }) => {
   const arrChildren = Array.isArray(children) ? children : [children];
@@ -15151,31 +15235,49 @@ const EventPanel = ({
   const pillId = (index) => {
     return `${id}-nav-pill-${index}`;
   };
+  const gridColumns2 = [];
+  if (hasCollapse) {
+    gridColumns2.push("minmax(0, max-content)");
+  }
+  if (icon) {
+    gridColumns2.push("max-content");
+  }
+  gridColumns2.push("minmax(0, max-content)");
+  gridColumns2.push("auto");
+  gridColumns2.push("minmax(0, max-content)");
+  gridColumns2.push("minmax(0, max-content)");
   const titleEl = title || icon || filteredArrChilden.length > 1 ? m$1`<div
           style=${{
-    paddingLeft: "0.5em",
     display: "grid",
-    gridTemplateColumns: "max-content minmax(0, max-content) auto minmax(0, max-content) minmax(0, max-content)",
-    columnGap: "0.5em",
+    gridTemplateColumns: gridColumns2.join(" "),
+    columnGap: "0.3em",
     fontSize: FontSize.small,
     cursor: hasCollapse ? "pointer" : void 0
   }}
         >
+          ${hasCollapse ? m$1`<i
+                onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+                class=${collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down}
+              />` : ""}
           ${icon ? m$1`<i
                 class=${icon || ApplicationIcons.metadata}
                 style=${{
     ...TextStyle.secondary,
-    color: titleColor ? titleColor : ""
+    color: titleColor ? titleColor : "",
+    ...titleStyle
   }}
                 onclick=${() => {
     setCollapsed(!collapsed);
   }}
-              />` : m$1`<div></div>`}
+              />` : ""}
           <div
             style=${{
     ...TextStyle.label,
     ...TextStyle.secondary,
-    color: titleColor ? titleColor : ""
+    color: titleColor ? titleColor : "",
+    ...titleStyle
   }}
             onclick=${() => {
     setCollapsed(!collapsed);
@@ -15189,12 +15291,16 @@ const EventPanel = ({
   }}
           ></div>
           <div
-            style=${{ justifySelf: "end", ...TextStyle.secondary }}
+            style=${{
+    justifySelf: "end",
+    ...TextStyle.secondary,
+    marginRight: "0.2em"
+  }}
             onclick=${() => {
     setCollapsed(!collapsed);
   }}
           >
-            ${text}
+            ${collapsed ? text : ""}
           </div>
           <div
             style=${{
@@ -15217,39 +15323,36 @@ const EventPanel = ({
                   selectedNav=${selectedNav}
                   setSelectedNav=${setSelectedNav}
                 />` : ""}
-            ${hasCollapse ? m$1`<i
-                  onclick=${() => {
-    setCollapsed(!collapsed);
-  }}
-                  class=${collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down}
-                />` : ""}
           </div>
         </div>` : "";
-  const left_padding = 0.5 + depth * 1.5;
   const card = m$1` <div
     id=${id}
-    class="card"
     style=${{
-    padding: `0.5em 0.5em 0.5em ${left_padding}em`,
-    marginBottom: "-1px",
+    padding: "0.625rem",
+    marginBottom: "0.625rem",
+    border: "solid 1px var(--bs-light-border-subtle)",
+    borderRadius: "var(--bs-border-radius)",
     ...style
   }}
   >
     ${titleEl}
-    ${!hasCollapse || !collapsed ? m$1` <div
-          class="card-body tab-content"
-          style=${{ padding: 0, marginLeft: "0.5em" }}
-        >
-          ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
+    <div
+      class="tab-content"
+      style=${{
+    padding: "0",
+    display: !hasCollapse || !collapsed ? "inherit" : "none"
+  }}
+    >
+      ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
     const id2 = pillId(index);
     return m$1`<div
-              id=${id2}
-              class="tab-pane show ${id2 === selectedNav ? "active" : ""}"
-            >
-              ${child}
-            </div>`;
+          id=${id2}
+          class="tab-pane show ${id2 === selectedNav ? "active" : ""}"
+        >
+          ${child}
+        </div>`;
   })}
-        </div>` : ""}
+    </div>
   </div>`;
   return card;
 };
@@ -15285,7 +15388,7 @@ const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
     ...TextStyle.label,
     fontSize: FontSize.small,
     padding: "0.1rem  0.6rem",
-    borderRadius: "3px"
+    borderRadius: "var(--bs-border-radius)"
   }}
       class="nav-link ${active ? "active " : ""}"
       onclick=${() => {
@@ -15390,9 +15493,9 @@ const EventSection = ({ title, style, children }) => {
     ${children}
   </div>`;
 };
-const SampleInitEventView = ({ id, depth, event, stateManager }) => {
+const SampleInitEventView = ({ id, event, style, stateManager }) => {
   const stateObj = event.state;
-  stateManager.setState(stateObj);
+  stateManager.initializeState(stateObj);
   const sections = [];
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
     sections.push(m$1`<${EventSection} title="Files">
@@ -15404,26 +15507,36 @@ const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   }
   if (event.sample.setup) {
     sections.push(m$1`<${EventSection} title="Setup">
-      <pre style=${{ background: "var(--bs-light)", borderRadius: "3px" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
+      <pre style=${{ background: "var(--bs-light)", borderRadius: "var(--bs-border-radius)" }}><code class="sourceCode" >${event.sample.setup}</code></pre>
       </${EventSection}>
   `);
   }
   return m$1`
-  <${EventPanel} id=${id} depth=${depth}>
-    
-    <div name="Sample">
+  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample}>
+    <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
-      <div style=${{ marginLeft: "2.1em", marginBottom: "1em" }}>
+      <div>
         ${event.sample.choices ? event.sample.choices.map((choice, index) => {
     return m$1`<div>
                   ${String.fromCharCode(65 + index)}) ${choice}
                 </div>`;
   }) : ""}
-        <div style=${{ display: "flex", flexWrap: "wrap", gap: "1em", overflowWrap: "break-word" }}>
-        ${sections}
-        </div>
+        ${sections.length > 0 ? m$1`
+                <div
+                  style=${{
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "1em",
+    overflowWrap: "break-word"
+  }}
+                >
+                  ${sections}
+                </div>
+              ` : ""}
         <${EventSection} title="Target">
-          ${event.sample.target}
+          ${toArray(event.sample.target).map((target) => {
+    return m$1`<div>${target}</div>`;
+  })}
         </${EventSection}>
       </div>
     </div>
@@ -15454,8 +15567,15 @@ const tools_choice = {
     remove: []
   },
   render: (resolvedState) => {
+    const toolName = (toolChoice) => {
+      if (typeof toolChoice === "object" && toolChoice) {
+        return toolChoice["name"];
+      } else {
+        return toolChoice;
+      }
+    };
     const toolsInfo = {
-      "Tool Choice": resolvedState.tool_choice
+      "Tool Choice": toolName(resolvedState.tool_choice)
     };
     if (resolvedState.tools.length > 0) {
       toolsInfo["Tools"] = m$1`<${Tools}
@@ -15468,7 +15588,7 @@ const tools_choice = {
       display: "grid",
       gridTemplateColumns: "max-content max-content",
       columnGap: "1rem",
-      margin: "1em 0"
+      margin: "0"
     }}
       >
         ${Object.keys(toolsInfo).map((key2) => {
@@ -16916,11 +17036,11 @@ function format(delta, left2) {
   return defaultInstance.format(delta, left2);
 }
 const StateDiffView = ({ starting, ending, style }) => {
-  const changes = diff(unescapeNewlines(starting), unescapeNewlines(ending));
+  const changes = diff(starting, ending);
   const html_result = format(changes);
   return m$1`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
-    style=${{ style }}
+    style=${{ ...style }}
   ></div>`;
 };
 function unescapeNewlines(obj) {
@@ -16933,29 +17053,33 @@ function unescapeNewlines(obj) {
   }
   return obj;
 }
-const StateEventView = ({ id, event, depth, stateManager }) => {
+const StateEventView = ({ id, event, style, stateManager }) => {
   const startingState = stateManager.getState();
-  const resolvedState = stateManager.applyChanges(event.changes);
+  stateManager.applyChanges(event.changes);
+  const resolvedState = stateManager.getState();
   const summary = summarizeChanges(event.changes);
   const tabs = [
     m$1`<${StateDiffView}
       starting=${startingState}
       ending=${resolvedState}
       name="Diff"
-      style=${{ margin: "1em 0" }}
+      style=${{ margin: "1em 0em" }}
     />`
   ];
-  const changePreview = generatePreview(event.changes, resolvedState);
+  const changePreview = generatePreview(
+    event.changes,
+    structuredClone(resolvedState)
+  );
   if (changePreview) {
     tabs.unshift(
-      m$1`<div name="Summary" style=${{ margin: "1em 0" }}>
+      m$1`<div name="Summary" style=${{ margin: "1em 0em" }}>
         ${changePreview}
       </div>`
     );
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
-  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.metadata} text=${tabs.length === 1 ? summary : void 0} depth=${depth} collapse=${changePreview === void 0 ? true : void 0}>
+  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -17007,101 +17131,126 @@ const summarizeChanges = (changes) => {
   }
   return changeList.join(", ");
 };
-const StepEventView = ({ depth, event }) => {
+const StepEventView = ({ event, children, style, stateManager }) => {
   const descriptor = stepDescriptor(event);
-  if (event.action === "end") {
-    if (descriptor.endSpace) {
-      return m$1`<div style=${{ height: "1.5em" }}></div>`;
-    } else {
-      return m$1``;
-    }
-  }
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
+  const text = summarize(children);
   return m$1`<${EventPanel}
+    id=${`$step-${event.name}`}
     title="${title}"
-    depth=${depth}
     icon=${descriptor.icon}
-    style=${descriptor.style}
-  />`;
+    style=${{ ...descriptor.style, ...style }}
+    titleStyle=${{ ...descriptor.titleStyle }}
+    collapse=${false}
+    text=${text}
+  >
+    <${TranscriptComponent}
+      id=${`step-${event.name}-transcript`}
+      eventNodes=${children}
+      stateManager=${stateManager}
+    />
+  </EventPanel>
+  `;
 };
-const rootStepStyle = {
-  backgroundColor: "var(--bs-light)",
+const summarize = (children) => {
+  if (children.length === 0) {
+    return "(no events)";
+  }
+  const formatEvent = (event, count) => {
+    if (count === 1) {
+      return `${count} ${event} event`;
+    } else {
+      return `${count} ${event} events`;
+    }
+  };
+  const typeCount = {};
+  children.forEach((child) => {
+    const currentCount = typeCount[child.event.event] || 0;
+    typeCount[child.event.event] = currentCount + 1;
+  });
+  const numberOfTypes = Object.keys(typeCount).length;
+  if (numberOfTypes < 3) {
+    return Object.keys(typeCount).map((key2) => {
+      return formatEvent(key2, typeCount[key2]);
+    }).join(", ");
+  }
+  if (children.length === 1) {
+    return "1 event";
+  } else {
+    return `${children.length} events`;
+  }
+};
+const rootStepStyle = {};
+const rootTitleStyle = {
   fontWeight: "600"
 };
 const stepDescriptor = (event) => {
   const rootStepDescriptor = {
     style: rootStepStyle,
-    endSpace: true
+    endSpace: true,
+    titleStyle: rootTitleStyle
   };
   if (event.type === "solver") {
     switch (event.name) {
       case "chain_of_thought":
         return {
-          icon: ApplicationIcons.solvers.chain_of_thought,
           ...rootStepDescriptor
         };
       case "generate":
         return {
-          icon: ApplicationIcons.solvers.generate,
           ...rootStepDescriptor
         };
       case "self_critique":
         return {
-          icon: ApplicationIcons.solvers.self_critique,
           ...rootStepDescriptor
         };
       case "system_message":
         return {
-          icon: ApplicationIcons.solvers.system_message,
           ...rootStepDescriptor
         };
       case "use_tools":
         return {
-          icon: ApplicationIcons.solvers.use_tools,
           ...rootStepDescriptor
         };
       case "multiple_choice":
         return {
-          icon: ApplicationIcons["multiple-choice"],
           ...rootStepDescriptor
         };
       default:
         return {
-          icon: ApplicationIcons.solvers.default,
           ...rootStepDescriptor
         };
     }
   } else if (event.type === "scorer") {
     return {
-      icon: ApplicationIcons.scorer,
       ...rootStepDescriptor
     };
   } else {
     switch (event.name) {
       case "sample_init":
         return {
-          icon: ApplicationIcons.sample,
           ...rootStepDescriptor,
           name: "Sample Init"
         };
       default:
         return {
-          icon: ApplicationIcons.step,
           style: {},
-          endSpace: false
+          endSpace: false,
+          titleStyle: {}
         };
     }
   }
 };
-const SubtaskEventView = ({ id, depth, event, stateManager }) => {
+const SubtaskEventView = ({ id, event, style, stateManager, depth }) => {
   return m$1`
-    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask}>
+    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
       ${event.events.length > 0 ? m$1`<${TranscriptView}
               id="${id}-subtask"
               name="Transcript"
               events=${event.events}
               stateManager=${stateManager}
+              depth=${depth + 1}
             />` : ""}
     </${EventPanel}>`;
 };
@@ -17110,19 +17259,18 @@ const SubtaskSummary = ({ input, result }) => {
   return m$1` <div
     style=${{
     display: "grid",
-    gridTemplateColumns: "minmax(0,max-content) max-content minmax(0,max-content)",
+    gridTemplateColumns: "minmax(0, 1fr) max-content minmax(0, 1fr)",
     columnGap: "1em",
     margin: "1em 0"
   }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>
-    <div style=${{ fontSize: FontSize.large, padding: "0 2em" }}>
-      <i class="${ApplicationIcons.arrows.right}" />
-    </div>
-
+    <div style=${{ fontSize: FontSize.large, padding: "0 2em" }}></div>
     <div style=${{ ...TextStyle.label }}>Output</div>
     <${Rendered} values=${input} />
-    <div></div>
+    <div style=${{ fontSize: FontSize["title-secondary"], padding: "0 2em" }}>
+      <i class="${ApplicationIcons.arrows.right}" />
+    </div>
     <${Rendered} values=${result} />
   </div>`;
 };
@@ -17325,7 +17473,7 @@ const duration = (stats) => {
   const durationSec = durationMs / 1e3;
   return formatTime(durationSec);
 };
-const ModelEventView = ({ id, depth, event }) => {
+const ModelEventView = ({ id, event, style }) => {
   var _a, _b;
   const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
   const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
@@ -17341,9 +17489,9 @@ const ModelEventView = ({ id, depth, event }) => {
     justifySelf: "start"
   };
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion">
+    <div name="Completion" style=${{ margin: "1em 0" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...outputMessages || []]}
@@ -17415,7 +17563,7 @@ const APICodeCell = ({ id, contents }) => {
     background: "var(--bs-light)",
     width: "100%",
     padding: "0.5em",
-    borderRadius: "3px"
+    borderRadius: "var(--bs-border-radius)"
   }}
     >
       <code 
@@ -17448,15 +17596,15 @@ const ToolsConfig = ({ tools }) => {
     ${toolEls}
   </div>`;
 };
-const EventRow = ({ title, icon, depth, children }) => {
-  const paddingLeft = depth * 1.5 + 0.5;
+const EventRow = ({ title, icon, style, children }) => {
   const contentEl = title ? m$1`<div
         style=${{
-    padding: `0.5em 0.5em 0.5em ${paddingLeft}em`,
+    marginLeft: "0.5em",
     display: "grid",
     gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
     columnGap: "0.5em",
-    fontSize: FontSize.small
+    fontSize: FontSize.small,
+    ...style
   }}
       >
         <i class=${icon || ApplicationIcons.metadata} />
@@ -17466,21 +17614,23 @@ const EventRow = ({ title, icon, depth, children }) => {
   const card = m$1` <div
     class="card"
     style=${{
-    padding: "0.1em 0.5em",
-    marginBottom: "-1px"
+    padding: "0.4em",
+    marginBottom: "0.4em",
+    border: "solid 1px var(--bs-light-border-subtle)",
+    borderRadius: "var(--bs-border-radius)"
   }}
   >
     ${contentEl}
   </div>`;
   return card;
 };
-const LoggerEventView = ({ id, depth, event }) => {
+const LoggerEventView = ({ id, event, style }) => {
   return m$1`
   <${EventRow} 
     id=${id}
-    depth=${depth}
     title=${event.message.level} 
     icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
+    style=${style}
   >
   <div
     style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "1em", fontSize: FontSize.base }}
@@ -17506,7 +17656,7 @@ const JSONPanel = ({ data, style }) => {
     background: "var(--bs-light)",
     width: "100%",
     padding: "0.5em",
-    borderRadius: "3px",
+    borderRadius: "var(--bs-border-radius)",
     ...style
   }}
     >
@@ -17522,15 +17672,15 @@ const JSONPanel = ({ data, style }) => {
     </pre>
   </div>`;
 };
-const InfoEventView = ({ id, depth, event }) => {
+const InfoEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Info" icon=${ApplicationIcons.info}>
+  <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
     <${JSONPanel} data=${event.data} style=${{ margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
-const ScoreEventView = ({ id, depth, event }) => {
+const ScoreEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Score" icon=${ApplicationIcons.scorer}>
+  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
   
     <div
       name="Explanation"
@@ -17558,20 +17708,20 @@ const ScoreEventView = ({ id, depth, event }) => {
 
   </${EventPanel}>`;
 };
-const ToolEventView = ({ id, depth, stateManager, event }) => {
+const ToolEventView = ({ id, event, style, stateManager, depth }) => {
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
   );
   const title = `Tool: ${event.function}`;
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
+  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
   <div name="Summary">
     <${ExpandablePanel}>
       ${event.result ? m$1`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
     </${ExpandablePanel}>
   </div>
-  <div name="Transcript">
+  <div name="Transcript" style=${{ margin: "1em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
@@ -17584,45 +17734,70 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
                 name="Transcript"
                 events=${event.events}
                 stateManager=${stateManager}
+                depth=${depth + 1}
               />` : ""}
 
   </div>
   </${EventPanel}>`;
 };
-const ErrorEventView = ({ id, depth, event }) => {
+const ErrorEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Error" icon=${ApplicationIcons.error}>
+  <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
-const TranscriptView = ({ id, events, stateManager }) => {
+class EventNode {
+  /**
+   * Create an EventNode.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").ErrorEvent } event - This event.
+   * @param {number} depth - the depth of this item
+   */
+  constructor(event, depth) {
+    this.event = event;
+    this.children = [];
+    this.depth = depth;
+  }
+}
+const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
   const resolvedEvents = fixupEventStream(events);
-  let depth = 0;
-  const rows = resolvedEvents.map((event, index) => {
-    const row = m$1`
-      <div
-        style=${{
-      paddingTop: 0,
-      paddingBottom: 0
-    }}
-      >
-        <div>
-          ${renderNode(
-      `${id}-event${index}`,
-      event,
-      Math.max(depth - 1, 0),
-      stateManager
-    )}
-        </div>
-      </div>
-    `;
-    if (event.event === "step") {
-      if (event.action === "end") {
-        depth = depth - 1;
-      } else {
-        depth = depth + 1;
-      }
+  const eventNodes = treeifyEvents(resolvedEvents, depth);
+  return m$1`
+    <${TranscriptComponent}
+      id=${id}
+      eventNodes=${eventNodes}
+      stateManager=${stateManager}
+    />
+  `;
+};
+const TranscriptComponent = ({
+  id,
+  eventNodes,
+  style,
+  stateManager
+}) => {
+  const rows = eventNodes.map((eventNode, index) => {
+    const toggleStyle = {};
+    if (eventNode.depth % 2 == 0) {
+      toggleStyle.backgroundColor = "var(--bs-light)";
+    } else {
+      toggleStyle.backgroundColor = "var(--bs-body-bg)";
     }
+    if (index === eventNodes.length - 1) {
+      toggleStyle.marginBottom = "0";
+    } else if (eventNode.depth === 0) {
+      toggleStyle.marginBottom = "1.5em";
+    }
+    const row = m$1`
+      <${RenderedEventNode}
+        id=${`${id}-event${index}`}
+        node=${eventNode}
+        stateManager=${stateManager}
+        style=${{
+      ...toggleStyle,
+      ...style
+    }}
+      />
+    `;
     return row;
   });
   return m$1`<div
@@ -17631,75 +17806,90 @@ const TranscriptView = ({ id, events, stateManager }) => {
     style=${{
     fontSize: FontSize.small,
     display: "grid",
-    margin: "1em 0",
+    margin: "0.5em 0 0 0",
     width: "100%"
   }}
   >
     ${rows}
   </div>`;
 };
-const renderNode = (id, event, depth, stateManager) => {
-  switch (event.event) {
+const RenderedEventNode = ({ id, node, style, stateManager }) => {
+  switch (node.event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
       />`;
     case "info":
-      return m$1`<${InfoEventView} id=${id} depth=${depth} event=${event} />`;
+      return m$1`<${InfoEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
     case "logger":
       return m$1`<${LoggerEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
+        style=${style}
       />`;
     case "model":
-      return m$1`<${ModelEventView} id=${id} depth=${depth} event=${event} />`;
+      return m$1`<${ModelEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
     case "score":
-      return m$1`<${ScoreEventView} id=${id} depth=${depth} event=${event} />`;
+      return m$1`<${ScoreEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
     case "state":
       return m$1`<${StateEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
       />`;
     case "step":
       return m$1`<${StepEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
+        children=${node.children}
         stateManager=${stateManager}
+        style=${style}
       />`;
     case "store":
       return m$1`<${StateEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
       />`;
     case "subtask":
       return m$1`<${SubtaskEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
+        depth=${node.depth}
       />`;
     case "tool":
       return m$1`<${ToolEventView}
-        depth=${depth}
         id=${id}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
+        depth=${node.depth}
       />`;
     case "error":
       return m$1`<${ErrorEventView}
-        depth=${depth}
         id=${id}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
       />`;
     default:
       return m$1``;
@@ -17729,6 +17919,33 @@ const fixupEventStream = (events) => {
   }
   return fixedUp;
 };
+function treeifyEvents(events, depth) {
+  const rootNodes = [];
+  const stack2 = [];
+  const pushNode = (event) => {
+    const node = new EventNode(event, stack2.length + depth);
+    if (stack2.length > 0) {
+      const parentNode = stack2[stack2.length - 1];
+      parentNode.children.push(node);
+    } else {
+      rootNodes.push(node);
+    }
+    return node;
+  };
+  events.forEach((event) => {
+    if (event.event === "step" && event.action === "begin") {
+      const node = pushNode(event);
+      stack2.push(node);
+    } else if (event.event === "step" && event.action === "end") {
+      if (stack2.length > 0) {
+        stack2.pop();
+      }
+    } else {
+      pushNode(event);
+    }
+  });
+  return rootNodes;
+}
 /*!
  * https://github.com/Starcounter-Jack/JSON-Patch
  * (c) 2017-2022 Joachim Wester
@@ -18379,8 +18596,8 @@ const initStateManager = () => {
      *
      * @param {Object} newState - The new state object to update with.
      */
-    setState: (newState) => {
-      state = structuredClone(newState);
+    initializeState: (newState) => {
+      state = newState;
     },
     /**
      * Updates the current state with a new state object.
@@ -18388,11 +18605,11 @@ const initStateManager = () => {
      * @param {import("../../types/log").Changes} changes - The new state object to update with.
      */
     applyChanges: (changes) => {
-      state = structuredClone(state);
-      changes.forEach((change) => {
-        applyOperation(state, change);
-      });
-      return state;
+      state = applyPatch(
+        structuredClone(state),
+        structuredClone(changes),
+        true
+      ).newDocument;
     }
   };
 };
@@ -18529,20 +18746,26 @@ const SampleDisplay = ({
   };
   const tabs = [
     m$1`
-    <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
-      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${sample.messages} style=${{ paddingLeft: ".8em", paddingTop: "1em" }}/>
+    <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
+      <${ChatView} 
+        key=${`${baseId}-chat`} 
+        id=${`${baseId}-chat`} 
+        messages=${sample.messages} 
+        style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
+        indented=${true}
+      />
     </${TabPanel}>`
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(m$1`
-      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
+      <${TabPanel} id=${transcriptTabId} title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
         <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(m$1`
-      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
+      <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
         <${SampleScoreView}
           sample=${sample}
           context=${context}
@@ -18555,7 +18778,7 @@ const SampleDisplay = ({
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(m$1`
-        <${TabPanel} id="${tabId}" title="${scorer}" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
+        <${TabPanel} id="${tabId}" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
             context=${context}
@@ -18573,7 +18796,6 @@ const SampleDisplay = ({
       <${TabPanel} 
           id=${metdataTabId} 
           title="Metadata" 
-          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
@@ -18588,7 +18810,6 @@ const SampleDisplay = ({
       <${TabPanel} 
           id=${errorTabId} 
           title="Error" 
-          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === errorTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
@@ -18870,6 +19091,44 @@ class VirtualList extends b {
     return rows;
   }
 }
+const WarningBand = ({ message }) => {
+  const [hidden, setHidden] = h(false);
+  return m$1`
+    <div
+      style=${{
+    gridTemplateColumns: "max-content auto max-content",
+    alignItems: "center",
+    columnGap: "0.5em",
+    fontSize: FontSize.small,
+    color: "var(--bs-warning-text-emphasis)",
+    background: "var(--bs-warning-bg-subtle)",
+    borderBottom: "solid 1px var(--bs-light-border-subtle)",
+    padding: "0.3em 1em",
+    display: hidden ? "none" : "grid"
+  }}
+    >
+      <i class=${ApplicationIcons.logging.warning} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+    fontSize: FontSize["title-secondary"],
+    margin: "0",
+    padding: "0",
+    color: "var(--bs-warning-text-emphasis)",
+    height: FontSize["title-secondary"],
+    lineHeight: FontSize["title-secondary"]
+  }}
+        class="btn"
+        onclick=${() => {
+    setHidden(true);
+  }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
+    </div>
+  `;
+};
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 const SampleList = (props) => {
@@ -19002,7 +19261,7 @@ const SampleList = (props) => {
   const sampleCount = items == null ? void 0 : items.length;
   const percentError = errorCount / sampleCount * 100;
   const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
-  const warningRow = warningMessage ? m$1`<${WarningRow} message=${warningMessage} />` : "";
+  const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
@@ -19017,41 +19276,6 @@ const SampleList = (props) => {
       style=${listStyle}
     />
   </div>`;
-};
-const WarningRow = ({ message }) => {
-  const [hidden, setHidden] = h(false);
-  return m$1`
-    <div
-      style=${{
-    gridTemplateColumns: "max-content auto max-content",
-    columnGap: "0.5em",
-    fontSize: FontSize.small,
-    background: "var(--bs-warning-bg-subtle)",
-    borderBottom: "solid 1px var(--bs-light-border-subtle)",
-    padding: "0.3em 1em",
-    display: hidden ? "none" : "grid"
-  }}
-    >
-      <i class=${ApplicationIcons.logging.warning} />
-      ${message}
-      <button
-        title="Close"
-        style=${{
-    fontSize: FontSize["title-secondary"],
-    margin: "0",
-    padding: "0",
-    height: FontSize["title-secondary"],
-    lineHeight: FontSize["title-secondary"]
-  }}
-        class="btn"
-        onclick=${() => {
-    setHidden(true);
-  }}
-      >
-        <i class=${ApplicationIcons.close}></i>
-      </button>
-    </div>
-  `;
 };
 const SeparatorRow = ({ id, title, height }) => {
   return m$1`<div
@@ -20155,24 +20379,30 @@ const CanceledPanel = ({ sampleCount }) => {
   </div>`;
 };
 const RunningPanel = () => {
-  return m$1`<div
-    style=${{
-    marginTop: "0.5em",
-    display: "inline-grid",
-    gridTemplateColumns: "auto auto"
-  }}
-  >
-    <div class="spinner-border spinner-border-sm" role="status"></div>
+  return m$1`
     <div
       style=${{
-    marginLeft: "0.3em",
-    paddingTop: "0.2em",
-    fontSize: FontSize.smaller
+    marginTop: "0.5em",
+    display: "inline-grid",
+    gridTemplateColumns: "max-content max-content"
   }}
     >
-      Running
+      <div>
+        <i class=${ApplicationIcons.running} />
+      </div>
+      <div
+        style=${{
+    marginLeft: "0.3em",
+    paddingTop: "0.2em",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        Running
+      </div>
     </div>
-  </div>`;
+  `;
 };
 const ResultsPanel = ({ results }) => {
   var _a, _b;
@@ -20375,11 +20605,7 @@ async function eval_logs$1() {
   return logs.parsed;
 }
 async function eval_log$1(file, headerOnly) {
-  if (headerOnly) {
-    return await api$1("GET", `/api/logs/${file}?header-only=true`);
-  } else {
-    return await api$1("GET", `/api/logs/${file}`);
-  }
+  return await api$1("GET", `/api/logs/${file}?header-only=${headerOnly}`);
 }
 async function eval_log_headers$1(files) {
   const params = new URLSearchParams();
@@ -20410,12 +20636,15 @@ async function api$1(method, path, body) {
     throw new Error(`${response.status} - ${response.statusText} `);
   }
 }
+async function open_log_file$1() {
+}
 const browserApi = {
   client_events: client_events$1,
   eval_logs: eval_logs$1,
   eval_log: eval_log$1,
   eval_log_headers: eval_log_headers$1,
-  download_file: download_file$1
+  download_file: download_file$1,
+  open_log_file: open_log_file$1
 };
 var Space_Separator = /[\u1680\u2000-\u200A\u202F\u205F\u3000]/;
 var ID_Start = /[\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u09FC\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60\u0C61\u0C80\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D54-\u0D56\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u1884\u1887-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1C80-\u1C88\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312E\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEA\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6EF\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AE\uA7B0-\uA7B7\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]|\uD800[\uDC00-\uDC0B\uDC0D-\uDC26\uDC28-\uDC3A\uDC3C\uDC3D\uDC3F-\uDC4D\uDC50-\uDC5D\uDC80-\uDCFA\uDD40-\uDD74\uDE80-\uDE9C\uDEA0-\uDED0\uDF00-\uDF1F\uDF2D-\uDF4A\uDF50-\uDF75\uDF80-\uDF9D\uDFA0-\uDFC3\uDFC8-\uDFCF\uDFD1-\uDFD5]|\uD801[\uDC00-\uDC9D\uDCB0-\uDCD3\uDCD8-\uDCFB\uDD00-\uDD27\uDD30-\uDD63\uDE00-\uDF36\uDF40-\uDF55\uDF60-\uDF67]|\uD802[\uDC00-\uDC05\uDC08\uDC0A-\uDC35\uDC37\uDC38\uDC3C\uDC3F-\uDC55\uDC60-\uDC76\uDC80-\uDC9E\uDCE0-\uDCF2\uDCF4\uDCF5\uDD00-\uDD15\uDD20-\uDD39\uDD80-\uDDB7\uDDBE\uDDBF\uDE00\uDE10-\uDE13\uDE15-\uDE17\uDE19-\uDE33\uDE60-\uDE7C\uDE80-\uDE9C\uDEC0-\uDEC7\uDEC9-\uDEE4\uDF00-\uDF35\uDF40-\uDF55\uDF60-\uDF72\uDF80-\uDF91]|\uD803[\uDC00-\uDC48\uDC80-\uDCB2\uDCC0-\uDCF2]|\uD804[\uDC03-\uDC37\uDC83-\uDCAF\uDCD0-\uDCE8\uDD03-\uDD26\uDD50-\uDD72\uDD76\uDD83-\uDDB2\uDDC1-\uDDC4\uDDDA\uDDDC\uDE00-\uDE11\uDE13-\uDE2B\uDE80-\uDE86\uDE88\uDE8A-\uDE8D\uDE8F-\uDE9D\uDE9F-\uDEA8\uDEB0-\uDEDE\uDF05-\uDF0C\uDF0F\uDF10\uDF13-\uDF28\uDF2A-\uDF30\uDF32\uDF33\uDF35-\uDF39\uDF3D\uDF50\uDF5D-\uDF61]|\uD805[\uDC00-\uDC34\uDC47-\uDC4A\uDC80-\uDCAF\uDCC4\uDCC5\uDCC7\uDD80-\uDDAE\uDDD8-\uDDDB\uDE00-\uDE2F\uDE44\uDE80-\uDEAA\uDF00-\uDF19]|\uD806[\uDCA0-\uDCDF\uDCFF\uDE00\uDE0B-\uDE32\uDE3A\uDE50\uDE5C-\uDE83\uDE86-\uDE89\uDEC0-\uDEF8]|\uD807[\uDC00-\uDC08\uDC0A-\uDC2E\uDC40\uDC72-\uDC8F\uDD00-\uDD06\uDD08\uDD09\uDD0B-\uDD30\uDD46]|\uD808[\uDC00-\uDF99]|\uD809[\uDC00-\uDC6E\uDC80-\uDD43]|[\uD80C\uD81C-\uD820\uD840-\uD868\uD86A-\uD86C\uD86F-\uD872\uD874-\uD879][\uDC00-\uDFFF]|\uD80D[\uDC00-\uDC2E]|\uD811[\uDC00-\uDE46]|\uD81A[\uDC00-\uDE38\uDE40-\uDE5E\uDED0-\uDEED\uDF00-\uDF2F\uDF40-\uDF43\uDF63-\uDF77\uDF7D-\uDF8F]|\uD81B[\uDF00-\uDF44\uDF50\uDF93-\uDF9F\uDFE0\uDFE1]|\uD821[\uDC00-\uDFEC]|\uD822[\uDC00-\uDEF2]|\uD82C[\uDC00-\uDD1E\uDD70-\uDEFB]|\uD82F[\uDC00-\uDC6A\uDC70-\uDC7C\uDC80-\uDC88\uDC90-\uDC99]|\uD835[\uDC00-\uDC54\uDC56-\uDC9C\uDC9E\uDC9F\uDCA2\uDCA5\uDCA6\uDCA9-\uDCAC\uDCAE-\uDCB9\uDCBB\uDCBD-\uDCC3\uDCC5-\uDD05\uDD07-\uDD0A\uDD0D-\uDD14\uDD16-\uDD1C\uDD1E-\uDD39\uDD3B-\uDD3E\uDD40-\uDD44\uDD46\uDD4A-\uDD50\uDD52-\uDEA5\uDEA8-\uDEC0\uDEC2-\uDEDA\uDEDC-\uDEFA\uDEFC-\uDF14\uDF16-\uDF34\uDF36-\uDF4E\uDF50-\uDF6E\uDF70-\uDF88\uDF8A-\uDFA8\uDFAA-\uDFC2\uDFC4-\uDFCB]|\uD83A[\uDC00-\uDCC4\uDD00-\uDD43]|\uD83B[\uDE00-\uDE03\uDE05-\uDE1F\uDE21\uDE22\uDE24\uDE27\uDE29-\uDE32\uDE34-\uDE37\uDE39\uDE3B\uDE42\uDE47\uDE49\uDE4B\uDE4D-\uDE4F\uDE51\uDE52\uDE54\uDE57\uDE59\uDE5B\uDE5D\uDE5F\uDE61\uDE62\uDE64\uDE67-\uDE6A\uDE6C-\uDE72\uDE74-\uDE77\uDE79-\uDE7C\uDE7E\uDE80-\uDE89\uDE8B-\uDE9B\uDEA1-\uDEA3\uDEA5-\uDEA9\uDEAB-\uDEBB]|\uD869[\uDC00-\uDED6\uDF00-\uDFFF]|\uD86D[\uDC00-\uDF34\uDF40-\uDFFF]|\uD86E[\uDC00-\uDC1D\uDC20-\uDFFF]|\uD873[\uDC00-\uDEA1\uDEB0-\uDFFF]|\uD87A[\uDC00-\uDFE0]|\uD87E[\uDC00-\uDE1D]/;
@@ -21625,18 +21854,28 @@ async function eval_log_headers(files) {
 async function download_file(logFile) {
   vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
 }
+async function open_log_file(url, log_dir) {
+  const msg = {
+    type: "displayLogFile",
+    url,
+    log_dir
+  };
+  vscodeApi.postMessage(msg);
+}
 const vscodeApi$1 = {
   client_events,
   eval_logs,
   eval_log,
   eval_log_headers,
-  download_file
+  download_file,
+  open_log_file
 };
 function singleFileHttpApi() {
   const urlParams = new URLSearchParams(window.location.search);
   const fetchLogPath = urlParams.get("log_file");
   if (fetchLogPath) {
-    const api2 = httpApiForFile(fetchLogPath);
+    const resolvedLogPath = fetchLogPath.replace(" ", "+");
+    const api2 = httpApiForFile(resolvedLogPath);
     return api2;
   }
 }
@@ -21675,6 +21914,8 @@ function httpApiForFile(logFile) {
       }
     }
   };
+  async function open_log_file2() {
+  }
   return {
     client_events: async () => {
       return Promise.resolve([]);
@@ -21699,7 +21940,8 @@ function httpApiForFile(logFile) {
       const contents = await getContents();
       return Promise.resolve([contents.parsed]);
     },
-    download_file: download_file$1
+    download_file: download_file$1,
+    open_log_file: open_log_file2
   };
 }
 const api = window.acquireVsCodeApi ? vscodeApi$1 : singleFileHttpApi() || browserApi;
@@ -21767,7 +22009,7 @@ const WorkSpace = (props) => {
   const [currentTaskId, setCurrentTaskId] = h(
     (_b = (_a = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.run_id
   );
-  const [selectedTab, setSelectedTab] = h(kEvalTabId);
+  const [selectedTab, setSelectedTab] = h();
   const [scores, setScores] = h([]);
   const [score, setScore] = h(void 0);
   const [samplesDesc, setSamplesDesc] = h(void 0);
@@ -21787,9 +22029,9 @@ const WorkSpace = (props) => {
     setSort(kDefaultSort);
   }, [setEpoch, setFilter, setSort]);
   y(() => {
-    var _a2, _b2;
+    var _a2;
     if (workspaceLog.contents && ((_a2 = workspaceLog.contents.eval) == null ? void 0 : _a2.run_id) !== currentTaskId) {
-      const defaultTab = ((_b2 = workspaceLog.contents) == null ? void 0 : _b2.status) !== "error" ? kEvalTabId : kInfoTabId;
+      const defaultTab = Object.values(tabs)[0].id;
       setSelectedTab(defaultTab);
       if (divRef.current) {
         divRef.current.scrollTop = 0;
@@ -21839,13 +22081,13 @@ const WorkSpace = (props) => {
     setCurrentTaskId((_b2 = (_a2 = workspaceLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.run_id);
   }, [workspaceLog]);
   const tabs = T(() => {
-    var _a2, _b2, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e, _f;
     const resolvedTabs = {};
-    if (((_a2 = workspaceLog.contents) == null ? void 0 : _a2.status) !== "error") {
+    if (((_a2 = workspaceLog.contents) == null ? void 0 : _a2.status) !== "error" && ((_b2 = workspaceLog.contents) == null ? void 0 : _b2.samples)) {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        scrollable: ((_c = (_b2 = workspaceLog.contents) == null ? void 0 : _b2.samples) == null ? void 0 : _c.length) === 1,
-        label: ((_e = (_d = workspaceLog.contents) == null ? void 0 : _d.samples) == null ? void 0 : _e.length) > 1 ? "Samples" : "Sample",
+        scrollable: ((_d = (_c = workspaceLog.contents) == null ? void 0 : _c.samples) == null ? void 0 : _d.length) === 1,
+        label: ((_f = (_e = workspaceLog.contents) == null ? void 0 : _e.samples) == null ? void 0 : _f.length) > 1 ? "Samples" : "Sample",
         content: () => {
           var _a3, _b3, _c2, _d2, _e2;
           return m$1` <${SamplesTab}
@@ -21862,13 +22104,20 @@ const WorkSpace = (props) => {
           />`;
         },
         tools: () => {
-          var _a3, _b3, _c2, _d2, _e2;
-          if (((_b3 = (_a3 = workspaceLog.contents) == null ? void 0 : _a3.samples) == null ? void 0 : _b3.length) <= 1) {
+          var _a3, _b3, _c2, _d2, _e2, _f2;
+          if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) === "started") {
+            return m$1`<${ToolButton}
+              name=${m$1`Refresh`}
+              icon="${ApplicationIcons.refresh}"
+              onclick="${props.refreshLog}"
+            />`;
+          }
+          if (((_c2 = (_b3 = workspaceLog.contents) == null ? void 0 : _b3.samples) == null ? void 0 : _c2.length) <= 1) {
             return "";
           }
           return m$1`<${SampleTools}
             epoch=${epoch}
-            epochs=${(_e2 = (_d2 = (_c2 = workspaceLog.contents) == null ? void 0 : _c2.eval) == null ? void 0 : _d2.config) == null ? void 0 : _e2.epochs}
+            epochs=${(_f2 = (_e2 = (_d2 = workspaceLog.contents) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f2.epochs}
             setEpoch=${setEpoch}
             filter=${filter}
             filterChanged=${setFilter}
@@ -21887,13 +22136,14 @@ const WorkSpace = (props) => {
       label: "Info",
       scrollable: true,
       content: () => {
-        var _a3, _b3, _c2;
-        const infoCards = [
+        var _a3, _b3, _c2, _d2, _e2, _f2, _g, _h, _i;
+        const infoCards = [];
+        infoCards.push([
           m$1`<${PlanCard}
             log="${workspaceLog.contents}"
             context=${context}
           />`
-        ];
+        ]);
         if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) !== "started") {
           infoCards.push(
             m$1`<${UsageCard}
@@ -21902,13 +22152,24 @@ const WorkSpace = (props) => {
             />`
           );
         }
-        if (((_c2 = workspaceLog.contents) == null ? void 0 : _c2.status) === "error") {
+        if (((_c2 = workspaceLog.contents) == null ? void 0 : _c2.status) === "error" && ((_d2 = workspaceLog.contents) == null ? void 0 : _d2.error)) {
           infoCards.unshift(
             m$1`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`
           );
         }
-        return m$1`<div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-          ${infoCards}
+        const warnings = [];
+        if (!((_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples) && ((_h = (_g = (_f2 = workspaceLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = workspaceLog.contents) == null ? void 0 : _i.status) !== "error") {
+          warnings.push(
+            m$1`<${WarningBand}
+              message="This evaluation log is too large to display samples."
+            />`
+          );
+        }
+        return m$1` <div style=${{ width: "100%" }}>
+          ${warnings}
+          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+            ${infoCards}
+          </div>
         </div>`;
       }
     };
@@ -22090,7 +22351,7 @@ const WorkspaceDisplay = ({
         width: "5rem",
         fontSize: FontSize.smaller,
         textTransform: "uppercase",
-        borderRadius: "3px",
+        borderRadius: "var(--bs-border-radius)",
         fontWeight: 600
       }
     }} >
@@ -22257,7 +22518,6 @@ const FindBand = ({ hideBand }) => {
 };
 function App({ api: api2, pollForLogs = true }) {
   const [selected, setSelected] = h(-1);
-  const [pendingLog, setPendingLog] = h(void 0);
   const [logs, setLogs] = h({ log_dir: "", files: [] });
   const [logHeaders, setLogHeaders] = h({});
   const [offcanvas, setOffcanvas] = h(false);
@@ -22279,7 +22539,7 @@ function App({ api: api2, pollForLogs = true }) {
   const mainAppRef = A();
   y(async () => {
     setHeadersLoading(true);
-    const chunkSize = 12;
+    const chunkSize = 8;
     const fileLists = [];
     for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
       let chunk = logs.files.slice(i2, i2 + chunkSize).map((log) => {
@@ -22298,7 +22558,9 @@ function App({ api: api2, pollForLogs = true }) {
           });
           return { ...prev, ...updatedHeaders };
         });
-        await sleep(5e3);
+        if (headers.length === chunkSize) {
+          await sleep(5e3);
+        }
       }
     } catch (e2) {
       console.log(e2);
@@ -22306,28 +22568,12 @@ function App({ api: api2, pollForLogs = true }) {
     }
     setHeadersLoading(false);
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-  const filteredLogs = T(() => {
-    const notRunning = Object.keys(logHeaders).filter((key2) => {
-      return logHeaders[key2].status !== "started";
-    });
-    const files = logs.files.filter((file) => {
-      return notRunning.includes(file.name);
-    });
-    return {
-      log_dir: logs.log_dir,
-      files
-    };
-  }, [logHeaders, logs]);
   y(async () => {
-    const targetLog = filteredLogs.files[selected];
+    const targetLog = logs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
         setStatus({ loading: true, error: void 0 });
-        const logContents = await api2.eval_log(
-          targetLog.name,
-          false,
-          capabilities
-        );
+        const logContents = await loadLog(targetLog.name);
         if (logContents) {
           const log = logContents.parsed;
           setCurrentLog({
@@ -22342,50 +22588,86 @@ function App({ api: api2, pollForLogs = true }) {
         setStatus({ loading: false, error: e2 });
       }
     }
-  }, [
-    selected,
-    filteredLogs,
-    capabilities,
-    currentLog,
-    setCurrentLog,
-    setStatus
-  ]);
-  const loadLogsImpl = q(async () => {
+  }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
+  const loadLogs = async () => {
     try {
       const result = await api2.eval_logs();
-      if (result) {
-        setLogs(result);
-      } else {
-        setLogs({ log_dir: "", files: [] });
+      return result;
+    } catch (e2) {
+      console.log(e2);
+      setStatus({ loading: false, error: e2 });
+    }
+  };
+  const loadLog = async (logFileName) => {
+    try {
+      const logContents = await api2.eval_log(logFileName, 100, capabilities);
+      return logContents;
+    } catch (e2) {
+      console.log(e2);
+      setStatus({ loading: false, error: e2 });
+    }
+  };
+  const refreshLog = q(async () => {
+    try {
+      setStatus({ loading: true, error: void 0 });
+      const targetLog = logs.files[selected];
+      const logContents = await loadLog(targetLog.name);
+      if (logContents) {
+        const log = logContents.parsed;
+        if (log.status !== "started") {
+          setLogHeaders((prev) => {
+            const updatedState = { ...prev };
+            const freshHeaders = {
+              eval: log.eval,
+              plan: log.plan,
+              results: log.results,
+              stats: log.stats,
+              status: log.status,
+              version: log.version
+            };
+            updatedState[targetLog.name] = freshHeaders;
+            return updatedState;
+          });
+        }
+        setCurrentLog({
+          contents: log,
+          name: targetLog.name,
+          raw: logContents.raw
+        });
+        setStatus({ loading: false, error: void 0 });
       }
     } catch (e2) {
       console.log(e2);
       setStatus({ loading: false, error: e2 });
     }
-  }, []);
-  const loadLogs = q(
-    throttle(() => {
-      loadLogsImpl();
-    }, 5e3),
-    [loadLogsImpl]
-  );
-  y(async () => {
-    if (pendingLog) {
-      const index = filteredLogs.files.findIndex((val) => {
-        return pendingLog.endsWith(val.name);
+  }, [logs, selected, setStatus, setCurrentLog, setLogHeaders]);
+  const showLogFile = q(
+    async (logUrl) => {
+      const index = logs.files.findIndex((val) => {
+        return logUrl.endsWith(val.name);
       });
       if (index > -1) {
         setSelected(index);
-        setPendingLog(void 0);
       } else {
-        if (!logs.files.find((val) => {
-          return pendingLog.endsWith(val.name);
-        })) {
-          await loadLogs();
-        }
+        const result = await loadLogs();
+        const idx = result.files.findIndex((file) => {
+          return logUrl.endsWith(file.name);
+        });
+        setLogs(result);
+        setSelected(idx > -1 ? idx : 0);
       }
-    }
-  }, [pendingLog, filteredLogs, setSelected, setPendingLog, loadLogs]);
+    },
+    [logs, setSelected, setLogs]
+  );
+  const refreshLogList = q(async () => {
+    const currentLog2 = logs.files[selected > -1 ? selected : 0];
+    const refreshedLogs = await loadLogs();
+    const newIndex = refreshedLogs.files.findIndex((file) => {
+      return currentLog2.name.endsWith(file.name);
+    });
+    setLogs(refreshedLogs);
+    setSelected(newIndex);
+  }, [logs, selected, setSelected, setLogs]);
   const onMessage = T(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
@@ -22393,12 +22675,28 @@ function App({ api: api2, pollForLogs = true }) {
         case "updateState": {
           if (e2.data.url) {
             const decodedUrl = decodeURIComponent(e2.data.url);
-            setPendingLog(decodedUrl);
+            showLogFile(decodedUrl);
           }
+          break;
+        }
+        case "backgroundUpdate": {
+          const decodedUrl = decodeURIComponent(e2.data.url);
+          const log_dir = e2.data.log_dir;
+          const isFocused = document.hasFocus();
+          if (!isFocused) {
+            if (log_dir === logs.log_dir) {
+              showLogFile(decodedUrl);
+            } else {
+              api2.open_log_file(e2.data.url, e2.data.log_dir);
+            }
+          } else {
+            refreshLogList();
+          }
+          break;
         }
       }
     };
-  }, [setPendingLog]);
+  }, [logs, showLogFile, refreshLogList]);
   y(() => {
     window.addEventListener("message", onMessage);
     return () => {
@@ -22422,18 +22720,20 @@ function App({ api: api2, pollForLogs = true }) {
     }
     setOffcanvas(true);
     const logPath = urlParams.get("task_file");
-    const load = logPath ? async () => {
-      setLogs({
+    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+    const load = resolvedLogPath ? async () => {
+      return {
         log_dir: "",
-        files: [{ name: logPath }]
-      });
+        files: [{ name: resolvedLogPath }]
+      };
     } : loadLogs;
     const embeddedState = document.getElementById("logview-state");
     if (embeddedState) {
       const state = JSON.parse(embeddedState.textContent);
       onMessage({ data: state });
     } else {
-      await load();
+      const result = await load();
+      setLogs(result);
     }
     if (selected === -1 && !embeddedState) {
       setSelected(0);
@@ -22446,17 +22746,18 @@ function App({ api: api2, pollForLogs = true }) {
             window.location.reload(true);
           }
           if (events.includes("refresh-evals")) {
-            await load();
+            const logs2 = await load();
+            setLogs(logs2);
             setSelected(0);
           }
         });
       }, 1e3);
     }
   }, []);
-  const fullScreen = filteredLogs.files.length === 1 && !filteredLogs.log_dir;
+  const fullScreen = logs.files.length === 1 && !logs.log_dir;
   const sidebar = !fullScreen && currentLog.contents ? m$1`
           <${Sidebar}
-            logs=${filteredLogs}
+            logs=${logs}
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
@@ -22479,7 +22780,7 @@ function App({ api: api2, pollForLogs = true }) {
       />`;
     } else {
       return m$1` <${WorkSpace}
-        logs=${filteredLogs}
+        logs=${logs}
         log=${currentLog}
         selected=${selected}
         fullScreen=${fullScreen}
@@ -22487,6 +22788,7 @@ function App({ api: api2, pollForLogs = true }) {
         capabilities=${capabilities}
         showFind=${showFind}
         setShowFind=${setShowFind}
+        refreshLog=${refreshLog}
       />`;
     }
   }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
@@ -22512,7 +22814,10 @@ function App({ api: api2, pollForLogs = true }) {
     }
   }}>
       ${showFind ? m$1`<${FindBand} hideBand=${hideFind} />` : ""}
-      <${ProgressBar} animating=${status.loading} />
+      <${ProgressBar} animating=${status.loading}  containerStyle=${{
+    background: "var(--bs-light)",
+    marginBottom: "-1px"
+  }}/>
       ${workspace}
     </div>
     </${AppErrorBoundary}>

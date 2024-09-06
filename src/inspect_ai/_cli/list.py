@@ -12,7 +12,7 @@ from inspect_ai._cli.common import CommonOptions, common_options, resolve_common
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._eval.list import list_tasks
 from inspect_ai._eval.task import TaskInfo
-from inspect_ai.log import list_eval_logs, retryable_eval_logs
+from inspect_ai.log import list_eval_logs
 
 
 @click.group("list")
@@ -88,25 +88,11 @@ def tasks(
     help="List only log files with the indicated status.",
 )
 @click.option(
-    "--retryable",
-    type=bool,
-    is_flag=True,
-    default=False,
-    help="List only retryable logs (logs with status 'error' or 'cancelled' that do not have a corresponding log with status 'success')",
-)
-@click.option(
     "--absolute",
     type=bool,
     is_flag=True,
     default=False,
     help="List absolute paths to log files (defaults to relative to the cwd).",
-)
-@click.option(
-    "--recursive",
-    type=bool,
-    is_flag=True,
-    default=True,
-    help="List log files recursively (defaults to True).",
 )
 @click.option(
     "--json",
@@ -115,13 +101,18 @@ def tasks(
     default=False,
     help="Output listing as JSON",
 )
+@click.option(
+    "--no-recursive",
+    type=bool,
+    is_flag=True,
+    help="List log files recursively (defaults to True).",
+)
 @common_options
 def logs(
     status: Literal["started", "success", "error"] | None,
-    retryable: bool,
     absolute: bool,
-    recursive: bool,
     json: bool,
+    no_recursive: bool | None,
     **kwargs: Unpack[CommonOptions],
 ) -> None:
     """List log files in log directory."""
@@ -131,12 +122,8 @@ def logs(
     logs = list_eval_logs(
         log_dir=log_dir,
         filter=(lambda log: log.status == status) if status else None,
-        recursive=recursive,
+        recursive=no_recursive is not True,
     )
-
-    # filter by retryable if requested
-    if retryable:
-        logs = retryable_eval_logs(logs)
 
     # convert file names
     for log in logs:

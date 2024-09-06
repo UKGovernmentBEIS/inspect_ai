@@ -2,7 +2,7 @@ from contextvars import ContextVar
 from logging import INFO, Logger, LogRecord
 
 from inspect_ai.log._message import LoggingMessage
-from inspect_ai.solver._subtask.transcript import LoggerEvent, transcript
+from inspect_ai.log._transcript import LoggerEvent, transcript
 
 
 def notify_logger_record(record: LogRecord, write: bool) -> None:
