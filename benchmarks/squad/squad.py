@@ -1,7 +1,7 @@
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
-from inspect_ai.scorer import f1, exact
-from inspect_ai.solver import system_message, generate
+from inspect_ai.scorer import exact, f1
+from inspect_ai.solver import generate, system_message
 
 SYSTEM_MESSAGE = """
 Using only the context provided in the question itself, you are tasked with answering a question in as few words as possible.
@@ -14,7 +14,7 @@ def squad():
         path="rajpurkar/squad_v2",
         split="validation",
         sample_fields=record_to_sample,
-        shuffle=True
+        shuffle=True,
     )
 
     return Task(
