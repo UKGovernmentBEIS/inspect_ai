@@ -7,8 +7,8 @@ from ._tool import Tool
 
 def tool_with(
     tool: Tool,
-    name: str | None,
-    description: str | None,
+    name: str | None = None,
+    description: str | None = None,
     parameters: dict[str, str] | None = None,
 ) -> Tool:
     """Tool with modifications to name and descriptions.
