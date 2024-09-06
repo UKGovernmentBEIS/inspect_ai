@@ -1,14 +1,12 @@
 import re
 
 from inspect_ai import Task, task
-from inspect_ai._util.content import ContentImage, ContentText
-from inspect_ai._util.pattern import ANSWER_PATTERN_LETTER, ANSWER_PATTERN_LINE
 from inspect_ai.dataset import Sample, hf_dataset
-from inspect_ai.model import ChatMessageUser
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model import ChatMessage, ChatMessageUser, ContentImage, ContentText
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
+    AnswerPattern,
     Score,
     Target,
     accuracy,
@@ -55,9 +53,9 @@ def mathvista() -> Task:
 def mathvista_scorer():
     async def score(state: TaskState, target: Target) -> Score:
         match = re.search(
-            ANSWER_PATTERN_LETTER
+            AnswerPattern.LETTER
             if state.metadata["question_type"] == "multi_choice"
-            else ANSWER_PATTERN_LINE,
+            else AnswerPattern.LINE,
             state.output.completion,
             re.IGNORECASE,
         )
