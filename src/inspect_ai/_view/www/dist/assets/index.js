@@ -8396,7 +8396,8 @@ const Tab2 = ({ type, tab, index, style }) => {
   const tabStyle = {
     color: "var(--bs-body-color)",
     ...style,
-    padding: "0.25rem 0.5rem"
+    padding: "0.25rem 0.5rem",
+    borderRadius: "3px"
   };
   const pillStyle = {
     ...style
@@ -8474,7 +8475,20 @@ const ghCommitUrl = (origin, commit) => {
   return `${baseUrl}/commit/${commit}`;
 };
 const CardHeader = ({ id, icon, label, classes, style, children }) => {
-  return m$1`<div class="card-header ${classes || ""}" ...${{ id, style }}>
+  return m$1`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content auto",
+    columnGap: "0em",
+    padding: "0.5em 0.5em 0.5em 0.5em",
+    fontSize: FontSize.small,
+    fontWeight: 600,
+    ...TextStyle.label,
+    ...style
+  }}
+  >
     ${icon ? m$1`<i
           class="${icon}"
           style=${{
@@ -8485,13 +8499,36 @@ const CardHeader = ({ id, icon, label, classes, style, children }) => {
   </div> `;
 };
 const CardBody = ({ id, classes, style, children }) => {
-  return m$1`<div class="card-body ${classes || ""}" ...${{ id, style }}>
+  return m$1`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+    backgroundColor: "var(--bs-body-bg)",
+    border: "solid 1px var(--bs-light-border-subtle)",
+    borderRadius: "3px",
+    margin: "0 0.4em 0.4em 0.4em",
+    padding: "0.5em",
+    ...style
+  }}
+  >
     ${children}
   </div>`;
 };
 const Card = ({ id, classes, style, children }) => {
   return m$1`
-    <div class="card ${classes || ""}" ...${{ id, style }}>${children}</div>
+    <div
+      class="${classes || ""}"
+      ...${{ id }}
+      style=${{
+    backgroundColor: "var(--bs-light)",
+    border: "solid 1px var(--bs-light-border-subtle)",
+    borderRadius: "3px",
+    marginBottom: "1.5em",
+    ...style
+  }}
+    >
+      ${children}
+    </div>
   `;
 };
 var e, t, r = {
@@ -14010,8 +14047,7 @@ const PlanCard = ({ log, context }) => {
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
       <${CardBody} id="${kPlanCardBodyId}" style=${{
     paddingTop: "0",
-    paddingBottom: "0",
-    borderTop: "solid var(--bs-border-color) 1px"
+    paddingBottom: "0"
   }}>
       
         <${PlanDetailView}
@@ -14312,8 +14348,9 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   return m$1`
     <div style=${{ paddingTop: "0", paddingBottom: "1em", marginLeft: "0" }}>
       <div
-        class="row"
         style=${{
+    display: "grid",
+    gridTemplateColumns: `repeat(${taskColumns.length}, auto)`,
     justifyContent: "space-between",
     flexWrap: "wrap",
     paddingBottom: "0.7rem",
