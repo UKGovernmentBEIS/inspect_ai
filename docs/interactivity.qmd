@@ -1,13 +1,5 @@
 # Interactivity {#sec-interactivity}
 
-::: callout-note
-The interactivity features described in this article is currently available only in the development version of Inspect. You can install the development version with:
-
-``` {.bash .code-overflow-wrap}
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 ## Overview
 
 In some cases you may wish to introduce user interaction into the implementation of solvers, scorers, or tools. For example, you may wish to:
