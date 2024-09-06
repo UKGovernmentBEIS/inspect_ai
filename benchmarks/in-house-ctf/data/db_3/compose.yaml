@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: db_3_attacker_env
+    container_name: db_3_attacker
     networks:
       - db_3_network
     platform: linux/amd64

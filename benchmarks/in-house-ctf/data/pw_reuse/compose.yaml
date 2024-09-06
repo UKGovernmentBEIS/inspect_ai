@@ -1,5 +1,5 @@
 services:
-  pw_reuse_ssh:
+  pw_reuse:
     image: marshw/pw_reuse_ssh
     container_name: pw_reuse_env
     networks:
@@ -16,13 +16,13 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: pw_reuse_attacker_env
+    container_name: pw_reuse_attacker
     networks:
       - pw_reuse_network
     platform: linux/amd64
     x-default: true
     depends_on:
-      - pw_reuse_ssh
+      - pw_reuse
       - pw_reuse_db
 
 networks:

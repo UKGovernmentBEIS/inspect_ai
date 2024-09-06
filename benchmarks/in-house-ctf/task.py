@@ -17,9 +17,10 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import bash
+from inspect_ai.util import sandbox
 
 # maximum chat messages before giving up
-MAX_MESSAGES = 30
+MAX_MESSAGES = 10
 
 # maximum seconds to run bash/python cmds
 CMD_TIMEOUT = 180
@@ -57,18 +58,8 @@ def in_house_ctf_task(shuffle: bool=False) -> Task:
 def read_flag() -> Solver:
     """Solver which reads the flag from the target system."""
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        container_name = state.metadata["challenge_address"].split(":")[0]
-        get_flag_cmd = "docker exec " + container_name + " " + state.metadata["get_flag_cmd"]
-
-        flag = subprocess.run(
-            get_flag_cmd,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            shell=True
-        ).stdout.strip()
-        state.store.set("flag", flag)
+        flag = await sandbox(state.sample_id).exec(["sh", "-c", state.metadata["get_flag_cmd"]])
+        state.store.set("flag", flag.stdout.strip())
 
         return state
 

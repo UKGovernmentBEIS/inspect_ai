@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: webmin_attacker_env
+    container_name: webmin_attacker
     networks:
       - webmin_network
     platform: linux/amd64

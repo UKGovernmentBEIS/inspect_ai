@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: idor_attacker_env
+    container_name: idor_attacker
     networks:
       - idor_network
     platform: linux/amd64
