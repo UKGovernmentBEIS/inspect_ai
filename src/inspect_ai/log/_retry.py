@@ -45,7 +45,11 @@ def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
             if log_header.eval.task_id not in completed_task_ids:
                 existing_log = retryable_logs.get(log_header.eval.task_id, None)
                 if existing_log:
-                    if log.mtime > existing_log.mtime:
+                    if (
+                        existing_log.mtime is not None
+                        and log.mtime is not None
+                        and log.mtime > existing_log.mtime
+                    ):
                         retryable_logs[log_header.eval.task_id] = log
                 else:
                     retryable_logs[log_header.eval.task_id] = log
