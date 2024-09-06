@@ -15168,9 +15168,9 @@ const EventPanel = ({
   text,
   icon,
   titleColor,
-  depth = 0,
   collapse,
   style,
+  titleStyle,
   children
 }) => {
   const arrChildren = Array.isArray(children) ? children : [children];
@@ -15188,17 +15188,24 @@ const EventPanel = ({
           style=${{
     paddingLeft: "0.5em",
     display: "grid",
-    gridTemplateColumns: "max-content minmax(0, max-content) auto minmax(0, max-content) minmax(0, max-content)",
-    columnGap: "0.5em",
+    gridTemplateColumns: "minmax(0, max-content) max-content minmax(0, max-content) auto minmax(0, max-content)",
+    columnGap: "0.2em",
     fontSize: FontSize.small,
     cursor: hasCollapse ? "pointer" : void 0
   }}
         >
+          ${hasCollapse ? m$1`<i
+                onclick=${() => {
+    setCollapsed(!collapsed);
+  }}
+                class=${collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down}
+              />` : ""}
           ${icon ? m$1`<i
                 class=${icon || ApplicationIcons.metadata}
                 style=${{
     ...TextStyle.secondary,
-    color: titleColor ? titleColor : ""
+    color: titleColor ? titleColor : "",
+    ...titleStyle
   }}
                 onclick=${() => {
     setCollapsed(!collapsed);
@@ -15208,7 +15215,8 @@ const EventPanel = ({
             style=${{
     ...TextStyle.label,
     ...TextStyle.secondary,
-    color: titleColor ? titleColor : ""
+    color: titleColor ? titleColor : "",
+    ...titleStyle
   }}
             onclick=${() => {
     setCollapsed(!collapsed);
@@ -15227,7 +15235,7 @@ const EventPanel = ({
     setCollapsed(!collapsed);
   }}
           >
-            ${text}
+            ${collapsed ? text : ""}
           </div>
           <div
             style=${{
@@ -15250,39 +15258,36 @@ const EventPanel = ({
                   selectedNav=${selectedNav}
                   setSelectedNav=${setSelectedNav}
                 />` : ""}
-            ${hasCollapse ? m$1`<i
-                  onclick=${() => {
-    setCollapsed(!collapsed);
-  }}
-                  class=${collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down}
-                />` : ""}
           </div>
         </div>` : "";
-  const left_padding = 0.5 + depth * 1.5;
   const card = m$1` <div
     id=${id}
-    class="card"
     style=${{
-    padding: `0.5em 0.5em 0.5em ${left_padding}em`,
-    marginBottom: "-1px",
+    padding: "0.4em",
+    marginBottom: "0.4em",
+    border: "solid 1px var(--bs-light-border-subtle)",
+    borderRadius: "4px",
     ...style
   }}
   >
     ${titleEl}
-    ${!hasCollapse || !collapsed ? m$1` <div
-          class="card-body tab-content"
-          style=${{ padding: 0, marginLeft: "0.5em" }}
-        >
-          ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
+    <div
+      class="tab-content"
+      style=${{
+    padding: 0,
+    display: !hasCollapse || !collapsed ? "inherit" : "none"
+  }}
+    >
+      ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
     const id2 = pillId(index);
     return m$1`<div
-              id=${id2}
-              class="tab-pane show ${id2 === selectedNav ? "active" : ""}"
-            >
-              ${child}
-            </div>`;
+          id=${id2}
+          class="tab-pane show ${id2 === selectedNav ? "active" : ""}"
+        >
+          ${child}
+        </div>`;
   })}
-        </div>` : ""}
+    </div>
   </div>`;
   return card;
 };
@@ -15423,7 +15428,7 @@ const EventSection = ({ title, style, children }) => {
     ${children}
   </div>`;
 };
-const SampleInitEventView = ({ id, depth, event, stateManager }) => {
+const SampleInitEventView = ({ id, event, style, stateManager }) => {
   const stateObj = event.state;
   stateManager.initializeState(stateObj);
   const sections = [];
@@ -15442,19 +15447,27 @@ const SampleInitEventView = ({ id, depth, event, stateManager }) => {
   `);
   }
   return m$1`
-  <${EventPanel} id=${id} depth=${depth}>
-    
-    <div name="Sample">
+  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample}>
+    <div name="Sample" style=${{ margin: "1em 0.5em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
-      <div style=${{ marginLeft: "2.1em", marginBottom: "1em" }}>
+      <div>
         ${event.sample.choices ? event.sample.choices.map((choice, index) => {
     return m$1`<div>
                   ${String.fromCharCode(65 + index)}) ${choice}
                 </div>`;
   }) : ""}
-        <div style=${{ display: "flex", flexWrap: "wrap", gap: "1em", overflowWrap: "break-word" }}>
-        ${sections}
-        </div>
+        ${sections.length > 0 ? m$1`
+                <div
+                  style=${{
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "1em",
+    overflowWrap: "break-word"
+  }}
+                >
+                  ${sections}
+                </div>
+              ` : ""}
         <${EventSection} title="Target">
           ${toArray(event.sample.target).map((target) => {
     return m$1`<div>${target}</div>`;
@@ -15462,7 +15475,7 @@ const SampleInitEventView = ({ id, depth, event, stateManager }) => {
         </${EventSection}>
       </div>
     </div>
-    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0" }} entries=${event.sample.metadata} />` : ""}
+    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0.5em" }} entries=${event.sample.metadata} />` : ""}
 
   </${EventPanel}>`;
 };
@@ -15490,7 +15503,7 @@ const tools_choice = {
   },
   render: (resolvedState) => {
     const toolName = (toolChoice) => {
-      if (typeof toolChoice === "object") {
+      if (typeof toolChoice === "object" && toolChoice) {
         return toolChoice["name"];
       } else {
         return toolChoice;
@@ -15510,7 +15523,7 @@ const tools_choice = {
       display: "grid",
       gridTemplateColumns: "max-content max-content",
       columnGap: "1rem",
-      margin: "1em 0"
+      margin: "0"
     }}
       >
         ${Object.keys(toolsInfo).map((key2) => {
@@ -16975,7 +16988,7 @@ function unescapeNewlines(obj) {
   }
   return obj;
 }
-const StateEventView = ({ id, event, depth, stateManager }) => {
+const StateEventView = ({ id, event, style, stateManager }) => {
   const startingState = stateManager.getState();
   stateManager.applyChanges(event.changes);
   const resolvedState = stateManager.getState();
@@ -16985,7 +16998,7 @@ const StateEventView = ({ id, event, depth, stateManager }) => {
       starting=${startingState}
       ending=${resolvedState}
       name="Diff"
-      style=${{ margin: "1em 0" }}
+      style=${{ margin: "1em 0.5em" }}
     />`
   ];
   const changePreview = generatePreview(
@@ -16994,14 +17007,14 @@ const StateEventView = ({ id, event, depth, stateManager }) => {
   );
   if (changePreview) {
     tabs.unshift(
-      m$1`<div name="Summary" style=${{ margin: "1em 0" }}>
+      m$1`<div name="Summary" style=${{ margin: "1em 0.5em" }}>
         ${changePreview}
       </div>`
     );
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
-  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.metadata} text=${tabs.length === 1 ? summary : void 0} depth=${depth} collapse=${changePreview === void 0 ? true : void 0}>
+  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -17053,101 +17066,125 @@ const summarizeChanges = (changes) => {
   }
   return changeList.join(", ");
 };
-const StepEventView = ({ depth, event }) => {
+const StepEventView = ({ event, children, style, stateManager }) => {
   const descriptor = stepDescriptor(event);
-  if (event.action === "end") {
-    if (descriptor.endSpace) {
-      return m$1`<div style=${{ height: "1.5em" }}></div>`;
-    } else {
-      return m$1``;
-    }
-  }
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
+  const text = summarize(children);
   return m$1`<${EventPanel}
     title="${title}"
-    depth=${depth}
     icon=${descriptor.icon}
-    style=${descriptor.style}
-  />`;
+    style=${{ ...descriptor.style, ...style }}
+    titleStyle=${{ ...descriptor.titleStyle }}
+    collapse=${false}
+    text=${text}
+  >
+    <${TranscriptComponent}
+      id=${`step-${event.name}-transcript`}
+      eventNodes=${children}
+      stateManager=${stateManager}
+    />
+  </EventPanel>
+  `;
 };
-const rootStepStyle = {
-  backgroundColor: "var(--bs-light)",
+const summarize = (children) => {
+  if (children.length === 0) {
+    return "(no events)";
+  }
+  const formatEvent = (event, count) => {
+    if (count === 1) {
+      return `${count} ${event} event`;
+    } else {
+      return `${count} ${event} events`;
+    }
+  };
+  const typeCount = {};
+  children.forEach((child) => {
+    const currentCount = typeCount[child.event.event] || 0;
+    typeCount[child.event.event] = currentCount + 1;
+  });
+  const numberOfTypes = Object.keys(typeCount).length;
+  if (numberOfTypes < 3) {
+    return Object.keys(typeCount).map((key2) => {
+      return formatEvent(key2, typeCount[key2]);
+    }).join(", ");
+  }
+  if (children.length === 1) {
+    return "1 event";
+  } else {
+    return `${children.length} events`;
+  }
+};
+const rootStepStyle = {};
+const rootTitleStyle = {
   fontWeight: "600"
 };
 const stepDescriptor = (event) => {
   const rootStepDescriptor = {
     style: rootStepStyle,
-    endSpace: true
+    endSpace: true,
+    titleStyle: rootTitleStyle
   };
   if (event.type === "solver") {
     switch (event.name) {
       case "chain_of_thought":
         return {
-          icon: ApplicationIcons.solvers.chain_of_thought,
           ...rootStepDescriptor
         };
       case "generate":
         return {
-          icon: ApplicationIcons.solvers.generate,
           ...rootStepDescriptor
         };
       case "self_critique":
         return {
-          icon: ApplicationIcons.solvers.self_critique,
           ...rootStepDescriptor
         };
       case "system_message":
         return {
-          icon: ApplicationIcons.solvers.system_message,
           ...rootStepDescriptor
         };
       case "use_tools":
         return {
-          icon: ApplicationIcons.solvers.use_tools,
           ...rootStepDescriptor
         };
       case "multiple_choice":
         return {
-          icon: ApplicationIcons["multiple-choice"],
           ...rootStepDescriptor
         };
       default:
         return {
-          icon: ApplicationIcons.solvers.default,
           ...rootStepDescriptor
         };
     }
   } else if (event.type === "scorer") {
     return {
-      icon: ApplicationIcons.scorer,
       ...rootStepDescriptor
     };
   } else {
     switch (event.name) {
       case "sample_init":
         return {
-          icon: ApplicationIcons.sample,
           ...rootStepDescriptor,
           name: "Sample Init"
         };
       default:
         return {
-          icon: ApplicationIcons.step,
           style: {},
-          endSpace: false
+          endSpace: false,
+          titleStyle: {}
         };
     }
   }
 };
-const SubtaskEventView = ({ id, depth, event, stateManager }) => {
+const SubtaskEventView = ({ id, event, style, stateManager, depth }) => {
   return m$1`
-    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask}>
+    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
       ${event.events.length > 0 ? m$1`<${TranscriptView}
               id="${id}-subtask"
               name="Transcript"
               events=${event.events}
               stateManager=${stateManager}
+              depth=${depth + 1}
             />` : ""}
     </${EventPanel}>`;
 };
@@ -17158,7 +17195,7 @@ const SubtaskSummary = ({ input, result }) => {
     display: "grid",
     gridTemplateColumns: "minmax(0,max-content) max-content minmax(0,max-content)",
     columnGap: "1em",
-    margin: "1em 0"
+    margin: "1em 0.5em"
   }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>
@@ -17371,7 +17408,7 @@ const duration = (stats) => {
   const durationSec = durationMs / 1e3;
   return formatTime(durationSec);
 };
-const ModelEventView = ({ id, depth, event }) => {
+const ModelEventView = ({ id, event, style }) => {
   var _a, _b;
   const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
   const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
@@ -17387,9 +17424,9 @@ const ModelEventView = ({ id, depth, event }) => {
     justifySelf: "start"
   };
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model}>
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion">
+    <div name="Completion" style=${{ margin: "1em 0.5em" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...outputMessages || []]}
@@ -17397,7 +17434,7 @@ const ModelEventView = ({ id, depth, event }) => {
       />
     </div>
 
-    <div name="All" style=${{ margin: "1em 0" }}>
+    <div name="All" style=${{ margin: "1em 0.5em" }}>
 
       <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
       <${EventSection} title="Configuration" style=${tableSectionStyle}>
@@ -17423,7 +17460,7 @@ const ModelEventView = ({ id, depth, event }) => {
 
     </div>
 
-    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0", width: "100%" }} />` : ""}
+    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0.5em", width: "100%" }} />` : ""}
    
   </${EventPanel}>`;
 };
@@ -17494,15 +17531,15 @@ const ToolsConfig = ({ tools }) => {
     ${toolEls}
   </div>`;
 };
-const EventRow = ({ title, icon, depth, children }) => {
-  const paddingLeft = depth * 1.5 + 0.5;
+const EventRow = ({ title, icon, style, children }) => {
   const contentEl = title ? m$1`<div
         style=${{
-    padding: `0.5em 0.5em 0.5em ${paddingLeft}em`,
+    marginLeft: "0.5em",
     display: "grid",
     gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
     columnGap: "0.5em",
-    fontSize: FontSize.small
+    fontSize: FontSize.small,
+    ...style
   }}
       >
         <i class=${icon || ApplicationIcons.metadata} />
@@ -17512,21 +17549,23 @@ const EventRow = ({ title, icon, depth, children }) => {
   const card = m$1` <div
     class="card"
     style=${{
-    padding: "0.1em 0.5em",
-    marginBottom: "-1px"
+    padding: "0.4em",
+    marginBottom: "0.4em",
+    border: "solid 1px var(--bs-light-border-subtle)",
+    borderRadius: "4px"
   }}
   >
     ${contentEl}
   </div>`;
   return card;
 };
-const LoggerEventView = ({ id, depth, event }) => {
+const LoggerEventView = ({ id, event, style }) => {
   return m$1`
   <${EventRow} 
     id=${id}
-    depth=${depth}
     title=${event.message.level} 
     icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
+    style=${style}
   >
   <div
     style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "1em", fontSize: FontSize.base }}
@@ -17568,19 +17607,19 @@ const JSONPanel = ({ data, style }) => {
     </pre>
   </div>`;
 };
-const InfoEventView = ({ id, depth, event }) => {
+const InfoEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Info" icon=${ApplicationIcons.info}>
-    <${JSONPanel} data=${event.data} style=${{ margin: "1em 0" }}/>
+  <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
+    <${JSONPanel} data=${event.data} style=${{ margin: "1em 0.5em" }}/>
   </${EventPanel}>`;
 };
-const ScoreEventView = ({ id, depth, event }) => {
+const ScoreEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Score" icon=${ApplicationIcons.scorer}>
+  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
   
     <div
       name="Explanation"
-      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0" }}
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0.5em" }}
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
@@ -17597,27 +17636,27 @@ const ScoreEventView = ({ id, depth, event }) => {
             <${MetaDataGrid}
               entries=${event.score.metadata}
               compact=${true}
-              style=${{ margin: "1em 0" }}
+              style=${{ margin: "1em 0.5em" }}
             />
           </div>` : void 0}
 
 
   </${EventPanel}>`;
 };
-const ToolEventView = ({ id, depth, stateManager, event }) => {
+const ToolEventView = ({ id, event, style, stateManager, depth }) => {
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
   );
   const title = `Tool: ${event.function}`;
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="${title}" icon=${ApplicationIcons.solvers.use_tools}>
+  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
   <div name="Summary">
     <${ExpandablePanel}>
-      ${event.result ? m$1`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
+      ${event.result ? m$1`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0.5em" }} />` : m$1`<div style=${{ margin: "1em 0.5em", fontSize: FontSize.small }}>No output</div>`}
     </${ExpandablePanel}>
   </div>
-  <div name="Transcript">
+  <div name="Transcript" style=${{ margin: "1em 0.5em" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
@@ -17630,45 +17669,70 @@ const ToolEventView = ({ id, depth, stateManager, event }) => {
                 name="Transcript"
                 events=${event.events}
                 stateManager=${stateManager}
+                depth=${depth + 1}
               />` : ""}
 
   </div>
   </${EventPanel}>`;
 };
-const ErrorEventView = ({ id, depth, event }) => {
+const ErrorEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} depth=${depth} title="Error" icon=${ApplicationIcons.error}>
-    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
+  <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0.5em" }}/>
   </${EventPanel}>`;
 };
-const TranscriptView = ({ id, events, stateManager }) => {
+class EventNode {
+  /**
+   * Create an EventNode.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").ErrorEvent } event - This event.
+   * @param {number} depth - the depth of this item
+   */
+  constructor(event, depth) {
+    this.event = event;
+    this.children = [];
+    this.depth = depth;
+  }
+}
+const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
   const resolvedEvents = fixupEventStream(events);
-  let depth = 0;
-  const rows = resolvedEvents.map((event, index) => {
-    const row = m$1`
-      <div
-        style=${{
-      paddingTop: 0,
-      paddingBottom: 0
-    }}
-      >
-        <div>
-          ${renderNode(
-      `${id}-event${index}`,
-      event,
-      Math.max(depth - 1, 0),
-      stateManager
-    )}
-        </div>
-      </div>
-    `;
-    if (event.event === "step") {
-      if (event.action === "end") {
-        depth = depth - 1;
-      } else {
-        depth = depth + 1;
-      }
+  const eventNodes = treeifyEvents(resolvedEvents, depth);
+  return m$1`
+    <${TranscriptComponent}
+      id=${id}
+      eventNodes=${eventNodes}
+      stateManager=${stateManager}
+    />
+  `;
+};
+const TranscriptComponent = ({
+  id,
+  eventNodes,
+  style,
+  stateManager
+}) => {
+  const rows = eventNodes.map((eventNode, index) => {
+    const toggleStyle = {};
+    if (eventNode.depth % 2 == 0) {
+      toggleStyle.backgroundColor = "var(--bs-light)";
+    } else {
+      toggleStyle.backgroundColor = "var(--bs-body-bg)";
     }
+    if (index === eventNodes.length - 1) {
+      toggleStyle.marginBottom = "0";
+    } else if (eventNode.depth === 0) {
+      toggleStyle.marginBottom = "1.5em";
+    }
+    const row = m$1`
+      <${RenderedEventNode}
+        id=${`${id}-event${index}`}
+        node=${eventNode}
+        stateManager=${stateManager}
+        style=${{
+      ...toggleStyle,
+      ...style
+    }}
+      />
+    `;
     return row;
   });
   return m$1`<div
@@ -17677,75 +17741,90 @@ const TranscriptView = ({ id, events, stateManager }) => {
     style=${{
     fontSize: FontSize.small,
     display: "grid",
-    margin: "1em 0",
+    margin: "0.5em 0 0 0",
     width: "100%"
   }}
   >
     ${rows}
   </div>`;
 };
-const renderNode = (id, event, depth, stateManager) => {
-  switch (event.event) {
+const RenderedEventNode = ({ id, node, style, stateManager }) => {
+  switch (node.event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
       />`;
     case "info":
-      return m$1`<${InfoEventView} id=${id} depth=${depth} event=${event} />`;
+      return m$1`<${InfoEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
     case "logger":
       return m$1`<${LoggerEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
+        style=${style}
       />`;
     case "model":
-      return m$1`<${ModelEventView} id=${id} depth=${depth} event=${event} />`;
+      return m$1`<${ModelEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
     case "score":
-      return m$1`<${ScoreEventView} id=${id} depth=${depth} event=${event} />`;
+      return m$1`<${ScoreEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
     case "state":
       return m$1`<${StateEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
       />`;
     case "step":
       return m$1`<${StepEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
+        children=${node.children}
         stateManager=${stateManager}
+        style=${style}
       />`;
     case "store":
       return m$1`<${StateEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
       />`;
     case "subtask":
       return m$1`<${SubtaskEventView}
         id=${id}
-        depth=${depth}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
+        depth=${node.depth}
       />`;
     case "tool":
       return m$1`<${ToolEventView}
-        depth=${depth}
         id=${id}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
+        depth=${node.depth}
       />`;
     case "error":
       return m$1`<${ErrorEventView}
-        depth=${depth}
         id=${id}
-        event=${event}
+        event=${node.event}
         stateManager=${stateManager}
+        style=${style}
       />`;
     default:
       return m$1``;
@@ -17775,6 +17854,33 @@ const fixupEventStream = (events) => {
   }
   return fixedUp;
 };
+function treeifyEvents(events, depth) {
+  const rootNodes = [];
+  const stack2 = [];
+  const pushNode = (event) => {
+    const node = new EventNode(event, stack2.length + depth);
+    if (stack2.length > 0) {
+      const parentNode = stack2[stack2.length - 1];
+      parentNode.children.push(node);
+    } else {
+      rootNodes.push(node);
+    }
+    return node;
+  };
+  events.forEach((event) => {
+    if (event.event === "step" && event.action === "begin") {
+      const node = pushNode(event);
+      stack2.push(node);
+    } else if (event.event === "step" && event.action === "end") {
+      if (stack2.length > 0) {
+        stack2.pop();
+      }
+    } else {
+      pushNode(event);
+    }
+  });
+  return rootNodes;
+}
 /*!
  * https://github.com/Starcounter-Jack/JSON-Patch
  * (c) 2017-2022 Joachim Wester

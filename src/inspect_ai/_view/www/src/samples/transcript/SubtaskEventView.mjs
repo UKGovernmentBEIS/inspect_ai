@@ -11,14 +11,15 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
- * @param { number } props.depth - The depth of this event.
+ * @param { Object } props.style - The style of this event.
  * @param {import("../../types/log").SubtaskEvent} props.event - The event object to display.
- * @param {import("./TranscriptState.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
+ * @param {import("./Types.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
+ * @param { Object } props.depth - The depth of this event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const SubtaskEventView = ({ id, depth, event, stateManager }) => {
+export const SubtaskEventView = ({ id, event, style, stateManager, depth }) => {
   return html`
-    <${EventPanel} id=${id} depth=${depth} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask}>
+    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
       ${
         event.events.length > 0
@@ -27,6 +28,7 @@ export const SubtaskEventView = ({ id, depth, event, stateManager }) => {
               name="Transcript"
               events=${event.events}
               stateManager=${stateManager}
+              depth=${depth + 1}
             />`
           : ""
       }
@@ -49,7 +51,7 @@ const SubtaskSummary = ({ input, result }) => {
       gridTemplateColumns:
         "minmax(0,max-content) max-content minmax(0,max-content)",
       columnGap: "1em",
-      margin: "1em 0",
+      margin: "1em 0.5em",
     }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>

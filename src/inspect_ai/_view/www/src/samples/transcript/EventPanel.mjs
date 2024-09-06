@@ -12,10 +12,10 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {string | undefined} props.title - The name of the event
  * @param {string | undefined} props.text - Secondary text for the event
  * @param {string | undefined} props.icon - The icon of the event
- * @param {number | undefined} props.depth - The depth of this item
  * @param {number | undefined} props.titleColor - The title color of this item
  * @param {boolean | undefined} props.collapse - Default collapse behavior for card. If omitted, not collapsible.
  * @param {Object} props.style - The style properties passed to the component.
+ * @param {Object} props.titleStyle - The style properties passed to the title component.
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
@@ -25,9 +25,9 @@ export const EventPanel = ({
   text,
   icon,
   titleColor,
-  depth = 0,
   collapse,
   style,
+  titleStyle,
   children,
 }) => {
   /**
@@ -60,18 +60,29 @@ export const EventPanel = ({
             paddingLeft: "0.5em",
             display: "grid",
             gridTemplateColumns:
-              "max-content minmax(0, max-content) auto minmax(0, max-content) minmax(0, max-content)",
-            columnGap: "0.5em",
+              "minmax(0, max-content) max-content minmax(0, max-content) auto minmax(0, max-content)",
+            columnGap: "0.2em",
             fontSize: FontSize.small,
             cursor: hasCollapse ? "pointer" : undefined,
           }}
         >
+          ${hasCollapse
+            ? html`<i
+                onclick=${() => {
+                  setCollapsed(!collapsed);
+                }}
+                class=${collapsed
+                  ? ApplicationIcons.chevron.right
+                  : ApplicationIcons.chevron.down}
+              />`
+            : ""}
           ${icon
             ? html`<i
                 class=${icon || ApplicationIcons.metadata}
                 style=${{
                   ...TextStyle.secondary,
                   color: titleColor ? titleColor : "",
+                  ...titleStyle,
                 }}
                 onclick=${() => {
                   setCollapsed(!collapsed);
@@ -83,6 +94,7 @@ export const EventPanel = ({
               ...TextStyle.label,
               ...TextStyle.secondary,
               color: titleColor ? titleColor : "",
+              ...titleStyle,
             }}
             onclick=${() => {
               setCollapsed(!collapsed);
@@ -101,7 +113,7 @@ export const EventPanel = ({
               setCollapsed(!collapsed);
             }}
           >
-            ${text}
+            ${collapsed ? text : ""}
           </div>
           <div
             style=${{
@@ -130,47 +142,38 @@ export const EventPanel = ({
                   setSelectedNav=${setSelectedNav}
                 />`
               : ""}
-            ${hasCollapse
-              ? html`<i
-                  onclick=${() => {
-                    setCollapsed(!collapsed);
-                  }}
-                  class=${collapsed
-                    ? ApplicationIcons.chevron.right
-                    : ApplicationIcons.chevron.down}
-                />`
-              : ""}
           </div>
         </div>`
       : "";
 
-  const left_padding = 0.5 + depth * 1.5;
   const card = html` <div
     id=${id}
-    class="card"
     style=${{
-      padding: `0.5em 0.5em 0.5em ${left_padding}em`,
-      marginBottom: "-1px",
+      padding: "0.4em",
+      marginBottom: "0.4em",
+      border: "solid 1px var(--bs-light-border-subtle)",
+      borderRadius: "4px",
       ...style,
     }}
   >
     ${titleEl}
-    ${!hasCollapse || !collapsed
-      ? html` <div
-          class="card-body tab-content"
-          style=${{ padding: 0, marginLeft: "0.5em" }}
+    <div
+      class="tab-content"
+      style=${{
+        padding: 0,
+        display: !hasCollapse || !collapsed ? "inherit" : "none",
+      }}
+    >
+      ${filteredArrChilden?.map((child, index) => {
+        const id = pillId(index);
+        return html`<div
+          id=${id}
+          class="tab-pane show ${id === selectedNav ? "active" : ""}"
         >
-          ${filteredArrChilden?.map((child, index) => {
-            const id = pillId(index);
-            return html`<div
-              id=${id}
-              class="tab-pane show ${id === selectedNav ? "active" : ""}"
-            >
-              ${child}
-            </div>`;
-          })}
-        </div>`
-      : ""}
+          ${child}
+        </div>`;
+      })}
+    </div>
   </div>`;
   return card;
 };
