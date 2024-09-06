@@ -29,26 +29,26 @@ from inspect_ai.solver._solver import generate
 def test_eval_set() -> None:
     # run eval with a solver that fails 20% of the time
     with tempfile.TemporaryDirectory() as log_dir:
-        succces, logs = eval_set(
+        success, logs = eval_set(
             tasks=failing_task(rate=0.2, samples=10),
             log_dir=log_dir,
             retry_attempts=100,
             retry_wait=1,
             model="mockllm/model",
         )
-        assert succces
+        assert success
         assert logs[0].status == "success"
 
     # run eval that is guaranteed to fail
     with tempfile.TemporaryDirectory() as log_dir:
-        succces, logs = eval_set(
+        success, logs = eval_set(
             tasks=failing_task(rate=1, samples=10),
             log_dir=log_dir,
             retry_attempts=1,
             retry_wait=1,
             model="mockllm/model",
         )
-        assert not succces
+        assert not success
         assert logs[0].status == "error"
 
 
@@ -203,12 +203,12 @@ def mock_s3():
 
 
 def test_eval_set_s3(mock_s3) -> None:
-    succces, logs = eval_set(
+    success, logs = eval_set(
         tasks=failing_task(rate=0, samples=1),
         log_dir="s3://test-bucket",
         retry_attempts=1,
         retry_wait=1,
         model="mockllm/model",
     )
-    assert succces
+    assert success
     assert logs[0].status == "success"
