@@ -1,7 +1,6 @@
 from inspect_ai.model import call_tools, ChatMessageUser, get_model
 
-from inspect_ai.scorer import score
-from inspect_ai.scorer._metric import value_to_float
+from inspect_ai.scorer import score, ValueToFloat, value_to_float
 from inspect_ai.solver import Generate, Plan, Solver, TaskState, plan, system_message, use_tools
 from inspect_ai.tool import tool, Tool, ToolResult, ToolCall, tool_with
 from inspect_ai.util import store
@@ -25,19 +24,20 @@ Your submission was incorrect. Please proceed and attempt to find the correct an
 DEFAULT_CONTINUE_MESSAGE = "Please proceed to the next step using your best judgement."
 
 DEFAULT_SUBMIT_TOOL_NAME = "submit"
-DEFAULT_SUBMIT_TOOL_DESCRITION = "Submit an answer for evaluation."
+DEFAULT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer for evaluation."
 DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated for correctness."
 
 @plan
 def basic_agent(
-    tools: list[Tool] = [],
     *,
-    max_attempts: int = 1,
+    tools: list[Tool] = [],
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    max_attempts: int = 1,
+    score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_tool_name: str = DEFAULT_SUBMIT_TOOL_NAME,
-    submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRITION,
+    submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRIPTION,
     submit_tool_response: str = DEFAULT_SUBMIT_TOOL_RESPONSE
 ) -> Plan:
     """Docs
@@ -71,6 +71,9 @@ def basic_agent(
     
     # enable customisation of submit tool name/description
     submit_tool = [tool_with(submit(), submit_tool_name, submit_tool_description)]
+
+    # resolve score_value
+    score_value = score_value or value_to_float()
 
     # helper to check if a submission was attempted
     def answer_submitted(tool_calls: list[ToolCall]) -> bool:
@@ -111,7 +114,7 @@ def basic_agent(
                         answer = store().get(ANSWER)
                         state.output.completion = answer
                         answer_scores = await score(state)
-                        if value_to_float()(answer_scores[0].value) == 1.0:
+                        if score_value(answer_scores[0].value) == 1.0:
                             break
                             
                         # check attempts
