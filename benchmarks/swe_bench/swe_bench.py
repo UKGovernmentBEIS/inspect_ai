@@ -77,13 +77,6 @@ def swe_bench_instance(
     
     sample = swebench_sample_from_id(dataset, instance_id)
 
-    scorer = swebench_scorer(sample.metadata["PASS_TO_PASS"], sample.metadata["test_patch"])
-
-    # Delete these environment variables, as they are too long - see https://github.com/UKGovernmentBEIS/inspect_ai/issues/331
-    del sample.metadata["PASS_TO_PASS"]
-    del sample.metadata["patch"]
-    del sample.metadata["test_patch"]
-
     docker_compose_file = get_compose_file(sample.metadata["environment_setup_commit"], instance_id)
 
     return Task(
@@ -94,7 +87,7 @@ def swe_bench_instance(
             "docker",
             str(docker_compose_file.absolute()),
         ),
-        scorer=scorer,
+        scorer=swebench_scorer(),
         max_messages=max_messages
     )
 
@@ -199,8 +192,7 @@ GET_AGENT_PATCH = """cd /testbed/
 cat model.patch"""
 
 @scorer(metrics=[mean(), std()])
-def swebench_scorer(pass_to_pass : str, test_patch : str) -> Scorer:
-    # We have to have pass these as a parameter to the scorer, instead of passing theme metadata since otherwise they can be too large. See https://github.com/UKGovernmentBEIS/inspect_ai/issues/331
+def swebench_scorer() -> Scorer:
 
     async def scorer(state: TaskState, target: Target) -> Score:
 
@@ -209,7 +201,7 @@ def swebench_scorer(pass_to_pass : str, test_patch : str) -> Scorer:
         agent_patch = await sandbox().exec(["bash","-c",GET_AGENT_PATCH])
 
         # Run the evaluation script
-        eval_script = get_eval_script(test_patch=test_patch, repo=state.metadata["repo"],version=state.metadata["version"],base_commit=state.metadata["base_commit"])
+        eval_script = get_eval_script(test_patch=state.metadata["test_patch"], repo=state.metadata["repo"],version=state.metadata["version"],base_commit=state.metadata["base_commit"])
         eval_output = await sandbox().exec(["bash","-c",eval_script])
         if not eval_output.success:
             raise RuntimeError(f"Test run failed. \n\nStderr: \n\n{eval_output.stderr}\n\nStdout: \n\n{eval_output.stdout}")
@@ -236,7 +228,7 @@ def swebench_scorer(pass_to_pass : str, test_patch : str) -> Scorer:
             fail_to_pass_results = {}
             for k,v in test_outputs.items():
                 has_passed = "PASSED" == v
-                if k in pass_to_pass:
+                if k in state.metadata["PASS_TO_PASS"]:
                     pass_to_pass_results[k] = has_passed
                 else:
                     fail_to_pass_results[k] = has_passed
