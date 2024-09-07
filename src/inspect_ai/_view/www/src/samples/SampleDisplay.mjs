@@ -16,6 +16,10 @@ import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleTranscript } from "./SampleTranscript.mjs";
 import { ANSIDisplay } from "../components/AnsiDisplay.mjs";
 import { FlatSampleError } from "./SampleError.mjs";
+import { ToolButton } from "../components/ToolButton.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+
+import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
 
 export const InlineSampleDisplay = ({
   index,
@@ -37,13 +41,7 @@ export const InlineSampleDisplay = ({
   </div>`;
 };
 
-export const SampleDisplay = ({
-  index,
-  id,
-  sample,
-  sampleDescriptor,
-  context,
-}) => {
+export const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
   // Tab ids
   const baseId = `sample-${index}`;
   const msgTabId = `${baseId}-messages`;
@@ -73,7 +71,7 @@ export const SampleDisplay = ({
   // The core tabs
   const tabs = [
     html`
-    <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${
+    <${TabPanel} id=${msgTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${
       selectedTab === msgTabId
     }>
       <${ChatView} 
@@ -88,17 +86,17 @@ export const SampleDisplay = ({
 
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(html`
-      <${TabPanel} id=${transcriptTabId} title="Transcript" onSelected=${onSelectedTab} selected=${
+      <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
         selectedTab === transcriptTabId || selectedTab === undefined
       } scrollable=${false}>
-        <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} id=${`${baseId}-transcript-display`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
 
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(html`
-      <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${
+      <${TabPanel} id=${scoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${
         selectedTab === scoringTabId
       }>
         <${SampleScoreView}
@@ -113,7 +111,7 @@ export const SampleDisplay = ({
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(html`
-        <${TabPanel} id="${tabId}" title="${scorer}" onSelected=${onSelectedTab} selected=${
+        <${TabPanel} id="${tabId}" classes="sample-tab" title="${scorer}" onSelected=${onSelectedTab} selected=${
           selectedTab === tabId
         }>
           <${SampleScoreView}
@@ -133,6 +131,7 @@ export const SampleDisplay = ({
       html`
       <${TabPanel} 
           id=${metdataTabId} 
+          classes="sample-tab"
           title="Metadata" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
@@ -148,6 +147,7 @@ export const SampleDisplay = ({
       html`
       <${TabPanel} 
           id=${errorTabId} 
+          classes="sample-tab"
           title="Error" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === errorTabId}>
@@ -158,17 +158,52 @@ export const SampleDisplay = ({
     );
   }
 
+  const tabsetId = `task-sample-details-tab-${sample.id}`;
+  const targetId = `${tabsetId}-content`;
+  const printSample = () => {
+    // The active tab
+    const targetTabEl = document.querySelector(
+      `#${targetId} .sample-tab.tab-pane.show.active`,
+    );
+    if (targetTabEl) {
+      // The target element
+      const targetEl = targetTabEl.firstElementChild;
+      if (targetEl) {
+        // Get the sample heading to include
+        const headingId = `sample-heading-${sample.id}`;
+        const headingEl = document.getElementById(headingId);
+
+        // Print the document
+        const headingHtml = printHeadingHtml();
+        const css = "html { font-size: 9pt }";
+        printHtml(
+          [headingHtml, headingEl.outerHTML, targetEl.innerHTML].join("\n"),
+          css,
+        );
+      }
+    }
+  };
+
+  const tools = [
+    html`<${ToolButton}
+      name=${html`Print`}
+      icon="${ApplicationIcons.copy}"
+      onclick="${printSample}"
+    />`,
+  ];
+
   return html`<${SampleSummary}
     id=${sample.id}
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 
-  <${TabSet} id="task-sample-details-tab-${id}" styles=${{
+  <${TabSet} id=${tabsetId} styles=${{
     tabs: {
       fontSize: FontSize.base,
     },
     tabBody: {},
-  }}>
+  }}
+    tools=${tools}>
     ${tabs}
   </${TabSet}>`;
 };
@@ -286,7 +321,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
 
   return html`
     <div
-      id=${`sample-${id}`}
+      id=${`sample-heading-${id}`}
       style=${{
         display: "grid",
         gridTemplateColumns: `${columns
