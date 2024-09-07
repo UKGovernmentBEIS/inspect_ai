@@ -1,6 +1,7 @@
 from inspect_ai.model._call_tools import call_tools
-from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._model import get_model
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._tool import Tool, ToolResult, tool
@@ -104,14 +105,14 @@ def basic_agent(
         return execute
 
     # enable customisation of submit tool name/description
-    submit_tool = [tool_with(submit(), submit_tool_name, submit_tool_description)]
+    submit_tool = tool_with(submit(), submit_tool_name, submit_tool_description)
 
     # resolve score_value function
     score_value_fn = score_value or value_to_float()
 
     # helper to check if a submission was attempted
     def answer_submitted(tool_calls: list[ToolCall]) -> bool:
-        return any([tool for tool in tool_calls if tool.function == "submit"])
+        return any([tool.function == submit_tool_name for tool in tool_calls])
 
     # main agent loop
     @solver
@@ -139,22 +140,30 @@ def basic_agent(
 
                     # was an answer submitted?
                     if answer_submitted(state.output.message.tool_calls):
-                        # get the answer and score it (exit if correct)
+                        # get the answer
                         answer = store().get(ANSWER)
-                        state.output.completion = answer
+
+                        # turn the tool call into a regular assistant message
+                        state.messages = state.messages[:-2]
+                        state.messages.append(ChatMessageAssistant(content=answer))
+                        state.output = ModelOutput.from_content(
+                            model=state.output.model, content=answer
+                        )
+
+                        # score it
                         answer_scores = await score(state)
                         if score_value_fn(answer_scores[0].value) == 1.0:
                             break
 
-                        # check attempts
+                        # exit if we are at max_attempts
                         attempts += 1
                         if attempts >= max_attempts:
                             break
-
-                        # notify the model that it was incorrect
-                        state.messages.append(
-                            ChatMessageUser(content=incorrect_message)
-                        )
+                        # otherwise notify the model that it was incorrect and continue
+                        else:
+                            state.messages.append(
+                                ChatMessageUser(content=incorrect_message)
+                            )
 
                 # no tool calls: model gave up without submitting
                 else:
