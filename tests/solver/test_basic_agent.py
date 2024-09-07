@@ -1,5 +1,7 @@
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
+from inspect_ai.model._model import get_model
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import includes
 from inspect_ai.solver import basic_agent
 from inspect_ai.tool import tool
@@ -50,9 +52,33 @@ def test_basic_agent_custom_text():
         scorer=includes(),
     )
 
-    log = eval(task, model="mockllm/model")[0]
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name=AGENT_SUBMIT_TOOL_NAME,
+                tool_arguments={"answer": "2"},
+            )
+        ],
+    )
+
+    log = eval(task, model=model)[0]
     assert log.status == "success"
+    assert log.samples[0].messages[0].content == AGENT_SYSTEM_PROMPT
+    tool_event = next(
+        (event for event in log.samples[0].transcript.events if event.event == "tool")
+    )
+    assert tool_event
+    assert tool_event.function == AGENT_SUBMIT_TOOL_NAME
+    assert tool_event.result == AGENT_SUBMIT_TOOL_RESPONSE
+    model_event = next(
+        (event for event in log.samples[0].transcript.events if event.event == "model")
+    )
+    assert model_event
+    assert model_event.tools[1].name == AGENT_SUBMIT_TOOL_NAME
+    assert model_event.tools[1].description == AGENT_SUBMIT_TOOL_DESCRIPTION
 
 
-if __name__ == "__main__":
-    test_basic_agent_custom_text()
+# if __name__ == "__main__":
+#     test_basic_agent_custom_text()
