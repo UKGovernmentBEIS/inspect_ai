@@ -110,8 +110,7 @@ def test_list_metric() -> None:
 def test_dict_metric() -> None:
     def check_log(log):
         assert log.results and (
-            list(log.results.scores[0].metrics.keys())
-            == ["dict_metric-one", "dict_metric-two", "dict_metric-three"]
+            list(log.results.scores[0].metrics.keys()) == ["one", "two", "three"]
         )
 
     task = Task(

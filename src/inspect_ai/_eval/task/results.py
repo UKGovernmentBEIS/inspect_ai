@@ -151,8 +151,9 @@ def scorer_for_metrics(
         if isinstance(metric_value, dict):
             for metric_key, value in metric_value.items():
                 if value:
-                    list_metrics[with_suffix(key, metric_key)] = EvalMetric(
-                        name=with_suffix(base_metric_name, metric_key),
+                    name = metrics_unique_key(metric_key, list(list_metrics.keys()))
+                    list_metrics[name] = EvalMetric(
+                        name=name,
                         value=float(value),
                     )
 
@@ -162,9 +163,11 @@ def scorer_for_metrics(
             for index, value in enumerate(metric_value):
                 if value:
                     count = str(index + 1)
-                    list_metrics[with_suffix(key, count)] = EvalMetric(
-                        name=with_suffix(base_metric_name, count), value=float(value)
+                    name = metrics_unique_key(
+                        with_suffix(key, count), list(list_metrics.keys())
                     )
+
+                    list_metrics[name] = EvalMetric(name=name, value=float(value))
 
         # the metric is a float, str, or int
         else:
