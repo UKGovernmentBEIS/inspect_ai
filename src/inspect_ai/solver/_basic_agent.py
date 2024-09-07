@@ -32,8 +32,8 @@ Your submission was incorrect. Please proceed and attempt to find the correct an
 
 DEFAULT_CONTINUE_MESSAGE = "Please proceed to the next step using your best judgement."
 
-DEFAULT_SUBMIT_TOOL_NAME = "submit"
-DEFAULT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer for evaluation."
+DEFAULT_SUBMIT_NAME = "submit"
+DEFAULT_SUBMIT_DESCRIPTION = "Submit an answer for evaluation."
 DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated."
 
 
@@ -46,8 +46,8 @@ def basic_agent(
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
-    submit_tool_name: str = DEFAULT_SUBMIT_TOOL_NAME,
-    submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRIPTION,
+    submit_name: str = DEFAULT_SUBMIT_NAME,
+    submit_description: str = DEFAULT_SUBMIT_DESCRIPTION,
 ) -> Plan:
     """Basic ReAct agent.
 
@@ -66,15 +66,15 @@ def basic_agent(
        tools (list[Tool]): Tools available for the agent.
        system_prompt (str): System prompt for agent.
        max_attempts (int): Maximum number of submissions to accept before terminating.
-       score_value (ValueToFloat): Function use to extract float from scores (defaults
+       score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
          the model.
        continue_message (str): User message to urge the model to continue when it
          doesn't make a tool call.
-       submit_tool_name (str): Name for tool used to make submissions
+       submit_name (str): Name for tool used to make submissions
         (defaults to 'submit')
-       submit_tool_description (str): Description of submit tool (defaults to
+       submit_description (str): Description of submit tool (defaults to
         'Submit an answer for evaluation')
 
     Returns:
@@ -95,7 +95,7 @@ def basic_agent(
         return execute
 
     # enable customisation of submit tool name/description
-    submit_tool = tool_with(submit(), submit_tool_name, submit_tool_description)
+    submit_tool = tool_with(submit(), submit_name, submit_description)
 
     # resolve score_value function
     score_value_fn = score_value or value_to_float()
@@ -103,11 +103,7 @@ def basic_agent(
     # helper to extract a submitted answer
     def submission(tool_results: list[ChatMessageTool]) -> str | None:
         return next(
-            (
-                result.text
-                for result in tool_results
-                if result.function == submit_tool_name
-            ),
+            (result.text for result in tool_results if result.function == submit_name),
             None,
         )
 

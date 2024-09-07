@@ -36,7 +36,6 @@ AGENT_CONTINUE_MESSAGE = "Please proceed."
 
 AGENT_SUBMIT_TOOL_NAME = "agent_submit"
 AGENT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer."
-AGENT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated."
 
 
 def test_basic_agent_custom_text():
@@ -45,9 +44,8 @@ def test_basic_agent_custom_text():
         plan=basic_agent(
             tools=[addition()],
             system_prompt=AGENT_SYSTEM_PROMPT,
-            submit_tool_name=AGENT_SUBMIT_TOOL_NAME,
-            submit_tool_description=AGENT_SUBMIT_TOOL_DESCRIPTION,
-            submit_tool_response=AGENT_SUBMIT_TOOL_RESPONSE,
+            submit_name=AGENT_SUBMIT_TOOL_NAME,
+            submit_description=AGENT_SUBMIT_TOOL_DESCRIPTION,
         ),
         scorer=includes(),
     )
@@ -71,7 +69,6 @@ def test_basic_agent_custom_text():
     )
     assert tool_event
     assert tool_event.function == AGENT_SUBMIT_TOOL_NAME
-    assert tool_event.result == AGENT_SUBMIT_TOOL_RESPONSE
     model_event = next(
         (event for event in log.samples[0].transcript.events if event.event == "model")
     )

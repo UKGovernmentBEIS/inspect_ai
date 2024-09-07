@@ -9,12 +9,12 @@ from inspect_ai.tool import bash, python
 
 
 @task
-def intercode_ctf(shuffle=False, max_attempts=3):
+def intercode_ctf(shuffle=False, max_attempts=3, max_messages=30):
     return Task(
         dataset=read_dataset(shuffle),
         plan=ctf_agent(max_attempts),
         scorer=includes(),
-        max_messages=30,
+        max_messages=max_messages,
         sandbox="docker",
     )
 
