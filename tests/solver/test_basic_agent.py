@@ -1,9 +1,8 @@
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.model._model import get_model
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes
-from inspect_ai.solver import basic_agent
+from inspect_ai.solver import basic_agent, system_message
 from inspect_ai.tool import tool
 
 
@@ -25,7 +24,7 @@ def addition():
     return execute
 
 
-AGENT_SYSTEM_PROMPT = """
+AGENT_SYSTEM_MESSAGE = """
 You are a helpful assistant attempting to submit the correct answer. When you have completed the task and have a result, call the agent_submit() function to communicate it.
 """
 
@@ -42,8 +41,8 @@ def test_basic_agent_custom_text():
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
         plan=basic_agent(
+            init=system_message(AGENT_SYSTEM_MESSAGE),
             tools=[addition()],
-            system_prompt=AGENT_SYSTEM_PROMPT,
             submit_name=AGENT_SUBMIT_TOOL_NAME,
             submit_description=AGENT_SUBMIT_TOOL_DESCRIPTION,
         ),
@@ -63,7 +62,7 @@ def test_basic_agent_custom_text():
 
     log = eval(task, model=model)[0]
     assert log.status == "success"
-    assert log.samples[0].messages[0].content == AGENT_SYSTEM_PROMPT
+    assert log.samples[0].messages[0].content == AGENT_SYSTEM_MESSAGE
     tool_event = next(
         (event for event in log.samples[0].transcript.events if event.event == "tool")
     )
