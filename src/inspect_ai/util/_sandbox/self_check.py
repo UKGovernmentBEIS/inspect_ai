@@ -16,32 +16,34 @@ async def check_test_fn(
         return f"ERROR: {str(e)}"
 
 
-async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
-    results = {}
+async def self_check(
+    sandbox_env: SandboxEnvironment,
+    test_fn: Callable[[SandboxEnvironment], Coroutine[Any, Any, None]],
+) -> bool | str:
+    return await check_test_fn(test_fn, sandbox_env)
 
-    for fn in [
+
+def get_test_functions():
+    return [
         test_read_and_write_file_text,
-        test_read_and_write_file_binary,
-        test_read_and_write_file_including_directory_absolute,
-        test_read_and_write_file_including_directory_relative,
-        test_read_file_zero_length,
-        test_read_file_not_found,
-        test_read_file_not_allowed,
-        test_read_file_is_directory,
-        test_read_file_nonsense_name,
-        test_write_file_zero_length,
-        test_write_file_is_directory,
-        test_write_file_without_permissions,
-        test_exec_timeout,
-        test_exec_permission_error,
-        test_cwd_unspecified,
-        test_cwd_custom,
-        test_cwd_relative,
-        test_cwd_absolute,
-    ]:
-        results[fn.__name__] = await check_test_fn(fn, sandbox_env)
-
-    return results
+        # test_read_and_write_file_binary,
+        # test_read_and_write_file_including_directory_absolute,
+        # test_read_and_write_file_including_directory_relative,
+        # test_read_file_zero_length,
+        # test_read_file_not_found,
+        # test_read_file_not_allowed,
+        # test_read_file_is_directory,
+        # test_read_file_nonsense_name,
+        # test_write_file_zero_length,
+        # test_write_file_is_directory,
+        # test_write_file_without_permissions,
+        # test_exec_timeout,
+        # test_exec_permission_error,
+        # test_cwd_unspecified,
+        # test_cwd_custom,
+        # test_cwd_relative,
+        # test_cwd_absolute,
+    ]
 
 
 async def _cleanup_file(sandbox_env: SandboxEnvironment, filename: str) -> None:

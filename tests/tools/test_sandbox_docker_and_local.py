@@ -5,71 +5,95 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
-from inspect_ai.util._sandbox.self_check import self_check
+from inspect_ai.util._sandbox.self_check import get_test_functions, self_check
 
 
-@skip_if_no_docker
-@pytest.mark.slow
-async def test_self_check_local(request) -> None:
+@pytest.fixture(scope="module")
+async def local_sandbox(request):
     task_name = f"{__name__}_{request.node.name}_local"
-
     await LocalSandboxEnvironment.task_init(task_name=task_name, config=None)
     envs_dict = await LocalSandboxEnvironment.sample_init(
         task_name=task_name, config=None, metadata={}
     )
+    yield envs_dict["default"]
+    await envs_dict["default"].sample_cleanup(
+        task_name=task_name,
+        config=None,
+        environments=envs_dict,
+        interrupted=False,
+    )
+    await envs_dict["default"].task_cleanup(
+        task_name=task_name, config=None, cleanup=True
+    )
 
-    return await check_results_of_self_check(task_name, envs_dict)
 
-
-@skip_if_no_docker
-@pytest.mark.slow
-async def test_self_check_docker_custom_nonroot(request) -> None:
+@pytest.fixture(scope="module")
+async def docker_nonroot_sandbox(request):
     task_name = f"{__name__}_{request.node.name}_docker_nonroot"
-
-    # The default docker-compose used in Inspect uses the root user in the container.
-    # The root user is allowed to overwrite files even if they're read-only.
-    # This breaks the sematics of the sandbox, so we use a non-root user for these tests.
-    config_file = str(Path(__file__) / ".." / "test_sandbox_compose.yaml")
-
+    config_file = str(Path(__file__).parent / "test_sandbox_compose.yaml")
     await DockerSandboxEnvironment.task_init(task_name=task_name, config=config_file)
     envs_dict = await DockerSandboxEnvironment.sample_init(
         task_name=task_name, config=config_file, metadata={}
     )
+    yield envs_dict["default"]
+    await envs_dict["default"].sample_cleanup(
+        task_name=task_name,
+        config=config_file,
+        environments=envs_dict,
+        interrupted=False,
+    )
+    await envs_dict["default"].task_cleanup(
+        task_name=task_name, config=config_file, cleanup=True
+    )
 
-    return await check_results_of_self_check(task_name, envs_dict)
 
-
-@skip_if_no_docker
-@pytest.mark.slow
-async def test_self_check_docker_default_root(request) -> None:
+@pytest.fixture(scope="module")
+async def docker_root_sandbox(request):
     task_name = f"{__name__}_{request.node.name}_docker_root"
-
     await DockerSandboxEnvironment.task_init(task_name=task_name, config=None)
     envs_dict = await DockerSandboxEnvironment.sample_init(
         task_name=task_name, config=None, metadata={}
     )
-
-    return await check_results_of_self_check(
-        task_name, envs_dict, ["test_write_file_without_permissions"]
+    yield envs_dict["default"]
+    await envs_dict["default"].sample_cleanup(
+        task_name=task_name,
+        config=None,
+        environments=envs_dict,
+        interrupted=False,
+    )
+    await envs_dict["default"].task_cleanup(
+        task_name=task_name, config=None, cleanup=True
     )
 
 
-async def check_results_of_self_check(task_name, envs_dict, known_failures=[]):
-    sandbox_env = envs_dict["default"]
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.parametrize("test_fn", get_test_functions())
+async def test_local_sandbox(local_sandbox, test_fn):
+    result = await self_check(local_sandbox, test_fn)
+    assert result, f"Test {test_fn.__name__} failed in local sandbox: {result}"
 
-    try:
-        self_check_results = await self_check(sandbox_env)
-        failures = []
-        for test_name, result in self_check_results.items():
-            if result is not True and test_name not in known_failures:
-                failures.append(f"Test {test_name} failed: {result}")
-        if failures:
-            assert False, "\n".join(failures)
-    finally:
-        await sandbox_env.sample_cleanup(
-            task_name=task_name,
-            config=None,
-            environments=envs_dict,
-            interrupted=False,
-        )
-        await sandbox_env.task_cleanup(task_name=task_name, config=None, cleanup=True)
+
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.parametrize("test_fn", get_test_functions())
+async def test_docker_nonroot_sandbox(docker_nonroot_sandbox, test_fn):
+    result = await self_check(docker_nonroot_sandbox, test_fn)
+    assert (
+        result
+    ), f"Test {test_fn.__name__} failed in docker non-root sandbox: {result}"
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.parametrize("test_fn", get_test_functions())
+async def test_docker_root_sandbox(docker_root_sandbox, test_fn):
+    result = await self_check(docker_root_sandbox, test_fn)
+    if test_fn.__name__ == "test_write_file_without_permissions":
+        assert (
+            result
+        ), f"Expected {test_fn.__name__} to fail in docker root sandbox, but it passed"
+    else:
+        assert (
+            result
+        ), f"Test {test_fn.__name__} failed in docker root sandbox: {result}"
