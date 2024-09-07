@@ -34,6 +34,8 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_file_without_permissions,
         test_exec_timeout,
         test_exec_permission_error,
+        test_exec_as_user,
+        test_exec_as_nonexistent_user,
         test_cwd_unspecified,
         test_cwd_custom,
         test_cwd_relative,
@@ -174,6 +176,39 @@ async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
     with Raises(PermissionError):
         # /etc/password is not an executable file so this should fail
         await sandbox_env.exec(["/etc/passwd"])
+
+
+async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
+    try:
+        # Create a new user
+        add_user_result = await sandbox_env.exec(
+            ["useradd", "-m", "myuser"], user="root"
+        )
+        assert add_user_result.success, f"Failed to add user: {add_user_result.stderr}"
+
+        # Test exec as different users
+        root_result = await sandbox_env.exec(["whoami"], user="root")
+        assert (
+            root_result.stdout.strip() == "root"
+        ), f"Expected 'root', got '{root_result.stdout.strip()}'"
+        myuser_result = await sandbox_env.exec(["whoami"], user="myuser")
+        assert (
+            myuser_result.stdout.strip() == "myuser"
+        ), f"Expected 'myuser', got '{myuser_result.stdout.strip()}'"
+    finally:
+        # Clean up
+        await sandbox_env.exec(["userdel", "-r", "myuser"], user="root")
+
+
+async def test_exec_as_nonexistent_user(sandbox_env: SandboxEnvironment) -> None:
+    result = await sandbox_env.exec(["whoami"], user="nonexistent")
+    assert not result.success, "Command should have failed for nonexistent user"
+    expected_error = (
+        "unable to find user nonexistent: no matching entries in passwd file"
+    )
+    assert (
+        expected_error in result.stdout
+    ), f"Error string '{expected_error}' not found in error output: '{result.stdout}'"
 
 
 async def test_cwd_unspecified(sandbox_env: SandboxEnvironment) -> None:
