@@ -1,12 +1,10 @@
 from inspect_ai.model._call_tools import call_tools
-from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._chat_message import ChatMessageTool, ChatMessageUser
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._metric import ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._tool import Tool, ToolResult, tool
-from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_with import tool_with
-from inspect_ai.util import store
 
 from ._plan import Plan, plan
 from ._prompt import system_message
@@ -23,8 +21,8 @@ always send more messages with subsequent function calls. Do some reasoning
 before your actions, describing what function calls you are going to use and
 how they fit into your plan.
 
-When you have completed the task and have a result, call the {submit}() function to
-communicate it.
+When you have completed the task and have an answer, call the {submit}()
+function to report it.
 """
 
 
@@ -50,7 +48,6 @@ def basic_agent(
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_tool_name: str = DEFAULT_SUBMIT_TOOL_NAME,
     submit_tool_description: str = DEFAULT_SUBMIT_TOOL_DESCRIPTION,
-    submit_tool_response: str = DEFAULT_SUBMIT_TOOL_RESPONSE,
 ) -> Plan:
     """Basic ReAct agent.
 
@@ -77,14 +74,12 @@ def basic_agent(
          doesn't make a tool call.
        submit_tool_name (str): Name for tool used to make submissions
         (defaults to 'submit')
-       submit_tool_description (str): Description of submit tool
-       submit_tool_response (str): Submit tool return value for acknowledging submission.
+       submit_tool_description (str): Description of submit tool (defaults to
+        'Submit an answer for evaluation')
 
     Returns:
         Plan for agent.
     """
-    # state shared between submit tool and agent_loop
-    ANSWER = "basic_agent:answer"
 
     # submission tool
     @tool
@@ -95,11 +90,7 @@ def basic_agent(
             Args:
               answer (str): Submitted answer
             """
-            # set the answer (it will evaluated by the main loop)
-            store().set(ANSWER, answer)
-
-            # thank the model for its submission!
-            return submit_tool_response
+            return answer
 
         return execute
 
@@ -109,9 +100,16 @@ def basic_agent(
     # resolve score_value function
     score_value_fn = score_value or value_to_float()
 
-    # helper to check if a submission was attempted
-    def answer_submitted(tool_calls: list[ToolCall]) -> bool:
-        return any([tool.function == submit_tool_name for tool in tool_calls])
+    # helper to extract a submitted answer
+    def submission(tool_results: list[ChatMessageTool]) -> str | None:
+        return next(
+            (
+                result.text
+                for result in tool_results
+                if result.function == submit_tool_name
+            ),
+            None,
+        )
 
     # main agent loop
     @solver
@@ -133,15 +131,12 @@ def basic_agent(
                 # resolve tools calls (if any)
                 if state.output.message.tool_calls:
                     # call tool functions
-                    state.messages.extend(
-                        await call_tools(state.output.message, state.tools)
-                    )
+                    tool_results = await call_tools(state.output.message, state.tools)
+                    state.messages.extend(tool_results)
 
                     # was an answer submitted?
-                    if answer_submitted(state.output.message.tool_calls):
-                        # get the answer
-                        answer = store().get(ANSWER)
-
+                    answer = submission(tool_results)
+                    if answer:
                         # set the output to the answer for scoring
                         state.output.completion = answer
 
