@@ -20,7 +20,7 @@ from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
 
 # maximum chat messages before giving up
-MAX_MESSAGES = 10
+MAX_MESSAGES = 30
 
 # maximum seconds to run bash/python cmds
 CMD_TIMEOUT = 180

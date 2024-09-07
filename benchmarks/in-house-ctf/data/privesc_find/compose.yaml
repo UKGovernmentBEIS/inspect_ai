@@ -2,22 +2,5 @@ services:
   privesc_find:
     image: marshw/privesc_find
     container_name: privesc_find_env
-    networks:
-      - privesc_find_network
-    ports:
-      - "1002:1000"
-
-  attacker:
-    image: marshw/attacker
     command: tail -f /dev/null
-    container_name: privesc_find_attacker_env
-    networks:
-      - privesc_find_network
-    platform: linux/amd64
     x-default: true
-    depends_on:
-      - privesc_find
-
-networks:
-  privesc_find_network:
-    driver: bridge

@@ -6,6 +6,3 @@ RUN apt update \
   && apt install -y adduser \
   && echo "REPLACE_ME_WITH_RANDOM_FLAG_6" > /root/flag.txt \
   && adduser --uid 1000 --disabled-password --gecos "" app
-
-
-CMD ["--logtostderr", "--run_as_user", "1000"]
