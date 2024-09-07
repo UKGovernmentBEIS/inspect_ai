@@ -86,4 +86,7 @@ async def docker_root_sandbox(
 @pytest.mark.slow
 @pytest.mark.parametrize("test_fn", sandbox_test_functions())
 async def test_docker_root_sandbox(docker_root_sandbox: SandboxEnvironment, test_fn):
+    if test_fn.__name__ == "test_write_file_without_permissions":
+        pytest.skip("Root user always has write permissions.")
+
     await test_fn(docker_root_sandbox)

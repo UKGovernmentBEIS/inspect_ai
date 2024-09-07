@@ -1,9 +1,9 @@
-from typing import Any, Generic, Optional, Type, TypeVar
+from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
 
 from inspect_ai.util import SandboxEnvironment
 
 
-def sandbox_test_functions():
+def sandbox_test_functions() -> list[Callable[..., Coroutine[Any, Any, None]]]:
     return [
         test_read_and_write_file_text,
         test_read_and_write_file_binary,
