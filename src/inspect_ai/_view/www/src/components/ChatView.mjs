@@ -15,9 +15,10 @@ import { resolveToolInput, ToolCallView } from "./Tools.mjs";
  * @param {string} props.id - The ID for the chat view.
  * @param {import("../types/log").Messages} props.messages - The array of chat messages.
  * @param {Object} [props.style] - Inline styles for the chat view.
+ * @param {boolean} props.indented - Whether the chatview has indented messages
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ChatView = ({ id, messages, style }) => {
+export const ChatView = ({ id, messages, style, indented }) => {
   // Filter tool messages into a sidelist that the chat stream
   // can use to lookup the tool responses
   const toolMessages = {};
@@ -68,7 +69,7 @@ export const ChatView = ({ id, messages, style }) => {
             style=${{
               display: "grid",
               gridTemplateColumns: "max-content auto",
-              columnGap: "0.7em",
+              columnGap: "0.4em",
             }}
           >
             <div
@@ -84,6 +85,7 @@ export const ChatView = ({ id, messages, style }) => {
               id=${`${id}-chat-messages`}
               message=${msg}
               toolMessages=${toolMessages}
+              indented=${indented}
             />
           </div>`;
         } else {
@@ -91,6 +93,7 @@ export const ChatView = ({ id, messages, style }) => {
             id=${`${id}-chat-messages`}
             message=${msg}
             toolMessages=${toolMessages}
+            indented=${indented}
           />`;
         }
       })}
@@ -111,7 +114,7 @@ const normalizeContent = (content) => {
   }
 };
 
-const ChatMessage = ({ id, message, toolMessages }) => {
+const ChatMessage = ({ id, message, toolMessages, indented }) => {
   const collapse = message.role === "system";
   return html`
     <div
@@ -137,6 +140,7 @@ const ChatMessage = ({ id, message, toolMessages }) => {
         <i class="${iconForMsg(message)}"></i>
         ${message.role}
       </div>
+      <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: indented ? "0.8rem" : "0" }}>
       <${ExpandablePanel} collapse=${collapse}>
         <${MessageContents}
           key=${`${id}-contents`}
@@ -144,6 +148,7 @@ const ChatMessage = ({ id, message, toolMessages }) => {
           toolMessages=${toolMessages}
         />
       </${ExpandablePanel}>
+      </div>
     </div>
   `;
 };

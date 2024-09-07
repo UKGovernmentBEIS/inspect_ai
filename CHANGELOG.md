@@ -2,9 +2,24 @@
 
 ## Unreleased
 
+- [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
+- [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
+- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad) benchmark.
+
+## v0.3.27 (6 September 2024)
+
+- Fix missing timestamp issue with running `eval_set()` with an S3-backed log directory.
+- Correct rounding behavior for `f1()` and `exact()` scorers.
+- Correct normalized text comparison for `exact()` scorer.
+- Improved appearance and navigation for sample transcript view.
+- Added [MathVista](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mathvista) benchmark.
+
+## v0.3.26 (6 September 2024)
+
 - [Eval Sets](https://inspect.ai-safety-institute.org.uk/eval-sets.html) for running groups of tasks with automatic retries.
 - [Per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
 - [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
+- Introduce two new scorers, `f1()` (precision and recall in text matching) and `exact()` (whether normalized text matches exactly).
 - Task `metrics` now override built in scorer metrics (previously they were merged). This enables improved re-use of existing scorers where they only change required is a different set of metrics.
 - `write_log_dir_manifest()` to write a log header manifest for a log directory.
 - Relocate `store()` and `@subtask` from solver to utils module; relocate `transcript()` from solver to log module.
@@ -19,7 +34,7 @@
 - Do not process `.env` files in task directories (all required vars should be specified in the global `.env`).
 - Only enable `strict` mode for OpenAI tool calls when all function parameters are required.
 - Added [MMMU](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmmu), [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa), [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu_pro), and [XSTest](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/xstest) benchmarks.
-- Introduce two new scorers, `f1` (precision and recall in text matching) and `exact` (whether normalized text matches exactly).
+
 
 ## v0.3.25 (25 August 2024)
 

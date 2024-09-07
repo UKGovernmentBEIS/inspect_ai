@@ -56,6 +56,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.solver._task_state import state_jsonable
@@ -364,8 +365,10 @@ async def task_run_sample(
         semaphore if semaphore else contextlib.nullcontext()
     )
 
-    # initialise subtask
+    # initialise subtask and scoring context
     init_subtask(SAMPLE_SUBTASK, state.store)
+    if scorers:
+        init_scoring_context(scorers, Target(sample.target))
 
     # use sandbox if provided
     sandboxenv_cm = (
