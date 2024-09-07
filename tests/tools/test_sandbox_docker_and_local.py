@@ -5,7 +5,7 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
-from inspect_ai.util._sandbox.self_check import get_test_functions, self_check
+from inspect_ai.util._sandbox.self_check import sandbox_test_functions
 
 
 @pytest.fixture(scope="module")
@@ -68,32 +68,20 @@ async def docker_root_sandbox(request):
 
 @skip_if_no_docker
 @pytest.mark.slow
-@pytest.mark.parametrize("test_fn", get_test_functions())
+@pytest.mark.parametrize("test_fn", sandbox_test_functions())
 async def test_local_sandbox(local_sandbox, test_fn):
-    result = await self_check(local_sandbox, test_fn)
-    assert result, f"Test {test_fn.__name__} failed in local sandbox: {result}"
+    await test_fn(local_sandbox)
 
 
 @skip_if_no_docker
 @pytest.mark.slow
-@pytest.mark.parametrize("test_fn", get_test_functions())
+@pytest.mark.parametrize("test_fn", sandbox_test_functions())
 async def test_docker_nonroot_sandbox(docker_nonroot_sandbox, test_fn):
-    result = await self_check(docker_nonroot_sandbox, test_fn)
-    assert (
-        result
-    ), f"Test {test_fn.__name__} failed in docker non-root sandbox: {result}"
+    await test_fn(docker_nonroot_sandbox)
 
 
 @skip_if_no_docker
 @pytest.mark.slow
-@pytest.mark.parametrize("test_fn", get_test_functions())
+@pytest.mark.parametrize("test_fn", sandbox_test_functions())
 async def test_docker_root_sandbox(docker_root_sandbox, test_fn):
-    result = await self_check(docker_root_sandbox, test_fn)
-    if test_fn.__name__ == "test_write_file_without_permissions":
-        assert (
-            result
-        ), f"Expected {test_fn.__name__} to fail in docker root sandbox, but it passed"
-    else:
-        assert (
-            result
-        ), f"Test {test_fn.__name__} failed in docker root sandbox: {result}"
+    await test_fn(docker_root_sandbox)

@@ -1,48 +1,28 @@
-from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
+from typing import Any, Generic, Optional, Type, TypeVar
 
 from inspect_ai.util import SandboxEnvironment
 
 
-async def check_test_fn(
-    fn: Callable[[SandboxEnvironment], Coroutine[Any, Any, None]],
-    sandbox_env: SandboxEnvironment,
-) -> bool | str:
-    try:
-        await fn(sandbox_env)
-        return True
-    except AssertionError as e:
-        return f"FAILED: {str(e)}"
-    except Exception as e:
-        return f"ERROR: {str(e)}"
-
-
-async def self_check(
-    sandbox_env: SandboxEnvironment,
-    test_fn: Callable[[SandboxEnvironment], Coroutine[Any, Any, None]],
-) -> bool | str:
-    return await check_test_fn(test_fn, sandbox_env)
-
-
-def get_test_functions():
+def sandbox_test_functions():
     return [
         test_read_and_write_file_text,
-        # test_read_and_write_file_binary,
-        # test_read_and_write_file_including_directory_absolute,
-        # test_read_and_write_file_including_directory_relative,
-        # test_read_file_zero_length,
-        # test_read_file_not_found,
-        # test_read_file_not_allowed,
-        # test_read_file_is_directory,
-        # test_read_file_nonsense_name,
-        # test_write_file_zero_length,
-        # test_write_file_is_directory,
-        # test_write_file_without_permissions,
-        # test_exec_timeout,
-        # test_exec_permission_error,
-        # test_cwd_unspecified,
-        # test_cwd_custom,
-        # test_cwd_relative,
-        # test_cwd_absolute,
+        test_read_and_write_file_binary,
+        test_read_and_write_file_including_directory_absolute,
+        test_read_and_write_file_including_directory_relative,
+        test_read_file_zero_length,
+        test_read_file_not_found,
+        test_read_file_not_allowed,
+        test_read_file_is_directory,
+        test_read_file_nonsense_name,
+        test_write_file_zero_length,
+        test_write_file_is_directory,
+        test_write_file_without_permissions,
+        test_exec_timeout,
+        test_exec_permission_error,
+        test_cwd_unspecified,
+        test_cwd_custom,
+        test_cwd_relative,
+        test_cwd_absolute,
     ]
 
 
