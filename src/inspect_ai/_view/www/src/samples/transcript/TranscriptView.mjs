@@ -56,7 +56,7 @@ export const TranscriptComponent = ({
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
     if (eventNode.depth % 2 == 0) {
-      toggleStyle.backgroundColor = "var(--bs-light)";
+      toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
     } else {
       toggleStyle.backgroundColor = "var(--bs-body-bg)";
     }

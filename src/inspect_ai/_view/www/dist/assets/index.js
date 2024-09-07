@@ -8530,7 +8530,7 @@ const Card = ({ id, classes, style, children }) => {
       class="${classes || ""}"
       ...${{ id }}
       style=${{
-    backgroundColor: "var(--bs-light)",
+    backgroundColor: "var(--bs-light-bg-subtle)",
     border: "solid 1px var(--bs-light-border-subtle)",
     borderRadius: "var(--bs-border-radius)",
     marginBottom: "1.5em",
@@ -18445,7 +18445,7 @@ const TranscriptComponent = ({
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
     if (eventNode.depth % 2 == 0) {
-      toggleStyle.backgroundColor = "var(--bs-light)";
+      toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
     } else {
       toggleStyle.backgroundColor = "var(--bs-body-bg)";
     }
