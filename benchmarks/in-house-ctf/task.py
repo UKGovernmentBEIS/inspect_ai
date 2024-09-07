@@ -1,4 +1,3 @@
-import subprocess
 from string import Template
 
 from dataset import read_dataset
