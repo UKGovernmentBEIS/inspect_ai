@@ -17716,18 +17716,22 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
   const title = `Tool: ${event.function}`;
   return m$1`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-  <div name="Summary">
-    <${ExpandablePanel}>
-      ${event.result ? m$1`<${ToolOutput}
-              output=${event.result}
-              style=${{ margin: "1em 0" }}
-            />` : event.error ? m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-                ${event.error.type}: ${event.error.message}
-              </div>` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-                No output
-              </div>`}
-    </${ExpandablePanel}>
-  </div>
+    <div name="Summary">
+    ${event.result ? m$1`
+          <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+          <${ToolOutput}
+            output=${event.result}
+            style=${{ margin: "1em 0" }}
+          />
+          </${ExpandablePanel}>
+          ` : event.error ? m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
+              ${event.error.type}: ${event.error.message}
+            </div>` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
+              No output
+            </div>`}
+    </div>
+    
+  
   <div name="Transcript" style=${{ margin: "1em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
