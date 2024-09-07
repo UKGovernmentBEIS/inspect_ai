@@ -12,6 +12,7 @@ import { ToolEventView } from "./ToolEventView.mjs";
 import { ErrorEventView } from "./ErrorEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
+import { initStateManager } from "./TranscriptState.mjs";
 
 /**
  * Renders the TranscriptView component.
@@ -162,7 +163,7 @@ export const RenderedEventNode = ({ id, node, style, stateManager }) => {
       return html`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
+        stateManager=${initStateManager()}
         style=${style}
       />`;
 
