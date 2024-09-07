@@ -2,13 +2,20 @@ import inspect
 from copy import copy
 from dataclasses import dataclass
 
+from inspect_ai._util.registry import (
+    registry_info,
+    registry_params,
+    set_registry_info,
+    set_registry_params,
+)
+
 from ._tool import Tool
 
 
 def tool_with(
     tool: Tool,
-    name: str | None,
-    description: str | None,
+    name: str | None = None,
+    description: str | None = None,
     parameters: dict[str, str] | None = None,
 ) -> Tool:
     """Tool with modifications to name and descriptions.
@@ -33,11 +40,14 @@ def tool_with(
                 )
 
     # copy the tool and set the descriptions on the new copy
-    tool = copy(tool)
+    tool_copy = copy(tool)
+    set_registry_info(tool_copy, registry_info(tool))
+    set_registry_params(tool_copy, registry_params(tool))
     set_tool_description(
-        tool, ToolDescription(name=name, description=description, parameters=parameters)
+        tool_copy,
+        ToolDescription(name=name, description=description, parameters=parameters),
     )
-    return tool
+    return tool_copy
 
 
 @dataclass
