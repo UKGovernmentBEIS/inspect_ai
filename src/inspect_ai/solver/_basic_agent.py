@@ -12,7 +12,7 @@ from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
 from ._use_tools import use_tools
 
-DEFAULT_SYSTEM_PROMPT = """
+DEFAULT_SYSTEM_MESSAGE = """
 You are a helpful assistant attempting to submit the correct answer. You have
 several functions available to help with finding the answer. Each message may
 may perform one function call. You will see the result of the function right
@@ -40,8 +40,8 @@ DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated."
 @plan
 def basic_agent(
     *,
+    init: Solver | list[Solver] = system_message(DEFAULT_SYSTEM_MESSAGE),
     tools: list[Tool] = [],
-    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     max_attempts: int = 1,
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
@@ -52,8 +52,8 @@ def basic_agent(
     """Basic ReAct agent.
 
     Agent that runs a tool use loop until the model submits an answer using the
-    `submit()` tool. Tailor the model's instructions using the `system_prompt`
-    parameter. Use `max_attempts` to support additional submissions if the
+    `submit()` tool. Tailor the model's instructions by passing a `system_message()`
+    to `init`. Use `max_attempts` to support additional submissions if the
     initial submission(s) are incorrect (submissions are evaluated using the task's
     main scorer, with a correct ("C") or numerical value of 1.0 indicating a
     correct answer).
@@ -63,6 +63,8 @@ def basic_agent(
     continuing on in a loop interminably.
 
     Args:
+       init: (Solver | list[Solver]): Agent initialisation
+         (defaults to system_message with basic ReAct prompt)
        tools (list[Tool]): Tools available for the agent.
        system_prompt (str): System prompt for agent.
        max_attempts (int): Maximum number of submissions to accept before terminating.
@@ -80,6 +82,11 @@ def basic_agent(
     Returns:
         Plan for agent.
     """
+    # resolve init to list
+    init = init if isinstance(init, list) else [init]
+
+    # resolve score_value function
+    score_value_fn = score_value or value_to_float()
 
     # submission tool
     @tool
@@ -96,9 +103,6 @@ def basic_agent(
 
     # enable customisation of submit tool name/description
     submit_tool = tool_with(submit(), submit_name, submit_description)
-
-    # resolve score_value function
-    score_value_fn = score_value or value_to_float()
 
     # helper to extract a submitted answer
     def submission(tool_results: list[ChatMessageTool]) -> str | None:
@@ -162,8 +166,8 @@ def basic_agent(
 
     # return plan
     return Plan(
-        [
-            system_message(system_prompt),
+        init
+        + [
             use_tools(tools + [submit_tool]),
             basic_agent_loop(),
         ]
