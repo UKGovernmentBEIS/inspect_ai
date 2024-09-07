@@ -387,7 +387,7 @@ def self_critique(
 
 Note that calls to `generate()` (for both the critique model and the model being evaluated) are called with `await`—this is critical to ensure that the solver participates correctly in the scheduling of generation work.
 
-### Scoring in Solvers
+### Scoring in Solvers {#sec-scoring-in-solvers}
 
 ::: {.callout-note appearance="simple"}
 Note that the `score()` function described below is available only in the development version of Inspect. You can install the development version with:
