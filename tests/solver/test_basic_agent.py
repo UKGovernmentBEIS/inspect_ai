@@ -80,5 +80,35 @@ def test_basic_agent_custom_text():
     assert model_event.tools[1].description == AGENT_SUBMIT_TOOL_DESCRIPTION
 
 
-# if __name__ == "__main__":
-#     test_basic_agent_custom_text()
+def test_basic_agent_retries():
+    def addition_task(max_attempts):
+        return Task(
+            dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+            plan=basic_agent(tools=[addition()], max_attempts=max_attempts),
+            scorer=includes(),
+        )
+
+    def mockllm_model(answers: list[str]):
+        return get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": answer},
+                )
+                for answer in answers
+            ],
+        )
+
+    # incorrect answer with no retries
+    log = eval(addition_task(1), mockllm_model(["5"]))[0]
+    assert log.results.scores[0].metrics["accuracy"].value == 0
+
+    # correct answer on the third try
+    log = eval(addition_task(3), mockllm_model(["5", "4", "2"]))[0]
+    assert log.results.scores[0].metrics["accuracy"].value == 1
+    model_events = sum(
+        1 for event in log.samples[0].transcript.events if event.event == "model"
+    )
+    assert model_events == 3
