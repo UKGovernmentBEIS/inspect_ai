@@ -9,21 +9,20 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param {string | undefined} props.title - The name of the event
  * @param {string | undefined} props.icon - The name of the event
- * @param {number} props.depth - The depth of the event
+ * @param {Object} props.style - The style of the event
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const EventRow = ({ title, icon, depth, children }) => {
-  const paddingLeft = depth * 1.5 + 0.5;
-
+export const EventRow = ({ title, icon, style, children }) => {
   const contentEl = title
     ? html`<div
         style=${{
-          padding: `0.5em 0.5em 0.5em ${paddingLeft}em`,
+          marginLeft: "0.5em",
           display: "grid",
           gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
           columnGap: "0.5em",
           fontSize: FontSize.small,
+          ...style,
         }}
       >
         <i class=${icon || ApplicationIcons.metadata} />
@@ -35,8 +34,10 @@ export const EventRow = ({ title, icon, depth, children }) => {
   const card = html` <div
     class="card"
     style=${{
-      padding: "0.1em 0.5em",
-      marginBottom: "-1px",
+      padding: "0.4em",
+      marginBottom: "0.4em",
+      border: "solid 1px var(--bs-light-border-subtle)",
+      borderRadius: "var(--bs-border-radius)",
     }}
   >
     ${contentEl}

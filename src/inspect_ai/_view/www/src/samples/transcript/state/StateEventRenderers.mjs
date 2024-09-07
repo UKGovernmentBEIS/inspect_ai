@@ -44,7 +44,7 @@ const tools_choice = {
   },
   render: (resolvedState) => {
     const toolName = (toolChoice) => {
-      if (typeof toolChoice === "object") {
+      if (typeof toolChoice === "object" && toolChoice) {
         return toolChoice["name"];
       } else {
         return toolChoice;
@@ -67,7 +67,7 @@ const tools_choice = {
           display: "grid",
           gridTemplateColumns: "max-content max-content",
           columnGap: "1rem",
-          margin: "1em 0",
+          margin: "0",
         }}
       >
         ${Object.keys(toolsInfo).map((key) => {

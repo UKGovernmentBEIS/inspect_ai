@@ -22,3 +22,4 @@ This directory contains evals for several benchmarks. Datasets for evals are not
 | CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge                   | <https://arxiv.org/pdf/1811.00937v2> | [commonsense_qa.py](commonsense_qa/commonsense_qa.py) | Hugging Face |
 | XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's                      | <https://arxiv.org/abs/2308.01263>   |                         [xstest.py](xstest/xstest.py) | Hugging Face |
 | MathVista: Evaluating Mathematical Reasoning in Visual Contexts                                 | <https://arxiv.org/abs/2310.02255>   |                [mathvista.py](mathvista/mathvista.py) | Hugging Face |
+| SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles | <https://arxiv.org/pdf/1806.03822>   |             [squad.py](squad/squad.py) | Hugging Face |

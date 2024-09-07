@@ -1,9 +1,22 @@
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
-import { FontSize } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 
 export const CardHeader = ({ id, icon, label, classes, style, children }) => {
-  return html`<div class="card-header ${classes || ""}" ...${{ id, style }}>
+  return html`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content auto",
+      columnGap: "0em",
+      padding: "0.5em 0.5em 0.5em 0.5em",
+      fontSize: FontSize.small,
+      fontWeight: 600,
+      ...TextStyle.label,
+      ...style,
+    }}
+  >
     ${icon
       ? html`<i
           class="${icon}"
@@ -11,20 +24,47 @@ export const CardHeader = ({ id, icon, label, classes, style, children }) => {
             paddingRight: "0.2rem",
           }}
         ></i>`
-      : ""}
+      : html`<span
+          style=${{
+            paddingRight: "0.2rem",
+          }}
+        ></span>`}
     ${label ? label : ""} ${children}
   </div> `;
 };
 
 export const CardBody = ({ id, classes, style, children }) => {
-  return html`<div class="card-body ${classes || ""}" ...${{ id, style }}>
+  return html`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+      backgroundColor: "var(--bs-body-bg)",
+      border: "solid 1px var(--bs-light-border-subtle)",
+      borderRadius: "var(--bs-border-radius)",
+      margin: "0 8px 8px 8px",
+      padding: "0.5em",
+      ...style,
+    }}
+  >
     ${children}
   </div>`;
 };
 
 export const Card = ({ id, classes, style, children }) => {
   return html`
-    <div class="card ${classes || ""}" ...${{ id, style }}>${children}</div>
+    <div
+      class="${classes || ""}"
+      ...${{ id }}
+      style=${{
+        backgroundColor: "var(--bs-light)",
+        border: "solid 1px var(--bs-light-border-subtle)",
+        borderRadius: "var(--bs-border-radius)",
+        marginBottom: "1.5em",
+        ...style,
+      }}
+    >
+      ${children}
+    </div>
   `;
 };
 
