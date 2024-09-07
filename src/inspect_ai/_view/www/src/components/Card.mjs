@@ -56,7 +56,7 @@ export const Card = ({ id, classes, style, children }) => {
       class="${classes || ""}"
       ...${{ id }}
       style=${{
-        backgroundColor: "var(--bs-light)",
+        backgroundColor: "var(--bs-light-bg-subtle)",
         border: "solid 1px var(--bs-light-border-subtle)",
         borderRadius: "var(--bs-border-radius)",
         marginBottom: "1.5em",

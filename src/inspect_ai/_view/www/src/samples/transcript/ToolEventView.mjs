@@ -32,11 +32,28 @@ export const ToolEventView = ({ id, event, style, stateManager, depth }) => {
 
   return html`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-  <div name="Summary">
-    <${ExpandablePanel}>
-      ${event.result ? html`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : html`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
-    </${ExpandablePanel}>
-  </div>
+    <div name="Summary">
+    ${
+      event.result
+        ? html`
+          <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+          <${ToolOutput}
+            output=${event.result}
+            style=${{ margin: "1em 0" }}
+          />
+          </${ExpandablePanel}>
+          `
+        : event.error
+          ? html`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
+              ${event.error.type}: ${event.error.message}
+            </div>`
+          : html`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
+              No output
+            </div>`
+    }
+    </div>
+    
+  
   <div name="Transcript" style=${{ margin: "1em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
