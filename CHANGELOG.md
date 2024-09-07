@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad) benchmark.
+- Properly support metrics that return a dict or list of values
 
 ## v0.3.27 (6 September 2024)
 
