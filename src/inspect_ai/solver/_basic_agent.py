@@ -29,14 +29,14 @@ communicate it.
 
 
 DEFAULT_INCORRECT_MESSAGE = """
-Your submission was incorrect. Please proceed and attempt to find the correct answer."
+Your submission was incorrect. Please proceed and attempt to find the correct answer.
 """
 
 DEFAULT_CONTINUE_MESSAGE = "Please proceed to the next step using your best judgement."
 
 DEFAULT_SUBMIT_TOOL_NAME = "submit"
 DEFAULT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer for evaluation."
-DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated for correctness."
+DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated."
 
 
 @plan
