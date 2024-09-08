@@ -7,6 +7,7 @@
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
 - Input event for recording screen input in sample transcripts.
 - Properly support metrics that return a dict or list of values
+- Improved display of prerequisite errors when running `eval()` from a script or notebook.
 - Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad) and [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval) benchmarks.
 
 
