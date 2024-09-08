@@ -21,7 +21,7 @@ from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
 
-from inspect_ai._util.constants import CONSOLE_OUTPUT_WIDTH
+from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
@@ -176,7 +176,10 @@ class RichTaskScreen(TaskScreen):
     @override
     @contextlib.contextmanager
     def input_screen(
-        self, header: str | None = None, transient: bool = True
+        self,
+        header: str | None = None,
+        transient: bool = True,
+        width: int = CONSOLE_DISPLAY_WIDTH,
     ) -> Iterator[Console]:
         # clear live task status and transient status
         self.live.update("", refresh=True)
@@ -185,9 +188,9 @@ class RichTaskScreen(TaskScreen):
         # show cursor for input
         self.live.console.show_cursor(True)
 
-        # set width to 120
+        # set width
         old_width = self.live.console.width
-        self.live.console.width = min(old_width, CONSOLE_OUTPUT_WIDTH)
+        self.live.console.width = min(old_width, width)
 
         # record console activity for event
         self.live.console.record = True
@@ -352,7 +355,7 @@ def tasks_live_status(
     # rendering context
     theme = rich_theme()
     console = rich_console()
-    width = 100 if is_vscode_notebook(console) else None
+    width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
 
     # compute completed tasks
     completed = sum(1 for task in tasks if task.result is not None)
@@ -423,7 +426,7 @@ def task_panel(
     # rendering context
     theme = rich_theme()
     console = rich_console()
-    width = 100 if is_vscode_notebook(console) else None
+    width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
     jupyter = console.is_jupyter
 
     # setup table
