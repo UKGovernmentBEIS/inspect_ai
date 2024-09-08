@@ -25,22 +25,18 @@ When you have completed the task and have an answer, call the {submit}()
 function to report it.
 """
 
-
 DEFAULT_INCORRECT_MESSAGE = """
 Your submission was incorrect. Please proceed and attempt to find the correct answer.
 """
-
 DEFAULT_CONTINUE_MESSAGE = "Please proceed to the next step using your best judgement."
-
 DEFAULT_SUBMIT_NAME = "submit"
 DEFAULT_SUBMIT_DESCRIPTION = "Submit an answer for evaluation."
-DEFAULT_SUBMIT_TOOL_RESPONSE = "Your submission will be evaluated."
 
 
 @plan
 def basic_agent(
     *,
-    init: Solver | list[Solver] = system_message(DEFAULT_SYSTEM_MESSAGE),
+    init: Solver | list[Solver] | None = None,
     tools: list[Tool] = [],
     max_attempts: int = 1,
     score_value: ValueToFloat | None = None,
@@ -53,8 +49,9 @@ def basic_agent(
 
     Agent that runs a tool use loop until the model submits an answer using the
     `submit()` tool. Tailor the model's instructions by passing a `system_message()`
-    to `init`. Use `max_attempts` to support additional submissions if the
-    initial submission(s) are incorrect.
+    and/or other steps to `init` (if no `init` is specified then a default system
+    message will be used). Use `max_attempts` to support additional submissions if
+    the initial submission(s) are incorrect.
 
     Submissions are evaluated using the task's main scorer, with value of 1.0
     indicating a correct answer. Scorer values are converted to float (e.g.
@@ -66,7 +63,7 @@ def basic_agent(
     continuing on in a loop interminably.
 
     Args:
-       init: (Solver | list[Solver]): Agent initialisation
+       init: (Solver | list[Solver] | None): Agent initialisation
          (defaults to system_message with basic ReAct prompt)
        tools (list[Tool]): Tools available for the agent.
        max_attempts (int): Maximum number of submissions to accept before terminating.
@@ -84,7 +81,9 @@ def basic_agent(
     Returns:
         Plan for agent.
     """
-    # resolve init to list
+    # resolve init
+    if init is None:
+        init = system_message(DEFAULT_SYSTEM_MESSAGE, submit=submit_name)
     init = init if isinstance(init, list) else [init]
 
     # resolve score_value function
