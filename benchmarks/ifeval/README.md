@@ -2,6 +2,8 @@
 
 [IFEval](https://arxiv.org/pdf/2311.07911) is a benchmark to evaluate a model's performance on synthesizing programs from docstrings. This implementation uses an installable package from a [fork](https://github.com/josejg/instruction_following_eval) of the official implementation.
 
+Before starting, please install the requirements under the [`requirements.txt`](requirements.txt) file.
+
 ## Execution
 Here is an example prompt from the dataset:
 ```
