@@ -21,6 +21,7 @@ from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
 
+from inspect_ai._util.constants import CONSOLE_OUTPUT_WIDTH
 from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
@@ -184,6 +185,10 @@ class RichTaskScreen(TaskScreen):
         # show cursor for input
         self.live.console.show_cursor(True)
 
+        # set width to 120
+        old_width = self.live.console.width
+        self.live.console.width = min(old_width, CONSOLE_OUTPUT_WIDTH)
+
         # record console activity for event
         self.live.console.record = True
 
@@ -195,7 +200,7 @@ class RichTaskScreen(TaskScreen):
                 self.live.console.print("")
 
             # yield the console
-            with record_console_input(self.live.console):
+            with record_console_input():
                 yield self.live.console
 
             # print one blank line
@@ -206,6 +211,9 @@ class RichTaskScreen(TaskScreen):
             input_ansi = self.live.console.export_text(clear=True, styles=True)
             self.live.console.record = False
             transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+
+            # reset width
+            self.live.console.width = old_width
 
             # disable cursor while not collecting input
             self.live.console.show_cursor(False)
@@ -691,7 +699,8 @@ _display: RichDisplay | None = None
 
 
 @contextmanager
-def record_console_input(console: Console) -> Iterator[None]:
+def record_console_input() -> Iterator[None]:
+    # monkey patch .input method to record inputs
     input_original = Console.input
 
     def input_with_record(self: Console, *args: Any, **kwargs: Any) -> str:
@@ -703,6 +712,7 @@ def record_console_input(console: Console) -> Iterator[None]:
 
     Console.input = input_with_record  # type: ignore
 
-    yield
-
-    Console.input = input_original  # type: ignore
+    try:
+        yield
+    finally:
+        Console.input = input_original  # type: ignore
