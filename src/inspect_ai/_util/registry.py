@@ -295,6 +295,20 @@ def set_registry_info(o: object, info: RegistryInfo) -> object:
     return o
 
 
+def set_registry_params(o: object, params: dict[str, Any]) -> object:
+    r"""Set the registry params for an object.
+
+    Args:
+        o (object): Object to set the registry params for
+        params: (dict[str, Any]): Registry params
+
+    Returns:
+        Passed object, with registry params attached
+    """
+    setattr(o, REGISTRY_PARAMS, params)
+    return o
+
+
 def registry_key(type: RegistryType, name: str) -> str:
     return f"{type}:{name}"
 

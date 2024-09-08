@@ -1,5 +1,6 @@
 from ._answer import AnswerPattern, answer
 from ._choice import choice
+from ._classification import exact, f1
 from ._match import includes, match
 from ._metric import (
     CORRECT,
@@ -30,6 +31,7 @@ from ._reducer import (
     pass_at,
     score_reducer,
 )
+from ._score import score
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -41,6 +43,8 @@ __all__ = [
     "answer",
     "choice",
     "pattern",
+    "f1",
+    "exact",
     "AnswerPattern",
     "Scorer",
     "Target",
@@ -53,6 +57,7 @@ __all__ = [
     "Metric",
     "metric",
     "Score",
+    "score",
     "Value",
     "ValueToFloat",
     "value_to_float",

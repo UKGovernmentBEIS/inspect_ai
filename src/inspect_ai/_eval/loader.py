@@ -150,7 +150,11 @@ def resolve_task_args(task: Task) -> dict[str, Any]:
     # was the task instantiated via the registry or a decorator?
     # if so then we can get the task_args from the registry.
     try:
-        return registry_params(task)
+        # filter out model as that's dyanmic and automatically passed
+        task_args = dict(registry_params(task))
+        if "model" in task_args:
+            del task_args["model"]
+        return task_args
 
     # if it wasn't instantiated via the registry or a decorator
     # then it will not be in the registy and not have formal
@@ -272,6 +276,7 @@ def create_file_tasks(
     task_specs: list[str] | list[RegistryInfo] | None = None,
     task_args: dict[str, Any] = {},
 ) -> list[Task]:
+    run_dir = file.parent.resolve().as_posix()
     with chdir_python(file.parent.as_posix()):
         # if we don't have task specs then go get them (also,
         # turn them into plain names)
@@ -289,7 +294,7 @@ def create_file_tasks(
             # (will be used later to ensure it runs in the directory)
             task = task_create(task_spec, model, **task_args)
             setattr(task, TASK_FILE_ATTR, file.as_posix())
-            setattr(task, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+            setattr(task, TASK_RUN_DIR_ATTR, run_dir)
             tasks.append(task)
 
             # warn about deprecated chdir attrib

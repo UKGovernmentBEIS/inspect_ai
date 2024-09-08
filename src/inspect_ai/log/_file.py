@@ -13,7 +13,12 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_BUFFER_REMOTE,
 )
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import FileInfo, absolute_file_path, file, filesystem
+from inspect_ai._util.file import (
+    FileInfo,
+    absolute_file_path,
+    file,
+    filesystem,
+)
 
 from ._log import (
     EvalLog,
@@ -93,6 +98,48 @@ def write_eval_log(log: EvalLog, log_file: str | FileInfo) -> None:
     log_file = log_file if isinstance(log_file, str) else log_file.name
     with file(log_file, "w") as f:
         f.write(eval_log_json(log))
+
+
+def write_log_dir_manifest(
+    log_dir: str,
+    *,
+    filename: str = "logs.json",
+    output_dir: str | None = None,
+    fs_options: dict[str, Any] = {},
+) -> None:
+    """Write a manifest for a log directory.
+
+    A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o samples)
+    keyed by log file names (names are relative to the log directory)
+
+    Args:
+      log_dir (str): Log directory to write manifest for.
+      filename (str): Manifest filename (defaults to "logs.json")
+      output_dir (str | None): Output directory for manifest (defaults to log_dir)
+      fs_options (dict[str,Any]): Optional. Additional arguments to pass through
+        to the filesystem provider (e.g. `S3FileSystem`).
+    """
+    # resolve log dir to full path
+    fs = filesystem(log_dir)
+    log_dir = fs.info(log_dir).name
+
+    # list eval logs
+    logs = list_eval_logs(log_dir)
+
+    # resolve to manifest (make filenames relative to the log dir)
+    names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
+    headers = read_eval_log_headers(logs)
+    manifest_logs = dict(zip(names, headers))
+
+    # form target path and write
+    output_dir = output_dir or log_dir
+    fs = filesystem(output_dir)
+    manifest = f"{output_dir}{fs.sep}{filename}"
+    manifest_json = to_json(
+        value=manifest_logs, indent=2, exclude_none=True, fallback=lambda _x: None
+    )
+    with file(manifest, mode="wb", fs_options=fs_options) as f:
+        f.write(manifest_json)
 
 
 def eval_log_json(log: EvalLog) -> str:
@@ -191,6 +238,18 @@ def read_eval_log_headers(
     return [read_eval_log(log_file, header_only=True) for log_file in log_files]
 
 
+def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
+    # ensure that log dir has a trailing seperator
+    if not log_dir.endswith(sep):
+        log_dir = f"{log_dir}/"
+
+    # slice off log_dir from the front
+    log = info.name.replace(log_dir, "")
+
+    # manifests are web artifacts so always use forward slash
+    return log.replace("\\", "/")
+
+
 class FileRecorder(Recorder):
     def __init__(
         self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}
@@ -234,7 +293,9 @@ def log_files_from_ls(
 ) -> list[EvalLogInfo]:
     return [
         log_file_info(file)
-        for file in sorted(ls, key=lambda file: file.mtime, reverse=descending)
+        for file in sorted(
+            ls, key=lambda file: (file.mtime if file.mtime else 0), reverse=descending
+        )
         if file.type == "file" and is_log_file(file.name, extensions)
     ]
 

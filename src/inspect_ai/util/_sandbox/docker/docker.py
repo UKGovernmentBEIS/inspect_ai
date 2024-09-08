@@ -93,8 +93,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # create environment variables for sample metadata
         env: dict[str, str] = {}
-        for key, value in metadata.items():
-            env[f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"] = str(value)
+        if config and Path(config).exists():
+            # read the config file
+            with open(config, "r") as f:
+                config_text = f.read()
+
+            # only add metadata files if the key is in the file
+            for key, value in metadata.items():
+                key = f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"
+                if key in config_text:
+                    env[key] = str(value)
 
         # create project
         project = await ComposeProject.create(
@@ -203,12 +211,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 args.append("--env")
                 args.append(f"{key}={value}")
 
-        return await compose_exec(
+        exec_result = await compose_exec(
             args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
             input=input,
         )
+        if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
+            raise PermissionError(f"Permission denied executing command: {exec_result}")
+
+        return exec_result
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:

@@ -18,11 +18,7 @@ async function eval_logs() {
 }
 
 async function eval_log(file, headerOnly) {
-  if (headerOnly) {
-    return await api("GET", `/api/logs/${file}?header-only=true`);
-  } else {
-    return await api("GET", `/api/logs/${file}`);
-  }
+  return await api("GET", `/api/logs/${file}?header-only=${headerOnly}`);
 }
 
 async function eval_log_headers(files) {
@@ -62,10 +58,15 @@ async function api(method, path, body) {
   }
 }
 
+async function open_log_file() {
+  // No op
+}
+
 export default {
   client_events,
   eval_logs,
   eval_log,
   eval_log_headers,
   download_file,
+  open_log_file,
 };

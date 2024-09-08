@@ -26,6 +26,7 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._log import LogType, Recorder
+from inspect_ai.log._transcript import eval_events, transcript
 from inspect_ai.model import (
     GenerateConfig,
     Model,
@@ -35,7 +36,6 @@ from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Plan, Solver, TaskState
-from inspect_ai.solver._subtask.transcript import eval_events, transcript
 
 
 class TaskLogger:
