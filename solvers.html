@@ -419,7 +419,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Inspect has a number of built-in solvers, each of which can be customised in some fashion. Built in solvers can be imported from the <code>inspect_ai.solver</code> module. Below is a summary of these solvers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the <strong>Go to Definition</strong> command in your source editor.</p>
 <ul>
 <li><p><code>system_message()</code></p>
-<p>Prepend role=“system” <code>message</code> to the list of messages (will follow any other system messages it finds in the message stream).</p></li>
+<p>Prepend role=“system” <code>message</code> to the list of messages (will follow any other system messages it finds in the message stream). Also automatically substitutes any variables defined in sample <code>metadata</code> as well as any other custom named paramters passed in <code>params</code>.</p></li>
 <li><p><code>prompt_template()</code></p>
 <p>Modify the user prompt by substituting the current prompt into the <code>{prompt}</code> placeholder within the specified template. Also automatically substitutes any variables defined in sample <code>metadata</code> as well as any other custom named paramters passed in <code>params</code>.</p></li>
 <li><p><code>chain_of_thought()</code></p>
