@@ -14,7 +14,7 @@ from inspect_ai.scorer import (
     scorer,
     stderr,
 )
-from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
+from inspect_ai.solver import Generate, Solver, TaskState, basic_agent, solver
 from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
 
@@ -42,12 +42,11 @@ def in_house_ctf_task(shuffle: bool=False) -> Task:
     """Task for the in-house CTF challenges."""
     return Task(
         dataset=read_dataset(shuffle),
-        plan=[
-            read_flag(),
-            in_house_ctf_system_message(SYSTEM_MESSAGE),
-            use_tools([bash(timeout=CMD_TIMEOUT)]),
-            generate(),
-        ],
+        plan=basic_agent(
+            init=[read_flag(),in_house_ctf_system_message(SYSTEM_MESSAGE)],
+            tools=[bash(timeout=CMD_TIMEOUT)],
+            max_attempts=3
+        ),
         scorer=includes_flag(),
         max_messages=MAX_MESSAGES,
     )
