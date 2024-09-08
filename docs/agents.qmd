@@ -26,13 +26,17 @@ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
 ```
 :::
 
-The `basic_agent()`provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck. The straightforward approach of the basic agent has some important benefits:
+The `basic_agent()`provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck. The basic agent serves a number of important purposes:
 
-1.  It provides an excellent baseline against which you can judge more complex agent scaffolds. You should nearly always start with basic agent, as frequently a model's own elicitation and planning capabilities will outperform a custom scheme.
+1.  When developing tasks and datasets it's convenient to have a ready made agent that you know that will competently navigate your task.
 
-2.  It provides a sound basis for comparison of the native planning and tool use capabilities of models both over time and across providers.
+2.  When developing custom agents, it's a good idea to start out with an idea of how the model performs using its native planning and eliciatation capabilities. The basic agent is a good way to establish this baseline.
 
-The basic agent also incorporates best practices for giving models some additional resilience and persistence, both through the optional `max_attempts` parameter, as well as by continuing the task even when the model stops making tool calls. Note that when using the basic agent you should *always* set a `max_messages` so that there is some termination point if the model gets off track or stuck in a loop.
+3.  It provides a sound basis for comparison of the native agentic capabilities of models both over time and across providers.
+
+The basic agent incorporates best practices for giving models some additional resilience and persistence, both through the optional `max_attempts` parameter, as well as by continuing the task even when the model stops making tool calls. The basic agent can frequently match or exeed custom scaffolds, so you should always try it as a baseline for your tasks!
+
+Note that when using the basic agent you should *always* set a `max_messages` so that there is some termination point if the model gets off track or stuck in a loop.
 
 ### Example
 
@@ -71,7 +75,7 @@ def ctf():
 
 1.  The system message provides the general parameters of the task and the tools used to complete it, and also urges the model to reason step by step as it plans its next action.
 2.  Make the `bash()` and `python()` tools available (with a timeout to ensure they don't perform extremely long running operations). Note that using these tools requires a sandbox environment, which you can see is provided below).
-3.  Let the model try up to 3 submissions before it gives up trying to solve the challenge.
+3.  Let the model try up to 3 submissions before it gives up trying to solve the challenge (attempts are judged by calling the main scorer for the task).
 4.  Limit the total messages that can be used for each CTF sample.
 5.  Specify that Docker should be used as the sandbox environment.
 
