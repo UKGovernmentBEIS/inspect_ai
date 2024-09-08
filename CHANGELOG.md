@@ -6,6 +6,7 @@
 - [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
 - Properly support metrics that return a dict or list of values
+- Improved display of prerequisite errors when running `eval()` from a script or notebook.
 - Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad) and [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval) benchmarks.
 
 
