@@ -40,14 +40,12 @@ def pubmedqa():
     )
 
 
-choices = {
-    "yes": "A",
-    "no": "B",
-    "maybe": "C",
-}
-
-
 def record_to_sample(record) -> Sample:
+    choices = {
+        "yes": "A",
+        "no": "B",
+        "maybe": "C",
+    }
     abstract = record['context']
     question = record["question"]
     return Sample(
