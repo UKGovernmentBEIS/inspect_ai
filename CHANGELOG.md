@@ -5,6 +5,7 @@
 - [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
 - [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
+- Input event for recording screen input in sample transcripts.
 - Properly support metrics that return a dict or list of values
 - Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad) and [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval) benchmarks.
 
