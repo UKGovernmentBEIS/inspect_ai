@@ -35,7 +35,6 @@ def read_dataset(shuffle: bool=False) -> Dataset:
                 "challenge_address": record["challenge_address"],
                 "solution": solution,
                 "get_flag_cmd": record["get_flag_cmd"],
-                "flag": record["flag"],
             },
             files=files,
             sandbox=("docker", f"{task_assets}/compose.yaml"),
@@ -49,7 +48,7 @@ def read_dataset(shuffle: bool=False) -> Dataset:
     ]
 
     return json_dataset(
-        json_file=f"{DATA_DIR}/in_house_ctf.json",
+        json_file=f"{DATA_DIR}/challenges.json",
         sample_fields=record_to_sample,
         shuffle=shuffle,
     ).filter(lambda x: x.id not in excluded)
