@@ -54,9 +54,12 @@ def basic_agent(
     Agent that runs a tool use loop until the model submits an answer using the
     `submit()` tool. Tailor the model's instructions by passing a `system_message()`
     to `init`. Use `max_attempts` to support additional submissions if the
-    initial submission(s) are incorrect (submissions are evaluated using the task's
-    main scorer, with a correct ("C") or numerical value of 1.0 indicating a
-    correct answer).
+    initial submission(s) are incorrect.
+
+    Submissions are evaluated using the task's main scorer, with value of 1.0
+    indicating a correct answer. Scorer values are converted to float (e.g.
+    "C" becomes 1.0) using the standard value_to_float() function. Provide an
+    alternate conversion scheme as required via `score_value`.
 
     Note that when using the `basic_agent()`, you should always establish a boundary
     on model activity (e.g. setting the task `max_messages`) to prevent it from
@@ -66,7 +69,6 @@ def basic_agent(
        init: (Solver | list[Solver]): Agent initialisation
          (defaults to system_message with basic ReAct prompt)
        tools (list[Tool]): Tools available for the agent.
-       system_prompt (str): System prompt for agent.
        max_attempts (int): Maximum number of submissions to accept before terminating.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
