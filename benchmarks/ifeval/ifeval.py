@@ -39,82 +39,51 @@ def ifeval():
     )
 
 
-def prompt_level(key: str, reduction: str) -> Metric:
-    """Compute the prompt level statistics"""
+@metric
+def if_metric() -> Metric:
+    def metric(scores: list[Score]) -> dict[str, float]:
+        statistics = []
+        prompt_keys = ["prompt_level_strict", "prompt_level_loose"]
+        instruct_keys = ["inst_level_strict", "inst_level_loose"]
+        final_keys = [
+            "prompt_strict_acc",
+            "prompt_strict_std",
+            "prompt_loose_acc",
+            "prompt_loose_std",
+            "inst_strict_acc",
+            "inst_strict_std",
+            "inst_loose_acc",
+            "inst_loose_std",
+            "final_acc",
+        ]
 
-    def metric(scores: list[Score]) -> float:
-        return getattr(np, reduction)([score.value[key] for score in scores]).item()
+        # calculate prompt-level accuracies/stds
+        for key in prompt_keys:
+            score_lst = [score.value[key] for score in scores]
+            statistics.append(np.mean(score_lst).item())
+            statistics.append(np.std(score_lst).item())
+
+        # calculate instruction-level accuracies/stds
+        for key in instruct_keys:
+            flattened = []
+            for score in scores:
+                num_correct = int(score.value[key])
+                num_incorrect = int(score.value["num_instructions"] - score.value[key])
+                flattened.extend([True] * num_correct + [False] * num_incorrect)
+            statistics.append(np.mean(flattened).item())
+            statistics.append(np.std(flattened).item())
+
+        # calculate the final accuracy (excluding the std in the calculation)
+        statistics.append(
+            np.mean([statistics[i] for i in range(0, len(statistics), 2)]).item()
+        )
+
+        return {k: v for k, v in zip(final_keys, statistics)}
 
     return metric
 
 
-def inst_level(key: str, reduction: str) -> Metric:
-    """Compute the instruction level statistics"""
-
-    def metric(scores: list[Score]) -> float:
-        flattened = []
-        for score in scores:
-            flattened.extend(
-                [True] * int(score.value[key])
-                + [False] * int(score.value["num_instructions"] - score.value[key])
-            )
-        return getattr(np, reduction)(flattened).item()
-
-    return metric
-
-
-@metric
-def prompt_level_strict_acc() -> Metric:
-    return prompt_level("prompt_level_strict", "mean")
-
-
-@metric
-def prompt_level_strict_std() -> Metric:
-    return prompt_level("prompt_level_strict", "std")
-
-
-@metric
-def prompt_level_loose_acc() -> Metric:
-    return prompt_level("prompt_level_loose", "mean")
-
-
-@metric
-def prompt_level_loose_std() -> Metric:
-    return prompt_level("prompt_level_loose", "std")
-
-
-@metric
-def inst_level_strict_acc() -> Metric:
-    return inst_level("inst_level_strict", "mean")
-
-
-@metric
-def inst_level_strict_std() -> Metric:
-    return inst_level("inst_level_strict", "std")
-
-
-@metric
-def inst_level_loose_acc() -> Metric:
-    return inst_level("inst_level_loose", "mean")
-
-
-@metric
-def inst_level_loose_std() -> Metric:
-    return inst_level("inst_level_loose", "std")
-
-
-@scorer(
-    metrics=[
-        prompt_level_strict_acc(),
-        prompt_level_strict_std(),
-        prompt_level_loose_acc(),
-        prompt_level_loose_std(),
-        inst_level_strict_acc(),
-        inst_level_strict_std(),
-        inst_level_loose_acc(),
-        inst_level_loose_std(),
-    ]
-)
+@scorer(metrics=[if_metric()])
 def instruction_following() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         # construct the input to IFEval's evaluation functions using the data class
