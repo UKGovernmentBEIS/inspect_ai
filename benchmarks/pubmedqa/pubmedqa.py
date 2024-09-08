@@ -49,7 +49,7 @@ def record_to_sample(record) -> Sample:
     abstract = record['context']
     question = record["question"]
     return Sample(
-        input=f"**Context:** {abstract}\n**Question:** {question}",
+        input=f"Context: {abstract}\nQuestion: {question}",
         target=choices[record["answer"][0].lower()],  # provided as e.g. ['yes']
         id=record["id"],
         choices=record["choices"],  # always ['yes, 'no', 'maybe']
