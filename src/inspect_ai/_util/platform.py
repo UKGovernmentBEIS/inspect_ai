@@ -1,6 +1,8 @@
 import importlib.util
 import os
 
+from .error import set_exception_hook
+
 
 def running_in_notebook() -> bool:
     try:
@@ -16,6 +18,9 @@ def running_in_notebook() -> bool:
 
 
 def platform_init() -> None:
+    # set exception hook if we haven't already
+    set_exception_hook()
+
     # if we are running in a notebook, confirm that we have ipywidgets
     if running_in_notebook():
         # check for required packages

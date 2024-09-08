@@ -67,3 +67,13 @@ def exception_hook() -> Callable[..., None]:
             sys_handler(exception_type, exception, traceback)
 
     return handler
+
+
+_exception_hook_set: bool = False
+
+
+def set_exception_hook() -> None:
+    global _exception_hook_set
+    if not _exception_hook_set:
+        sys.excepthook = exception_hook()
+        _exception_hook_set = True
