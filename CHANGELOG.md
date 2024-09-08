@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad) benchmark.
+- [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
+- [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
+- Properly support metrics that return a dict or list of values
+- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad), and [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval) benchmarks.
+
 
 ## v0.3.27 (6 September 2024)
 

@@ -24,3 +24,4 @@ This directory contains evals for several benchmarks. Datasets for evals are not
 | MathVista: Evaluating Mathematical Reasoning in Visual Contexts                                 | <https://arxiv.org/abs/2310.02255>   |                [mathvista.py](mathvista/mathvista.py) | Hugging Face |
 | SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles | <https://arxiv.org/pdf/1806.03822>   |             [squad.py](squad/squad.py) | Hugging Face |
 | Instruction-Following Evaluation for Large Language Models                 | <https://arxiv.org/pdf/2311.07911> |   [ifeval.py](ifeval/ifeval.py) | Hugging Face |
+| AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models                 | <https://arxiv.org/pdf/2304.06364> |   [agieval_en.py](agieval/agieval_en.py) | Download |

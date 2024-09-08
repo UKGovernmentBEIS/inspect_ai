@@ -12,6 +12,7 @@ import { ToolEventView } from "./ToolEventView.mjs";
 import { ErrorEventView } from "./ErrorEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
+import { initStateManager } from "./TranscriptState.mjs";
 
 /**
  * Renders the TranscriptView component.
@@ -55,7 +56,7 @@ export const TranscriptComponent = ({
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
     if (eventNode.depth % 2 == 0) {
-      toggleStyle.backgroundColor = "var(--bs-light)";
+      toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
     } else {
       toggleStyle.backgroundColor = "var(--bs-body-bg)";
     }
@@ -162,7 +163,7 @@ export const RenderedEventNode = ({ id, node, style, stateManager }) => {
       return html`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
+        stateManager=${initStateManager()}
         style=${style}
       />`;
 
