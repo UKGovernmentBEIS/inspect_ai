@@ -11,38 +11,41 @@ from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.self_check import sandbox_test_functions
 
 
-async def setup_and_teardown_sandbox(
-    request: FixtureRequest,
+async def setup_sandbox(
     sandbox_class: Type[SandboxEnvironment],
     sandbox_type: str,
     config: Optional[str] = None,
-) -> AsyncGenerator[SandboxEnvironment, None]:
-    task_name = f"{__name__}_{request.node.name}_{sandbox_type}"
-
-    await sandbox_class.task_init(task_name=task_name, config=config)
+) -> SandboxEnvironment:
+    await sandbox_class.task_init(task_name=sandbox_type, config=config)
     envs_dict = await sandbox_class.sample_init(
-        task_name=task_name, config=config, metadata={}
+        task_name=sandbox_type, config=config, metadata={}
     )
-    yield envs_dict["default"]
-    await envs_dict["default"].sample_cleanup(
+    return envs_dict["default"]
+
+
+async def teardown_sandbox(
+    sandbox: SandboxEnvironment,
+    request: FixtureRequest,
+    sandbox_type: str,
+    config: Optional[str] = None,
+) -> None:
+    task_name = f"{__name__}_{request.node.name}_{sandbox_type}"
+    await sandbox.sample_cleanup(
         task_name=task_name,
         config=config,
-        environments=envs_dict,
+        environments={"default": sandbox},
         interrupted=False,
     )
-    await envs_dict["default"].task_cleanup(
-        task_name=task_name, config=config, cleanup=True
-    )
+    await sandbox.task_cleanup(task_name=task_name, config=config, cleanup=True)
 
 
 @pytest.fixture(scope="module")
 async def local_sandbox(
     request: FixtureRequest,
 ) -> AsyncGenerator[SandboxEnvironment, None]:
-    async for sandbox in setup_and_teardown_sandbox(
-        request, LocalSandboxEnvironment, "local"
-    ):
-        yield sandbox
+    sandbox = await setup_sandbox(LocalSandboxEnvironment, "local")
+    yield sandbox
+    await teardown_sandbox(sandbox, request, "local")
 
 
 @skip_if_no_docker
@@ -57,10 +60,11 @@ async def docker_nonroot_sandbox(
     request: FixtureRequest,
 ) -> AsyncGenerator[SandboxEnvironment, None]:
     config_file = str(Path(__file__).parent / "test_sandbox_compose.yaml")
-    async for sandbox in setup_and_teardown_sandbox(
-        request, DockerSandboxEnvironment, "docker_nonroot", config_file
-    ):
-        yield sandbox
+    sandbox = await setup_sandbox(
+        DockerSandboxEnvironment, "docker_nonroot", config_file
+    )
+    yield sandbox
+    await teardown_sandbox(sandbox, request, "docker_nonroot", config_file)
 
 
 @skip_if_no_docker
@@ -76,10 +80,9 @@ async def test_docker_nonroot_sandbox(
 async def docker_root_sandbox(
     request: FixtureRequest,
 ) -> AsyncGenerator[SandboxEnvironment, None]:
-    async for sandbox in setup_and_teardown_sandbox(
-        request, DockerSandboxEnvironment, "docker_root"
-    ):
-        yield sandbox
+    sandbox = await setup_sandbox(DockerSandboxEnvironment, "docker_root")
+    yield sandbox
+    await teardown_sandbox(sandbox, request, "docker_root")
 
 
 @skip_if_no_docker
