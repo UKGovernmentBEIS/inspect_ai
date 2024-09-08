@@ -12,7 +12,7 @@ Abstract: https://arxiv.org/abs/1909.06146
 
 Homepage: https://pubmedqa.github.io/
 
-PubMedQA is a novel biomedical question answering (QA) dataset collected from
+PubMedQA is a biomedical question answering (QA) dataset collected from
 PubMed abstracts. The task of PubMedQA is to answer research questions with
 yes/no/maybe (e.g.: Do preoperative statins reduce atrial fibrillation after
 coronary artery bypass grafting?) using the corresponding abstracts. PubMedQA
