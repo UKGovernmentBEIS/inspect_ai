@@ -8,8 +8,10 @@ https://arxiv.org/pdf/2311.07911
 Based on: https://github.com/google-research/google-research/tree/master/instruction_following_eval
 """
 
+from typing import cast
+
 import numpy as np
-from instruction_following_eval.evaluation import (
+from instruction_following_eval.evaluation import (  # type: ignore
     InstructionResult,
     test_instruction_following_loose,
     test_instruction_following_strict,
@@ -17,14 +19,7 @@ from instruction_following_eval.evaluation import (
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
-from inspect_ai.scorer import (
-    Metric,
-    Score,
-    Scorer,
-    Target,
-    metric,
-    scorer,
-)
+from inspect_ai.scorer import Metric, Score, Scorer, Target, Value, metric, scorer
 from inspect_ai.solver import TaskState, generate
 
 
@@ -41,7 +36,7 @@ def ifeval():
 
 @metric
 def if_metric() -> Metric:
-    def metric(scores: list[Score]) -> dict[str, float]:
+    def metric(scores: list[Score]) -> Value:
         statistics = []
         prompt_keys = ["prompt_level_strict", "prompt_level_loose"]
         instruct_keys = ["inst_level_strict", "inst_level_loose"]
@@ -59,7 +54,7 @@ def if_metric() -> Metric:
 
         # calculate prompt-level accuracies/stds
         for key in prompt_keys:
-            score_lst = [score.value[key] for score in scores]
+            score_lst = [cast(dict, score.value)[key] for score in scores]
             statistics.append(np.mean(score_lst).item())
             statistics.append(np.std(score_lst).item())
 
@@ -67,8 +62,9 @@ def if_metric() -> Metric:
         for key in instruct_keys:
             flattened = []
             for score in scores:
-                num_correct = int(score.value[key])
-                num_incorrect = int(score.value["num_instructions"] - score.value[key])
+                value = cast(dict, score.value)
+                num_correct = int(value[key])
+                num_incorrect = int(value["num_instructions"] - value[key])
                 flattened.extend([True] * num_correct + [False] * num_incorrect)
             statistics.append(np.mean(flattened).item())
             statistics.append(np.std(flattened).item())

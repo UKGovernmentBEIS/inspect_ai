@@ -1,7 +1,7 @@
 import ast
 import os
 
-from datasets import concatenate_datasets, load_dataset
+from datasets import concatenate_datasets, load_dataset  # type: ignore
 
 from inspect_ai.model import ContentImage, ContentText
 
@@ -28,13 +28,13 @@ def save_image(record, image_number, subject_dir, question_number):
     return None
 
 
-def create_content_and_answers_list(record, base_dir="temp_images"):
+def create_content_and_answers_list(record, base_dir="images"):
     """
     Create a list of content elements and a list of answers from a record.
 
     Args:
         record (dict): The Inspect record containing question, images, and options.
-        base_dir (str, optional): The base directory where images should be saved. Defaults to "temp_images".
+        base_dir (str, optional): The base directory where images should be saved. Defaults to "images".
 
     Returns:
         tuple: A tuple containing:
