@@ -91,7 +91,7 @@ Inspect has a number of built-in solvers, each of which can be customised in som
 
 -   `system_message()`
 
-    Prepend role="system" `message` to the list of messages (will follow any other system messages it finds in the message stream).
+    Prepend role="system" `message` to the list of messages (will follow any other system messages it finds in the message stream). Also automatically substitutes any variables defined in sample `metadata` as well as any other custom named paramters passed in `params`.
 
 -   `prompt_template()`
 
