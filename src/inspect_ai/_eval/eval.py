@@ -44,6 +44,7 @@ def eval(
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    debug_errors: bool | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -84,6 +85,8 @@ def eval(
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
            eval if a count of samples fails.
+        debug_errors (bool | None): Raise task errors (rather than logging them)
+           so they can be debugged (defaults to False).
         max_messages (int | None): Maximum number of messages to allow
            in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -121,6 +124,7 @@ def eval(
             limit=limit,
             epochs=epochs,
             fail_on_error=fail_on_error,
+            debug_errors=debug_errors,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -148,6 +152,7 @@ async def eval_async(
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    debug_errors: bool | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -187,6 +192,8 @@ async def eval_async(
         fail_on_error (bool | float | None): `True` to fail on first sample error
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
+        debug_errors (bool | None): Raise task errors (rather than logging them)
+           so they can be debugged (defaults to False).
         max_messages (int | None): Maximum number of messages to allow
             in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -288,6 +295,7 @@ async def eval_async(
                         epochs_reducer=epochs_reducer,
                         plan=plan,
                         score=score,
+                        debug_errors=debug_errors is True,
                         **kwargs,
                     )
                 )
@@ -333,6 +341,7 @@ def eval_retry(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
+    debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -358,6 +367,8 @@ def eval_retry(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
+        debug_errors (bool | None): Raise task errors (rather than logging them)
+           so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
@@ -385,6 +396,7 @@ def eval_retry(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             sandbox_cleanup=sandbox_cleanup,
+            debug_errors=debug_errors,
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
@@ -404,6 +416,7 @@ async def eval_retry_async(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
+    debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -429,6 +442,8 @@ async def eval_retry_async(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
+        debug_errors (bool | None): Raise task errors (rather than logging them)
+           so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
@@ -533,6 +548,7 @@ async def eval_retry_async(
                 limit=limit,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
+                debug_errors=debug_errors,
                 max_messages=max_messages,
                 max_samples=max_samples,
                 max_tasks=max_tasks,

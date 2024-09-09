@@ -3,7 +3,7 @@ anyio>=4.4.0 # not directly required, pinned by Snyk to avoid a vulnerability
 beautifulsoup4
 click
 debugpy
-docstring-parser
+docstring-parser>=0.16
 fsspec
 httpx
 json-stream

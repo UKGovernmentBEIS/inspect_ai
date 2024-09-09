@@ -7585,21 +7585,6 @@ const arrayToString = (val) => {
   val = Array.isArray(val) ? val : [val];
   return val.join(", ");
 };
-const shorteners = [/^.*(\[.+\])$/m];
-const shortenCompletion = (completion) => {
-  if (!completion) {
-    return completion;
-  }
-  let shortened = void 0;
-  for (const shortenPattern of shorteners) {
-    const shortMatch = completion.match(shortenPattern);
-    if (shortMatch && shortMatch[1]) {
-      shortened = shortMatch[1];
-      break;
-    }
-  }
-  return shortened || completion;
-};
 const inputString = (input) => {
   if (typeof input === "string") {
     return input;
@@ -15177,7 +15162,7 @@ const SampleScoreView = ({
             <td style=${{ paddingTop: "0", paddingLeft: "0" }}>
               <${MarkdownDiv}
                 class="no-last-para-padding"
-                markdown=${shortenCompletion(answer)}
+                markdown=${answer}
                 style=${{ paddingLeft: "0" }}
               />
             </td>
@@ -17689,7 +17674,7 @@ const ScoreEventView = ({ id, event, style }) => {
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
-      <div>${event.score.answer}</div>
+      <div><${MarkdownDiv} markdown=${event.score.answer}/></div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Explanation</div>
       <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
@@ -18437,11 +18422,17 @@ const initStateManager = () => {
     applyChanges: (changes) => {
       state = applyPatch(
         structuredClone(state),
-        structuredClone(changes),
+        structuredClone(changes).map(ensureValidChange),
         true
       ).newDocument;
     }
   };
+};
+const ensureValidChange = (change) => {
+  if (change.op === "add" && !change.value) {
+    change.value = null;
+  }
+  return change;
 };
 const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
   const resolvedEvents = fixupEventStream(events);
@@ -18579,7 +18570,6 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
       return m$1`<${ErrorEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
         style=${style}
       />`;
     default:
@@ -18925,7 +18915,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
     columns.push({
       label: "Answer",
       value: sample ? m$1`<${MarkdownDiv}
-            markdown=${arrayToString(shortenCompletion(fullAnswer))}
+            markdown=${fullAnswer}
             style=${{ paddingLeft: "0" }}
             class="no-last-para-padding"
           />` : "",
@@ -19392,9 +19382,7 @@ const SampleRow = ({
       >
         ${sample ? m$1`
               <${MarkdownDiv}
-                markdown=${shortenCompletion(
-    sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorer(sample).answer()
-  )}
+                markdown=${sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorer(sample).answer()}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"
               />
@@ -22185,7 +22173,7 @@ const WorkSpace = (props) => {
         if (!((_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples) && ((_h = (_g = (_f2 = workspaceLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = workspaceLog.contents) == null ? void 0 : _i.status) !== "error") {
           warnings.push(
             m$1`<${WarningBand}
-              message="This evaluation log is too large to display samples."
+              message="Unable to display samples (this evaluation log may be too large)."
             />`
           );
         }

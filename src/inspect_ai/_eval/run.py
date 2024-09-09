@@ -37,6 +37,7 @@ async def eval_run(
     model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
     plan: Plan | Solver | list[Solver] | None = None,
+    debug_errors: bool = False,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -120,6 +121,7 @@ async def eval_run(
                         config=task_eval_config,
                         plan=plan,
                         score=score,
+                        debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,
                         sample_semaphore=sample_semaphore,
                         kwargs=kwargs,
