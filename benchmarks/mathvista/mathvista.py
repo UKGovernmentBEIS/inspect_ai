@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -112,6 +113,14 @@ def mathvista_solver() -> Solver:
 
 
 def record_to_sample(record: dict) -> Sample:
+    # extract image
+    image = Path(record["image"])
+    if not image.exists():
+        print(f"Extracting {image}")
+        image.parent.mkdir(exist_ok=True)
+        with open(image, "wb") as file:
+            file.write(record["decoded_image"]["bytes"])
+
     message: list[ChatMessage] = [
         ChatMessageUser(
             content=[
@@ -122,6 +131,7 @@ def record_to_sample(record: dict) -> Sample:
             ]
         )
     ]
+
     if record["question_type"] == "multi_choice":
         return Sample(
             input=message,
@@ -133,7 +143,6 @@ def record_to_sample(record: dict) -> Sample:
                 "answer_type": record["answer_type"],
                 **record["metadata"],
             },
-            files={f"image:{record['image']}": record["image"]},
         )
 
     elif record["question_type"] == "free_form":
