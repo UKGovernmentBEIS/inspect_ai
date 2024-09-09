@@ -9,7 +9,7 @@ Based on: https://github.com/google-research/google-research/tree/master/instruc
 """
 
 import numpy as np
-from instruction_following_eval.evaluation import (
+from instruction_following_eval.evaluation import (  # type: ignore
     InstructionResult,
     test_instruction_following_loose,
     test_instruction_following_strict,
