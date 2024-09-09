@@ -7,7 +7,7 @@ DATA_DIR = "data"
 SOLUTION_SIGNATURE = "## Possible solution"
 
 
-def read_dataset(shuffle: bool=False) -> Dataset:
+def read_dataset(config_name: str, shuffle: bool=False) -> Dataset:
     # record to sample
     def record_to_sample(record):
         # collect files
@@ -41,15 +41,8 @@ def read_dataset(shuffle: bool=False) -> Dataset:
             sandbox=("docker", f"{task_assets}/compose.yaml"),
         )
 
-    excluded = [
-        "privesc_7z",
-        "privesc_bash",
-        "privesc_find",
-        "privesc_sed"
-    ]
-
     return json_dataset(
-        json_file=f"{DATA_DIR}/challenges.json",
+        json_file=f"{DATA_DIR}/{config_name}.json",
         sample_fields=record_to_sample,
         shuffle=shuffle,
-    ).filter(lambda x: x.id not in excluded)
+    )
