@@ -56,6 +56,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, Solver, TaskState
 from inspect_ai.solver._task_state import state_jsonable
@@ -89,6 +90,7 @@ class TaskRunOptions:
     config: EvalConfig = field(default_factory=EvalConfig)
     plan: Plan | Solver | list[Solver] | None = field(default=None)
     score: bool = field(default=True)
+    debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
     sample_semaphore: asyncio.Semaphore | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
@@ -281,19 +283,24 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 td.complete(TaskCancelled(logger.samples_completed, stats))
 
             except BaseException as ex:
-                # get exception info
-                type, value, traceback = sys.exc_info()
-                type = type if type else BaseException
-                value = value if value else ex
+                if options.debug_errors:
+                    raise
+                else:
+                    # get exception info
+                    type, value, traceback = sys.exc_info()
+                    type = type if type else BaseException
+                    value = value if value else ex
 
-                # build eval error
-                error = eval_error(ex, type, value, traceback)
+                    # build eval error
+                    error = eval_error(ex, type, value, traceback)
 
-                # collect eval data
-                collect_eval_data(stats, logger)
+                    # collect eval data
+                    collect_eval_data(stats, logger)
 
-                # display it
-                td.complete(TaskError(logger.samples_completed, type, value, traceback))
+                    # display it
+                    td.complete(
+                        TaskError(logger.samples_completed, type, value, traceback)
+                    )
 
         # log as appropriate
         if cancelled:
@@ -364,8 +371,10 @@ async def task_run_sample(
         semaphore if semaphore else contextlib.nullcontext()
     )
 
-    # initialise subtask
+    # initialise subtask and scoring context
     init_subtask(SAMPLE_SUBTASK, state.store)
+    if scorers:
+        init_scoring_context(scorers, Target(sample.target))
 
     # use sandbox if provided
     sandboxenv_cm = (

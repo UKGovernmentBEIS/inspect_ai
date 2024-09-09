@@ -133,6 +133,19 @@ class ToolEvent(BaseEvent):
     """Transcript of events for tool."""
 
 
+class InputEvent(BaseEvent):
+    """Input screen interaction."""
+
+    event: Literal["input"] = Field(default="input")
+    """Event type."""
+
+    input: str
+    """Input interaction (plain text)."""
+
+    input_ansi: str
+    """Input interaction (ANSI)."""
+
+
 class LoggerEvent(BaseEvent):
     """Log message recorded with Python logger."""
 
@@ -214,6 +227,7 @@ Event: TypeAlias = Union[
     | StoreEvent
     | ModelEvent
     | ToolEvent
+    | InputEvent
     | ScoreEvent
     | ErrorEvent
     | LoggerEvent

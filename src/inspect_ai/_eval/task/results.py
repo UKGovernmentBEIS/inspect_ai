@@ -142,10 +142,39 @@ def scorer_for_metrics(
             registry_unqualified_name(metric), list(list_metrics.keys())
         )
 
-        list_metrics[key] = EvalMetric(
-            name=registry_log_name(metric),
-            value=cast(float, metric(scores)),
-        )
+        # process metric values
+        metric_value = metric(scores)
+        base_metric_name = registry_log_name(metric)
+
+        # If the metric value is a dictionary, turn each of the entries
+        # in the dictionary into a result
+        if isinstance(metric_value, dict):
+            for metric_key, value in metric_value.items():
+                if value:
+                    name = metrics_unique_key(metric_key, list(list_metrics.keys()))
+                    list_metrics[name] = EvalMetric(
+                        name=name,
+                        value=float(value),
+                    )
+
+        # If the metric value is a list, turn each element in the list
+        # into a result
+        elif isinstance(metric_value, list):
+            for index, value in enumerate(metric_value):
+                if value:
+                    count = str(index + 1)
+                    name = metrics_unique_key(
+                        with_suffix(key, count), list(list_metrics.keys())
+                    )
+
+                    list_metrics[name] = EvalMetric(name=name, value=float(value))
+
+        # the metric is a float, str, or int
+        else:
+            list_metrics[key] = EvalMetric(
+                name=base_metric_name,
+                value=float(metric_value),
+            )
 
     # build results
     results.append(
@@ -253,3 +282,7 @@ def metrics_unique_key(key: str, existing: list[str]) -> str:
             if index and (index >= key_index):
                 key_index = index + 1
         return f"{key}{key_index}"
+
+
+def with_suffix(prefix: str, suffix: str) -> str:
+    return prefix + "-" + suffix

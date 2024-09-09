@@ -1,9 +1,7 @@
-import sys
-
 import click
 
 from inspect_ai._util.dotenv import init_dotenv
-from inspect_ai._util.error import exception_hook
+from inspect_ai._util.error import set_exception_hook
 
 from .. import __version__
 from .cache import cache_command
@@ -49,7 +47,7 @@ inspect.add_command(sandbox_command)
 
 
 def main() -> None:
-    sys.excepthook = exception_hook()
+    set_exception_hook()
     init_dotenv()
     inspect(auto_envvar_prefix="INSPECT")
 

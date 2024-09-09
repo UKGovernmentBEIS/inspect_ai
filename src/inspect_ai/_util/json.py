@@ -82,7 +82,7 @@ class JsonChange(BaseModel):
     from_: str | None = Field(default=None, alias="from")
     """Location from which data was moved or copied."""
 
-    value: JsonValue = Field(default=None)
+    value: JsonValue = Field(default=None, exclude=False)
     """Changed value."""
 
     model_config = {"populate_by_name": True}

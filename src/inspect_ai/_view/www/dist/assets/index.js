@@ -7585,21 +7585,6 @@ const arrayToString = (val) => {
   val = Array.isArray(val) ? val : [val];
   return val.join(", ");
 };
-const shorteners = [/^.*(\[.+\])$/m];
-const shortenCompletion = (completion) => {
-  if (!completion) {
-    return completion;
-  }
-  let shortened = void 0;
-  for (const shortenPattern of shorteners) {
-    const shortMatch = completion.match(shortenPattern);
-    if (shortMatch && shortMatch[1]) {
-      shortened = shortMatch[1];
-      break;
-    }
-  }
-  return shortened || completion;
-};
 const inputString = (input) => {
   if (typeof input === "string") {
     return input;
@@ -7766,6 +7751,7 @@ const ApplicationIcons = {
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
   info: "bi bi-info-circle",
+  input: "bi bi-terminal",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
   logging: {
@@ -8531,7 +8517,7 @@ const Card = ({ id, classes, style, children }) => {
       class="${classes || ""}"
       ...${{ id }}
       style=${{
-    backgroundColor: "var(--bs-light)",
+    backgroundColor: "var(--bs-light-bg-subtle)",
     border: "solid 1px var(--bs-light-border-subtle)",
     borderRadius: "var(--bs-border-radius)",
     marginBottom: "1.5em",
@@ -15177,7 +15163,7 @@ const SampleScoreView = ({
             <td style=${{ paddingTop: "0", paddingLeft: "0" }}>
               <${MarkdownDiv}
                 class="no-last-para-padding"
-                markdown=${shortenCompletion(answer)}
+                markdown=${answer}
                 style=${{ paddingLeft: "0" }}
               />
             </td>
@@ -17689,7 +17675,7 @@ const ScoreEventView = ({ id, event, style }) => {
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
-      <div>${event.score.answer}</div>
+      <div><${MarkdownDiv} markdown=${event.score.answer}/></div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Explanation</div>
       <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
@@ -17717,11 +17703,22 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
   const title = `Tool: ${event.function}`;
   return m$1`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-  <div name="Summary">
-    <${ExpandablePanel}>
-      ${event.result ? m$1`<${ToolOutput} output=${event.result} style=${{ margin: "1em 0" }} />` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>No output</div>`}
-    </${ExpandablePanel}>
-  </div>
+    <div name="Summary">
+    ${event.result ? m$1`
+          <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+          <${ToolOutput}
+            output=${event.result}
+            style=${{ margin: "1em 0" }}
+          />
+          </${ExpandablePanel}>
+          ` : event.error ? m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
+              ${event.error.type}: ${event.error.message}
+            </div>` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
+              No output
+            </div>`}
+    </div>
+    
+  
   <div name="Transcript" style=${{ margin: "1em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
@@ -17747,10 +17744,16 @@ const ErrorEventView = ({ id, event, style }) => {
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
+const InputEventView = ({ id, event, style }) => {
+  return m$1`
+  <${EventPanel} id=${id} title="Input" icon=${ApplicationIcons.input} style=${style}>
+    <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style }}/>
+  </${EventPanel}>`;
+};
 class EventNode {
   /**
    * Create an EventNode.
-   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").ErrorEvent } event - This event.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent } event - This event.
    * @param {number} depth - the depth of this item
    */
   constructor(event, depth) {
@@ -17758,194 +17761,6 @@ class EventNode {
     this.children = [];
     this.depth = depth;
   }
-}
-const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
-  const resolvedEvents = fixupEventStream(events);
-  const eventNodes = treeifyEvents(resolvedEvents, depth);
-  return m$1`
-    <${TranscriptComponent}
-      id=${id}
-      eventNodes=${eventNodes}
-      stateManager=${stateManager}
-    />
-  `;
-};
-const TranscriptComponent = ({
-  id,
-  eventNodes,
-  style,
-  stateManager
-}) => {
-  const rows = eventNodes.map((eventNode, index) => {
-    const toggleStyle = {};
-    if (eventNode.depth % 2 == 0) {
-      toggleStyle.backgroundColor = "var(--bs-light)";
-    } else {
-      toggleStyle.backgroundColor = "var(--bs-body-bg)";
-    }
-    if (index === eventNodes.length - 1) {
-      toggleStyle.marginBottom = "0";
-    } else if (eventNode.depth === 0) {
-      toggleStyle.marginBottom = "1.5em";
-    }
-    const row = m$1`
-      <${RenderedEventNode}
-        id=${`${id}-event${index}`}
-        node=${eventNode}
-        stateManager=${stateManager}
-        style=${{
-      ...toggleStyle,
-      ...style
-    }}
-      />
-    `;
-    return row;
-  });
-  return m$1`<div
-    id=${id}
-    key=${id}
-    style=${{
-    fontSize: FontSize.small,
-    display: "grid",
-    margin: "0.5em 0 0 0",
-    width: "100%"
-  }}
-  >
-    ${rows}
-  </div>`;
-};
-const RenderedEventNode = ({ id, node, style, stateManager }) => {
-  switch (node.event.event) {
-    case "sample_init":
-      return m$1`<${SampleInitEventView}
-        id=${id}
-        event=${node.event}
-        stateManager=${stateManager}
-        style=${style}
-      />`;
-    case "info":
-      return m$1`<${InfoEventView}
-        id=${id}
-        event=${node.event}
-        style=${style}
-      />`;
-    case "logger":
-      return m$1`<${LoggerEventView}
-        id=${id}
-        event=${node.event}
-        style=${style}
-      />`;
-    case "model":
-      return m$1`<${ModelEventView}
-        id=${id}
-        event=${node.event}
-        style=${style}
-      />`;
-    case "score":
-      return m$1`<${ScoreEventView}
-        id=${id}
-        event=${node.event}
-        style=${style}
-      />`;
-    case "state":
-      return m$1`<${StateEventView}
-        id=${id}
-        event=${node.event}
-        stateManager=${stateManager}
-        style=${style}
-      />`;
-    case "step":
-      return m$1`<${StepEventView}
-        id=${id}
-        event=${node.event}
-        children=${node.children}
-        stateManager=${stateManager}
-        style=${style}
-      />`;
-    case "store":
-      return m$1`<${StateEventView}
-        id=${id}
-        event=${node.event}
-        stateManager=${stateManager}
-        style=${style}
-      />`;
-    case "subtask":
-      return m$1`<${SubtaskEventView}
-        id=${id}
-        event=${node.event}
-        stateManager=${stateManager}
-        style=${style}
-        depth=${node.depth}
-      />`;
-    case "tool":
-      return m$1`<${ToolEventView}
-        id=${id}
-        event=${node.event}
-        stateManager=${stateManager}
-        style=${style}
-        depth=${node.depth}
-      />`;
-    case "error":
-      return m$1`<${ErrorEventView}
-        id=${id}
-        event=${node.event}
-        stateManager=${stateManager}
-        style=${style}
-      />`;
-    default:
-      return m$1``;
-  }
-};
-const fixupEventStream = (events) => {
-  const initEventIndex = events.findIndex((e2) => {
-    return e2.event === "sample_init";
-  });
-  const initEvent = events[initEventIndex];
-  const fixedUp = [...events];
-  if (initEvent) {
-    fixedUp.splice(initEventIndex, 0, {
-      timestamp: initEvent.timestamp,
-      event: "step",
-      action: "begin",
-      type: null,
-      name: "sample_init"
-    });
-    fixedUp.splice(initEventIndex + 2, 0, {
-      timestamp: initEvent.timestamp,
-      event: "step",
-      action: "end",
-      type: null,
-      name: "sample_init"
-    });
-  }
-  return fixedUp;
-};
-function treeifyEvents(events, depth) {
-  const rootNodes = [];
-  const stack2 = [];
-  const pushNode = (event) => {
-    const node = new EventNode(event, stack2.length + depth);
-    if (stack2.length > 0) {
-      const parentNode = stack2[stack2.length - 1];
-      parentNode.children.push(node);
-    } else {
-      rootNodes.push(node);
-    }
-    return node;
-  };
-  events.forEach((event) => {
-    if (event.event === "step" && event.action === "begin") {
-      const node = pushNode(event);
-      stack2.push(node);
-    } else if (event.event === "step" && event.action === "end") {
-      if (stack2.length > 0) {
-        stack2.pop();
-      }
-    } else {
-      pushNode(event);
-    }
-  });
-  return rootNodes;
 }
 /*!
  * https://github.com/Starcounter-Jack/JSON-Patch
@@ -18608,12 +18423,211 @@ const initStateManager = () => {
     applyChanges: (changes) => {
       state = applyPatch(
         structuredClone(state),
-        structuredClone(changes),
+        structuredClone(changes).map(ensureValidChange),
         true
       ).newDocument;
     }
   };
 };
+const ensureValidChange = (change) => {
+  if (change.op === "add" && !change.value) {
+    change.value = null;
+  }
+  return change;
+};
+const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
+  const resolvedEvents = fixupEventStream(events);
+  const eventNodes = treeifyEvents(resolvedEvents, depth);
+  return m$1`
+    <${TranscriptComponent}
+      id=${id}
+      eventNodes=${eventNodes}
+      stateManager=${stateManager}
+    />
+  `;
+};
+const TranscriptComponent = ({
+  id,
+  eventNodes,
+  style,
+  stateManager
+}) => {
+  const rows = eventNodes.map((eventNode, index) => {
+    const toggleStyle = {};
+    if (eventNode.depth % 2 == 0) {
+      toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
+    } else {
+      toggleStyle.backgroundColor = "var(--bs-body-bg)";
+    }
+    if (index === eventNodes.length - 1) {
+      toggleStyle.marginBottom = "0";
+    } else if (eventNode.depth === 0) {
+      toggleStyle.marginBottom = "1.5em";
+    }
+    const row = m$1`
+      <${RenderedEventNode}
+        id=${`${id}-event${index}`}
+        node=${eventNode}
+        stateManager=${stateManager}
+        style=${{
+      ...toggleStyle,
+      ...style
+    }}
+      />
+    `;
+    return row;
+  });
+  return m$1`<div
+    id=${id}
+    key=${id}
+    style=${{
+    fontSize: FontSize.small,
+    display: "grid",
+    margin: "0.5em 0 0 0",
+    width: "100%"
+  }}
+  >
+    ${rows}
+  </div>`;
+};
+const RenderedEventNode = ({ id, node, style, stateManager }) => {
+  switch (node.event.event) {
+    case "sample_init":
+      return m$1`<${SampleInitEventView}
+        id=${id}
+        event=${node.event}
+        stateManager=${stateManager}
+        style=${style}
+      />`;
+    case "info":
+      return m$1`<${InfoEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "logger":
+      return m$1`<${LoggerEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "model":
+      return m$1`<${ModelEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "score":
+      return m$1`<${ScoreEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "state":
+      return m$1`<${StateEventView}
+        id=${id}
+        event=${node.event}
+        stateManager=${stateManager}
+        style=${style}
+      />`;
+    case "step":
+      return m$1`<${StepEventView}
+        id=${id}
+        event=${node.event}
+        children=${node.children}
+        stateManager=${stateManager}
+        style=${style}
+      />`;
+    case "store":
+      return m$1`<${StateEventView}
+        id=${id}
+        event=${node.event}
+        stateManager=${initStateManager()}
+        style=${style}
+      />`;
+    case "subtask":
+      return m$1`<${SubtaskEventView}
+        id=${id}
+        event=${node.event}
+        stateManager=${stateManager}
+        style=${style}
+        depth=${node.depth}
+      />`;
+    case "tool":
+      return m$1`<${ToolEventView}
+        id=${id}
+        event=${node.event}
+        stateManager=${stateManager}
+        style=${style}
+        depth=${node.depth}
+      />`;
+    case "input":
+      return m$1`<${InputEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "error":
+      return m$1`<${ErrorEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    default:
+      return m$1``;
+  }
+};
+const fixupEventStream = (events) => {
+  const initEventIndex = events.findIndex((e2) => {
+    return e2.event === "sample_init";
+  });
+  const initEvent = events[initEventIndex];
+  const fixedUp = [...events];
+  if (initEvent) {
+    fixedUp.splice(initEventIndex, 0, {
+      timestamp: initEvent.timestamp,
+      event: "step",
+      action: "begin",
+      type: null,
+      name: "sample_init"
+    });
+    fixedUp.splice(initEventIndex + 2, 0, {
+      timestamp: initEvent.timestamp,
+      event: "step",
+      action: "end",
+      type: null,
+      name: "sample_init"
+    });
+  }
+  return fixedUp;
+};
+function treeifyEvents(events, depth) {
+  const rootNodes = [];
+  const stack2 = [];
+  const pushNode = (event) => {
+    const node = new EventNode(event, stack2.length + depth);
+    if (stack2.length > 0) {
+      const parentNode = stack2[stack2.length - 1];
+      parentNode.children.push(node);
+    } else {
+      rootNodes.push(node);
+    }
+    return node;
+  };
+  events.forEach((event) => {
+    if (event.event === "step" && event.action === "begin") {
+      const node = pushNode(event);
+      stack2.push(node);
+    } else if (event.event === "step" && event.action === "end") {
+      if (stack2.length > 0) {
+        stack2.pop();
+      }
+    } else {
+      pushNode(event);
+    }
+  });
+  return rootNodes;
+}
 const kContentProtocol = "tc://";
 const SampleTranscript = ({ id, evalEvents }) => {
   const stateManager = initStateManager();
@@ -18959,7 +18973,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
     columns.push({
       label: "Answer",
       value: sample ? m$1`<${MarkdownDiv}
-            markdown=${arrayToString(shortenCompletion(fullAnswer))}
+            markdown=${fullAnswer}
             style=${{ paddingLeft: "0" }}
             class="no-last-para-padding"
           />` : "",
@@ -19426,9 +19440,7 @@ const SampleRow = ({
       >
         ${sample ? m$1`
               <${MarkdownDiv}
-                markdown=${shortenCompletion(
-    sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorer(sample).answer()
-  )}
+                markdown=${sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorer(sample).answer()}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"
               />
@@ -22224,7 +22236,7 @@ const WorkSpace = (props) => {
         if (!((_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples) && ((_h = (_g = (_f2 = workspaceLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = workspaceLog.contents) == null ? void 0 : _i.status) !== "error") {
           warnings.push(
             m$1`<${WarningBand}
-              message="This evaluation log is too large to display samples."
+              message="Unable to display samples (this evaluation log may be too large)."
             />`
           );
         }
@@ -22498,7 +22510,7 @@ const FindBand = ({ hideBand }) => {
     top: 0,
     right: 0,
     marginRight: "20%",
-    zIndex: "1050",
+    zIndex: "1060",
     color: "var(--inspect-find-foreground)",
     backgroundColor: "var(--inspect-find-background)",
     fontSize: "0.9rem",
