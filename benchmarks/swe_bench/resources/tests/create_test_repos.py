@@ -1,14 +1,15 @@
 import json
-from datasets import load_dataset
-from pathlib import Path
 import os
+from pathlib import Path
+
 import pandas as pd
+from datasets import load_dataset
 
 dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 
 # We also create a subset of SWE-bench-verfied which:
 # 1) Contains all of the repositories in SWE-bench verified
-# 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not 
+# 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not
 # The outputs of this script are cached as part of the respository, this script allows us to edit this the dataset.
 
 results_per_repo = {}

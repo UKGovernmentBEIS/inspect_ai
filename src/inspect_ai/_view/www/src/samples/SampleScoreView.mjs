@@ -1,9 +1,5 @@
 import { html } from "htm/preact";
-import {
-  arrayToString,
-  shortenCompletion,
-  inputString,
-} from "../utils/Format.mjs";
+import { arrayToString, inputString } from "../utils/Format.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleScores } from "./SampleScores.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
@@ -103,7 +99,7 @@ export const SampleScoreView = ({
             <td style=${{ paddingTop: "0", paddingLeft: "0" }}>
               <${MarkdownDiv}
                 class="no-last-para-padding"
-                markdown=${shortenCompletion(answer)}
+                markdown=${answer}
                 style=${{ paddingLeft: "0" }}
               />
             </td>

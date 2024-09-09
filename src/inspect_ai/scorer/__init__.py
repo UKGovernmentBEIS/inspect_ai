@@ -31,6 +31,7 @@ from ._reducer import (
     pass_at,
     score_reducer,
 )
+from ._score import score
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -56,6 +57,7 @@ __all__ = [
     "Metric",
     "metric",
     "Score",
+    "score",
     "Value",
     "ValueToFloat",
     "value_to_float",

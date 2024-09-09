@@ -4,7 +4,7 @@ from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Metric, Score, accuracy, includes, match, metric
+from inspect_ai.scorer import Metric, Score, Value, accuracy, includes, match, metric
 from inspect_ai.scorer._metric import MetricType, metric_create
 from inspect_ai.scorer._metrics import std
 
@@ -47,6 +47,22 @@ class AccuracyNamedCls(Metric):
         return 1
 
 
+@metric
+def list_metric() -> Metric:
+    def metric(scores: list[Score]) -> Value:
+        return [1, 2, 3]
+
+    return metric
+
+
+@metric
+def dict_metric() -> Metric:
+    def metric(scores: list[Score]) -> Value:
+        return {"one": 1, "two": 2, "three": 3}
+
+    return metric
+
+
 def test_metric_registry() -> None:
     registry_assert(accuracy1, "accuracy1")
     registry_assert(acc_fn, "accuracy2")
@@ -71,6 +87,41 @@ def test_metric_create() -> None:
 def test_inspect_metrics() -> None:
     registry_assert(accuracy, f"{PKG_NAME}/accuracy")
     registry_assert(accuracy(), f"{PKG_NAME}/accuracy")
+
+
+def test_list_metric() -> None:
+    def check_log(log):
+        assert log.results and (
+            list(log.results.scores[0].metrics.keys())
+            == ["list_metric-1", "list_metric-2", "list_metric-3"]
+        )
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=match(),
+        metrics=[list_metric()],
+    )
+
+    # normal eval
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
+
+
+def test_dict_metric() -> None:
+    def check_log(log):
+        assert log.results and (
+            list(log.results.scores[0].metrics.keys()) == ["one", "two", "three"]
+        )
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=match(),
+        metrics=[dict_metric()],
+    )
+
+    # normal eval
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
 
 
 def test_alternative_metrics() -> None:

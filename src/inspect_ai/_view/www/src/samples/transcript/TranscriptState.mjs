@@ -1,16 +1,9 @@
 import { applyPatch } from "fast-json-patch";
 
 /**
- * @typedef {Object} StateManager
- * @property {function(): Object} getState - Retrieves the current state object.
- * @property {function(Object): void} initializeState - Initializes the current state with a new state object.
- * @property {function(import("../../types/log").Changes): Object} applyChanges - Updates the current state with a new state object.*
- */
-
-/**
  * Manages the state, providing methods to retrieve and update it.
  *
- * @returns {StateManager} An object containing `getState` and `onState` methods for managing state.
+ * @returns {import("./Types.mjs").StateManager} An object containing `getState` and `onState` methods for managing state.
  */
 export const initStateManager = () => {
   /** @type {Object} */
@@ -40,9 +33,23 @@ export const initStateManager = () => {
     applyChanges: (changes) => {
       state = applyPatch(
         structuredClone(state),
-        structuredClone(changes),
+        structuredClone(changes).map(ensureValidChange),
         true,
       ).newDocument;
     },
   };
+};
+
+/**
+ * Ensures that the change is valid (provides default values)
+ * If the operation is "add" and `value` is not present, it assigns `null` to `value`.
+ *
+ * @param { import("../../types/log").JsonChange } change - The change object containing the operation and value.
+ * @returns {Object} The modified change object with a guaranteed `value` property.
+ */
+const ensureValidChange = (change) => {
+  if (change.op === "add" && !change.value) {
+    change.value = null;
+  }
+  return change;
 };

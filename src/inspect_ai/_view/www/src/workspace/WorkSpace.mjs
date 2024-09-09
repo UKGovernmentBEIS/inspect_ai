@@ -237,7 +237,7 @@ export const WorkSpace = (props) => {
         ) {
           warnings.push(
             html`<${WarningBand}
-              message="This evaluation log is too large to display samples."
+              message="Unable to display samples (this evaluation log may be too large)."
             />`,
           );
         }
@@ -447,7 +447,7 @@ const WorkspaceDisplay = ({
                 width: "5rem",
                 fontSize: FontSize.smaller,
                 textTransform: "uppercase",
-                borderRadius: "3px",
+                borderRadius: "var(--bs-border-radius)",
                 fontWeight: 600,
               },
             }} >

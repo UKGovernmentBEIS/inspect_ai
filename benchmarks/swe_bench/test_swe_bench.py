@@ -1,18 +1,14 @@
-import json
-import shlex
-from pathlib import Path
 import os
+from pathlib import Path
 
 from build_images import build_images
-from inspect_ai.util import sandbox
-from docker import DockerClient
-from swe_bench import SAMPLE_TO_IMAGE_PATH, swe_bench, swebench_baseline_scorer
-
-from inspect_ai import dataset, eval, Task
-from inspect_ai.log import EvalLog
-from inspect_ai.solver import TaskState, Generate, Plan, solver
-from inspect_ai.model import ModelOutput, get_model
 from datasets import load_dataset
+from swe_bench import swe_bench, swebench_baseline_scorer
+
+from inspect_ai import Task, eval
+from inspect_ai.log import EvalLog
+from inspect_ai.solver import Generate, Plan, TaskState, solver
+from inspect_ai.util import sandbox
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 TIMEOUT_SECONDS = 2

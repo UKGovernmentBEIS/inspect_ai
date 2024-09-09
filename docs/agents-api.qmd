@@ -1,9 +1,8 @@
 # Agents API {#sec-agents-api}
 
-
 ## Overview
 
-This article describes advanced Inspect APIs available for creating evaluations with agents. You can also build agents evals using Inspect's default ReAct tool use loop or by bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
+This article describes advanced Inspect APIs available for creating evaluations with agents. You can also build agents evals using Inspect's built in [Basic Agent](agents.qmd#sec-basic-agent) or by bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
 
 1.  Sharing state across solvers and tools
 2.  Creating a custom tool use loop
@@ -72,40 +71,7 @@ While the default `Store` for a sample is shared globally between solvers and to
 
 The higher level `generate()` function passed to solvers includes a built-in tool use loop—when the model calls a tool, Inspect calls the underlying Python function and reports the result to the model, proceeding until the model stops calling tools. However, for more advanced agents you may want to intervene in the tool use loop in a variety of ways:
 
-1.  Urge the model to continue (or take a different path) if it gives up.
-2.  Exercise more fine grained control over which, when, and how many tool calls are made.
-3.  Redirect the model to another trajectory if its not on a productive course.
-4.  Have multiple `generate()` passes each with a distinct set of tools.
-
-To do this, create a solver that emulates the default tool use loop and provides additional customisation as required. Here is the code at the core of Inspect tool use in `generate()`:
-
-``` python
-model = get_model()
-state.output = await model.generate(
-    state.messages, state.tools
-)
-state.messages.append(output.message)
-state.messages.extend(
-    call_tools(state.output.message, state.tools)
-)
-```
-
-This does everything that default `generate()` does, save for an outer loop to continue calling the mode as long as it continues calling tools. You could implement the outer loop as follows:
-
-``` python
-model = get_model()
-while True:
-    state.output = await model.generate(
-        state.messages, state.tools
-    )
-    state.messages.append(state.output.message)
-    if state.output.message.tool_calls:
-        state.messages.extend(
-            call_tools(state.output.message, state.tools)
-        )
-    else:
-        break
-```
+{{< include _tools-scaffold.md >}}
 
 Note that you don't necessarily even need to structure the agent using a loop. For example, you might have an inner function implementing the loop, while an outer function dynamically swaps out what tools are available. For example, imagine the above was implemented in a function named `tool_use_loop()`, you might have outer function like this:
 
@@ -233,7 +199,6 @@ You can also include one or more steps within a subtask.
 ### Parallel Execution
 
 You can execute subtasks in parallel using `asyncio.gather()`. For example, to run 3 `web_search()` subtasks in parallel:
-
 
 ``` python
 import asyncio

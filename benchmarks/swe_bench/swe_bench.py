@@ -9,6 +9,7 @@ import os
 import re
 import shlex
 from pathlib import Path
+from typing import Callable
 
 from docker import DockerClient
 from swebench.harness.constants import (
@@ -25,13 +26,15 @@ from swebench.harness.utils import get_test_directives
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, std
-from inspect_ai.solver import TaskState, use_tools, system_message, generate
+from inspect_ai.solver import (
+    Plan,
+    TaskState,
+    generate,
+    system_message,
+    use_tools,
+)
 from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
-from inspect_ai.solver import Plan, Solver
-
-from typing import Callable
-
 
 INPUT_PROMPT = "Please solve the following issue:\n\n{issue_text}"
 COMPOSE_FILE_DIR = Path(__file__).parent / "resources/compose_files/"
@@ -73,7 +76,6 @@ def swe_bench(
         filter : Callable[[Sample],bool]
             A function to filter whether specific SWE-bench samples are included.
     """
-
     samples = hf_dataset(
         dataset,
         split=split,
@@ -144,7 +146,6 @@ echo "Current environment: $CONDA_DEFAULT_ENV"
 
 def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) -> str:
     """Creates a script which runs the tests of all the files in the test_patch."""
-
     # First we fetch the repository-specific 'specification' which SWE-bench provides
     conda_env = "testbed"
     repo_directory = "/testbed"
@@ -288,8 +289,7 @@ def swebench_scorer() -> Scorer:
 
 
 def swebench_baseline_scorer(path_to_baseline: str, name: str | None = None) -> Scorer:
-    """Given a path to a set of SWE-bench trajectories in the official format (see https://github.com/swe-bench/experiments), returns the performance of those trajectories on the subset of SWE-bench you are evaluating on. This lets you compare to baselines on arbitrary subsets of SWE-bench.""" 
-
+    """Given a path to a set of SWE-bench trajectories in the official format (see https://github.com/swe-bench/experiments), returns the performance of those trajectories on the subset of SWE-bench you are evaluating on. This lets you compare to baselines on arbitrary subsets of SWE-bench."""
     baseline_name = name if name else Path(path_to_baseline).name
 
     path_to_logs = os.path.join(path_to_baseline, "logs")
@@ -333,7 +333,7 @@ def swebench_baseline_scorer(path_to_baseline: str, name: str | None = None) -> 
 def get_compose_file(environment_commit_id: Sample, instance_id: str) -> str:
     if not os.path.exists(SAMPLE_TO_IMAGE_PATH):
         raise ValueError(
-            f"No sample to image mapping found. Please run  to build the images"
+            "No sample to image mapping found. Please run  to build the images"
         )
 
     sample_to_image = json.load(open(SAMPLE_TO_IMAGE_PATH))

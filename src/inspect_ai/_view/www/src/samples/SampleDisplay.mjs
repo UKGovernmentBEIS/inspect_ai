@@ -7,10 +7,9 @@ import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/Format.mjs";
 
-import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { arrayToString, shortenCompletion } from "../utils/Format.mjs";
+import { arrayToString } from "../utils/Format.mjs";
 
 import { SampleScoreView } from "./SampleScoreView.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
@@ -74,18 +73,22 @@ export const SampleDisplay = ({
   // The core tabs
   const tabs = [
     html`
-    <${TabPanel} id=${msgTabId} title="Messages" icon=${ApplicationIcons.messages} onSelected=${onSelectedTab} selected=${
+    <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${
       selectedTab === msgTabId
     }>
-      <${ChatView} key=${`${baseId}-chat`} id=${`${baseId}-chat`} messages=${
-        sample.messages
-      } style=${{ paddingLeft: ".8em", paddingTop: "1em" }}/>
+      <${ChatView} 
+        key=${`${baseId}-chat`} 
+        id=${`${baseId}-chat`} 
+        messages=${sample.messages} 
+        style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
+        indented=${true}
+      />
     </${TabPanel}>`,
   ];
 
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(html`
-      <${TabPanel} id=${transcriptTabId} title="Transcript" icon=${ApplicationIcons.transcript} onSelected=${onSelectedTab} selected=${
+      <${TabPanel} id=${transcriptTabId} title="Transcript" onSelected=${onSelectedTab} selected=${
         selectedTab === transcriptTabId || selectedTab === undefined
       } scrollable=${false}>
         <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
@@ -95,7 +98,7 @@ export const SampleDisplay = ({
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(html`
-      <${TabPanel} id=${scoringTabId} title="Scoring" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${
+      <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${
         selectedTab === scoringTabId
       }>
         <${SampleScoreView}
@@ -110,7 +113,7 @@ export const SampleDisplay = ({
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(html`
-        <${TabPanel} id="${tabId}" title="${scorer}" icon=${ApplicationIcons.scorer} onSelected=${onSelectedTab} selected=${
+        <${TabPanel} id="${tabId}" title="${scorer}" onSelected=${onSelectedTab} selected=${
           selectedTab === tabId
         }>
           <${SampleScoreView}
@@ -147,7 +150,6 @@ export const SampleDisplay = ({
       <${TabPanel} 
           id=${errorTabId} 
           title="Error" 
-          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === errorTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
@@ -264,7 +266,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
       label: "Answer",
       value: sample
         ? html`<${MarkdownDiv}
-            markdown=${arrayToString(shortenCompletion(fullAnswer))}
+            markdown=${fullAnswer}
             style=${{ paddingLeft: "0" }}
             class="no-last-para-padding"
           />`

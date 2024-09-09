@@ -11,13 +11,13 @@ import { TextStyle } from "../../appearance/Fonts.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
- * @param { number } props.depth - The depth of this event.
+ * @param {Object} props.style - The style properties passed to the component.
  * @param {import("../../types/log").ScoreEvent} props.event - The event object to display.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ScoreEventView = ({ id, depth, event }) => {
+export const ScoreEventView = ({ id, event, style }) => {
   return html`
-  <${EventPanel} id=${id} depth=${depth} title="Score" icon=${ApplicationIcons.scorer}>
+  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
   
     <div
       name="Explanation"
@@ -25,7 +25,7 @@ export const ScoreEventView = ({ id, depth, event }) => {
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
-      <div>${event.score.answer}</div>
+      <div><${MarkdownDiv} markdown=${event.score.answer}/></div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Explanation</div>
       <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>

@@ -10,9 +10,9 @@ from swebench.harness.docker_build import build_env_images
 from swebench.harness.test_spec import get_test_specs_from_dataset
 from swebench.harness.utils import load_swebench_dataset
 
+
 def build_images(dataset_name : str , split : str | None = None, max_workers : int = 4, force_rebuild=False) -> None:
     """This function uses the swe_bench library to build docker images for the environment of the SWE-bench dataset. It also creates a mapping from the information contained in the dataset itself ( in particular, the "instance_id" and env_image_key) to the name of the docker images. This mapping lets us find the images directly from the dataset entries, rather than relying on objects created in the swe_bench code."""
-
     #Code copied from the swe_bench repository
     docker_client = DockerClient.from_env()
 
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         type=str,
         help="Split of the dataset to build images for",
         required=False,
-        default = "test" 
+        default = "test"
     )
 
     parser.add_argument(

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
+- [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
+- `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
+- Input event for recording screen input in sample transcripts.
+- Added `debug_errors` option to `eval()` to raise task errors (rather than logging them) so they can be debugged.
+- Properly support metrics that return a dict or list of values
+- Improved display of prerequisite errors when running `eval()` from a script or notebook.
+- Fix `eval_set()` issue with cleaning up failed logs on S3.
+- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/benchmarks/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mbpp) benchmarks.
+
+
+## v0.3.27 (6 September 2024)
+
+- Fix missing timestamp issue with running `eval_set()` with an S3-backed log directory.
+- Correct rounding behavior for `f1()` and `exact()` scorers.
+- Correct normalized text comparison for `exact()` scorer.
+- Improved appearance and navigation for sample transcript view.
 - Added [MathVista](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mathvista) benchmark.
 
 ## v0.3.26 (6 September 2024)

@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
-from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai.model import (
     ChatMessage,
@@ -394,6 +394,7 @@ def rich_traceback(
         traceback=exc_traceback,
         suppress=[click, asyncio, tenacity, sys.modules[PKG_NAME]],
         show_locals=False,
+        width=CONSOLE_DISPLAY_WIDTH,
     )
     return rich_tb
 

@@ -9,13 +9,13 @@ import { ANSIDisplay } from "../../components/AnsiDisplay.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
- * @param { number } props.depth - The depth of this event.
  * @param {import("../../types/log").ErrorEvent} props.event - The event object to display.
+ * @param { Object } props.style - The style of this event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ErrorEventView = ({ id, depth, event }) => {
+export const ErrorEventView = ({ id, event, style }) => {
   return html`
-  <${EventPanel} id=${id} depth=${depth} title="Error" icon=${ApplicationIcons.error}>
+  <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
   </${EventPanel}>`;
 };

@@ -14272,8 +14272,8 @@ pre[class*="language-"] {
 	cursor: help;
 }
 :root {
-  --bs-border-radius: 0;
-  --bs-border-radius-lg: 0;
+  --bs-border-radius: 3px;
+  --bs-border-radius-lg: 4px;
   --bs-popover-max-width: 50%;
   --inspect-find-background: var(--bs-body-bg);
   --inspect-find-foreground: var(--bs-body-color);
@@ -14315,10 +14315,12 @@ body[class^="vscode-"] .app-main-grid {
 }
 
 body[class^="vscode-"] {
+  --bs-border-radius: 0;
+  --bs-border-radius-lg: 0;
   --bs-body-bg: var(--vscode-editor-background);
   --bs-card-bg: var(--vscode-editor-background);
   --bs-table-bg: var(--vscode-editor-background);
-  --bs-light-bg-subtle: var(--vscode-editor-selectionHighlightBackground);
+  --bs-light-bg-subtle: var(--vscode-sideBar-background);
   --bs-light-border-subtle: var(--vscode-sideBarSectionHeader-border);
   --bs-body-color: var(--vscode-editor-foreground);
   --bs-table-color: var(--vscode-editor-foreground);
@@ -14327,7 +14329,7 @@ body[class^="vscode-"] {
   --bs-navbar-brand-color: var(--vscode-editor-foreground);
   --bs-navbar-brand-hover-color: var(--vscode-editor-foreground);
   --bs-code-color: var(--vscode-editorInfo-foreground);
-  --bs-light: var(--vscode-peekViewTitle-background);
+  --bs-light: var(--vscode-sideBar-background);
   --bs-btn-bg: var(--vscode-peekViewTitle-background);
   --bs-primary: var(--vscode-banner-iconForeground);
   --bs-nav-pills-link-active-bg: var(--vscode-banner-iconForeground);
@@ -14513,7 +14515,6 @@ body[class^="vscode-"] .sidebar .list-group {
 }
 
 body {
-  --bs-border-radius: "0";
   margin: 0;
   padding: 0;
 }
