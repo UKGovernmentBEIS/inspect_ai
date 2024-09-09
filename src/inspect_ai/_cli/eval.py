@@ -727,6 +727,7 @@ def eval_retry_command(
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         sandbox_cleanup=sandbox_cleanup,
+        debug_errors=kwargs["debug_errors"],
         log_samples=log_samples,
         log_images=log_images,
         log_buffer=log_buffer,

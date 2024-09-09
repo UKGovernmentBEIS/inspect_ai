@@ -341,6 +341,7 @@ def eval_retry(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
+    debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -366,6 +367,8 @@ def eval_retry(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
+        debug_errors (bool | None): Raise task errors (rather than logging them)
+           so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
@@ -393,6 +396,7 @@ def eval_retry(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             sandbox_cleanup=sandbox_cleanup,
+            debug_errors=debug_errors,
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
@@ -412,6 +416,7 @@ async def eval_retry_async(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
+    debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -437,6 +442,8 @@ async def eval_retry_async(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
+        debug_errors (bool | None): Raise task errors (rather than logging them)
+           so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
@@ -541,6 +548,7 @@ async def eval_retry_async(
                 limit=limit,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
+                debug_errors=debug_errors,
                 max_messages=max_messages,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
