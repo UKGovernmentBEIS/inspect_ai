@@ -7,6 +7,7 @@
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
 - Properly support metrics that return a dict or list of values
 - Improved display of prerequisite errors when running `eval()` from a script or notebook.
+- Fix `eval_set()` issue with cleaning up failed logs on S3.
 - Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval), and [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/benchmarks/ifeval/) benchmarks.
 
 
