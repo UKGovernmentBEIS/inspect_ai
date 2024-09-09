@@ -91,7 +91,7 @@ Inspect has a number of built-in solvers, each of which can be customised in som
 
 -   `system_message()`
 
-    Prepend role="system" `message` to the list of messages (will follow any other system messages it finds in the message stream).
+    Prepend role="system" `message` to the list of messages (will follow any other system messages it finds in the message stream). Also automatically substitutes any variables defined in sample `metadata` as well as any other custom named paramters passed in `params`.
 
 -   `prompt_template()`
 
@@ -386,6 +386,35 @@ def self_critique(
 ```
 
 Note that calls to `generate()` (for both the critique model and the model being evaluated) are called with `await`—this is critical to ensure that the solver participates correctly in the scheduling of generation work.
+
+### Scoring in Solvers {#sec-scoring-in-solvers}
+
+::: {.callout-note appearance="simple"}
+Note that the `score()` function described below is available only in the development version of Inspect. You can install the development version with:
+
+```bash
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+In some cases it is useful for a solver to score a task directly to assist in deciding whether or how to continue. You can do this using the `score()` function:
+
+```python
+from inspect_ai.scorer import score
+
+
+def solver_that_scores() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        
+        # use score(s) to determine next step
+        scores = await score(state)
+        
+        return state
+    
+    return solver
+```
+
+Note that the `score()` function returns a list of `Score` (as its possible that a task could have multiple scorers).
 
 ### Concurrency
 
