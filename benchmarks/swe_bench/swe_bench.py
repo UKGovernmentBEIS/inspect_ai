@@ -48,8 +48,8 @@ DEFAULT_PLAN = [
 ]
 DEFAULT_MAX_MESSAGES = 10
 
-def swe_bench(dataset_name : str = "princeton-nlp/SWE-bench_Verified", split : str = "test", filter :  Callable[Sample,bool] | None = None, plan : Plan | list[Solver] = DEFAULT_PLAN,
-max_messages : int = DEFAULT_MAX_MESSAGES) -> list[Task]:
+def swe_bench(dataset_name : str = "princeton-nlp/SWE-bench_Verified", split : str = "test", plan : Plan | list[Solver] = DEFAULT_PLAN,
+max_messages : int = DEFAULT_MAX_MESSAGES, filter : Callable[[Sample],bool] | None = None) -> Task:
 
     dataset = hf_dataset(
         dataset_name,
@@ -64,43 +64,18 @@ max_messages : int = DEFAULT_MAX_MESSAGES) -> list[Task]:
     if filter:
         dataset = dataset.filter(filter)
 
-    return [swe_bench_instance(dataset,sample.id,plan,max_messages) for sample in dataset]
-
-
-def swe_bench_instance(
-    dataset : Dataset,
-    instance_id : str,
-    plan: Plan | list[Solver] = DEFAULT_PLAN,
-    max_messages : int = DEFAULT_MAX_MESSAGES
-) -> Task:
-    """Takes in a dataset and an instance_id, and returns a task which can be used to solve the issue"""
-    
-    sample = swebench_sample_from_id(dataset, instance_id)
-
-    docker_compose_file = get_compose_file(sample.metadata["environment_setup_commit"], instance_id)
+    for sample in dataset:
+        sample.input = INPUT_PROMPT.format(issue_text=sample.input)
+        sample.sandbox = "docker" , get_compose_file(sample.metadata["environment_setup_commit"], sample.id)
+        sample.setup = get_setup_script(sample.metadata["repo"],sample.metadata["version"],sample.metadata["base_commit"])
 
     return Task(
-        dataset=[sample],
+        dataset=dataset,
         plan=plan,
-        name=instance_id,
-        sandbox=(
-            "docker",
-            str(docker_compose_file.absolute()),
-        ),
+        name=dataset_name,
         scorer=swebench_scorer(),
         max_messages=max_messages
     )
-
-def swebench_sample_from_id(dataset : Dataset, instance_id : str) -> Sample:
-
-    swebench_sample = next(sample for sample in dataset if sample.id == instance_id)
-
-    # Put the input in context
-    swebench_sample.input = INPUT_PROMPT.format(issue_text=dataset[0].input)
-    swebench_sample.setup = get_setup_script(repo=swebench_sample.metadata["repo"],version=swebench_sample.metadata["version"],base_commit=swebench_sample.metadata["base_commit"])
-
-
-    return swebench_sample
 
 def get_setup_script(repo : str, version :str , base_commit :str) -> str:
     """
@@ -115,7 +90,10 @@ git clone -o origin https://github.com/{repo} /testbed/
 chmod -R 777 /testbed/
 cd /testbed/
 git reset --hard {base_commit}
-git remote remove origin
+git remote remove origin       
+source /opt/miniconda3/bin/activate
+conda activate testbed
+echo "Current environment: $CONDA_DEFAULT_ENV"
 
 # We then do any repo-specific install scripts
 {MAP_REPO_TO_INSTALL.get(repo,"")}
@@ -193,6 +171,7 @@ cat model.patch"""
 
 @scorer(metrics=[mean(), std()])
 def swebench_scorer() -> Scorer:
+    """Scores the changes made by a solver to a swe-bench repository, by running all the tests in that repository."""
 
     async def scorer(state: TaskState, target: Target) -> Score:
 
@@ -247,7 +226,37 @@ def swebench_scorer() -> Scorer:
 
     return scorer
 
-def get_compose_file(environment_commit_id: Sample, instance_id : str) -> Path:
+@scorer(metrics=[mean(), std()])
+def swebench_baseline(path_to_baseline : str) -> Scorer:
+    """Given a path to a set of historical swe-bench trajectories in the official format ( see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating."""
+        # Load results from the log directory
+
+    baseline_results = {}
+    for result in os.listdir(path_to_baseline):
+
+        results_path = os.path.join(path_to_baseline, result,"report.json")
+        patch_path = os.path.join(path_to_baseline, result,"patch.diff")
+
+        if os.path.exists(results_path) and os.path.exists(patch_path):
+            # Sometimes there is no result saved, at which point we ignore that entry
+            with open(results_path, "r") as f:
+                result_dict = json.load(f)
+                instance_id, results = next(iter(result_dict.items()))
+                
+                with open(patch_path, "r") as f:
+                    results["patch"] = f.read()    
+        
+            baseline_results[instance_id] = results
+    
+
+    async def scorer(state: TaskState, target : Target) -> Score:
+        
+
+
+
+
+
+def get_compose_file(environment_commit_id: Sample, instance_id : str) -> str:
 
     if not os.path.exists(SAMPLE_TO_IMAGE_PATH):
         raise ValueError(f"No sample to image mapping found. Please run  to build the images")
@@ -272,8 +281,8 @@ def get_compose_file(environment_commit_id: Sample, instance_id : str) -> Path:
         f.write(f"""services:
   default:
     image: {environment_image_name}
-    command: "tail -f /dev/null"
+    command: "sleep infinity"
     working_dir: /testbed
     x-local: true""")
 
-    return compose_file_path
+    return str(compose_file_path)

@@ -1,7 +1,3 @@
-# This script creates a subset of SWE-bench-verfied which:
-# 1) Contains all of the repositories in SWE-bench verified
-# 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not (Some repositories may not have examples where the issue was resolved, in this case we only include a single example where the issue was not resolved)
-# The outputs of this script are cached as part of the respository, this script allows us to edit this the dataset.
 import json
 from datasets import load_dataset
 from pathlib import Path
@@ -9,6 +5,19 @@ import os
 import pandas as pd
 
 dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
+
+# We create a subset of swe-bench which is just one example
+dataset_one_sample = dataset.filter(lambda x: x["instance_id"] == "scikit-learn__scikit-learn-12585")
+
+dataset_dir = Path(__file__).parent / "swebench_one_sample.hf"
+os.makedirs(str(dataset_dir), exist_ok=True)
+dataset_one_sample.to_parquet(dataset_dir / "dataset.parquet")
+
+
+# We also create a subset of SWE-bench-verfied which:
+# 1) Contains all of the repositories in SWE-bench verified
+# 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not (Some repositories may not have examples where the issue was resolved, in this case we only include a single example where the issue was not resolved)
+# The outputs of this script are cached as part of the respository, this script allows us to edit this the dataset.
 
 results_per_repo = {}
 logs_dir = Path(__file__).parent / "20240620_sweagent_claude3.5sonnet" / "logs" # To run this script, you must download local copy from https://github.com/swe-bench/experiments/tree/main/evaluation/verified/20240620_sweagent_claude3.5sonnet/
