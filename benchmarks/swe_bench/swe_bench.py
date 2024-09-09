@@ -226,12 +226,12 @@ def swebench_scorer() -> Scorer:
 
     return scorer
 
-def swebench_baseline(path_to_baseline : str) -> Scorer:
+def swebench_baseline_scorer(path_to_baseline : str, name = str | None = None) -> Scorer:
 
-    scorer_name = Path(path_to_baseline).name
+    baseline_name = name if name else Path(path_to_baseline).name 
 
-    @scorer(metrics=[mean(), std()],name=scorer_name)
-    def _swebench_baseline() -> Scorer:
+    @scorer(metrics=[mean(), std()],name=baseline_name)
+    def swebench_baseline_scorer() -> Scorer:
         """Given a path to a set of historical swe-bench trajectories in the official format ( see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating."""# Load results from the log directory
 
         results_per_instance_id = {}
@@ -261,7 +261,7 @@ def swebench_baseline(path_to_baseline : str) -> Scorer:
         
         return scorer
     
-    return _swebench_baseline()
+    return swebench_baseline_scorer()
 
 
 def get_compose_file(environment_commit_id: Sample, instance_id : str) -> str:
