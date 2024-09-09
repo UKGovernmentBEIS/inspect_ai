@@ -9,7 +9,8 @@ export default function singleFileHttpApi() {
   const urlParams = new URLSearchParams(window.location.search);
   const fetchLogPath = urlParams.get("log_file");
   if (fetchLogPath) {
-    const api = httpApiForFile(fetchLogPath);
+    const resolvedLogPath = fetchLogPath.replace(" ", "+");
+    const api = httpApiForFile(resolvedLogPath);
     return api;
   }
 }
@@ -58,6 +59,10 @@ function httpApiForFile(logFile) {
     }
   };
 
+  async function open_log_file() {
+    // No op
+  }
+
   return {
     client_events: async () => {
       return Promise.resolve([]);
@@ -83,5 +88,6 @@ function httpApiForFile(logFile) {
       return Promise.resolve([contents.parsed]);
     },
     download_file,
+    open_log_file,
   };
 }

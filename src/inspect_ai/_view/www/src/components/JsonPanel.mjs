@@ -35,7 +35,7 @@ export const JSONPanel = ({ data, style }) => {
         background: "var(--bs-light)",
         width: "100%",
         padding: "0.5em",
-        borderRadius: "3px",
+        borderRadius: "var(--bs-border-radius)",
         ...style,
       }}
     >

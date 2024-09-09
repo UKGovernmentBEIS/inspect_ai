@@ -139,6 +139,7 @@ export type Type4 =
   | "unicode_decode"
   | "permission"
   | "file_not_found"
+  | "is_a_directory"
   | "unknown";
 export type Message1 = string;
 export type Choices = string[] | null;

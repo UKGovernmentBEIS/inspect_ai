@@ -87,12 +87,12 @@ async def validate_version(
 
         raise PrerequisiteError(
             "ERROR: Docker sandbox environments require Docker Engine\n\n"
-            + "Install: https://docs.docker.com/engine/install/\n"
+            + "Install: https://docs.docker.com/engine/install/"
         )
 
     # validate version
     if version.compare(required_version) < 0:
         raise PrerequisiteError(
             f"ERROR: Docker sandbox environments require {feature} >= {required_version}\n\n"
-            + "Upgrade: https://docs.docker.com/engine/install/\n"
+            + "Upgrade: https://docs.docker.com/engine/install/"
         )

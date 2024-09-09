@@ -30,7 +30,7 @@ def eval_results(
     scores: list[dict[str, SampleScore]],
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
-    metrics: list[Metric] = [],
+    metrics: list[Metric] | dict[str, list[Metric]] | None,
 ) -> EvalResults:
     # initialise results
     results = EvalResults(total_samples=samples, completed_samples=len(scores))
@@ -73,7 +73,7 @@ def eval_results(
 
                 # Compute metrics for this scorer
                 simple_scores = cast(list[Score], reduced_scores)
-                targets = target_metrics(scorer, metrics)
+                targets = metrics if metrics is not None else scorer_metrics(scorer)
                 if isinstance(targets, list):
                     # If there is a simple list of metrics
                     # just compute the metrics for this scorer
@@ -142,10 +142,39 @@ def scorer_for_metrics(
             registry_unqualified_name(metric), list(list_metrics.keys())
         )
 
-        list_metrics[key] = EvalMetric(
-            name=registry_log_name(metric),
-            value=cast(float, metric(scores)),
-        )
+        # process metric values
+        metric_value = metric(scores)
+        base_metric_name = registry_log_name(metric)
+
+        # If the metric value is a dictionary, turn each of the entries
+        # in the dictionary into a result
+        if isinstance(metric_value, dict):
+            for metric_key, value in metric_value.items():
+                if value:
+                    name = metrics_unique_key(metric_key, list(list_metrics.keys()))
+                    list_metrics[name] = EvalMetric(
+                        name=name,
+                        value=float(value),
+                    )
+
+        # If the metric value is a list, turn each element in the list
+        # into a result
+        elif isinstance(metric_value, list):
+            for index, value in enumerate(metric_value):
+                if value:
+                    count = str(index + 1)
+                    name = metrics_unique_key(
+                        with_suffix(key, count), list(list_metrics.keys())
+                    )
+
+                    list_metrics[name] = EvalMetric(name=name, value=float(value))
+
+        # the metric is a float, str, or int
+        else:
+            list_metrics[key] = EvalMetric(
+                name=base_metric_name,
+                value=float(metric_value),
+            )
 
     # build results
     results.append(
@@ -255,24 +284,5 @@ def metrics_unique_key(key: str, existing: list[str]) -> str:
         return f"{key}{key_index}"
 
 
-# build a list of metrics (scorer built-in metrics + de-duplicated additional metrics)
-def target_metrics(
-    scorer: Scorer, metrics: list[Metric]
-) -> list[Metric] | dict[str, list[Metric]]:
-    output_metrics = scorer_metrics(scorer)
-
-    if isinstance(output_metrics, dict):
-        if isinstance(metrics, dict):
-            output_metrics.update(metrics)
-        return output_metrics
-    else:
-        output_metrics_names = [registry_log_name(metric) for metric in output_metrics]
-        if isinstance(metrics, list):
-            output_metrics.extend(
-                [
-                    metric
-                    for metric in metrics
-                    if registry_log_name(metric) not in output_metrics_names
-                ]
-            )
-        return output_metrics
+def with_suffix(prefix: str, suffix: str) -> str:
+    return prefix + "-" + suffix

@@ -1,0 +1,21 @@
+services:
+  default:
+    image: "python:3.12-bookworm"
+    command: "tail -f /dev/null"
+    init: true
+    network_mode: none
+    stop_grace_period: 1s
+  service_1:
+    image: "python:3.12-bookworm"
+    command: "tail -f /dev/null"
+    working_dir: /usr/local/dir1
+    init: true
+    network_mode: none
+    stop_grace_period: 1s
+  service_2:
+    image: "python:3.12-bookworm"
+    command: "tail -f /dev/null"
+    working_dir: /usr/local/dir2
+    init: true
+    network_mode: none
+    stop_grace_period: 1s

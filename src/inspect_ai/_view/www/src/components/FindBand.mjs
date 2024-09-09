@@ -73,7 +73,7 @@ export const FindBand = ({ hideBand }) => {
       top: 0,
       right: 0,
       marginRight: "20%",
-      zIndex: "1050",
+      zIndex: "1060",
       color: "var(--inspect-find-foreground)",
       backgroundColor: "var(--inspect-find-background)",
       fontSize: "0.9rem",

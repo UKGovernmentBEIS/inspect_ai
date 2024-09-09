@@ -93,7 +93,7 @@ These are all errors that are *expected* (in fact the `SandboxEnvironemnt` inter
 Many tools can simply rely on the default handling to provide reasonable behaviour around both expected and unexpected errors.
 
 ::: {.callout-note appearance="simple"}
-When we say that the errors are reported directly to the model, this refers to the behaviour when using the default `generate()`. If on the other hand, you are have created [custom scaffolding](#sec-custom-scaffolding) for an agent, you can intercept tool errors and apply additional filtering and logic.
+When we say that the errors are reported directly to the model, this refers to the behaviour when using the default `generate()`. If on the other hand, you are have created custom scaffolding for an agent, you can intercept tool errors and apply additional filtering and logic.
 :::
 
 ### Explicit Handling

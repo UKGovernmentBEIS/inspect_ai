@@ -107,8 +107,8 @@ Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False`
 {{< include _sample-preservation.md >}}
 
 ::: {.callout-note appearance="simple"}
-### Eval Suites
-We've discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on retrying tasks within [Eval Suites](eval-suites.qmd#sec-errors-and-retries)
+### Eval Sets
+We've discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on [Eval Sets](eval-sets.qmd)
 :::
 
 ## Amazon S3 {#sec-amazon-s3}

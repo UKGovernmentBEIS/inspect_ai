@@ -87,14 +87,16 @@ def registry_tag(
     for param in named_params.keys():
         if is_registry_object(named_params[param]):
             named_params[param] = registry_info(named_params[param]).name
-        elif callable(named_params[param]):
+        elif callable(named_params[param]) and hasattr(named_params[param], "__name__"):
             named_params[param] = getattr(named_params[param], "__name__")
         elif isinstance(named_params[param], dict | list):
             named_params[param] = to_jsonable_python(
                 named_params[param], fallback=lambda x: getattr(x, "__name__", None)
             )
-        else:
+        elif isinstance(named_params[param], int | float | str | bool | None):
             named_params[param] = named_params[param]
+        else:
+            named_params[param] = str(named_params[param])
 
     # set attribute
     setattr(o, REGISTRY_INFO, info)
@@ -290,6 +292,20 @@ def set_registry_info(o: object, info: RegistryInfo) -> object:
         Passed object, with RegistryInfo attached
     """
     setattr(o, REGISTRY_INFO, info)
+    return o
+
+
+def set_registry_params(o: object, params: dict[str, Any]) -> object:
+    r"""Set the registry params for an object.
+
+    Args:
+        o (object): Object to set the registry params for
+        params: (dict[str, Any]): Registry params
+
+    Returns:
+        Passed object, with registry params attached
+    """
+    setattr(o, REGISTRY_PARAMS, params)
     return o
 
 

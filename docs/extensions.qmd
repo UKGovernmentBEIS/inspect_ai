@@ -119,6 +119,10 @@ The static class methods control the lifecycle of containers and other computing
 class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
+    def config_files(cls) -> list[str]:
+        ...
+
+    @classmethod
     async def task_init(
         cls, task_name: str, config: str | None
     ) -> None:
@@ -160,6 +164,7 @@ The class methods take care of various stages of initialisation, setup, and tear
 
 | Method | Lifecycle | Purpose |
 |-------------------|-------------------|----------------------------------|
+| `config_files()` | Called once to determine the names of 'default' config files for this provider (e.g. 'compose.yaml'). |
 | `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
 | `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
 | `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
