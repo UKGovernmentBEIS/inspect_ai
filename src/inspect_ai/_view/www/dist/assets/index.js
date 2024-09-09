@@ -22160,7 +22160,7 @@ const WorkSpace = (props) => {
         if (!((_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples) && ((_h = (_g = (_f2 = workspaceLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = workspaceLog.contents) == null ? void 0 : _i.status) !== "error") {
           warnings.push(
             m$1`<${WarningBand}
-              message="This evaluation log is too large to display samples."
+              message="Unable to display samples (this evaluation log may be too large)."
             />`
           );
         }
