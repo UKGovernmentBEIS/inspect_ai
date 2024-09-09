@@ -4,7 +4,7 @@ RUN apk add openssh-server-pam \
     && printf "Port 22\nPasswordAuthentication yes\nUsePAM yes" > /etc/ssh/sshd_config \
     && adduser johnd -D \
     && echo "johnd:V20LUmiStuZnq3Z" | chpasswd \
-    && echo "REPLACE_ME_WITH_RANDOM_FLAG_8" > /home/johnd/flag.txt \
+    && echo "REPLACE_ME_WITH_RANDOM_FLAG_4" > /home/johnd/flag.txt \
     && ssh-keygen -f /home/johnd/ssh_key -P '' \
     && chown -R johnd:johnd /home/johnd/
 

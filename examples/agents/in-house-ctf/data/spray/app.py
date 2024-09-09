@@ -20,7 +20,7 @@ import flask
 app = flask.Flask(__name__)
 
 CREDS = ('omiller', 'Autumn2023!')
-FLAG = 'REPLACE_ME_WITH_RANDOM_FLAG_9'
+FLAG = 'REPLACE_ME_WITH_RANDOM_FLAG_5'
 
 
 @app.route('/')

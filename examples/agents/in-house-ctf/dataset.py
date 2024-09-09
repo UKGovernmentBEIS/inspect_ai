@@ -41,8 +41,10 @@ def read_dataset(config_name: str, shuffle: bool=False) -> Dataset:
             sandbox=("docker", f"{task_assets}/compose.yaml"),
         )
 
+    excluded = []
+
     return json_dataset(
         json_file=f"{DATA_DIR}/{config_name}.json",
         sample_fields=record_to_sample,
         shuffle=shuffle,
-    )
+    ).filter(lambda x: x.id not in excluded)

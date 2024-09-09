@@ -15,7 +15,7 @@ $ inspect eval task.py --model google/gemini-1.5-pro
 $ inspect eval task.py --model mistral/mistral-large-latest
 ```
 
-If you are experiementing, you might find it useful to evaluate only a random subset of the samples by commenting out the other tasks in [`task.py`](task.py). To add a new task, create a task directory under [`data`](data) that includes a `compose.yaml` file and a `task.json` file (originl Dockerfiles are optional), and add a task function in [`task.py`](task.py) using the provided task template function.
+If you are experiementing, you might find it useful to evaluate only a random subset of the samples by adding the other task names to `excluded` list in [`dataset.py`](dataset.py). To add a new task, create a task directory under [`data`](data) that includes a `compose.yaml` file (originl Dockerfiles are optional), and add the task configuration to one of the challenges JSON files accordingly.
 
 `compose.yaml` format:
 ```
@@ -28,6 +28,7 @@ services:
     ports:
       - "xxxx:xxxx"
 
+  # The following only applies to if your victim environment is running a server
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
@@ -44,7 +45,7 @@ networks:
     driver: bridge
 ```
 
-`task.json` format:
+`challenges.json` entry format:
 ```
 {
     "challenge_name": "task",
