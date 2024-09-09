@@ -10,10 +10,9 @@ from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
 TEMPLATE = r"""
-The following are multiple choice questions (with answers) about medical knowledge.
-
-Answer the following question given the context.
-The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
+Answer the following multiple choice question about medical knowledge given the context.
+The entire content of your response should be of the following format: 'ANSWER: $LETTER'
+(without quotes) where LETTER is one of {letters}.
 
 {question}
 
@@ -46,7 +45,7 @@ def record_to_sample(record) -> Sample:
         "no": "B",
         "maybe": "C",
     }
-    abstract = record['context']
+    abstract = record["context"]
     question = record["question"]
     return Sample(
         input=f"Context: {abstract}\nQuestion: {question}",
