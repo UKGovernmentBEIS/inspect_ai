@@ -119,9 +119,7 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
 
     # Add function description if available
     if parsed_docstring:
-        if parsed_docstring.description:
-            info.description = parsed_docstring.description.strip()
-        elif parsed_docstring.long_description:
+        if parsed_docstring.long_description:
             info.description = parsed_docstring.long_description.strip()
         elif parsed_docstring.short_description:
             info.description = parsed_docstring.short_description.strip()
