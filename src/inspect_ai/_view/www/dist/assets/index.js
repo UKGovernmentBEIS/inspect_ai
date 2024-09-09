@@ -18430,11 +18430,17 @@ const initStateManager = () => {
     applyChanges: (changes) => {
       state = applyPatch(
         structuredClone(state),
-        structuredClone(changes),
+        structuredClone(changes).map(ensureValidChange),
         true
       ).newDocument;
     }
   };
+};
+const ensureValidChange = (change) => {
+  if (change.op === "add" && !change.value) {
+    change.value = null;
+  }
+  return change;
 };
 const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
   const resolvedEvents = fixupEventStream(events);
@@ -18566,7 +18572,6 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
       return m$1`<${ErrorEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
         style=${style}
       />`;
     default:

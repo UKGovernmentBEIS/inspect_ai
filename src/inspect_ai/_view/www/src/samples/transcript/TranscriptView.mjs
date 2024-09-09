@@ -189,7 +189,6 @@ export const RenderedEventNode = ({ id, node, style, stateManager }) => {
       return html`<${ErrorEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
         style=${style}
       />`;
 
