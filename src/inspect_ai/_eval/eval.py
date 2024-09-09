@@ -44,6 +44,7 @@ def eval(
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    debug_errors: bool | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -84,6 +85,8 @@ def eval(
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
            eval if a count of samples fails.
+        debug_errors (bool | None): Raise task errors (rather than logging them)
+           so they can be debugged (defaults to False).
         max_messages (int | None): Maximum number of messages to allow
            in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -121,6 +124,7 @@ def eval(
             limit=limit,
             epochs=epochs,
             fail_on_error=fail_on_error,
+            debug_errors=debug_errors,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -148,6 +152,7 @@ async def eval_async(
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    debug_errors: bool | None = None,
     max_messages: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -187,6 +192,8 @@ async def eval_async(
         fail_on_error (bool | float | None): `True` to fail on first sample error
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
+        debug_errors (bool | None): Raise task errors (rather than logging them)
+           so they can be debugged (defaults to False).
         max_messages (int | None): Maximum number of messages to allow
             in a task conversation.
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -288,6 +295,7 @@ async def eval_async(
                         epochs_reducer=epochs_reducer,
                         plan=plan,
                         score=score,
+                        debug_errors=debug_errors is True,
                         **kwargs,
                     )
                 )
