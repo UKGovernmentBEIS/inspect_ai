@@ -8,7 +8,7 @@
 - Properly support metrics that return a dict or list of values
 - Improved display of prerequisite errors when running `eval()` from a script or notebook.
 - Fix `eval_set()` issue with cleaning up failed logs on S3.
-- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/benchmarks/ifeval/), and [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/pubmedqa) benchmarks.
+- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/benchmarks/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mbpp) benchmarks.
 
 
 ## v0.3.27 (6 September 2024)

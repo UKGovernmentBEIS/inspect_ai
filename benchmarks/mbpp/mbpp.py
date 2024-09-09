@@ -13,6 +13,7 @@ inspect eval benchmarks/mbpp/mbpp.py
 # Specify temperature
 inspect eval benchmarks/mbpp/mbpp.py -T temperature=0.0
 """
+
 import re
 import textwrap
 
@@ -21,8 +22,16 @@ from datasets import load_dataset
 from inspect_ai import Epochs, Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.model import GenerateConfig
-from inspect_ai.scorer import (CORRECT, INCORRECT, Score, Scorer, Target, mean,
-                               scorer, std)
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    Score,
+    Scorer,
+    Target,
+    mean,
+    scorer,
+    std,
+)
 from inspect_ai.solver import TaskState, generate, prompt_template
 from inspect_ai.util import ExecResult, sandbox
 
@@ -55,26 +64,28 @@ def mbpp(
     # Task IDs 2, 3, 4 are from
     # https://github.com/google-research/google-research/tree/master/mbpp
     few_shot_ids = [2, 3, 4]
-    few_shot_dataset = few_shot_dataset.filter(lambda row: row['task_id'] in few_shot_ids)
+    few_shot_dataset = few_shot_dataset.filter(
+        lambda row: row["task_id"] in few_shot_ids
+    )
 
     # Few shot prompts are based off
     # https://github.com/huangd1999/AgentCoder/blob/main/prompts/mbpp_prompt.txt
     for i, sample in enumerate(few_shot_dataset):
         test_cases = "\n".join(sample["test_list"])
-        template += "".join([
-            f"## Prompt {i+1}\n",
-            "```python\n",
-            f"{sample['text']}\n",
-            "```\n\n",
-            f"## Test Case {i+1}\n",
-            "```python\n",
-            f"{test_cases}\n"
-            "```\n\n",
-            f"## Completion {i+1}\n",
-            "```python\n",
-            f"{sample['code']}\n"
-            "```\n\n",
-        ])
+        template += "".join(
+            [
+                f"## Prompt {i+1}\n",
+                "```python\n",
+                f"{sample['text']}\n",
+                "```\n\n",
+                f"## Test Case {i+1}\n",
+                "```python\n",
+                f"{test_cases}\n" "```\n\n",
+                f"## Completion {i+1}\n",
+                "```python\n",
+                f"{sample['code']}\n" "```\n\n",
+            ]
+        )
 
     template += textwrap.dedent(
         """
@@ -158,7 +169,7 @@ def verify() -> Scorer:
         return Score(
             value=CORRECT if result.success else INCORRECT,
             answer=raw_generated_code,
-            explanation=explanation
+            explanation=explanation,
         )
 
     return score
@@ -187,5 +198,5 @@ def record_to_sample(record):
             "code": record["code"],
             "test_imports": record["test_imports"],
             "task_id": record["task_id"],
-        }
+        },
     )
