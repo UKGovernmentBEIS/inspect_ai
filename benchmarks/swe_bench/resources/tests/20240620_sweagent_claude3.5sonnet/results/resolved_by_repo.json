@@ -1,0 +1,50 @@
+{
+  "scikit-learn/scikit-learn": {
+    "resolved": 18,
+    "total": 32
+  },
+  "sphinx-doc/sphinx": {
+    "resolved": 0,
+    "total": 44
+  },
+  "sympy/sympy": {
+    "resolved": 24,
+    "total": 75
+  },
+  "pydata/xarray": {
+    "resolved": 9,
+    "total": 22
+  },
+  "pylint-dev/pylint": {
+    "resolved": 2,
+    "total": 10
+  },
+  "django/django": {
+    "resolved": 89,
+    "total": 231
+  },
+  "psf/requests": {
+    "resolved": 4,
+    "total": 8
+  },
+  "mwaskom/seaborn": {
+    "resolved": 0,
+    "total": 2
+  },
+  "pallets/flask": {
+    "resolved": 0,
+    "total": 1
+  },
+  "pytest-dev/pytest": {
+    "resolved": 7,
+    "total": 19
+  },
+  "matplotlib/matplotlib": {
+    "resolved": 9,
+    "total": 34
+  },
+  "astropy/astropy": {
+    "resolved": 6,
+    "total": 22
+  }
+}

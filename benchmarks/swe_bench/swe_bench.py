@@ -226,34 +226,42 @@ def swebench_scorer() -> Scorer:
 
     return scorer
 
-@scorer(metrics=[mean(), std()])
 def swebench_baseline(path_to_baseline : str) -> Scorer:
-    """Given a path to a set of historical swe-bench trajectories in the official format ( see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating."""
-        # Load results from the log directory
 
-    baseline_results = {}
-    for result in os.listdir(path_to_baseline):
+    scorer_name = Path(path_to_baseline).name
 
-        results_path = os.path.join(path_to_baseline, result,"report.json")
-        patch_path = os.path.join(path_to_baseline, result,"patch.diff")
+    @scorer(metrics=[mean(), std()],name=scorer_name)
+    def _swebench_baseline() -> Scorer:
+        """Given a path to a set of historical swe-bench trajectories in the official format ( see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating."""# Load results from the log directory
 
-        if os.path.exists(results_path) and os.path.exists(patch_path):
-            # Sometimes there is no result saved, at which point we ignore that entry
-            with open(results_path, "r") as f:
-                result_dict = json.load(f)
-                instance_id, results = next(iter(result_dict.items()))
-                
-                with open(patch_path, "r") as f:
-                    results["patch"] = f.read()    
+        results_per_instance_id = {}
+        for result in os.listdir(path_to_baseline):
+
+            results_path = os.path.join(path_to_baseline, result,"report.json")
+            patch_path = os.path.join(path_to_baseline, result,"patch.diff")
+
+            if os.path.exists(results_path) and os.path.exists(patch_path):
+                # Sometimes there is no result saved, at which point we ignore that entry
+                with open(results_path, "r") as f:
+                    result_dict = json.load(f)
+                    instance_id, raw_results = next(iter(result_dict.items()))
+
+            
+                    with open(patch_path, "r") as f:   
+                        results_per_instance_id[instance_id] = {"resolved":raw_results["resolved"],
+                        "patch": f.read()}
         
-            baseline_results[instance_id] = results
+        async def scorer(state: TaskState, target : Target) -> Score:
+
+            if state.sample_id in results_per_instance_id:
+                results = results_per_instance_id[state.sample_id]
+                return Score(value=int(results["resolved"]),explanation= f"Model Patch:\n\n {results["patch"]}")
+            else:
+                return Score(value="N",explanation="No baseline found for this instance")
+        
+        return scorer
     
-
-    async def scorer(state: TaskState, target : Target) -> Score:
-        
-
-
-
+    return _swebench_baseline()
 
 
 def get_compose_file(environment_commit_id: Sample, instance_id : str) -> str:

@@ -6,17 +6,9 @@ import pandas as pd
 
 dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 
-# We create a subset of swe-bench which is just one example
-dataset_one_sample = dataset.filter(lambda x: x["instance_id"] == "scikit-learn__scikit-learn-12585")
-
-dataset_dir = Path(__file__).parent / "swebench_one_sample.hf"
-os.makedirs(str(dataset_dir), exist_ok=True)
-dataset_one_sample.to_parquet(dataset_dir / "dataset.parquet")
-
-
 # We also create a subset of SWE-bench-verfied which:
 # 1) Contains all of the repositories in SWE-bench verified
-# 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not (Some repositories may not have examples where the issue was resolved, in this case we only include a single example where the issue was not resolved)
+# 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not 
 # The outputs of this script are cached as part of the respository, this script allows us to edit this the dataset.
 
 results_per_repo = {}
@@ -60,7 +52,11 @@ dataset = dataset.filter(lambda x: x["instance_id"] in instance_ids)
 dataset = dataset.map(lambda x: dict(x, resolved_by_swe_agent=resolved[instance_ids == x["instance_id"]][0]), num_proc=4)
 # Add swe-agent-patch
 dataset = dataset.map(lambda x: dict(x, swe_agent_patch=results_per_repo[results_per_repo["instance_id"] == x["instance_id"]]["swe_agent_patch"].values[0]), num_proc=4)
+# Add resolved column
+dataset = dataset.map(lambda x: dict(x, resolved=resolved[instance_ids == x["instance_id"]][0]), num_proc=4)
 
+# This particular sample is bugged, as the setup script edits files, breaking the relevant patch.
+dataset = dataset.filter(lambda x: x["instance_id"] != "sphinx-doc__sphinx-8475")
 
 # Calculate the accuracy. Should be 0.42857142857142855
 accuracy = sum(resolved) / len(resolved)
