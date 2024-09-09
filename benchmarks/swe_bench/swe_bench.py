@@ -40,15 +40,16 @@ os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)
 
 SAMPLE_TO_IMAGE_PATH = COMPOSE_FILE_DIR / "sample_to_image.json"
 
-DEFAULT_PLAN = [
+DEFAULT_PLAN = Plan([
     system_message("Please solve the task below."),
     use_tools([bash()]),
     generate(),
-]
+], name="simple_bash_plan")
+
 DEFAULT_MAX_MESSAGES = 10
 
 @task
-def swe_bench(dataset : str = "princeton-nlp/SWE-bench_Verified", split : str = "test", plan : Plan | list[Solver] = DEFAULT_PLAN,
+def swe_bench(dataset : str = "princeton-nlp/SWE-bench_Verified", split : str = "test", plan : Plan = DEFAULT_PLAN,
 max_messages : int = DEFAULT_MAX_MESSAGES, filter : Callable[[Sample],bool] | None = None) -> Task:
     """Returns a Task, representing an evaluation on SWE-bench.
 
@@ -58,7 +59,7 @@ Args.
     split : str
         The split of the dataset to load.
     plan : Plan
-        The plan to use when creating the task.
+        The plan to use when creating the task. If None, uses the default pkan.
     max_messages : int
         The maximum number of messages to generate for each sample.
     filter : Callable[[Sample],bool]
@@ -82,9 +83,10 @@ Args.
         sample.input = INPUT_PROMPT.format(issue_text=sample.input)
         sample.sandbox = "docker" , get_compose_file(sample.metadata["environment_setup_commit"], sample.id)
         sample.setup = get_setup_script(sample.metadata["repo"],sample.metadata["version"],sample.metadata["base_commit"])
+    
 
     return Task(
-        name=dataset,
+        name=f"{dataset}_{plan.name}",
         dataset=samples,
         plan=plan,
         scorer=swebench_scorer(),
