@@ -50,21 +50,23 @@ DEFAULT_MAX_MESSAGES = 10
 @task
 def swe_bench(dataset : str = "princeton-nlp/SWE-bench_Verified", split : str = "test", plan : Plan | list[Solver] = DEFAULT_PLAN,
 max_messages : int = DEFAULT_MAX_MESSAGES, filter : Callable[[Sample],bool] | None = None) -> Task:
-"""Returns a Task, representing an evaluation on SWE-bench.
+    """Returns a Task, representing an evaluation on SWE-bench.
 
 Args.
     dataset : str
-        The dataset to use. This should be a huggingface dataset name - either the name of a dataset in the HF hub, or a path to a dataset on disk.
+        The dataset to use. This should  either be the name of a dataset in the HF hub, or a path to a dataset on disk.
     split : str
         The split of the dataset to load.
     plan : Plan
         The plan to use when creating the task.
     max_messages : int
         The maximum number of messages to generate for each sample.
+    filter : Callable[[Sample],bool]
+        A function to filter whether specific SWE-bench samples are included.
 """
 
-    dataset = hf_dataset(
-        dataset_name,
+    samples = hf_dataset(
+        dataset,
         split=split,
         sample_fields=FieldSpec(
             input="problem_statement",
@@ -74,18 +76,17 @@ Args.
     )
 
     if filter:
-        dataset = dataset.filter(filter)
+        samples = samples.filter(filter)
 
-    for sample in dataset:
+    for sample in samples:
         sample.input = INPUT_PROMPT.format(issue_text=sample.input)
         sample.sandbox = "docker" , get_compose_file(sample.metadata["environment_setup_commit"], sample.id)
         sample.setup = get_setup_script(sample.metadata["repo"],sample.metadata["version"],sample.metadata["base_commit"])
 
     return Task(
-        name=dataset_name,
-        dataset=dataset,
+        name=dataset,
+        dataset=samples,
         plan=plan,
-        name=dataset_name,
         scorer=swebench_scorer(),
         max_messages=max_messages
     )
@@ -240,18 +241,20 @@ def swebench_scorer() -> Scorer:
     return scorer
 
 def swebench_baseline_scorer(path_to_baseline : str, name : str | None = None) -> Scorer:
-    """Given a path to a set of historical swe-bench trajectories in the official format ( see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating.""" # Load results from the log directory
+    """Given a path to a set of historical swe-bench trajectories in the official format (see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating.""" # Load results from the log directory
 
     baseline_name = name if name else Path(path_to_baseline).name 
 
     @scorer(metrics=[mean(), std()],name=baseline_name)
     def _swebench_baseline_scorer() -> Scorer:
+        
+        path_to_logs = os.path.join(path_to_baseline,"logs")
 
         results_per_instance_id = {}
-        for result in os.listdir(path_to_baseline):
+        for result in os.listdir(path_to_logs):
 
-            results_path = os.path.join(path_to_baseline, result,"report.json")
-            patch_path = os.path.join(path_to_baseline, result,"patch.diff")
+            results_path = os.path.join(path_to_logs, result,"report.json")
+            patch_path = os.path.join(path_to_logs, result,"patch.diff")
 
             if os.path.exists(results_path) and os.path.exists(patch_path):
                 # Sometimes there is no result saved, at which point we ignore that entry

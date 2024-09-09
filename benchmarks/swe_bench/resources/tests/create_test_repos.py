@@ -12,7 +12,7 @@ dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 # The outputs of this script are cached as part of the respository, this script allows us to edit this the dataset.
 
 results_per_repo = {}
-logs_dir = Path(__file__).parent / "20240620_sweagent_claude3.5sonnet" / "logs" # To run this script, you must download local copy from https://github.com/swe-bench/experiments/tree/main/evaluation/verified/20240620_sweagent_claude3.5sonnet/
+logs_dir = Path(__file__).parent.parent / "baselines" / "swebench_verified_20240620_sweagent_claude3.5sonnet" / "logs" # To run this script, you must download local copy from https://github.com/swe-bench/experiments/tree/main/evaluation/verified/20240620_sweagent_claude3.5sonnet/
 results = []
 missing_results = []
 
@@ -55,8 +55,8 @@ dataset = dataset.map(lambda x: dict(x, swe_agent_patch=results_per_repo[results
 # Add resolved column
 dataset = dataset.map(lambda x: dict(x, resolved=resolved[instance_ids == x["instance_id"]][0]), num_proc=4)
 
-# This particular sample is bugged, as the setup script edits files, breaking the relevant patch.
-dataset = dataset.filter(lambda x: x["instance_id"] != "sphinx-doc__sphinx-8475")
+# This repo is bugged for testing, as the setup script edits files, breaking the patch from swe-agent.
+dataset = dataset.filter(lambda x: "sphinx" not in x["instance_id"])
 
 # Calculate the accuracy. Should be 0.42857142857142855
 accuracy = sum(resolved) / len(resolved)
