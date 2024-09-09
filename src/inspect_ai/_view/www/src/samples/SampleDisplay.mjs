@@ -6,6 +6,7 @@ import { MetaDataView } from "../components/MetaDataView.mjs";
 import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/Format.mjs";
+import { escapeSelector } from "../utils/Html.mjs";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
@@ -163,7 +164,7 @@ export const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
   const printSample = () => {
     // The active tab
     const targetTabEl = document.querySelector(
-      `#${targetId} .sample-tab.tab-pane.show.active`,
+      `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`,
     );
     if (targetTabEl) {
       // The target element
@@ -175,7 +176,39 @@ export const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
 
         // Print the document
         const headingHtml = printHeadingHtml();
-        const css = "html { font-size: 9pt }";
+        const css = `
+        html { font-size: 9pt }
+        /* Allow content to break anywhere without any forced page breaks */
+        * {
+          break-inside: auto;  /* Let elements break anywhere */
+          page-break-inside: auto;  /* Legacy support */
+          break-before: auto;
+          page-break-before: auto;
+          break-after: auto;
+          page-break-after: auto;
+        }
+        /* Specifically disable all page breaks for divs */
+        div {
+          break-inside: auto;
+          page-break-inside: auto;
+        }
+        body > .transcript-step {
+          break-inside: avoid;
+        }
+        /* Allow preformatted text and code blocks to break across pages */
+        pre, code {
+            white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
+            overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
+            break-inside: auto; /* Allow page breaks inside the element */
+            page-break-inside: auto; /* Older equivalent */
+        }
+
+        /* Additional control for long lines within code/preformatted blocks */
+        pre {
+            word-wrap: break-word; /* Break long words if needed */
+        }    
+            
+        `;
         printHtml(
           [headingHtml, headingEl.outerHTML, targetEl.innerHTML].join("\n"),
           css,

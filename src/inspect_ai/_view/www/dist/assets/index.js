@@ -15051,6 +15051,9 @@ const TitleTool = ({ label, icon, enabled, onclick }) => {
     <i class="${icon}" />
   </button>`;
 };
+function escapeSelector(id) {
+  return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
+}
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
   if (scores.length === 1) {
@@ -15202,6 +15205,7 @@ const SampleScoreView = ({
 };
 const EventPanel = ({
   id,
+  classes,
   title,
   text,
   icon,
@@ -15321,6 +15325,7 @@ const EventPanel = ({
     borderRadius: "var(--bs-border-radius)",
     ...style
   }}
+    class=${classes || void 0}
   >
     ${titleEl}
     <div
@@ -17123,7 +17128,8 @@ const StepEventView = ({ event, children, style, stateManager }) => {
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
   return m$1`<${EventPanel}
-    id=${`$step-${event.name}`}
+    id=${`step-${event.name}`}
+    classes="transcript-step"
     title="${title}"
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
@@ -18866,7 +18872,7 @@ const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
   const targetId = `${tabsetId}-content`;
   const printSample = () => {
     const targetTabEl = document.querySelector(
-      `#${targetId} .sample-tab.tab-pane.show.active`
+      `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`
     );
     if (targetTabEl) {
       const targetEl = targetTabEl.firstElementChild;
@@ -18874,7 +18880,39 @@ const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
         const headingId = `sample-heading-${sample.id}`;
         const headingEl = document.getElementById(headingId);
         const headingHtml = printHeadingHtml();
-        const css = "html { font-size: 9pt }";
+        const css = `
+        html { font-size: 9pt }
+        /* Allow content to break anywhere without any forced page breaks */
+        * {
+          break-inside: auto;  /* Let elements break anywhere */
+          page-break-inside: auto;  /* Legacy support */
+          break-before: auto;
+          page-break-before: auto;
+          break-after: auto;
+          page-break-after: auto;
+        }
+        /* Specifically disable all page breaks for divs */
+        div {
+          break-inside: auto;
+          page-break-inside: auto;
+        }
+        body > .transcript-step {
+          break-inside: avoid;
+        }
+        /* Allow preformatted text and code blocks to break across pages */
+        pre, code {
+            white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
+            overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
+            break-inside: auto; /* Allow page breaks inside the element */
+            page-break-inside: auto; /* Older equivalent */
+        }
+
+        /* Additional control for long lines within code/preformatted blocks */
+        pre {
+            word-wrap: break-word; /* Break long words if needed */
+        }    
+            
+        `;
         printHtml(
           [headingHtml, headingEl.outerHTML, targetEl.innerHTML].join("\n"),
           css
