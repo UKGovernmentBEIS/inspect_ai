@@ -10,6 +10,7 @@ import { InfoEventView } from "./InfoEventView.mjs";
 import { ScoreEventView } from "./ScoreEventView.mjs";
 import { ToolEventView } from "./ToolEventView.mjs";
 import { ErrorEventView } from "./ErrorEventView.mjs";
+import { InputEventView } from "./InputEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
 import { initStateManager } from "./TranscriptState.mjs";
@@ -185,11 +186,17 @@ export const RenderedEventNode = ({ id, node, style, stateManager }) => {
         depth=${node.depth}
       />`;
 
+    case "input":
+      return html`<${InputEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+
     case "error":
       return html`<${ErrorEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
         style=${style}
       />`;
 

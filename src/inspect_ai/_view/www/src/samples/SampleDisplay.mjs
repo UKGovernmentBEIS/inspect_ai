@@ -9,7 +9,7 @@ import { inputString } from "../utils/Format.mjs";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { arrayToString, shortenCompletion } from "../utils/Format.mjs";
+import { arrayToString } from "../utils/Format.mjs";
 
 import { SampleScoreView } from "./SampleScoreView.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
@@ -265,7 +265,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
       label: "Answer",
       value: sample
         ? html`<${MarkdownDiv}
-            markdown=${arrayToString(shortenCompletion(fullAnswer))}
+            markdown=${fullAnswer}
             style=${{ paddingLeft: "0" }}
             class="no-last-para-padding"
           />`
