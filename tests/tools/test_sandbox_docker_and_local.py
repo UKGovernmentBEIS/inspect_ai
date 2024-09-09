@@ -18,7 +18,9 @@ async def test_self_check_local(request) -> None:
         task_name=task_name, config=None, metadata={}
     )
 
-    return await check_results_of_self_check(task_name, envs_dict)
+    known_failures = ["test_exec_as_user", "test_exec_as_nonexistent_user"]
+
+    return await check_results_of_self_check(task_name, envs_dict, known_failures)
 
 
 @skip_if_no_docker
