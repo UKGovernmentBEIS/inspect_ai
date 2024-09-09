@@ -47,8 +47,21 @@ DEFAULT_PLAN = [
 ]
 DEFAULT_MAX_MESSAGES = 10
 
-def swe_bench(dataset_name : str = "princeton-nlp/SWE-bench_Verified", split : str = "test", plan : Plan | list[Solver] = DEFAULT_PLAN,
+@task
+def swe_bench(dataset : str = "princeton-nlp/SWE-bench_Verified", split : str = "test", plan : Plan | list[Solver] = DEFAULT_PLAN,
 max_messages : int = DEFAULT_MAX_MESSAGES, filter : Callable[[Sample],bool] | None = None) -> Task:
+"""Returns a Task, representing an evaluation on SWE-bench.
+
+Args.
+    dataset : str
+        The dataset to use. This should be a huggingface dataset name - either the name of a dataset in the HF hub, or a path to a dataset on disk.
+    split : str
+        The split of the dataset to load.
+    plan : Plan
+        The plan to use when creating the task.
+    max_messages : int
+        The maximum number of messages to generate for each sample.
+"""
 
     dataset = hf_dataset(
         dataset_name,
@@ -69,6 +82,7 @@ max_messages : int = DEFAULT_MAX_MESSAGES, filter : Callable[[Sample],bool] | No
         sample.setup = get_setup_script(sample.metadata["repo"],sample.metadata["version"],sample.metadata["base_commit"])
 
     return Task(
+        name=dataset_name,
         dataset=dataset,
         plan=plan,
         name=dataset_name,
@@ -225,13 +239,13 @@ def swebench_scorer() -> Scorer:
 
     return scorer
 
-def swebench_baseline_scorer(path_to_baseline : str, name = str | None = None) -> Scorer:
-    """Given a path to a set of historical swe-bench trajectories in the official format ( see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating."""# Load results from the log directory
+def swebench_baseline_scorer(path_to_baseline : str, name : str | None = None) -> Scorer:
+    """Given a path to a set of historical swe-bench trajectories in the official format ( see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating.""" # Load results from the log directory
 
     baseline_name = name if name else Path(path_to_baseline).name 
 
     @scorer(metrics=[mean(), std()],name=baseline_name)
-    def swebench_baseline_scorer() -> Scorer:
+    def _swebench_baseline_scorer() -> Scorer:
 
         results_per_instance_id = {}
         for result in os.listdir(path_to_baseline):
@@ -254,13 +268,13 @@ def swebench_baseline_scorer(path_to_baseline : str, name = str | None = None) -
 
             if state.sample_id in results_per_instance_id:
                 results = results_per_instance_id[state.sample_id]
-                return Score(value=int(results["resolved"]),explanation= f"Model Patch:\n\n {results["patch"]}")
+                return Score(value=results["resolved"],explanation= f"Model Patch:\n\n {results["patch"]}")
             else:
                 return Score(value="N",explanation="No baseline found for this instance")
         
         return scorer
     
-    return swebench_baseline_scorer()
+    return _swebench_baseline_scorer()
 
 
 def get_compose_file(environment_commit_id: Sample, instance_id : str) -> str:
@@ -272,7 +286,7 @@ def get_compose_file(environment_commit_id: Sample, instance_id : str) -> str:
     if instance_id in sample_to_image and environment_commit_id in sample_to_image[instance_id]:
         environment_image_name = sample_to_image[instance_id][environment_commit_id]["image_key"]
     else:
-        raise ValueError(f"No image found for instance_id {instance_id}. Please run 'build_docker_images.py --dataset_location DATASET_LOCATION --split SPLIT' to build the images")
+        raise ValueError(f"No image found for instance_id {instance_id}. Please run 'build_images.py --dataset_location DATASET_LOCATION --split SPLIT' to build the images")
 
     compose_file_path = f"{COMPOSE_FILE_DIR}/{environment_commit_id}.yaml"
     if os.path.exists(compose_file_path):
@@ -280,7 +294,7 @@ def get_compose_file(environment_commit_id: Sample, instance_id : str) -> str:
 
     images = DockerClient.from_env().images.list()
     if environment_image_name not in [image_name for image in images for image_name in image.tags]:
-        raise ValueError(f"Image {environment_image_name} not found in docker images. Please run 'build_docker_images.py --dataset_location DATASET_LOCATION --split SPLIT' to build the images")
+        raise ValueError(f"Image {environment_image_name} not found in docker images. Please run 'build_images.py --dataset_location DATASET_LOCATION --split SPLIT' to build the images")
 
     # If the image is found, we can now create the compose file.
     compose_file_path = COMPOSE_FILE_DIR / f"{environment_image_name}.yaml"
