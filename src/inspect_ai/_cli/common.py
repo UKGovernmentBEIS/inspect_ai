@@ -12,6 +12,7 @@ class CommonOptions(TypedDict):
     log_dir: str
     debug: bool
     debug_port: int
+    debug_errors: bool
 
 
 def log_level_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -49,6 +50,13 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         default=5678,
         envvar="INSPECT_DEBUG_PORT",
         help="Port number for debugger",
+    )
+    @click.option(
+        "--debug-errors",
+        type=bool,
+        is_flag=True,
+        envvar="INSPECT_DEBUG_ERRORS",
+        help="Raise task errors (rather than logging them) so they can be debugged.",
     )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
