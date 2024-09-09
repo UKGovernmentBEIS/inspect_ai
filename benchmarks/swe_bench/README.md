@@ -3,7 +3,7 @@ This is an inspect-native implementation of [the SWE-bench dataset](https://www.
 
 ## Installation
 
-- **Install requirements.** As well as the requirements provided by inspect, this benchmark has its own dependencies. You can install them in your virtual envrionment by running ```pip install -r requirements.txt```
+- **Install requirements.** As well as the requirements provided by inspect, this benchmark has its own dependencies. You can install them in your virtual enviro   nment by running ```pip install -r requirements.txt```
 - **Build environment images.** SWE-bench requires a set of images with all the dependencies of each repository. Yo build them for the SWE-bench-verified split, run ```./build_images.py --dataset_path princeton-nlp/SWE-bench_Verified --split train```. See ```./build_images.py --help``` for all arguments. NOTE: Depending on the repositories contained in your subset of SWE-bench, this can take a while to run (several hours). 
 
 ## Usage
@@ -30,7 +30,26 @@ swebench_verified_task = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", s
 eval(swebench_verified_task)
 ```
 
-### 
+### Comparing to baselines
+Submissions to [the official SWE-bench leaderboard](https://www.swebench.com/) often come with a set of trajectories and per-swebench-instance results. This means that you can compare the performance of your agent not just on the full dataset, but also on subsets of that dataset. This is often useful when trying to run smaller, cheaper experiments. To make this comparison easy, we provide a scorer that will calculate the average performance of an existing baseline on that set of trajectories:
+
+```python
+from inspect_ai import eval
+from swe_bench import swe_bench, swe_bench_scorer, swebench_baseline_scorer
+
+# Select only the subset where the patch is more than 20 lines long
+swebench_verified_task_subset = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="train",plan=simple_bash_plan, filter=lambda x: len(x["patch"].split("\n")) > 20)
+
+# Report the Claude 3.5 Sonnet + SweAgent baseline, as well as the performance of the agent.
+swebench_verified_task_subset.scorer = [swebench_baseline_scorer("./resources/baselines/swebench_verified_20240620_sweagent_claude3.5sonnet",name="sweagent_baseline"), swebench_scorer()]
+
+eval(swebench_verified_task_subset, scorer=swebench_baseline_scorer)
+```
+
+This will lead to both numbers being reported in the final output:
+
+![SWE-bench baseline comparison](./resources/docs/swebench_comparison.jpeg)
+```
 
 
 
