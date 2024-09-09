@@ -101,8 +101,6 @@ def mbpp(
         split="test",
     )
 
-    dataset = dataset.filter(lambda x: x.id in [11, 14])
-
     return Task(
         dataset=dataset,
         epochs=Epochs(NUM_EPOCHS, ["mean", "pass_at_1", "pass_at_2", "pass_at_5"]),
