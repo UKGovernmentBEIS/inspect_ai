@@ -17,6 +17,9 @@ async def check_test_fn(
 
 
 async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
+    # Note that these tests reuse the same sandbox environment. This means that
+    # if a test fails to clean up after itself, it may affect other tests.
+
     results = {}
 
     for fn in [
@@ -179,10 +182,11 @@ async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
 
 
 async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
+    username = "inspect-ai-test-exec-as-user"
     try:
         # Create a new user
         add_user_result = await sandbox_env.exec(
-            ["useradd", "-m", "myuser"], user="root"
+            ["useradd", "-m", username], user="root"
         )
         assert add_user_result.success, f"Failed to add user: {add_user_result.stderr}"
 
@@ -191,13 +195,13 @@ async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
         assert (
             root_result.stdout.strip() == "root"
         ), f"Expected 'root', got '{root_result.stdout.strip()}'"
-        myuser_result = await sandbox_env.exec(["whoami"], user="myuser")
+        myuser_result = await sandbox_env.exec(["whoami"], user=username)
         assert (
-            myuser_result.stdout.strip() == "myuser"
-        ), f"Expected 'myuser', got '{myuser_result.stdout.strip()}'"
+            myuser_result.stdout.strip() == username
+        ), f"Expected '{username}', got '{myuser_result.stdout.strip()}'"
     finally:
         # Clean up
-        await sandbox_env.exec(["userdel", "-r", "myuser"], user="root")
+        await sandbox_env.exec(["userdel", "-r", username], user="root")
 
 
 async def test_exec_as_nonexistent_user(sandbox_env: SandboxEnvironment) -> None:
