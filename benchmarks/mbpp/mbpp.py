@@ -7,97 +7,45 @@ https://arxiv.org/pdf/2108.07732
 
 Based on: https://github.com/google-research/google-research/tree/master/mbpp
 
-# run the eval on the sanitized test split
+# Run the eval on the sanitized test split
 inspect eval benchmarks/mbpp/mbpp.py
+
+# Specify temperature
+inspect eval benchmarks/mbpp/mbpp.py -T temperature=0.0
 """
-import math  # Used by some assert statements by MBPP.
+import re
+import textwrap
 
 from datasets import load_dataset
 
-from inspect_ai import Task, task
+from inspect_ai import Epochs, Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.model import GenerateConfig
-from inspect_ai.scorer import (CORRECT, INCORRECT, Score, Target, accuracy,
-                               scorer, stderr)
+from inspect_ai.scorer import (CORRECT, INCORRECT, Score, Scorer, Target, mean,
+                               scorer, std)
 from inspect_ai.solver import TaskState, generate, prompt_template
+from inspect_ai.util import ExecResult, sandbox
+
+# Repeat each problem N times.
+NUM_EPOCHS = 5
+
+# Timeout for scoring.
+VERIFY_TIMEOUT = 30
+
 
 PROMPT_TEMPLATE = """
 You are an expert Python programmer. You will be given a task, and the tests that your code must pass.
 Write the Python function to solve the task. Do not give additional explanations, just output the
 Python function. Only use imports that are included in Python's standard library.
-"""
-
-
-def record_to_sample(record):
-    return Sample(
-        input=record["prompt"],
-        target=record["test_list"],
-        id=record["task_id"],
-        metadata={
-            "prompt": record["prompt"],
-            "test_list": record["test_list"],
-            "test_list_str": "\n".join(record["test_list"]),
-            "source_file": record["source_file"],
-            "code": record["code"],
-            "test_imports": record["test_imports"],
-            "task_id": record["task_id"],
-        }
-    )
-
-
-@scorer(metrics=[accuracy(), stderr()])
-def code_acceptance():
-    async def score(state: TaskState, target: Target):
-
-        # It is assumed that generated output is of the form:
-        # ```python
-        # [code output]
-        # ```
-        raw_generated_code = state.output.completion
-        generated_code = raw_generated_code.replace("```python", "").replace("```", "")
-
-        explanation = ""
-        passed = True
-        try:
-            # Pass globals() as exec() may not work for functions that are recursive
-            # or use other functions that will still be defined afterwards.
-            exec(generated_code, globals())
-        except Exception as e:
-            explanation += f"Could not execute generated code. Error: {e}\n"
-            passed = False
-
-        if passed:
-            for i, test_case in enumerate(target.target):
-                try:
-                    exec(test_case, globals())
-                except AssertionError:
-                    passed = False
-                    explanation += f"Failed Test Case {i+1}: {test_case}. Assertion failed.\n"
-                except Exception as e:
-                    passed = False
-                    explanation += f"Failed Test Case {i+1}: {test_case}. Error: {e}\n"
-
-        if passed:
-            explanation += "All test cases passed.\n"
-
-        explanation += "The raw, generated output is shown below: \n"
-        explanation += raw_generated_code
-
-        return Score(
-            value=CORRECT if passed else INCORRECT,
-            answer=generated_code,
-            explanation=explanation
-        )
-
-    return score
+""".strip()
 
 
 @task
 def mbpp(
-):
+    temperature: float = 0.5,
+) -> Task:
     template = PROMPT_TEMPLATE
-    template += """
-# For example:"""
+    template += "\n\nFor example:\n\n"
 
     few_shot_dataset = load_dataset(
         "google-research-datasets/mbpp",
@@ -113,38 +61,38 @@ def mbpp(
     # https://github.com/huangd1999/AgentCoder/blob/main/prompts/mbpp_prompt.txt
     for i, sample in enumerate(few_shot_dataset):
         test_cases = "\n".join(sample["test_list"])
-        template += f"""
+        template += "".join([
+            f"## Prompt {i+1}\n",
+            "```python\n",
+            f"{sample['text']}\n",
+            "```\n\n",
+            f"## Test Case {i+1}\n",
+            "```python\n",
+            f"{test_cases}\n"
+            "```\n\n",
+            f"## Completion {i+1}\n",
+            "```python\n",
+            f"{sample['code']}\n"
+            "```\n\n",
+        ])
 
-## Prompt {i+1}:
-```python
-{sample['text']}
-```
+    template += textwrap.dedent(
+        """
+        # Now, do it for the following task.
 
-## Test Case {i+1}:
-```python
-{test_cases}
-```
+        ## Prompt:
+        ```python
+        {prompt}
+        ```
 
-## Completion {i+1}:
-```python
-{sample['code']}
-```"""
+        ## Test Case:
+        ```python
+        {test_list_str}
+        ```
 
-    template += """
-# Now, do it for the following task.
-
-## Prompt:
-```python
-{prompt}
-```
-
-## Test Case:
-```python
-{test_list_str}
-```
-
-## Completion:
-"""
+        ## Completion:
+        """
+    )
 
     dataset = hf_dataset(
         "google-research-datasets/mbpp",
@@ -153,12 +101,93 @@ def mbpp(
         split="test",
     )
 
+    dataset = dataset.filter(lambda x: x.id in [11, 14])
+
     return Task(
         dataset=dataset,
+        epochs=Epochs(NUM_EPOCHS, ["mean", "pass_at_1", "pass_at_2", "pass_at_5"]),
         plan=[
             prompt_template(template),
             generate(),
         ],
-        scorer=code_acceptance(),
-        config=GenerateConfig(temperature=0.0),
+        scorer=verify(),
+        config=GenerateConfig(temperature=temperature),
+        sandbox="docker",
+    )
+
+
+@scorer(metrics=[mean(), std()])
+def verify() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        # It is assumed that generated output is of the form:
+        # ```python
+        # [code output]
+        # ```
+        raw_generated_code = state.output.completion
+        generated_code = find_code(raw_generated_code)
+
+        code = generated_code
+
+        # Append assert() statements to check for correctness.
+        for test_case in target.target:
+            # Specify the test case if the assertion fails, for inspection.
+            code += f"{test_case}, {repr(test_case[len('assert '):])}\n"
+
+        explanation = ""
+        explanation += "The following code was executed:\n\n```python\n"
+        explanation += code
+        explanation += "\n```\n"
+
+        try:
+            result = await sandbox().exec(
+                cmd=["python", "-c", code],
+                timeout=VERIFY_TIMEOUT,
+            )
+
+            if result.success:
+                explanation += "All test cases passed.\n"
+            else:
+                explanation += "Code did not pass all test cases.\n"
+                if result.stderr:
+                    explanation += "See details below.\n"
+                    explanation += "```python\n"
+                    explanation += result.stderr + "\n"
+                    explanation += "```\n"
+        except TimeoutError:
+            result = ExecResult(False, 1, "", "Verification timed out.")
+            explanation += "Verification timed out."
+
+        return Score(
+            value=CORRECT if result.success else INCORRECT,
+            answer=raw_generated_code,
+            explanation=explanation
+        )
+
+    return score
+
+
+def find_code(completion: str) -> str:
+    """Remove Markdown formatting around generated code blocks."""
+    pattern = re.compile(r"```python\n(.*?)```", re.DOTALL)
+    matches = pattern.findall(completion)
+    extracted_answer = matches[0] if len(matches) >= 1 else completion
+
+    return extracted_answer
+
+
+def record_to_sample(record):
+    return Sample(
+        input=record["prompt"],
+        target=record["test_list"],
+        id=record["task_id"],
+        answer="Hello there\n" + record["code"],
+        metadata={
+            "prompt": record["prompt"],
+            "test_list": record["test_list"],
+            "test_list_str": "\n".join(record["test_list"]),
+            "source_file": record["source_file"],
+            "code": record["code"],
+            "test_imports": record["test_imports"],
+            "task_id": record["task_id"],
+        }
     )

@@ -14,3 +14,9 @@ The model is tasked to write Python code that will pass the assert statements in
 
 ## Evaluation
 The model is prompted to solve the problem, given its description and test cases to pass. Additionally, [few shot examples](https://github.com/google-research/google-research/tree/master/mbpp) can be included in the prompt, with prompts patterned after an [AgentCoder implementation](https://github.com/huangd1999/AgentCoder/blob/main/prompts/mbpp_prompt.txt) which topped the [leaderboard](https://paperswithcode.com/sota/code-generation-on-mbpp). 
+
+Evaluation metrics follow similar benchmarks such as HumanEval. The benchmark uses the $\text{pass}@k$ metric to measure functional correctness. In brief terms, this is the per-problem probability of at least 1 correct sample generation given $k$ generations. It is defined using the following expectation:
+
+$$ \text{pass@}k := \underset{\text{Problems}}{\mathbb{E}}\left[1-\frac{{n-c}\choose{k}}{{n}\choose{k}}\right]$$
+
+where we sample $n \geq k$ generations to reduce variance. Note that the default in this benchmark implementation is $n = 5$, and we evaluate $\text{pass}@k$ for $k \in \\{1, 2, 5\\}$.
