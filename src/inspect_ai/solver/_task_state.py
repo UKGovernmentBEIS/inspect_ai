@@ -101,6 +101,20 @@ class Choices(Sequence[Choice]):
 
         self._choices = shuffled_choices
 
+    def prompt(self, question: str, template: str) -> str:
+        """Format a prompt for these choices.
+
+        Args:
+          question (str): Question to pose.
+          template (str): Prompt template
+
+        Returns:
+          Prompt for question and choices using the provided template.
+        """
+        from ._multiple_choice import prompt
+
+        return prompt(question, self, template)
+
 
 class TaskState:
     """

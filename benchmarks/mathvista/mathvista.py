@@ -15,7 +15,6 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._pattern import match_first
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.solver._multiple_choice import prompt
 
 SINGLE_ANSWER_TEMPLATE = r"""
 Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
@@ -90,9 +89,8 @@ def mathvista_scorer():
 def mathvista_solver() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.metadata["question_type"] == "multi_choice":
-            state.user_prompt.text = prompt(
+            state.user_prompt.text = state.choices.prompt(
                 question=state.user_prompt.text,
-                choices=state.choices,
                 template=SINGLE_ANSWER_TEMPLATE,
             )
 
