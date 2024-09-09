@@ -33,6 +33,7 @@ def read_dataset(shuffle: bool=False) -> Dataset:
             input=record["prompts"],
             metadata={
                 "challenge_address": record["challenge_address"],
+                "objective_prompt": record["prompts"],
                 "solution": solution,
                 "get_flag_cmd": record["get_flag_cmd"],
             },
