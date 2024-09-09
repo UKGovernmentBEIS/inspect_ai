@@ -206,14 +206,15 @@ class RichTaskScreen(TaskScreen):
             with record_console_input():
                 yield self.live.console
 
-            # print one blank line
-            self.live.console.print("")
         finally:
             # capture recording then yield input event
             input = self.live.console.export_text(clear=False, styles=False)
             input_ansi = self.live.console.export_text(clear=True, styles=True)
             self.live.console.record = False
             transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+
+            # print one blank line
+            self.live.console.print("")
 
             # reset width
             self.live.console.width = old_width
