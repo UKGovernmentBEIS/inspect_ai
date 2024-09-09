@@ -1,9 +1,9 @@
 ## Benchmarks
 
-This directory contains evals for several benchmarks. Datasets for evals are not embedded in the repository but are rather either downloaded either directly from their source URL or via Hugging Face datasets. To use Hugging Face datasets please install the datasets package with `pip install datasets`.
+This directory contains evals for several benchmarks. Datasets for evals are not embedded in the repository but are rather downloaded either directly from their source URL or via Hugging Face datasets. To use Hugging Face datasets please install the datasets package with `pip install datasets`.
 
 | Benchmark                                                                                       | Reference                            |                                                  Code | Dataset      |
-|---------------------|-----------------|----------------:|-----------------|
+|-------------------------------------------------------------------------------------------------|--------------------------------------|------------------------------------------------------:|--------------|
 | MMLU: Measuring Massive Multitask Language Understanding                                        | <https://arxiv.org/abs/2009.03300>   |                                    [mmlu.py](mmlu.py) | Download     |
 | MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark             | <https://arxiv.org/abs/2009.03300>   |                   [mmlu_pro.py](mmlu_pro/mmlu_pro.py) | HuggingFace  |
 | MATH: Measuring Mathematical Problem Solving With the MATH Dataset                              | <https://arxiv.org/abs/2103.03874>   |          [mathematics.py](mathematics/mathematics.py) | Download     |
@@ -25,3 +25,5 @@ This directory contains evals for several benchmarks. Datasets for evals are not
 | SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles | <https://arxiv.org/pdf/1806.03822>   |             [squad.py](squad/squad.py) | Hugging Face |
 | IFEval: Instruction-Following Evaluation for Large Language Models                 | <https://arxiv.org/pdf/2311.07911> |   [ifeval.py](ifeval/ifeval.py) | Hugging Face |
 | AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models                 | <https://arxiv.org/pdf/2304.06364> |   [agieval_en.py](agieval/agieval_en.py) | Download |
+| PubMedQA: A Dataset for Biomedical Research Question Answering                                  | <https://arxiv.org/abs/1909.06146>   |                   [pubmedqa.py](pubmedqa/pubmedqa.py) | Hugging Face |
+
