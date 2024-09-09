@@ -7,13 +7,12 @@ from datasets import load_dataset
 
 dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 
-# We also create a subset of SWE-bench-verfied which:
+# We  create a subset of SWE-bench-verfied which:
 # 1) Contains all of the repositories in SWE-bench verified
 # 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not
-# The outputs of this script are cached as part of the respository, this script allows us to edit this the dataset.
 
 results_per_repo = {}
-logs_dir = Path(__file__).parent.parent / "baselines" / "swebench_verified_20240620_sweagent_claude3.5sonnet" / "logs" # To run this script, you must download local copy from https://github.com/swe-bench/experiments/tree/main/evaluation/verified/20240620_sweagent_claude3.5sonnet/
+logs_dir = Path(__file__).parent.parent / "baselines" / "swebench_verified_20240620_sweagent_claude3.5sonnet" / "logs" 
 results = []
 missing_results = []
 
