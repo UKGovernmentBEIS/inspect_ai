@@ -25,7 +25,7 @@ export const ScoreEventView = ({ id, event, style }) => {
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
-      <div>${event.score.answer}</div>
+      <div><${MarkdownDiv} markdown=${event.score.answer}/></div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Explanation</div>
       <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
