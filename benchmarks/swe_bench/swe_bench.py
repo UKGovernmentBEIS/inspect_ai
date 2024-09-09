@@ -3,7 +3,6 @@
 Carlos E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei, Ofir Press, Karthik Narasimhan
 https://arxiv.org/abs/2310.06770
 """
-
 import json
 import os
 import re
@@ -227,12 +226,12 @@ def swebench_scorer() -> Scorer:
     return scorer
 
 def swebench_baseline_scorer(path_to_baseline : str, name = str | None = None) -> Scorer:
+    """Given a path to a set of historical swe-bench trajectories in the official format ( see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating."""# Load results from the log directory
 
     baseline_name = name if name else Path(path_to_baseline).name 
 
     @scorer(metrics=[mean(), std()],name=baseline_name)
     def swebench_baseline_scorer() -> Scorer:
-        """Given a path to a set of historical swe-bench trajectories in the official format ( see https://github.com/swe-bench/experiments), returns the score of those trajectories on the subset of swe-bench you are evaluating."""# Load results from the log directory
 
         results_per_instance_id = {}
         for result in os.listdir(path_to_baseline):
