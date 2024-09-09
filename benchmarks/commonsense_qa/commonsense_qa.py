@@ -9,9 +9,8 @@ inspect eval commonsense_qa.py --limit 500
 """
 
 from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.dataset._sources.hf import hf_dataset
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
