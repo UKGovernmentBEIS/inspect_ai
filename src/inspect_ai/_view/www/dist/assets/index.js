@@ -7751,6 +7751,7 @@ const ApplicationIcons = {
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
   info: "bi bi-info-circle",
+  input: "bi bi-terminal",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
   logging: {
@@ -17742,10 +17743,16 @@ const ErrorEventView = ({ id, event, style }) => {
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
   </${EventPanel}>`;
 };
+const InputEventView = ({ id, event, style }) => {
+  return m$1`
+  <${EventPanel} id=${id} title="Input" icon=${ApplicationIcons.input} style=${style}>
+    <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style }}/>
+  </${EventPanel}>`;
+};
 class EventNode {
   /**
    * Create an EventNode.
-   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").ErrorEvent } event - This event.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent } event - This event.
    * @param {number} depth - the depth of this item
    */
   constructor(event, depth) {
@@ -18552,6 +18559,12 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         stateManager=${stateManager}
         style=${style}
         depth=${node.depth}
+      />`;
+    case "input":
+      return m$1`<${InputEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
       />`;
     case "error":
       return m$1`<${ErrorEventView}
