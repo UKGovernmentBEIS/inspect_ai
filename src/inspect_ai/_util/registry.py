@@ -84,6 +84,7 @@ def registry_tag(
             )
 
     # callables are not serializable so use their names
+    remove_keys: list[str] = []
     for param in named_params.keys():
         if is_registry_object(named_params[param]):
             named_params[param] = registry_info(named_params[param]).name
@@ -93,10 +94,18 @@ def registry_tag(
             named_params[param] = to_jsonable_python(
                 named_params[param], fallback=lambda x: getattr(x, "__name__", None)
             )
-        elif isinstance(named_params[param], int | float | str | bool | None):
+        elif isinstance(named_params[param], str | int | float | str | bool | None):
             named_params[param] = named_params[param]
         else:
-            named_params[param] = str(named_params[param])
+            param_value = to_jsonable_python(
+                named_params[param], exclude_none=True, fallback=lambda _x: None
+            )
+            if param_value is not None:
+                named_params[param] = param_value
+            else:
+                remove_keys.append(param)
+    for key in remove_keys:
+        del named_params[key]
 
     # set attribute
     setattr(o, REGISTRY_INFO, info)
