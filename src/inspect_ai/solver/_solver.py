@@ -210,6 +210,7 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
 def generate(
     tool_calls: Literal["loop", "single", "none"] = "loop",
     cache: bool | CachePolicy = False,
+    **kwargs: Unpack[GenerateConfigArgs],
 ) -> Solver:
     r"""Generate output from the model and append it to task message history.
 
@@ -226,11 +227,13 @@ def generate(
 
       cache: (bool | CachePolicy):
         Caching behaviour for generate responses (defaults to no caching).
+
+      **kwargs: Optional generation config arguments.
     """
 
     # call generate on the tasks
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        return await generate(state, tool_calls=tool_calls, cache=cache)
+        return await generate(state, tool_calls=tool_calls, cache=cache, **kwargs)
 
     # return solve
     return solve
