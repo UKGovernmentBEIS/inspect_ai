@@ -27,22 +27,6 @@ from inspect_ai.solver import multiple_choice
 DEFAULT_EPOCHS = 4
 
 
-# map records to inspect samples (note that target is always "A" in the,
-# dataset, we will shuffle the presentation of options to mitigate this)
-def record_to_sample(record):
-    return Sample(
-        input=record["Question"],
-        choices=[
-            str(record["Correct Answer"]),
-            str(record["Incorrect Answer 1"]),
-            str(record["Incorrect Answer 2"]),
-            str(record["Incorrect Answer 3"]),
-        ],
-        target="A",
-        id=record["Record ID"],
-    )
-
-
 @task
 def gpqa_diamond():
     return Task(
@@ -56,4 +40,20 @@ def gpqa_diamond():
         scorer=choice(),
         config=GenerateConfig(temperature=0.5),
         epochs=DEFAULT_EPOCHS,
+    )
+
+
+# map records to inspect samples (note that target is always "A" in the,
+# dataset, we will shuffle the presentation of options to mitigate this)
+def record_to_sample(record):
+    return Sample(
+        input=record["Question"],
+        choices=[
+            str(record["Correct Answer"]),
+            str(record["Incorrect Answer 1"]),
+            str(record["Incorrect Answer 2"]),
+            str(record["Incorrect Answer 3"]),
+        ],
+        target="A",
+        id=record["Record ID"],
     )

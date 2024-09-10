@@ -18,22 +18,6 @@ from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
 
-def record_to_sample(record):
-    # read the labels and text
-    choices = record["choices"]
-    choices = dict(zip(choices["label"], choices["text"]))
-
-    # determine the target then normalize to letter
-    answerKey = record["answerKey"]
-    target = list(choices.keys()).index(answerKey)
-    target = chr(ord("A") + int(target))
-
-    # return sample
-    return Sample(
-        input=record["question"], choices=list(choices.values()), target=target
-    )
-
-
 def arc_task(dataset_name):
     return Task(
         dataset=hf_dataset(
@@ -55,3 +39,19 @@ def arc_easy():
 @task
 def arc_challenge():
     return arc_task("ARC-Challenge")
+
+
+def record_to_sample(record):
+    # read the labels and text
+    choices = record["choices"]
+    choices = dict(zip(choices["label"], choices["text"]))
+
+    # determine the target then normalize to letter
+    answerKey = record["answerKey"]
+    target = list(choices.keys()).index(answerKey)
+    target = chr(ord("A") + int(target))
+
+    # return sample
+    return Sample(
+        input=record["question"], choices=list(choices.values()), target=target
+    )
