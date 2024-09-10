@@ -18905,6 +18905,10 @@ const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
         body > .transcript-step {
           break-inside: avoid;
         }
+        body{
+          -webkit-print-color-adjust:exact !important;
+          print-color-adjust:exact !important;
+        }
         /* Allow preformatted text and code blocks to break across pages */
         pre, code {
             white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
