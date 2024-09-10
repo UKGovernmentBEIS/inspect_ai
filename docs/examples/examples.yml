@@ -26,7 +26,7 @@
   arxiv: https://arxiv.org/abs/2110.14168
   cite: cobbe2021trainingverifierssolvemath
   group: Math
-  contributors: ["aisi-inspect"]
+  contributors: ["jjallaire"]
 
 - title: "MathVista: Evaluating Mathematical Reasoning in Visual Contexts"
   path: benchmarks/mathvista
@@ -40,35 +40,35 @@
   arxiv: https://arxiv.org/abs/1803.05457
   cite: clark2018thinksolvedquestionanswering
   group: Reasoning
-  contributors: ["aisi-inspect"]
+  contributors: ["jjallaire"]
 
 - title: "HellaSwag: Can a Machine Really Finish Your Sentence?"
   path: benchmarks/hellawag.py
   arxiv: https://arxiv.org/abs/1905.07830
   cite: zellers2019hellaswagmachinereallyfinish
   group: Reasoning
-  contributors: ["aisi-inspect"]
+  contributors: ["jjallaire"]
 
 - title: "PIQA: Physical Interaction: Question Answering"
   path: benchmarks/piqa.py
   arxiv: https://arxiv.org/abs/1911.11641
   cite: bisk2019piqareasoningphysicalcommonsense
   group: Reasoning
-  contributors: ["aisi-inspect"]
+  contributors: ["seddy-aisi"]
 
 - title: "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions"
   path: benchmarks/boolq.py
   arxiv: https://arxiv.org/abs/1905.10044
   cite: clark2019boolqexploringsurprisingdifficulty
   group: Reasoning
-  contributors: ["aisi-inspect"]
+  contributors: ["seddy-aisi"]
 
 - title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
   path: benchmarks/truthfulqa.py
   arxiv: https://arxiv.org/abs/2109.07958v2
   cite: lin2022truthfulqameasuringmodelsmimic
   group: Knowledge
-  contributors: ["aisi-inspect"]
+  contributors: ["seddy-aisi"]
 
 - title: "DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs"
   path: benchmarks/drop
@@ -124,7 +124,7 @@
   arxiv: https://arxiv.org/abs/2009.03300
   cite: hendrycks2021measuringmassivemultitasklanguage
   group: Knowledge
-  contributors: ["aisi-inspect"]
+  contributors: ["jjallaire"]
 
 - title: "MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark"
   path: benchmarks/mmlu_pro
@@ -138,14 +138,14 @@
   arxiv: https://arxiv.org/abs/2311.12022
   cite: rein2023gpqagraduatelevelgoogleproofqa
   group: Knowledge
-  contributors: ["aisi-inspect"]
+  contributors: ["jjallaire"]
 
 - title: "CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge"
   path: benchmarks/commonsense_qa
   arxiv: https://arxiv.org/abs/1811.00937
   cite: talmor2019commonsenseqaquestionansweringchallenge
   group: Knowledge
-  contributors: ["aisi-inspect"]
+  contributors: ["jjallaire"]
 
 - title: "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's"
   path: benchmarks/xstest
