@@ -22,7 +22,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI, simple_input_messages
+from .._model import ModelAPI
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
