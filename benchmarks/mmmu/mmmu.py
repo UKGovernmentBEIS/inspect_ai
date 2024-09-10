@@ -1,8 +1,7 @@
 from utils import create_content_and_answers_list, load_and_concatenate_datasets
 
 from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.dataset._dataset import MemoryDataset
+from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.model import ChatMessageUser, GenerateConfig
 from inspect_ai.scorer import choice, model_graded_fact
 from inspect_ai.solver import generate, multiple_choice, prompt_template

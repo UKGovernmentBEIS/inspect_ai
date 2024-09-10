@@ -30,7 +30,6 @@ from inspect_ai.solver import (
     multiple_choice,
     solver,
 )
-from inspect_ai.solver._util import append_system_message
 from inspect_ai.util import resource
 
 # Based on the prompt provided here:
@@ -111,7 +110,7 @@ def mmlu_pro_system_message(dataset: Dataset, fewshot: int) -> Solver:
             ),
         )
         content = resource(message)
-        append_system_message(state.messages, ChatMessageSystem(content=content))
+        state.messages.insert(0, ChatMessageSystem(content=content))
 
         return state
 
