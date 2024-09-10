@@ -251,7 +251,3 @@ def test_eval_set_s3(mock_s3) -> None:
     )
     assert success
     assert logs[0].status == "success"
-
-
-if __name__ == "__main__":
-    test_eval_set_identifiers()
