@@ -1,0 +1,20 @@
+- name: MMLU
+  description: Measuring Massive Multitask Language Understanding
+  path: mmlu.py
+  arxiv: https://arxiv.org/abs/2009.03300
+  cite: hendrycks2021measuringmassivemultitasklanguage
+- name: MMLU-Pro
+  description: A More Robust and Challenging Multi-Task Language Understanding Benchmark
+  path: mmlu_pro
+  arxiv: https://arxiv.org/abs/2406.01574
+  cite: wang2024mmluprorobustchallengingmultitask
+- name: MATH
+  description: Measuring Mathematical Problem Solving With the MATH Dataset
+  path: mathematics.py
+  arxiv: https://arxiv.org/abs/2103.03874
+  cite: hendrycks2021measuringmathematicalproblemsolving
+- name: GPQA
+  description: A Graduate-Level Google-Proof Q&A Benchmark
+  path: gpqa.py
+  arxiv: https://arxiv.org/abs/2311.12022
+  cite: rein2023gpqagraduatelevelgoogleproofqa

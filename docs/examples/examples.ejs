@@ -1,0 +1,12 @@
+```{=html}
+<ul>
+  <% for (const item of items) { %>
+    <li>
+      <a href="<%- item.path %>">
+        <%= item.name %>
+      </a><br />
+      <%= item['description'] %>
+    </li>
+    <% } %>
+</ul>
+```

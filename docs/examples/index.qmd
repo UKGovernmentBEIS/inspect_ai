@@ -1,0 +1,13 @@
+---
+page-layout: full
+listing:
+  template: examples.ejs
+  contents: examples.yml
+bibliography: examples.bib
+aliases: 
+  - /examples.html
+---
+
+# Examples {#sec-examples}
+
+
