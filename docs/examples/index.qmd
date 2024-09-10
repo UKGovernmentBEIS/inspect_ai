@@ -1,13 +1,22 @@
 ---
 page-layout: full
 listing:
+  id: examples
   template: examples.ejs
   contents: examples.yml
 bibliography: examples.bib
+css: examples.css
 aliases: 
   - /examples.html
 ---
 
 # Examples {#sec-examples}
+
+
+::: {#examples}
+:::
+
+::: {#refs}
+:::
 
 
