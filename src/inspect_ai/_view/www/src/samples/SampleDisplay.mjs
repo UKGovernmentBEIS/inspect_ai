@@ -6,7 +6,7 @@ import { MetaDataView } from "../components/MetaDataView.mjs";
 import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/Format.mjs";
-import { escapeSelector } from "../utils/Html.mjs";
+import { escapeSelector, isVscode } from "../utils/Html.mjs";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
@@ -217,13 +217,16 @@ export const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
     }
   };
 
-  const tools = [
-    html`<${ToolButton}
-      name=${html`Print`}
-      icon="${ApplicationIcons.copy}"
-      onclick="${printSample}"
-    />`,
-  ];
+  const tools = [];
+  if (!isVscode()) {
+    tools.push(
+      html`<${ToolButton}
+        name=${html`Print`}
+        icon="${ApplicationIcons.copy}"
+        onclick="${printSample}"
+      />`,
+    );
+  }
 
   return html`<${SampleSummary}
     id=${sample.id}

@@ -15054,6 +15054,12 @@ const TitleTool = ({ label, icon, enabled, onclick }) => {
 function escapeSelector(id) {
   return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
 }
+const isVscode = () => {
+  const bodyEl = document.querySelector("body");
+  return !!bodyEl.getAttributeNames().find((attr) => {
+    return attr.includes("data-vscode-");
+  });
+};
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
   if (scores.length === 1) {
@@ -18920,13 +18926,16 @@ const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
       }
     }
   };
-  const tools = [
-    m$1`<${ToolButton}
-      name=${m$1`Print`}
-      icon="${ApplicationIcons.copy}"
-      onclick="${printSample}"
-    />`
-  ];
+  const tools = [];
+  if (!isVscode()) {
+    tools.push(
+      m$1`<${ToolButton}
+        name=${m$1`Print`}
+        icon="${ApplicationIcons.copy}"
+        onclick="${printSample}"
+      />`
+    );
+  }
   return m$1`<${SampleSummary}
     id=${sample.id}
     sample=${sample}
@@ -22818,15 +22827,11 @@ function App({ api: api2, pollForLogs = true }) {
   }, [onMessage]);
   y(async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const bodyEl = document.querySelector("body");
-    const isVSCode = !!bodyEl.getAttributeNames().find((attr) => {
-      return attr.includes("data-vscode-");
-    });
     const extensionVersionEl = document.querySelector(
       'meta[name="inspect-extension:version"]'
     );
     const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
-    if (isVSCode) {
+    if (isVscode()) {
       if (!extensionVersion) {
         setCapabilities({ downloadFiles: false, webWorkers: false });
       }
