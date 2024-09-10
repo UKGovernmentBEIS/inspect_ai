@@ -1,28 +1,139 @@
-# Groups: Coding Agents Reasoning Math Q&A
-- name: MMLU
-  description: Measuring Massive Multitask Language Understanding
-  path: benchmarks/mmlu.py
-  arxiv: https://arxiv.org/abs/2009.03300
-  cite: hendrycks2021measuringmassivemultitasklanguage
-  group: Q&A
+# Groups: Coding Agents  Math Reasoning Knowledge
 
-- name: MMLU-Pro
-  description: A More Robust and Challenging Multi-Task Language Understanding Benchmark
-  path: benchmarks/mmlu_pro
-  arxiv: https://arxiv.org/abs/2406.01574
-  cite: wang2024mmluprorobustchallengingmultitask
-  group: Q&A
+- title: "HumanEval: Evaluating Large Language Models Trained on Code"
+  path: benchmarks/humaneval
+  arxiv: https://arxiv.org/abs/2107.03374
+  cite: chen2021evaluatinglargelanguagemodels
+  group: Coding
 
-- name: MATH
-  description: Measuring Mathematical Problem Solving With the MATH Dataset
-  path: benchmarks/mathematics.py
+- title: "MBPP: Mostly Basic Python Problems"
+  path: benchmarks/mbpp
+  arxiv: https://arxiv.org/abs/2108.0773
+  cite: Kub_t_2021
+  group: Coding
+
+- title: "MATH: Measuring Mathematical Problem Solving With the MATH Dataset"
+  path: benchmarks/mathematics
   arxiv: https://arxiv.org/abs/2103.03874
   cite: hendrycks2021measuringmathematicalproblemsolving
   group: Math
 
-- name: GPQA
-  description: A Graduate-Level Google-Proof Q&A Benchmark
+- title: "GSM8K: Training Verifiers to Solve Math Word Problems"
+  path: benchmarks/gsm8k.py
+  arxiv: https://arxiv.org/abs/2110.14168
+  cite: cobbe2021trainingverifierssolvemath
+  group: Math
+
+- title: "MathVista: Evaluating Mathematical Reasoning in Visual Contexts"
+  path: benchmarks/mathvista
+  arxiv: https://arxiv.org/abs/2310.02255
+  cite: lu2024mathvistaevaluatingmathematicalreasoning
+  group: Math
+
+- title: "ARC: AI2 Reasoning Challenge"
+  path: benchmarks/arc.py
+  arxiv: https://arxiv.org/abs/1803.05457
+  cite: clark2018thinksolvedquestionanswering
+  group: Reasoning
+
+- title: "HellaSwag: Can a Machine Really Finish Your Sentence?"
+  path: benchmarks/hellawag.py
+  arxiv: https://arxiv.org/abs/1905.07830
+  cite: zellers2019hellaswagmachinereallyfinish
+  group: Reasoning
+
+- title: "PIQA: Physical Interaction: Question Answering"
+  path: benchmarks/piqa.py
+  arxiv: https://arxiv.org/abs/1911.11641
+  cite: bisk2019piqareasoningphysicalcommonsense
+  group: Reasoning
+
+- title: "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions"
+  path: benchmarks/boolq.py
+  arxiv: https://arxiv.org/abs/1905.10044
+  cite: clark2019boolqexploringsurprisingdifficulty
+  group: Reasoning
+
+- title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
+  path: benchmarks/truthfulqa.py
+  arxiv: https://arxiv.org/abs/2109.07958v2
+  cite: lin2022truthfulqameasuringmodelsmimic
+  group: Knowledge
+
+- title: "DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs"
+  path: benchmarks/drop
+  arxiv: https://arxiv.org/abs/1903.00161
+  cite: dua2019dropreadingcomprehensionbenchmark
+  group: Reasoning
+
+- title: "WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale"
+  path: benchmarks/winogrande
+  arxiv: https://arxiv.org/abs/1907.10641
+  cite: sakaguchi2019winograndeadversarialwinogradschema
+  group: Reasoning
+
+- title: "RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models"
+  path: benchmarks/race-h
+  arxiv: https://arxiv.org/abs/1704.04683
+  cite: lai2017racelargescalereadingcomprehension
+  group: Reasoning
+
+- title: "MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark"
+  path: benchmarks/mmmu
+  arxiv: https://arxiv.org/abs/2311.16502
+  cite: yue2024mmmumassivemultidisciplinemultimodal
+  group: Reasoning
+
+- title: "SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles"
+  path: benchmarks/squad
+  arxiv: https://arxiv.org/abs/1606.05250
+  cite: rajpurkar2016squad100000questionsmachine
+  group: Reasoning
+
+- title: "IFEval: Instruction-Following Evaluation for Large Language Models"
+  path: benchmarks/ifeval
+  arxiv: https://arxiv.org/abs/2311.07911
+  cite: zhou2023instructionfollowingevaluationlargelanguage
+  group: Reasoning
+
+- title: "AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models"
+  path: benchmarks/agieval
+  arxiv: https://arxiv.org/abs/2304.06364
+  cite: zhong2023agievalhumancentricbenchmarkevaluating
+  group: Reasoning
+
+- title: "MMLU: Measuring Massive Multitask Language Understanding"
+  path: benchmarks/mmlu.py
+  arxiv: https://arxiv.org/abs/2009.03300
+  cite: hendrycks2021measuringmassivemultitasklanguage
+  group: Knowledge
+
+- title: "MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark"
+  path: benchmarks/mmlu_pro
+  arxiv: https://arxiv.org/abs/2406.01574
+  cite: wang2024mmluprorobustchallengingmultitask
+  group: Knowledge
+
+- title: "GPQA: A Graduate-Level Google-Proof Q&A Benchmark"
   path: benchmarks/gpqa.py
   arxiv: https://arxiv.org/abs/2311.12022
   cite: rein2023gpqagraduatelevelgoogleproofqa
-  group: Q&A
+  group: Knowledge
+
+- title: "CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge"
+  path: benchmarks/commonsense_qa
+  arxiv: https://arxiv.org/abs/1811.00937
+  cite: talmor2019commonsenseqaquestionansweringchallenge
+  group: Knowledge
+
+- title: "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's"
+  path: benchmarks/xstest
+  arxiv: https://arxiv.org/abs/2308.01263
+  cite: röttger2024xstesttestsuiteidentifying
+  group: Knowledge
+
+- title: "PubMedQA: A Dataset for Biomedical Research Question Answering"
+  path: bookmarks/pubmedqa
+  arxiv: https://arxiv.org/abs/1909.06146
+  cite: jin2019pubmedqadatasetbiomedicalresearch
+  group: Knolwedge

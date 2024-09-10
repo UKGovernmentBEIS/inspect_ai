@@ -1,7 +1,7 @@
 <% for (let i = 0; i < items.length; i++){ %>
   <% item=items[i] %>
-- [<%= item.name %>](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/<%- item.path %>)\
-<%= item['description'] %> @<%= item['cite'] %> 
+- [<%= item.title %>](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/<%- item.path %>)\
+@<%= item['cite'] %> 
 <% } %>  
 
   
