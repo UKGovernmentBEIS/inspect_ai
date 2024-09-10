@@ -279,8 +279,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         local_tmpfile.close()  # this will also delete the file
 
         if not hasattr(self, "_docker_user"):
-            uid = (await self.exec(["id", "--user"])).stdout.strip()
-            gid = (await self.exec(["id", "--group"])).stdout.strip()
+            uid = (await self.exec(["id", "-u"])).stdout.strip()
+            gid = (await self.exec(["id", "-g"])).stdout.strip()
             self._docker_user = (uid, gid)
 
         await compose_command(
@@ -376,7 +376,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 async def container_working_dir(
     service: str, project: ComposeProject, default: str = "/"
 ) -> str:
-    result = await compose_exec([service, "bash", "-c", "pwd"], project)
+    result = await compose_exec([service, "sh", "-c", "pwd"], project)
     if result.success:
         return result.stdout.strip()
     else:
