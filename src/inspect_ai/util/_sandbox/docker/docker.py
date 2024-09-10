@@ -297,16 +297,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         )
 
         res_cp = await self.exec(
-            ["cp", "--no-target-directory", "--", container_tmpfile, file]
+            ["cp", "-T", "--", container_tmpfile, file]
         )
-
-        await self.exec(["rm", container_tmpfile])
 
         if res_cp.returncode != 0:
             if "Permission denied" in res_cp.stderr:
-                error_string = f"Permission was denied. Failed to copy temporary file. Error details: {res_cp.stderr};"
+                ls_result = await self.exec(["ls", "-la", "."])
+                error_string = f"Permission was denied. Failed to copy temporary file. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
                 raise PermissionError(error_string)
-            elif "cannot overwrite directory" in res_cp.stderr:
+            elif "cannot overwrite directory" in res_cp.stderr or "is a directory" in res_cp.stderr:
                 raise IsADirectoryError(
                     f"Failed to write file: {file} because it is a directory already"
                 )
@@ -314,6 +313,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise RuntimeError(
                     f"failed to copy temporary file during write_file: {res_cp}"
                 )
+
+        await self.exec(["rm", container_tmpfile])
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
