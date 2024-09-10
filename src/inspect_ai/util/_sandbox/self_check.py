@@ -186,7 +186,7 @@ async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
     try:
         # Create a new user
         add_user_result = await sandbox_env.exec(
-            ["useradd", "-m", username], user="root"
+            ["adduser", "--disabled-password", username], user="root"
         )
         assert add_user_result.success, f"Failed to add user: {add_user_result.stderr}"
 
@@ -225,7 +225,7 @@ async def test_cwd_unspecified(sandbox_env: SandboxEnvironment) -> None:
 
 async def test_cwd_custom(sandbox_env: SandboxEnvironment) -> None:
     current_dir_contents = (await sandbox_env.exec(["ls"], cwd="/usr/bin")).stdout
-    assert "man" in current_dir_contents
+    assert "env" in current_dir_contents
 
 
 async def test_cwd_relative(sandbox_env: SandboxEnvironment) -> None:

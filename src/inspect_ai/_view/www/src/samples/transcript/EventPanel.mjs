@@ -9,6 +9,7 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  *
  * @param {Object} props - The properties passed to the component.
  * @param {string} props.id - The id of the event
+ * @param {string} props.classes - The classes for this element
  * @param {string | undefined} props.title - The name of the event
  * @param {string | undefined} props.text - Secondary text for the event
  * @param {string | undefined} props.icon - The icon of the event
@@ -21,6 +22,7 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  */
 export const EventPanel = ({
   id,
+  classes,
   title,
   text,
   icon,
@@ -169,6 +171,7 @@ export const EventPanel = ({
       borderRadius: "var(--bs-border-radius)",
       ...style,
     }}
+    class=${classes || undefined}
   >
     ${titleEl}
     <div
