@@ -7,6 +7,7 @@
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
 - `generate()` solver now accepts arbitrary generation config params.
 - Input event for recording screen input in sample transcripts.
+- Record to sample function for CSV and JSON dataset readers can now return multiple samples.
 - Added `debug_errors` option to `eval()` to raise task errors (rather than logging them) so they can be debugged.
 - Properly support metrics that return a dict or list of values
 - Improved display of prerequisite errors when running `eval()` from a script or notebook.

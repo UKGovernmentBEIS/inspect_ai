@@ -23,7 +23,7 @@ def example_dataset(
         fields in the data source to `Sample` objects. Pass `None` if the data is already
         stored in `Sample` form (i.e. object with "input" and "target" fields); Pass a
         `SampleFieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
-        handle mapping with a custom function.
+        handle mapping with a custom function that returns one or more samples.
 
 
     Returns:
