@@ -12,7 +12,7 @@ dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 # 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not
 
 results_per_repo = {}
-logs_dir = Path(__file__).parent.parent / "baselines" / "swebench_verified_20240620_sweagent_claude3.5sonnet" / "logs" 
+logs_dir = Path(__file__).parent.parent / "baselines" / "swebench_verified_20240620_sweagent_claude3.5sonnet" / "logs"
 results = []
 missing_results = []
 

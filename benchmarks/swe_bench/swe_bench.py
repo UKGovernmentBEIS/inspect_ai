@@ -119,9 +119,7 @@ def swe_bench(
 
 
 def get_setup_script(repo: str, version: str, base_commit: str) -> str:
-    """
-    Create a list of bash commands to set up the repository for testing. These are ran at the start of the sample,  clone the repository, and do some extra repository-specific installation steps over and above what is in the environment images.
-    """
+    """Create a list of bash commands to set up the repository for testing. These are ran at the start of the sample,  clone the repository, and do some extra repository-specific installation steps over and above what is in the environment images."""
     setup_script = f"""#!/bin/bash
 set -euo pipefail -x
 
@@ -131,7 +129,7 @@ git clone -o origin https://github.com/{repo} /testbed/
 chmod -R 777 /testbed/
 cd /testbed/
 git reset --hard {base_commit}
-git remote remove origin       
+git remote remove origin
 source /opt/miniconda3/bin/activate
 conda activate testbed
 echo "Current environment: $CONDA_DEFAULT_ENV"
@@ -189,7 +187,7 @@ set -x
 git checkout {base_commit} {' '.join(test_patch_files)}
 
 #Then we apply the test patch given to us by SWE-bench, setting up the test we need to run
-echo {shlex.quote(test_patch)} > /tmp/test_patch.diff 
+echo {shlex.quote(test_patch)} > /tmp/test_patch.diff
 git apply --check /tmp/test_patch.diff
 git apply /tmp/test_patch.diff
 
