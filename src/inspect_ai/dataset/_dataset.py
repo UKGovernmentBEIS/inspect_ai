@@ -195,7 +195,7 @@ class FieldSpec(BaseModel):
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
 
-RecordToSample = Callable[[DatasetRecord], Sample]
+RecordToSample = Callable[[DatasetRecord], Sample | list[Sample]]
 r"""Callable that maps raw dictionary record to a Sample."""
 
 

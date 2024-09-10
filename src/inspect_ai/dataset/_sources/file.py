@@ -31,7 +31,7 @@ def file_dataset(
             fields in the data source to Sample objects. Pass `None` if the data is already
             stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
             `SampleFieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
-            handle mapping with a custom function.
+            handle mapping with a custom function that returns one or more samples.
         dialect (str): CSV dialect ("unix" or "excel", defaults to "unix"). Only
             applies to reading CSV files.
         encoding (str): Text encoding for file (defaults to "utf-8").

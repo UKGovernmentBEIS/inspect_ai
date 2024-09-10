@@ -14,7 +14,7 @@ from .._dataset import (
     MemoryDataset,
     RecordToSample,
 )
-from .._util import record_to_sample_fn
+from .._util import data_to_samples, record_to_sample_fn
 from .util import resolve_sample_files
 
 
@@ -43,7 +43,7 @@ def json_dataset(
         fields in the data source to `Sample` objects. Pass `None` if the data is already
         stored in `Sample` form (i.e. object with "input" and "target" fields); Pass a
         `SampleFieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
-        handle mapping with a custom function.
+        handle mapping with a custom function that returns one or more samples.
       shuffle (bool): Randomly shuffle the dataset order.
       seed: (int | None): Seed used for random shuffle.
       limit (int | None): Limit the number of records to read.
@@ -71,7 +71,7 @@ def json_dataset(
     with file(json_file, "r", encoding=encoding, fs_options=fs_options) as f:
         name = name if name else Path(json_file).stem
         dataset = MemoryDataset(
-            samples=[data_to_sample(data) for data in dataset_reader(f)],
+            samples=data_to_samples(dataset_reader(f), data_to_sample),
             name=name,
             location=json_file,
         )

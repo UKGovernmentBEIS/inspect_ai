@@ -55,7 +55,17 @@ def test_dataset_fields_fn(type: Type[T_ds], file: str) -> None:
         dataset_path(file),
         sample_fields=data_to_sample,
     )
+    assert len(dataset) == 1
     assert_sample(dataset[0])
+
+
+@pytest.mark.parametrize("type,file", dataset_params)
+def test_dataset_multiple_samples_fn(type: Type[T_ds], file: str):
+    dataset: Dataset = type.__call__(
+        dataset_path(file),
+        sample_fields=data_to_sample_multiple,
+    )
+    assert len(dataset) == 2
 
 
 # test reading metadata field
@@ -98,6 +108,10 @@ def data_to_sample(data: dict) -> Sample:
         target=str(data.get("label")),
         metadata={"extra": data.get("extra")},
     )
+
+
+def data_to_sample_multiple(data: dict) -> list[Sample]:
+    return [data_to_sample(data), data_to_sample(data)]
 
 
 def assert_sample(sample: Sample) -> None:
