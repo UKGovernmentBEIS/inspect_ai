@@ -5,135 +5,158 @@
   arxiv: https://arxiv.org/abs/2107.03374
   cite: chen2021evaluatinglargelanguagemodels
   group: Coding
+  contributors: ["adil-a"]
 
 - title: "MBPP: Mostly Basic Python Problems"
   path: benchmarks/mbpp
   arxiv: https://arxiv.org/abs/2108.0773
   cite: Kub_t_2021
   group: Coding
+  contributors: ["jddantes"]
 
 - title: "MATH: Measuring Mathematical Problem Solving With the MATH Dataset"
   path: benchmarks/mathematics
   arxiv: https://arxiv.org/abs/2103.03874
   cite: hendrycks2021measuringmathematicalproblemsolving
   group: Math
+  contributors: ["xeon27"]
 
 - title: "GSM8K: Training Verifiers to Solve Math Word Problems"
   path: benchmarks/gsm8k.py
   arxiv: https://arxiv.org/abs/2110.14168
   cite: cobbe2021trainingverifierssolvemath
   group: Math
+  contributors: ["aisi-inspect"]
 
 - title: "MathVista: Evaluating Mathematical Reasoning in Visual Contexts"
   path: benchmarks/mathvista
   arxiv: https://arxiv.org/abs/2310.02255
   cite: lu2024mathvistaevaluatingmathematicalreasoning
   group: Math
+  contributors: ["ShivMunagala"]
 
 - title: "ARC: AI2 Reasoning Challenge"
   path: benchmarks/arc.py
   arxiv: https://arxiv.org/abs/1803.05457
   cite: clark2018thinksolvedquestionanswering
   group: Reasoning
+  contributors: ["aisi-inspect"]
 
 - title: "HellaSwag: Can a Machine Really Finish Your Sentence?"
   path: benchmarks/hellawag.py
   arxiv: https://arxiv.org/abs/1905.07830
   cite: zellers2019hellaswagmachinereallyfinish
   group: Reasoning
+  contributors: ["aisi-inspect"]
 
 - title: "PIQA: Physical Interaction: Question Answering"
   path: benchmarks/piqa.py
   arxiv: https://arxiv.org/abs/1911.11641
   cite: bisk2019piqareasoningphysicalcommonsense
   group: Reasoning
+  contributors: ["aisi-inspect"]
 
 - title: "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions"
   path: benchmarks/boolq.py
   arxiv: https://arxiv.org/abs/1905.10044
   cite: clark2019boolqexploringsurprisingdifficulty
   group: Reasoning
+  contributors: ["aisi-inspect"]
 
 - title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
   path: benchmarks/truthfulqa.py
   arxiv: https://arxiv.org/abs/2109.07958v2
   cite: lin2022truthfulqameasuringmodelsmimic
   group: Knowledge
+  contributors: ["aisi-inspect"]
 
 - title: "DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs"
   path: benchmarks/drop
   arxiv: https://arxiv.org/abs/1903.00161
   cite: dua2019dropreadingcomprehensionbenchmark
   group: Reasoning
+  contributors: ["xeon27"]
 
 - title: "WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale"
   path: benchmarks/winogrande
   arxiv: https://arxiv.org/abs/1907.10641
   cite: sakaguchi2019winograndeadversarialwinogradschema
   group: Reasoning
+  contributors: ["xeon27"]
 
 - title: "RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models"
   path: benchmarks/race-h
   arxiv: https://arxiv.org/abs/1704.04683
   cite: lai2017racelargescalereadingcomprehension
   group: Reasoning
+  contributors: ["mdrpanwar"]
 
 - title: "MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark"
   path: benchmarks/mmmu
   arxiv: https://arxiv.org/abs/2311.16502
   cite: yue2024mmmumassivemultidisciplinemultimodal
   group: Reasoning
+  contributors: ["shaheenahmedc"]
 
 - title: "SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles"
   path: benchmarks/squad
   arxiv: https://arxiv.org/abs/1606.05250
   cite: rajpurkar2016squad100000questionsmachine
   group: Reasoning
+  contributors: ["tknasir"]
 
 - title: "IFEval: Instruction-Following Evaluation for Large Language Models"
   path: benchmarks/ifeval
   arxiv: https://arxiv.org/abs/2311.07911
   cite: zhou2023instructionfollowingevaluationlargelanguage
   group: Reasoning
+  contributors: ["adil-a"]
 
 - title: "AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models"
   path: benchmarks/agieval
   arxiv: https://arxiv.org/abs/2304.06364
   cite: zhong2023agievalhumancentricbenchmarkevaluating
   group: Reasoning
+  contributors: ["bouromain"]
 
 - title: "MMLU: Measuring Massive Multitask Language Understanding"
   path: benchmarks/mmlu.py
   arxiv: https://arxiv.org/abs/2009.03300
   cite: hendrycks2021measuringmassivemultitasklanguage
   group: Knowledge
+  contributors: ["aisi-inspect"]
 
 - title: "MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark"
   path: benchmarks/mmlu_pro
   arxiv: https://arxiv.org/abs/2406.01574
   cite: wang2024mmluprorobustchallengingmultitask
   group: Knowledge
+  contributors: ["xeon27"]
 
 - title: "GPQA: A Graduate-Level Google-Proof Q&A Benchmark"
   path: benchmarks/gpqa.py
   arxiv: https://arxiv.org/abs/2311.12022
   cite: rein2023gpqagraduatelevelgoogleproofqa
   group: Knowledge
+  contributors: ["aisi-inspect"]
 
 - title: "CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge"
   path: benchmarks/commonsense_qa
   arxiv: https://arxiv.org/abs/1811.00937
   cite: talmor2019commonsenseqaquestionansweringchallenge
   group: Knowledge
+  contributors: ["aisi-inspect"]
 
 - title: "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's"
   path: benchmarks/xstest
   arxiv: https://arxiv.org/abs/2308.01263
   cite: röttger2024xstesttestsuiteidentifying
   group: Knowledge
+  contributors: ["NelsonG-C"]
 
 - title: "PubMedQA: A Dataset for Biomedical Research Question Answering"
   path: bookmarks/pubmedqa
   arxiv: https://arxiv.org/abs/1909.06146
   cite: jin2019pubmedqadatasetbiomedicalresearch
   group: Knolwedge
+  contributors: ["MattFisher"]
