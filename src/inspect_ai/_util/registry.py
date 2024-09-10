@@ -8,6 +8,8 @@ from pydantic_core import to_jsonable_python
 
 from .constants import PKG_NAME
 
+obj_type = type
+
 RegistryType = Literal[
     "modelapi",
     "task",
@@ -84,7 +86,6 @@ def registry_tag(
             )
 
     # callables are not serializable so use their names
-    remove_keys: list[str] = []
     for param in named_params.keys():
         if is_registry_object(named_params[param]):
             named_params[param] = registry_info(named_params[param]).name
@@ -103,9 +104,12 @@ def registry_tag(
             if param_value is not None:
                 named_params[param] = param_value
             else:
-                remove_keys.append(param)
-    for key in remove_keys:
-        del named_params[key]
+                named_params[param] = (
+                    getattr(named_params[param], "name", None)
+                    or getattr(named_params[param], "__name__", None)
+                    or getattr(obj_type(named_params[param]), "__name__", None)
+                    or "<unknown>"
+                )
 
     # set attribute
     setattr(o, REGISTRY_INFO, info)
