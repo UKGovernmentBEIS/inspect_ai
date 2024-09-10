@@ -40,6 +40,7 @@ async def test_self_check_docker_custom_nonroot(request) -> None:
 
     return await check_results_of_self_check(task_name, envs_dict)
 
+
 @skip_if_no_docker
 @pytest.mark.slow
 async def test_self_check_docker_custom_nonroot_alpine(request) -> None:
@@ -55,7 +56,9 @@ async def test_self_check_docker_custom_nonroot_alpine(request) -> None:
 
     return await check_results_of_self_check(
         # alpine busybox is happy to overwrite a readonly file with cp
-        task_name, envs_dict, ["test_write_file_without_permissions"]
+        task_name,
+        envs_dict,
+        ["test_write_file_without_permissions"],
     )
 
 
