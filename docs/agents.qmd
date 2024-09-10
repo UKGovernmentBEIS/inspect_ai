@@ -98,6 +98,9 @@ There are several options available for customising the behaviour of the basic a
 
 : {tbl-colwidths=\[23,20,50\]}
 
+For multiple attempts, submissions are evaluated using the task's main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. "C" becomes 1.0) using the standard `value_to_float()` function. Provide an alternate conversion scheme as required via `score_value`.
+
+
 ## Custom Scaffold {#sec-custom-scaffolding}
 
 The basic agent demonstrated above will work well for some tasks, but in other cases you may need to provide more custom logic. For example, you might want to:
