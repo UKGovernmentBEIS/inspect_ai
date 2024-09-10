@@ -17,7 +17,7 @@ inspect eval benchmarks/mbpp/mbpp.py -T temperature=0.0
 import re
 import textwrap
 
-from datasets import load_dataset
+from datasets import load_dataset  # type: ignore
 
 from inspect_ai import Epochs, Task, task
 from inspect_ai.dataset import Sample, hf_dataset

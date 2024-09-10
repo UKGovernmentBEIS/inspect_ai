@@ -13,7 +13,7 @@ from .._dataset import (
     MemoryDataset,
     RecordToSample,
 )
-from .._util import record_to_sample_fn
+from .._util import data_to_samples, record_to_sample_fn
 
 
 def csv_dataset(
@@ -37,7 +37,7 @@ def csv_dataset(
             fields in the data source to Sample objects. Pass `None` if the data is already
             stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
             `SampleFieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
-            handle mapping with a custom function.
+            handle mapping with a custom function that returns one or more samples.
         shuffle (bool): Randomly shuffle the dataset order.
         seed: (int | None): Seed used for random shuffle.
         limit (int | None): Limit the number of records to read.
@@ -65,7 +65,7 @@ def csv_dataset(
         ]
         name = name if name else Path(csv_file).stem
         dataset = MemoryDataset(
-            samples=[data_to_sample(data) for data in valid_data],
+            samples=data_to_samples(valid_data, data_to_sample),
             name=name,
             location=csv_file,
         )

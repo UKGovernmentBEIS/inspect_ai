@@ -1,5 +1,5 @@
 import json
-from typing import Any, cast
+from typing import Any, Iterable, cast
 
 from inspect_ai.model import (
     ChatMessage,
@@ -59,12 +59,26 @@ def record_to_sample_fn(
                 setup=read_setup(record.get(sample_fields.setup)),
             )
 
+        return record_to_sample
+
     else:
+        return sample_fields
 
-        def record_to_sample(record: DatasetRecord) -> Sample:
-            return sample_fields(record)
 
-    return record_to_sample
+def data_to_samples(
+    data: Iterable[DatasetRecord], data_to_sample: RecordToSample
+) -> list[Sample]:
+    samples: list[Sample] = []
+    for record in data:
+        samples.extend(as_sample_list(data_to_sample(record)))
+    return samples
+
+
+def as_sample_list(samples: Sample | list[Sample]) -> list[Sample]:
+    if isinstance(samples, list):
+        return samples
+    else:
+        return [samples]
 
 
 def read_input(input: Any | None) -> str | list[ChatMessage]:

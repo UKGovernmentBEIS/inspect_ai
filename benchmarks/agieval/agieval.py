@@ -16,7 +16,6 @@ from inspect_ai.scorer import (
     stderr,
 )
 from inspect_ai.solver import (
-    Choices,
     TaskState,
     generate,
     multiple_choice,
@@ -184,14 +183,14 @@ def fewshot_to_str(fewshot_samples: Dataset) -> str:
         "\n\nHere are the answers for the questions in exams.\n\n"
         + "".join(
             [
-                f"\n\nPROBLEM:\n\n{s.input}\n\n{choices_to_str(s.choices) if s.choices else ""}\n\nANSWER: {s.target}"
+                f'\n\nPROBLEM:\n\n{s.input}\n\n{choices_to_str(s.choices) if s.choices else ""}\n\nANSWER: {s.target}'
                 for s in fewshot_samples
             ]
         )
     )
 
 
-def choices_to_str(choices: Choices) -> str:
+def choices_to_str(choices: list[str]) -> str:
     """Generate formatted strings from choices"""
     return "".join(
         [f"{prefix} {choice}\n\n" for prefix, choice in zip(CHOICE_PREFIX, choices)]
