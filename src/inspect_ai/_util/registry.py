@@ -98,18 +98,12 @@ def registry_tag(
         elif isinstance(named_params[param], str | int | float | str | bool | None):
             named_params[param] = named_params[param]
         else:
-            param_value = to_jsonable_python(
-                named_params[param], exclude_none=True, fallback=lambda _x: None
+            named_params[param] = (
+                getattr(named_params[param], "name", None)
+                or getattr(named_params[param], "__name__", None)
+                or getattr(obj_type(named_params[param]), "__name__", None)
+                or "<unknown>"
             )
-            if param_value is not None:
-                named_params[param] = param_value
-            else:
-                named_params[param] = (
-                    getattr(named_params[param], "name", None)
-                    or getattr(named_params[param], "__name__", None)
-                    or getattr(obj_type(named_params[param]), "__name__", None)
-                    or "<unknown>"
-                )
 
     # set attribute
     setattr(o, REGISTRY_INFO, info)
