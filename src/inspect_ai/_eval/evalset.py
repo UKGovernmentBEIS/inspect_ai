@@ -1,8 +1,10 @@
+import hashlib
 import logging
 from copy import deepcopy
 from typing import Any, Callable, NamedTuple, Set, cast
 
 import rich
+from pydantic_core import to_json
 from rich.status import Status
 from tenacity import (
     RetryCallState,
@@ -44,7 +46,7 @@ def eval_set(
     tasks: Tasks,
     log_dir: str,
     retry_attempts: int | None = None,
-    retry_wait: int | None = None,
+    retry_wait: float | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
     model: str | Model | list[str] | list[Model] | None = None,
@@ -78,7 +80,7 @@ def eval_set(
            (required to ensure that a unique storage scope is assigned for the set).
         retry_attempts: (int | None): Maximum number of retry attempts before giving up
           (defaults to 10).
-        retry_wait (int | None): Time to wait between attempts, increased exponentially.
+        retry_wait (float | None): Time to wait between attempts, increased exponentially.
           (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
           per-retry will in no case by longer than 1 hour.
         retry_connections (float | None): Reduce max_connections at this rate with each retry
@@ -488,7 +490,7 @@ def validate_eval_set_prerequisites(
         identifer = task_identifer(task)
         if identifer in task_identifiers:
             raise PrerequisiteError(
-                f"[bold]ERROR[/bold]: Tasks in an eval_set must have distinct names (found duplicate name '{task_identifer_without_model(identifer)}')"
+                f"[bold]ERROR[/bold]: The task '{task.task.name}' is not distinct.\n\nTasks in an eval_set must have distinct names OR use the @task decorator and have distinct combinations of name and task args. Plans passed to tasks should also use the @plan decorator."
             )
         else:
             task_identifiers.add(identifer)
@@ -508,16 +510,23 @@ def task_identifer(task: ResolvedTask | EvalLog) -> str:
     if isinstance(task, ResolvedTask):
         task_file = task.task_file or ""
         task_name = task.task.name
+        task_args = task.task_args
         model = str(task.model)
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
+        task_args = task.eval.task_args
         model = task.eval.model
 
+    # hash for task args
+    task_args_hash = hashlib.sha256(
+        to_json(task_args, exclude_none=True, fallback=lambda _x: None)
+    ).hexdigest()
+
     if task_file:
-        return f"{task_file}@{task_name}/{model}"
+        return f"{task_file}@{task_name}#{task_args_hash}/{model}"
     else:
-        return f"{task_name}/{model}"
+        return f"{task_name}#{task_args_hash}/{model}"
 
 
 def task_identifer_without_model(identifier: str) -> str:
