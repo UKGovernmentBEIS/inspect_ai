@@ -3,7 +3,6 @@
 Carlos E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei, Ofir Press, Karthik Narasimhan
 https://arxiv.org/abs/2310.06770
 """
-
 import json
 import os
 import re
@@ -38,6 +37,8 @@ from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
 from inspect_ai.solver import basic_agent
 
+from textwrap import dedent
+
 INPUT_PROMPT = "Please solve the following issue:\n\n{issue_text}"
 COMPOSE_FILE_DIR = Path(__file__).parent / "resources/compose_files/"
 os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)
@@ -49,7 +50,7 @@ DEFAULT_PLAN = basic_agent(
     tools=[bash(timeout=180)],
 )
 
-DEFAULT_MAX_MESSAGES = 50
+DEFAULT_MAX_MESSAGES = 30
 
 
 @task
@@ -118,24 +119,27 @@ def swe_bench(
 
 def get_setup_script(repo: str, version: str, base_commit: str) -> str:
     """Create a list of bash commands to set up the repository for testing. These are ran at the start of the sample,  clone the repository, and do some extra repository-specific installation steps over and above what is in the environment images."""
-    setup_script = f"""#!/bin/bash
-set -euo pipefail -x
 
-# We clone the repository and set the permissions so the non-root user can run tests
-rm -rf /testbed/*
-git clone -o origin https://github.com/{repo} /testbed/
-chmod -R 777 /testbed/
-cd /testbed/
-git reset --hard {base_commit}
-git remote remove origin
-source /opt/miniconda3/bin/activate
-conda activate testbed
-echo "Current environment: $CONDA_DEFAULT_ENV"
+    setup_script = dedent(f"""
+        #!/bin/bash
+        set -euo pipefail -x
 
-# We then do any repo-specific install scripts
-{MAP_REPO_TO_INSTALL.get(repo,"")}
-{'\n'.join(MAP_REPO_VERSION_TO_SPECS[repo][version].get('pre_install',[]))}
-{MAP_REPO_VERSION_TO_SPECS[repo][version].get('install','')}"""
+        # We clone the repository and set the permissions so the non-root user can run tests
+        rm -rf /testbed/*
+        git clone -o origin https://github.com/{repo} /testbed/
+        chmod -R 777 /testbed/
+        cd /testbed/
+        git reset --hard {base_commit}
+        git remote remove origin
+        source /opt/miniconda3/bin/activate
+        conda activate testbed
+        echo "Current environment: $CONDA_DEFAULT_ENV"
+
+        # We then do any repo-specific install scripts
+        {MAP_REPO_TO_INSTALL.get(repo,"")}
+        {'\n'.join(MAP_REPO_VERSION_TO_SPECS[repo][version].get('pre_install',[]))}
+        {MAP_REPO_VERSION_TO_SPECS[repo][version].get('install','')}
+    """)
 
     return setup_script
 
@@ -161,37 +165,39 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
     test_files = get_test_directives({"repo": repo, "test_patch": test_patch})  # type: ignore
 
     # Reset test files to the state they should be in before the patch.
-    eval_script = f"""#!/bin/bash
-set -uo pipefail -x
+    eval_script = dedent(f"""
+        #!/bin/bash
+        set -uo pipefail -x
 
-#We switch to the repository directory and activate the environment needed to run the tests
-cd {repo_directory}
-set +x
-source /opt/miniconda3/bin/activate
-conda activate {conda_env}
-set -x
+        #We switch to the repository directory and activate the environment needed to run the tests
+        cd {repo_directory}
+        set +x
+        source /opt/miniconda3/bin/activate
+        conda activate {conda_env}
+        set -x
 
-#We run all of the repo-specific setup commands (If any exist)
-{"\n".join(repo_specific_setup_command)}
+        #We run all of the repo-specific setup commands (If any exist)
+        {"\n".join(repo_specific_setup_command)}
 
-#We make sure we're back in the correct cwd and environment, in case repo setup caused issues.
-cd {repo_directory}
-set +x
-source /opt/miniconda3/bin/activate
-conda activate {conda_env}
-set -x
+        #We make sure we're back in the correct cwd and environment, in case repo setup caused issues.
+        cd {repo_directory}
+        set +x
+        source /opt/miniconda3/bin/activate
+        conda activate {conda_env}
+        set -x
 
-#First we reset all of the files which out test patch touches
-git checkout {base_commit} {' '.join(test_patch_files)}
+        #First we reset all of the files which out test patch touches
+        git checkout {base_commit} {' '.join(test_patch_files)}
 
-#Then we apply the test patch given to us by SWE-bench, setting up the test we need to run
-echo {shlex.quote(test_patch)} > /tmp/test_patch.diff
-git apply --check /tmp/test_patch.diff
-git apply /tmp/test_patch.diff
+        #Then we apply the test patch given to us by SWE-bench, setting up the test we need to run
+        echo {shlex.quote(test_patch)} > /tmp/test_patch.diff
+        git apply --check /tmp/test_patch.diff
+        git apply /tmp/test_patch.diff
 
-#Then we run all the tests in the repository.
-set +x
-{test_command} {" ".join(test_files)} || true"""
+        #Then we run all the tests in the repository.
+        set +x
+        {test_command} {" ".join(test_files)} || true
+    """)
 
     return eval_script
 
@@ -288,24 +294,7 @@ def swebench_baseline_scorer(path_to_baseline: str, name: str | None = None) -> 
     """Given a path to a set of SWE-bench trajectories in the official format (see https://github.com/swe-bench/experiments), returns the performance of those trajectories on the subset of SWE-bench you are evaluating on. This lets you compare to baselines on arbitrary subsets of SWE-bench."""
     baseline_name = name if name else Path(path_to_baseline).name
 
-    path_to_logs = os.path.join(path_to_baseline, "logs")
-
-    results_per_instance_id = {}
-    for result in os.listdir(path_to_logs):
-        results_path = os.path.join(path_to_logs, result, "report.json")
-        patch_path = os.path.join(path_to_logs, result, "patch.diff")
-
-        if os.path.exists(results_path) and os.path.exists(patch_path):
-            # Sometimes there is no result saved, at which point we ignore that entry
-            with open(results_path, "r") as f:
-                result_dict = json.load(f)
-                instance_id, raw_results = next(iter(result_dict.items()))
-
-                with open(patch_path, "r") as f:
-                    results_per_instance_id[instance_id] = {
-                        "resolved": raw_results["resolved"],
-                        "patch": f.read(),
-                    }
+    results_per_instance_id = get_baseline_results(path_to_baseline)
 
     @scorer(metrics=[mean(), std()], name=baseline_name)
     def _swebench_baseline_scorer() -> Scorer:
@@ -325,7 +314,29 @@ def swebench_baseline_scorer(path_to_baseline: str, name: str | None = None) -> 
 
     return _swebench_baseline_scorer()
 
+def get_baseline_results(path_to_baseline: str) -> dict[str,dict[str,str]]:
 
+    path_to_logs = os.path.join(path_to_baseline, "logs")
+
+    results_per_instance_id = {}
+    for result in os.listdir(path_to_logs):
+        results_path = os.path.join(path_to_logs, result, "report.json")
+        patch_path = os.path.join(path_to_logs, result, "patch.diff")
+
+        if os.path.exists(results_path) and os.path.exists(patch_path):
+            # Sometimes there is no result saved, at which point we ignore that entry
+            with open(results_path, "r") as f:
+                result_dict = json.load(f)
+                instance_id, raw_results = next(iter(result_dict.items()))
+
+                with open(patch_path, "r") as f:
+                    results_per_instance_id[instance_id] = {
+                        "resolved": raw_results["resolved"],
+                        "patch": f.read(),
+                    }
+    
+    return results_per_instance_id
+                
 def get_compose_file(environment_commit_id: Sample, instance_id: str) -> str:
     if not os.path.exists(SAMPLE_TO_IMAGE_PATH):
         raise ValueError(

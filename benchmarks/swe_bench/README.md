@@ -43,8 +43,8 @@ Submissions to [the official SWE-bench leaderboard](https://www.swebench.com/) o
 from inspect_ai import eval
 from swe_bench import swe_bench, swe_bench_scorer, swebench_baseline_scorer
 
-# Select only the subset where the patch is more than 20 lines long
-swebench_verified_task_subset = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="train",plan=simple_bash_plan, filter=lambda x: len(x["patch"].split("\n")) > 20)
+# Select only the subset where the patch is more than 20 lines long. Select the default plan.
+swebench_verified_short_descriptions = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="train",plan=simple_bash_plan, filter=lambda x: len(x["patch"].split("\n")) > 20)
 
 
 # Report the Claude 3.5 Sonnet + SweAgent baseline, as well as the performance of the agent.
@@ -53,7 +53,7 @@ swebench_verified_task_subset.scorer = [swebench_baseline_scorer("./resources/ba
 eval(swebench_verified_task_subset)
 ```
 
-This will lead to both numbers being reported in the final output:
+This will lead to both numbers being reported in the final output, allowing you to compare baselines:
 
 ![SWE-bench baseline comparison](./resources/docs/swebench_comparison.jpeg)
 ```
